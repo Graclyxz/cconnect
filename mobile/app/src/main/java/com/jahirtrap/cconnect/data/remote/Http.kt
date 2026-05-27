@@ -15,7 +15,8 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 
-// Each verb returns the envelope's `data` on success, or null on failure.
+// Each verb returns the envelope's `data` on success (an empty object when the
+// response carries no data), or null on failure.
 object Http {
 
     suspend fun get(path: String, query: Map<String, String> = emptyMap()): JsonElement? =
@@ -43,7 +44,7 @@ object Http {
             client.newCall(builder.build()).execute().use { resp ->
                 val text = resp.body?.string() ?: return@use null
                 val obj = json.parseToJsonElement(text).jsonObject
-                if (obj["success"]?.jsonPrimitive?.booleanOrNull == true) obj["data"] else null
+                if (obj["success"]?.jsonPrimitive?.booleanOrNull == true) obj["data"] ?: JsonObject(emptyMap()) else null
             }
         }.getOrNull()
     }

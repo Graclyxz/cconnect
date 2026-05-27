@@ -1,7 +1,8 @@
 """Standardized API response helpers."""
 
 from http import HTTPStatus
-from typing import Any, Optional
+from math import ceil
+from typing import Any, Iterable, Optional
 
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -31,3 +32,24 @@ def api_response(
     if data is not None:
         body["data"] = data
     return JSONResponse(content=jsonable_encoder(body), status_code=status)
+
+
+def paginated_response(
+    items: Iterable[Any],
+    total: int,
+    page: int,
+    per_page: int,
+    message: Optional[str] = None,
+) -> JSONResponse:
+    """Wrap a paginated list in the standard envelope. Data payload shape:
+    {items, total, page, per_page, total_pages}."""
+    return api_response(
+        data={
+            "items": list(items),
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "total_pages": ceil(total / per_page) if total and per_page else 0,
+        },
+        message=message,
+    )

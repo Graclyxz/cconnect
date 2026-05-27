@@ -9,9 +9,12 @@ data class ProjectInfo(
 
 data class SessionInfo(
     val sessionId: String,
+    val projectKey: String?,
+    val path: String?,
     val lastActive: Double?,
     val size: Long,
     val preview: String?,
+    val title: String?,
 )
 
 data class SessionMessage(

@@ -74,7 +74,13 @@ private fun App() {
                     onBack = if (settings.isConfigured) ({ showSettings = false }) else null,
                 )
             } else {
-                ChatScreen(onOpenSettings = { showSettings = true })
+                ChatScreen(
+                    onOpenSettings = { showSettings = true },
+                    themeMode = themeMode,
+                    onThemeMode = { themeMode = it; settings.themeMode = it },
+                    language = language,
+                    onLanguage = { language = it; settings.language = it },
+                )
             }
         }
     }

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -31,11 +32,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.DrawerValue
@@ -50,6 +57,7 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -74,22 +82,46 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.R
+import com.jahirtrap.cconnect.data.ProjectInfo
+import com.jahirtrap.cconnect.data.SessionInfo
+import com.jahirtrap.cconnect.ui.ConfirmDialog
+import com.jahirtrap.cconnect.ui.LANGUAGE_TAGS
+import com.jahirtrap.cconnect.ui.RenameDialog
+import com.jahirtrap.cconnect.ui.SelectDialog
+import com.jahirtrap.cconnect.ui.THEME_MODES
+import com.jahirtrap.cconnect.ui.languageLabel
+import com.jahirtrap.cconnect.ui.themeLabel
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun ChatScreen(onOpenSettings: () -> Unit) {
+fun ChatScreen(
+    onOpenSettings: () -> Unit,
+    themeMode: String,
+    onThemeMode: (String) -> Unit,
+    language: String,
+    onLanguage: (String) -> Unit,
+) {
     val vm: ChatViewModel = viewModel()
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
+
+    var renameTarget by remember { mutableStateOf<SessionInfo?>(null) }
+    var deleteTarget by remember { mutableStateOf<SessionInfo?>(null) }
+    var showThemeDialog by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(drawerState.targetValue) {
+        if (drawerState.targetValue == DrawerValue.Open) vm.loadHistory()
+    }
 
     val isAtBottom by remember {
         derivedStateOf {
@@ -147,26 +179,57 @@ fun ChatScreen(onOpenSettings: () -> Unit) {
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet {
-                Text(stringResource(R.string.app_name), modifier = Modifier.padding(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = { vm.newSession(); scope.launch { drawerState.close() } }) {
+                        Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.new_session))
+                    }
+                }
+                ProjectSelector(
+                    projects = state.historyProjects,
+                    selected = state.historyProjectKey,
+                    onSelect = vm::selectHistoryProject,
+                )
                 HorizontalDivider()
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.new_session)) },
-                    selected = false,
-                    onClick = { vm.newSession(); scope.launch { drawerState.close() } },
-                    modifier = Modifier.padding(horizontal = 12.dp),
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.session_history)) },
-                    selected = false,
-                    onClick = {},
-                    modifier = Modifier.padding(horizontal = 12.dp),
-                )
-                NavigationDrawerItem(
-                    label = { Text(stringResource(R.string.settings)) },
-                    selected = false,
-                    onClick = { scope.launch { drawerState.close() }; onOpenSettings() },
-                    modifier = Modifier.padding(horizontal = 12.dp),
-                )
+                PullToRefreshBox(
+                    isRefreshing = state.historyLoading,
+                    onRefresh = { vm.loadHistory() },
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                ) {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(state.historySessions, key = { it.sessionId }) { s ->
+                            ConversationRow(
+                                title = s.title ?: s.preview ?: s.sessionId.take(8),
+                                onOpen = { vm.openSession(s); scope.launch { drawerState.close() } },
+                                onRename = { renameTarget = s },
+                                onDelete = { deleteTarget = s },
+                            )
+                        }
+                    }
+                }
+                HorizontalDivider()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = { showLanguageDialog = true }) {
+                        Icon(Icons.Rounded.Language, contentDescription = stringResource(R.string.language))
+                    }
+                    IconButton(onClick = { showThemeDialog = true }) {
+                        Icon(Icons.Rounded.Palette, contentDescription = stringResource(R.string.theme))
+                    }
+                    IconButton(onClick = { scope.launch { drawerState.close() }; onOpenSettings() }) {
+                        Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.settings))
+                    }
+                }
             }
         },
     ) {
@@ -242,6 +305,41 @@ fun ChatScreen(onOpenSettings: () -> Unit) {
                 )
             }
         }
+    }
+
+    renameTarget?.let { s ->
+        RenameDialog(
+            initial = s.title ?: s.preview ?: "",
+            onConfirm = { vm.renameSession(s, it); renameTarget = null },
+            onDismiss = { renameTarget = null },
+        )
+    }
+    deleteTarget?.let { s ->
+        ConfirmDialog(
+            title = stringResource(R.string.delete_conversation),
+            text = s.title ?: s.preview ?: s.sessionId,
+            confirmLabel = stringResource(R.string.delete),
+            onConfirm = { vm.deleteSession(s); deleteTarget = null },
+            onDismiss = { deleteTarget = null },
+        )
+    }
+    if (showThemeDialog) {
+        SelectDialog(
+            title = stringResource(R.string.theme),
+            options = THEME_MODES.map { it to themeLabel(it) },
+            selected = themeMode,
+            onSelect = onThemeMode,
+            onDismiss = { showThemeDialog = false },
+        )
+    }
+    if (showLanguageDialog) {
+        SelectDialog(
+            title = stringResource(R.string.language),
+            options = LANGUAGE_TAGS.map { it to languageLabel(it) },
+            selected = language,
+            onSelect = onLanguage,
+            onDismiss = { showLanguageDialog = false },
+        )
     }
 }
 
@@ -440,5 +538,60 @@ private fun CircleActionButton(
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = contentDescription, tint = fg, modifier = Modifier.size(24.dp))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProjectSelector(projects: List<ProjectInfo>, selected: String?, onSelect: (String?) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val label = if (selected == null) stringResource(R.string.all_projects)
+    else projects.firstOrNull { it.projectKey == selected }?.let(::projectLabel) ?: selected
+    Box {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { open = true }.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Rounded.FolderOpen, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.all_projects)) }, onClick = { onSelect(null); open = false })
+            projects.forEach { p ->
+                DropdownMenuItem(text = { Text(projectLabel(p)) }, onClick = { onSelect(p.projectKey); open = false })
+            }
+        }
+    }
+}
+
+private fun projectLabel(p: ProjectInfo): String =
+    p.path?.substringAfterLast('\\')?.substringAfterLast('/')?.ifBlank { null } ?: p.path ?: p.projectKey
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ConversationRow(title: String, onOpen: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
+    var menu by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(start = 16.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(vertical = 12.dp),
+        )
+        Box {
+            IconButton(onClick = { menu = true }) {
+                Icon(Icons.Rounded.MoreVert, contentDescription = null)
+            }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(text = { Text(stringResource(R.string.rename)) }, onClick = { menu = false; onRename() })
+                DropdownMenuItem(text = { Text(stringResource(R.string.delete)) }, onClick = { menu = false; onDelete() })
+            }
+        }
     }
 }

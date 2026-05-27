@@ -32,7 +32,12 @@
     <!-- Chat -->
     <string name="new_session">New session</string>
     <string name="new_chat">New chat</string>
-    <string name="session_history">Session history (coming soon)</string>
+    <string name="all_projects">All projects</string>
+    <string name="rename">Rename</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="reload">Reload</string>
+    <string name="delete_conversation">Delete conversation?</string>
     <string name="type_message">Type a message…</string>
     <string name="send">Send</string>
     <string name="stop">Stop</string>

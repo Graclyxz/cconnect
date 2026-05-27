@@ -5,11 +5,16 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.ChatMessage
+import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.Role
 import com.jahirtrap.cconnect.data.ServerEvent
+import com.jahirtrap.cconnect.data.SessionInfo
+import com.jahirtrap.cconnect.data.SessionMessage
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
 import com.jahirtrap.cconnect.data.remote.ChatSocket
+import com.jahirtrap.cconnect.data.remote.SessionsApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,6 +34,10 @@ data class ChatUiState(
     val capabilities: Capabilities = Capabilities(),
     val sessionId: String? = null,
     val error: String? = null,
+    val historyProjects: List<ProjectInfo> = emptyList(),
+    val historySessions: List<SessionInfo> = emptyList(),
+    val historyProjectKey: String? = null,
+    val historyLoading: Boolean = false,
 )
 
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
@@ -48,6 +57,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private var nextId = 0L
     private var currentAssistantId: Long? = null
     private var currentThinkingId: Long? = null
+    private var historyJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -110,6 +120,70 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         currentThinkingId = null
         _state.update { it.copy(messages = emptyList(), sessionId = null, streaming = false) }
         startSession(resume = null)
+    }
+
+    fun loadHistory() {
+        historyJob?.cancel()
+        val key = _state.value.historyProjectKey
+        historyJob = viewModelScope.launch {
+            _state.update { it.copy(historyLoading = true) }
+            val projects = SessionsApi.projects()
+            val sessions = SessionsApi.sessions(key)
+            _state.update { it.copy(historyProjects = projects, historySessions = sessions, historyLoading = false) }
+        }
+    }
+
+    fun selectHistoryProject(projectKey: String?) {
+        _state.update { it.copy(historyProjectKey = projectKey, historySessions = emptyList()) }
+        if (projectKey != null) {
+            _state.value.historyProjects.firstOrNull { it.projectKey == projectKey }?.path?.let { settings.cwd = it }
+        }
+        loadHistory()
+    }
+
+    fun openSession(session: SessionInfo) {
+        val projectKey = session.projectKey ?: return
+        viewModelScope.launch {
+            val loaded = SessionsApi.sessionMessages(session.sessionId, projectKey)
+                .filter { it.text.isNotBlank() }
+                .mapIndexed { index, m -> ChatMessage(index.toLong(), m.toRole(), m.text) }
+            nextId = loaded.size.toLong()
+            currentAssistantId = null
+            currentThinkingId = null
+            session.path?.let { settings.cwd = it }
+            _state.update { it.copy(messages = loaded, sessionId = session.sessionId, streaming = false) }
+            startSession(resume = session.sessionId)
+        }
+    }
+
+    fun deleteSession(session: SessionInfo) {
+        val projectKey = session.projectKey ?: return
+        viewModelScope.launch {
+            if (SessionsApi.deleteSession(session.sessionId, projectKey)) {
+                _state.update {
+                    it.copy(historySessions = it.historySessions.filterNot { s -> s.sessionId == session.sessionId })
+                }
+            }
+        }
+    }
+
+    fun renameSession(session: SessionInfo, title: String) {
+        val projectKey = session.projectKey ?: return
+        val clean = title.trim()
+        if (clean.isEmpty()) return
+        viewModelScope.launch {
+            if (SessionsApi.renameSession(session.sessionId, projectKey, clean)) {
+                _state.update {
+                    it.copy(historySessions = it.historySessions.map { s -> if (s.sessionId == session.sessionId) s.copy(title = clean) else s })
+                }
+            }
+        }
+    }
+
+    private fun SessionMessage.toRole(): Role = when (role ?: type) {
+        "user" -> Role.USER
+        "assistant" -> Role.ASSISTANT
+        else -> Role.SYSTEM
     }
 
     private fun onEvent(event: ServerEvent) {

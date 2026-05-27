@@ -111,6 +111,21 @@ def _preview(path: Path, limit: int = 120) -> Optional[str]:
     return None
 
 
+def _session_meta(path: Path) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    """Single pass over a transcript: (cwd, first-user preview, custom title)."""
+    cwd = preview = title = None
+    for entry in _iter_lines(path):
+        if cwd is None and entry.get("cwd"):
+            cwd = entry.get("cwd")
+        if entry.get("type") == "custom-title" and entry.get("customTitle"):
+            title = entry.get("customTitle")
+        if preview is None and entry.get("type") == "user":
+            text = _text_from_content(entry.get("message", {}).get("content"))
+            if text:
+                preview = text[:120]
+    return cwd, preview, title
+
+
 def list_projects() -> list[dict]:
     base = _base()
     if not base.is_dir():
@@ -130,21 +145,72 @@ def list_projects() -> list[dict]:
     return projects
 
 
+def _sessions_from_files(files: list[tuple[Path, str]]) -> list[dict]:
+    files = sorted(files, key=lambda t: t[0].stat().st_mtime, reverse=True)
+    items: list[dict] = []
+    for file, project_key in files:
+        stat = file.stat()
+        cwd, preview, title = _session_meta(file)
+        items.append({
+            "session_id": file.stem,
+            "project_key": project_key,
+            "path": cwd,
+            "last_active": stat.st_mtime,
+            "size": stat.st_size,
+            "preview": preview,
+            "title": title,
+        })
+    return items
+
+
 def list_sessions(project_key: str) -> list[dict]:
     directory = _project_dir(project_key)
     if not directory.is_dir():
         return []
-    sessions = []
-    for file in directory.glob("*.jsonl"):
-        stat = file.stat()
-        sessions.append({
-            "session_id": file.stem,
-            "last_active": stat.st_mtime,
-            "size": stat.st_size,
-            "preview": _preview(file),
-        })
-    sessions.sort(key=lambda s: s["last_active"], reverse=True)
-    return sessions
+    files = [(file, project_key) for file in directory.glob("*.jsonl")]
+    return _sessions_from_files(files)
+
+
+def list_all_sessions() -> list[dict]:
+    base = _base()
+    if not base.is_dir():
+        return []
+    files = [
+        (file, directory.name)
+        for directory in base.iterdir() if directory.is_dir()
+        for file in directory.glob("*.jsonl")
+    ]
+    return _sessions_from_files(files)
+
+
+def rename_session(project_key: str, session_id: str, title: str) -> bool:
+    """Set the session's display title (the `custom-title`/`agent-name` entries the
+    CLI uses), so it shows renamed in the picker and the app history."""
+    file = _session_file(project_key, session_id)
+    if not file.is_file():
+        return False
+    safe = title.replace("\n", " ").strip()[:80]
+    out: list[str] = []
+    found = False
+    for line in file.read_text(encoding="utf-8").splitlines():
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            out.append(line)
+            continue
+        if obj.get("type") == "custom-title":
+            obj["customTitle"] = safe
+            found = True
+            out.append(json.dumps(obj, ensure_ascii=False))
+        elif obj.get("type") == "agent-name":
+            obj["agentName"] = safe
+            out.append(json.dumps(obj, ensure_ascii=False))
+        else:
+            out.append(line)
+    if not found:
+        out.append(json.dumps({"type": "custom-title", "customTitle": safe, "sessionId": session_id}, ensure_ascii=False))
+    file.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return True
 
 
 def delete_session(project_key: str, session_id: str) -> bool:
