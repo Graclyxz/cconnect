@@ -24,6 +24,9 @@ desktop.ini
 dist/
 build/
 
+# Internal AI workspace (throwaway cwd for backend AI helper actions)
+backend/internal_task/
+
 # Mobile (Android — placeholder for when the app lands)
 mobile/build/
 mobile/.gradle/

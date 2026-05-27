@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from core.config import (
+    COLORS,
     DEFAULT_EFFORT,
     DEFAULT_MODEL,
     DEFAULT_PERMISSION_MODE,
@@ -21,6 +22,7 @@ def get_capabilities():
         "permission_modes": list(permission_modes()),
         "effort_levels": ["default"] + list(effort_levels()),
         "models": MODELS,
+        "colors": COLORS,
         "defaults": {
             "permission_mode": DEFAULT_PERMISSION_MODE,
             "effort": DEFAULT_EFFORT,

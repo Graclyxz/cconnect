@@ -15,6 +15,7 @@ data class SessionInfo(
     val size: Long,
     val preview: String?,
     val title: String?,
+    val color: String?,
 )
 
 data class SessionMessage(

@@ -22,6 +22,8 @@ object CapabilitiesApi {
                 val id = o["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
                 ModelOption(id, o["label"]?.jsonPrimitive?.contentOrNull ?: id)
             } ?: fallback.models,
+            colors = data["colors"]?.jsonArray
+                ?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: fallback.colors,
         )
     }
 }

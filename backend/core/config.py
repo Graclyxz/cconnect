@@ -16,6 +16,10 @@ CLAUDE_PROJECTS_DIR = os.environ.get(
     str(Path.home() / ".claude" / "projects"),
 )
 
+# Isolated cwd for internal AI helper actions; its throwaway sessions land under a
+# separate project key so they never mix into a user's real history.
+AI_WORKDIR = os.environ.get("AI_WORKDIR", str(Path(__file__).resolve().parent.parent / "internal_task"))
+
 # Fallbacks used only if the SDK can't be introspected yet.
 _FALLBACK_PERMISSION_MODES = ("default", "acceptEdits", "plan", "dontAsk", "bypassPermissions", "auto")
 _FALLBACK_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
@@ -34,6 +38,9 @@ MODELS = [
     {"id": "haiku", "label": "Haiku 4.5"},
 ]
 DEFAULT_MODEL = os.environ.get("DEFAULT_MODEL", "opus")
+
+# The named set Claude uses for agent colors; the app maps each to a swatch.
+COLORS = ["red", "orange", "yellow", "green", "cyan", "blue", "purple", "pink"]
 
 
 def permission_modes() -> tuple[str, ...]:
@@ -62,10 +69,12 @@ AUTO_UPDATE_SDK = os.environ.get("AUTO_UPDATE_SDK", "1") not in ("0", "false", "
 __all__ = [
     "PORT",
     "CLAUDE_PROJECTS_DIR",
+    "AI_WORKDIR",
     "DEFAULT_PERMISSION_MODE",
     "DEFAULT_EFFORT",
     "DEFAULT_MODEL",
     "MODELS",
+    "COLORS",
     "permission_modes",
     "effort_levels",
     "AUTO_UPDATE_SDK",

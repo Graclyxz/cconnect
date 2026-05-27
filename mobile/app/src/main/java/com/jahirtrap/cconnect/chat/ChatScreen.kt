@@ -89,6 +89,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.SessionInfo
+import com.jahirtrap.cconnect.ui.ColorDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.LANGUAGE_TAGS
 import com.jahirtrap.cconnect.ui.RenameDialog
@@ -96,6 +97,7 @@ import com.jahirtrap.cconnect.ui.SelectDialog
 import com.jahirtrap.cconnect.ui.THEME_MODES
 import com.jahirtrap.cconnect.ui.languageLabel
 import com.jahirtrap.cconnect.ui.themeLabel
+import com.jahirtrap.cconnect.ui.theme.sessionColorOf
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
@@ -117,6 +119,7 @@ fun ChatScreen(
 
     var renameTarget by remember { mutableStateOf<SessionInfo?>(null) }
     var deleteTarget by remember { mutableStateOf<SessionInfo?>(null) }
+    var colorTarget by remember { mutableStateOf<SessionInfo?>(null) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     LaunchedEffect(drawerState.targetValue) {
@@ -209,6 +212,8 @@ fun ChatScreen(
                                 title = s.title ?: s.preview ?: s.sessionId.take(8),
                                 onOpen = { vm.openSession(s); scope.launch { drawerState.close() } },
                                 onRename = { renameTarget = s },
+                                onAutoRename = { vm.autoRenameSession(s) },
+                                onColor = { colorTarget = s },
                                 onDelete = { deleteTarget = s },
                             )
                         }
@@ -300,6 +305,7 @@ fun ChatScreen(
                 )
                 Composer(
                     streaming = state.streaming,
+                    sessionColor = state.sessionColor,
                     onSend = vm::sendPrompt,
                     onStop = vm::stop,
                 )
@@ -321,6 +327,14 @@ fun ChatScreen(
             confirmLabel = stringResource(R.string.delete),
             onConfirm = { vm.deleteSession(s); deleteTarget = null },
             onDismiss = { deleteTarget = null },
+        )
+    }
+    colorTarget?.let { s ->
+        ColorDialog(
+            colors = state.capabilities.colors,
+            selected = s.color,
+            onSelect = { vm.setSessionColor(s, it) },
+            onDismiss = { colorTarget = null },
         )
     }
     if (showThemeDialog) {
@@ -466,11 +480,13 @@ private fun SelectorChip(
 @Composable
 private fun Composer(
     streaming: Boolean,
+    sessionColor: String?,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
 ) {
     var input by remember { mutableStateOf("") }
     val shape = RoundedCornerShape(22.dp)
+    val accent = sessionColorOf(sessionColor)
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
@@ -487,7 +503,7 @@ private fun Composer(
                 Box(
                     modifier = Modifier
                         .clip(shape)
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
+                        .border(if (accent != null) 2.dp else 1.dp, accent ?: MaterialTheme.colorScheme.outlineVariant, shape)
                         .padding(horizontal = 14.dp, vertical = 9.dp),
                 ) {
                     if (input.isEmpty()) {
@@ -571,7 +587,14 @@ private fun projectLabel(p: ProjectInfo): String =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ConversationRow(title: String, onOpen: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
+private fun ConversationRow(
+    title: String,
+    onOpen: () -> Unit,
+    onRename: () -> Unit,
+    onAutoRename: () -> Unit,
+    onColor: () -> Unit,
+    onDelete: () -> Unit,
+) {
     var menu by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(start = 16.dp, end = 4.dp),
@@ -590,6 +613,8 @@ private fun ConversationRow(title: String, onOpen: () -> Unit, onRename: () -> U
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 DropdownMenuItem(text = { Text(stringResource(R.string.rename)) }, onClick = { menu = false; onRename() })
+                DropdownMenuItem(text = { Text(stringResource(R.string.auto_rename)) }, onClick = { menu = false; onAutoRename() })
+                DropdownMenuItem(text = { Text(stringResource(R.string.conversation_color)) }, onClick = { menu = false; onColor() })
                 DropdownMenuItem(text = { Text(stringResource(R.string.delete)) }, onClick = { menu = false; onDelete() })
             }
         }

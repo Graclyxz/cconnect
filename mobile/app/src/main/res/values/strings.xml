@@ -34,9 +34,14 @@
     <string name="new_chat">New chat</string>
     <string name="all_projects">All projects</string>
     <string name="rename">Rename</string>
+    <string name="auto_rename">Auto-rename</string>
+    <string name="conversation_color">Conversation color</string>
+    <string name="color_none">None</string>
     <string name="delete">Delete</string>
     <string name="cancel">Cancel</string>
     <string name="reload">Reload</string>
+    <string name="session_channel">Active session</string>
+    <string name="session_active">Session active</string>
     <string name="delete_conversation">Delete conversation?</string>
     <string name="type_message">Type a message…</string>
     <string name="send">Send</string>

@@ -6,10 +6,13 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
-from core.config import CLAUDE_PROJECTS_DIR
+from core.config import AI_WORKDIR, CLAUDE_PROJECTS_DIR
 
 _KEY_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 _SESSION_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
+# Project key for the internal AI workspace, hidden from history listings.
+_AI_PROJECT_KEY = re.sub(r"[^A-Za-z0-9]", "-", AI_WORKDIR)
 
 
 def _base() -> Path:
@@ -111,19 +114,28 @@ def _preview(path: Path, limit: int = 120) -> Optional[str]:
     return None
 
 
-def _session_meta(path: Path) -> tuple[Optional[str], Optional[str], Optional[str]]:
-    """Single pass over a transcript: (cwd, first-user preview, custom title)."""
-    cwd = preview = title = None
+def _session_meta(path: Path) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """Single pass over a transcript: (cwd, first-user preview, title, color, entrypoint).
+    Title prefers the user's `custom-title`, falling back to the CLI's `ai-title`. Color
+    is the CLI's `agent-color`."""
+    cwd = preview = title = ai_title = color = entrypoint = None
     for entry in _iter_lines(path):
+        etype = entry.get("type")
         if cwd is None and entry.get("cwd"):
             cwd = entry.get("cwd")
-        if entry.get("type") == "custom-title" and entry.get("customTitle"):
+        if entrypoint is None and entry.get("entrypoint"):
+            entrypoint = entry.get("entrypoint")
+        if etype == "custom-title" and entry.get("customTitle"):
             title = entry.get("customTitle")
-        if preview is None and entry.get("type") == "user":
+        elif etype == "ai-title" and entry.get("aiTitle"):
+            ai_title = entry.get("aiTitle")
+        elif etype == "agent-color" and entry.get("agentColor"):
+            color = entry.get("agentColor")
+        elif preview is None and etype == "user":
             text = _text_from_content(entry.get("message", {}).get("content"))
             if text:
                 preview = text[:120]
-    return cwd, preview, title
+    return cwd, preview, title or ai_title, color, entrypoint
 
 
 def list_projects() -> list[dict]:
@@ -132,7 +144,7 @@ def list_projects() -> list[dict]:
         return []
     projects = []
     for directory in base.iterdir():
-        if not directory.is_dir():
+        if not directory.is_dir() or directory.name == _AI_PROJECT_KEY:
             continue
         sessions = sorted(directory.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
         projects.append({
@@ -150,7 +162,9 @@ def _sessions_from_files(files: list[tuple[Path, str]]) -> list[dict]:
     items: list[dict] = []
     for file, project_key in files:
         stat = file.stat()
-        cwd, preview, title = _session_meta(file)
+        cwd, preview, title, color, entrypoint = _session_meta(file)
+        if entrypoint != "cli":
+            continue
         items.append({
             "session_id": file.stem,
             "project_key": project_key,
@@ -159,6 +173,7 @@ def _sessions_from_files(files: list[tuple[Path, str]]) -> list[dict]:
             "size": stat.st_size,
             "preview": preview,
             "title": title,
+            "color": color,
         })
     return items
 
@@ -177,7 +192,7 @@ def list_all_sessions() -> list[dict]:
         return []
     files = [
         (file, directory.name)
-        for directory in base.iterdir() if directory.is_dir()
+        for directory in base.iterdir() if directory.is_dir() and directory.name != _AI_PROJECT_KEY
         for file in directory.glob("*.jsonl")
     ]
     return _sessions_from_files(files)
@@ -211,6 +226,66 @@ def rename_session(project_key: str, session_id: str, title: str) -> bool:
         out.append(json.dumps({"type": "custom-title", "customTitle": safe, "sessionId": session_id}, ensure_ascii=False))
     file.write_text("\n".join(out) + "\n", encoding="utf-8")
     return True
+
+
+def set_session_color(project_key: str, session_id: str, color: str) -> bool:
+    """Set the conversation accent the CLI shows, via its `agent-color` entry (the
+    same one `claude --resume` reads). Empty color clears it."""
+    file = _session_file(project_key, session_id)
+    if not file.is_file():
+        return False
+    out = [
+        line
+        for line in file.read_text(encoding="utf-8").splitlines()
+        if not _is_type(line, "agent-color")
+    ]
+    if color:
+        out.append(json.dumps({"type": "agent-color", "agentColor": color, "sessionId": session_id}, ensure_ascii=False))
+    file.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return True
+
+
+def _is_type(line: str, type_name: str) -> bool:
+    try:
+        return json.loads(line).get("type") == type_name
+    except json.JSONDecodeError:
+        return False
+
+
+def _transcript_for_title(path: Path, max_chars: int = 2000) -> str:
+    parts: list[str] = []
+    total = 0
+    for entry in _iter_lines(path):
+        if entry.get("type") not in ("user", "assistant"):
+            continue
+        text = _text_from_content(entry.get("message", {}).get("content"))
+        if not text:
+            continue
+        chunk = f"{entry.get('type')}: {text[:600]}"
+        parts.append(chunk)
+        total += len(chunk)
+        if total >= max_chars:
+            break
+    return "\n".join(parts)[:max_chars]
+
+
+async def auto_generate_title(project_key: str, session_id: str) -> Optional[str]:
+    """Get a short title from the model, then do the rename ourselves (the model only
+    returns the text)."""
+    file = _session_file(project_key, session_id)
+    if not file.is_file():
+        return None
+    transcript = _transcript_for_title(file)
+    if not transcript:
+        return None
+    from services.claude_runtime import generate_title
+
+    raw = await generate_title(transcript)
+    title = raw.replace("\n", " ").strip().strip("\"'").strip().rstrip(".")[:80]
+    if not title:
+        return None
+    rename_session(project_key, session_id, title)
+    return title
 
 
 def delete_session(project_key: str, session_id: str) -> bool:

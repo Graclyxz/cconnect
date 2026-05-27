@@ -1,9 +1,12 @@
 """Wraps the Claude Agent SDK query() into a stream of normalized event dicts."""
 
 import json
+import os
 from typing import Any, AsyncIterator, Optional
 
 from loguru import logger
+
+from core.config import AI_WORKDIR
 
 
 def _format_tool_input(inp: Any) -> str:
@@ -124,3 +127,31 @@ async def run_prompt(
     except Exception as exc:
         logger.error(f"run_prompt failed: {type(exc).__name__}: {exc}")
         yield {"type": "error", "message": f"{type(exc).__name__}: {exc}"}
+
+
+async def generate_title(transcript: str) -> str:
+    """Ask a fast model for a short conversation title and return ONLY the text — the
+    caller does the actual rename. Runs in the isolated AI workspace, so its session
+    stays a plain SDK session under that project key (never normalized to "cli", never
+    recorded in history like a chat) and is filtered out of the app's history."""
+    from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage
+
+    os.makedirs(AI_WORKDIR, exist_ok=True)
+    options = ClaudeAgentOptions(
+        cwd=AI_WORKDIR,
+        permission_mode="default",
+        model="haiku",
+        system_prompt="You write conversation titles. Reply with ONLY the title: 3-6 words, Title Case, no quotes, no trailing punctuation.",
+        setting_sources=[],
+    )
+
+    parts: list[str] = []
+    try:
+        async for message in query(prompt=f"Write a title for this conversation:\n\n{transcript}", options=options):
+            if isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if type(block).__name__ == "TextBlock":
+                        parts.append(getattr(block, "text", ""))
+    except Exception as exc:
+        logger.error(f"generate_title failed: {type(exc).__name__}: {exc}")
+    return "".join(parts).strip()

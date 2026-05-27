@@ -1,6 +1,7 @@
 package com.jahirtrap.cconnect.chat
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.jahirtrap.cconnect.data.Capabilities
@@ -14,6 +15,10 @@ import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
 import com.jahirtrap.cconnect.data.remote.ChatSocket
 import com.jahirtrap.cconnect.data.remote.SessionsApi
+import com.jahirtrap.cconnect.service.ConnectionService
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -33,6 +38,7 @@ data class ChatUiState(
     val streamTokens: Boolean = false,
     val capabilities: Capabilities = Capabilities(),
     val sessionId: String? = null,
+    val sessionColor: String? = null,
     val error: String? = null,
     val historyProjects: List<ProjectInfo> = emptyList(),
     val historySessions: List<SessionInfo> = emptyList(),
@@ -41,6 +47,7 @@ data class ChatUiState(
 )
 
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
+    private val appContext: Context = app
     private val settings = Settings(app)
     private val client = ChatSocket(viewModelScope)
 
@@ -59,7 +66,15 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private var currentThinkingId: Long? = null
     private var historyJob: Job? = null
 
+    // Reconnect-and-resume when the app returns to the foreground after a drop.
+    private val foregroundObserver = object : DefaultLifecycleObserver {
+        override fun onStart(owner: LifecycleOwner) {
+            if (_state.value.connection == ConnectionState.Disconnected) connect()
+        }
+    }
+
     init {
+        ProcessLifecycleOwner.get().lifecycle.addObserver(foregroundObserver)
         viewModelScope.launch {
             client.events.collect(::onEvent)
         }
@@ -67,6 +82,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     fun connect() {
         if (!settings.isConfigured) return
+        if (_state.value.connection != ConnectionState.Disconnected) return
         _state.update { it.copy(connection = ConnectionState.Connecting, error = null) }
         viewModelScope.launch {
             CapabilitiesApi.capabilities()?.let { caps ->
@@ -87,6 +103,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         currentAssistantId = null
         currentThinkingId = null
         _state.update { it.copy(streaming = true, error = null) }
+        ConnectionService.start(appContext)
         client.sendPrompt(trimmed)
     }
 
@@ -118,7 +135,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun newSession() {
         currentAssistantId = null
         currentThinkingId = null
-        _state.update { it.copy(messages = emptyList(), sessionId = null, streaming = false) }
+        _state.update { it.copy(messages = emptyList(), sessionId = null, sessionColor = null, streaming = false) }
         startSession(resume = null)
     }
 
@@ -151,7 +168,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             currentAssistantId = null
             currentThinkingId = null
             session.path?.let { settings.cwd = it }
-            _state.update { it.copy(messages = loaded, sessionId = session.sessionId, streaming = false) }
+            _state.update { it.copy(messages = loaded, sessionId = session.sessionId, sessionColor = session.color, streaming = false) }
             startSession(resume = session.sessionId)
         }
     }
@@ -173,10 +190,37 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (clean.isEmpty()) return
         viewModelScope.launch {
             if (SessionsApi.renameSession(session.sessionId, projectKey, clean)) {
-                _state.update {
-                    it.copy(historySessions = it.historySessions.map { s -> if (s.sessionId == session.sessionId) s.copy(title = clean) else s })
+                updateHistoryTitle(session.sessionId, clean)
+            }
+        }
+    }
+
+    fun autoRenameSession(session: SessionInfo) {
+        val projectKey = session.projectKey ?: return
+        viewModelScope.launch {
+            SessionsApi.autoRenameSession(session.sessionId, projectKey)?.let { title ->
+                updateHistoryTitle(session.sessionId, title)
+            }
+        }
+    }
+
+    fun setSessionColor(session: SessionInfo, color: String?) {
+        val projectKey = session.projectKey ?: return
+        viewModelScope.launch {
+            if (SessionsApi.setSessionColor(session.sessionId, projectKey, color.orEmpty())) {
+                _state.update { s ->
+                    s.copy(
+                        historySessions = s.historySessions.map { if (it.sessionId == session.sessionId) it.copy(color = color) else it },
+                        sessionColor = if (s.sessionId == session.sessionId) color else s.sessionColor,
+                    )
                 }
             }
+        }
+    }
+
+    private fun updateHistoryTitle(sessionId: String, title: String) {
+        _state.update {
+            it.copy(historySessions = it.historySessions.map { s -> if (s.sessionId == sessionId) s.copy(title = title) else s })
         }
     }
 
@@ -216,6 +260,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             is ServerEvent.Closed -> {
                 currentAssistantId = null
                 currentThinkingId = null
+                ConnectionService.stop(appContext)
                 _state.update {
                     it.copy(connection = ConnectionState.Disconnected, streaming = false, error = event.reason)
                 }
@@ -226,6 +271,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private fun resetStreaming() {
         currentAssistantId = null
         currentThinkingId = null
+        ConnectionService.stop(appContext)
         _state.update { it.copy(streaming = false) }
     }
 
@@ -246,6 +292,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        ProcessLifecycleOwner.get().lifecycle.removeObserver(foregroundObserver)
+        ConnectionService.stop(appContext)
         client.close()
     }
 }

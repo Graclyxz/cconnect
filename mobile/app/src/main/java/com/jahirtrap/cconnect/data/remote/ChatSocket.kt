@@ -2,6 +2,8 @@ package com.jahirtrap.cconnect.data.remote
 
 import com.jahirtrap.cconnect.data.ServerEvent
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
@@ -28,6 +30,12 @@ class ChatSocket(private val scope: CoroutineScope) {
 
     private var ws: WebSocket? = null
 
+    // Per-connect token so callbacks from a superseded socket are ignored — lets a drop auto-reconnect cleanly.
+    private var generation = 0
+    private var closed = true
+    private var reconnectAttempts = 0
+    private var reconnectJob: Job? = null
+
     private val _events = MutableSharedFlow<ServerEvent>(extraBufferCapacity = 256)
     val events: SharedFlow<ServerEvent> = _events
 
@@ -36,23 +44,50 @@ class ChatSocket(private val scope: CoroutineScope) {
     }
 
     fun connect() {
-        close()
+        closed = false
+        reconnectAttempts = 0
+        reconnectJob?.cancel()
+        open()
+    }
+
+    private fun open() {
+        val gen = ++generation
+        ws?.cancel()
         val request = Request.Builder().url(Backend.wsUrl).build()
         ws = http.newWebSocket(request, object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) = emit(ServerEvent.Open)
+            override fun onOpen(webSocket: WebSocket, response: Response) {
+                if (gen != generation) return
+                reconnectAttempts = 0
+                emit(ServerEvent.Open)
+            }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
+                if (gen != generation) return
                 parse(text)?.let { emit(it) }
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                emit(ServerEvent.Closed(t.message ?: "connection failed"))
+                if (gen != generation) return
+                onDrop(t.message ?: "connection failed")
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                emit(ServerEvent.Closed(reason.ifBlank { "closed" }))
+                if (gen != generation) return
+                onDrop(reason.ifBlank { "closed" })
             }
         })
+    }
+
+    private fun onDrop(reason: String) {
+        emit(ServerEvent.Closed(reason))
+        if (closed) return
+        reconnectJob?.cancel()
+        reconnectJob = scope.launch {
+            val backoff = minOf(15_000L, 1000L shl minOf(reconnectAttempts, 4))
+            reconnectAttempts++
+            delay(backoff)
+            if (!closed) open()
+        }
     }
 
     fun sendStart(
@@ -94,6 +129,9 @@ class ChatSocket(private val scope: CoroutineScope) {
     }
 
     fun close() {
+        closed = true
+        reconnectJob?.cancel()
+        generation++
         ws?.close(1000, null)
         ws = null
     }

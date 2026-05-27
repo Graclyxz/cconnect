@@ -44,6 +44,7 @@ object SessionsApi {
                 size = o["size"]?.jsonPrimitive?.longOrNull ?: 0L,
                 preview = o["preview"]?.jsonPrimitive?.contentOrNull,
                 title = o["title"]?.jsonPrimitive?.contentOrNull,
+                color = o["color"]?.jsonPrimitive?.contentOrNull,
             )
         } ?: emptyList()
 
@@ -66,5 +67,16 @@ object SessionsApi {
         Http.post("/sessions/$sessionId/rename", buildJsonObject {
             put("project", project)
             put("title", title)
+        }) != null
+
+    suspend fun autoRenameSession(sessionId: String, project: String): String? =
+        Http.post("/sessions/$sessionId/auto-rename", buildJsonObject {
+            put("project", project)
+        })?.jsonObject?.get("title")?.jsonPrimitive?.contentOrNull
+
+    suspend fun setSessionColor(sessionId: String, project: String, color: String): Boolean =
+        Http.post("/sessions/$sessionId/color", buildJsonObject {
+            put("project", project)
+            put("color", color)
         }) != null
 }
