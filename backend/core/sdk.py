@@ -1,0 +1,58 @@
+"""Claude Agent SDK lifecycle: subscription auth and auto-update on startup."""
+
+import asyncio
+import importlib.metadata
+import os
+import sys
+
+from loguru import logger
+
+from core.config import AUTO_UPDATE_SDK
+
+SDK_PACKAGE = "claude-agent-sdk"
+SDK_MODULE = "claude_agent_sdk"
+
+
+def ensure_subscription_auth():
+    """Drop ANTHROPIC_API_KEY so the SDK falls back to the Claude Code CLI OAuth
+    (the user's subscription). An exported key silently wins and bills API credits."""
+    if os.environ.pop("ANTHROPIC_API_KEY", None):
+        logger.info("Removed ANTHROPIC_API_KEY from the process env; using subscription auth.")
+
+
+def installed_version() -> str | None:
+    try:
+        return importlib.metadata.version(SDK_PACKAGE)
+    except importlib.metadata.PackageNotFoundError:
+        return None
+
+
+async def ensure_sdk_installed():
+    """Install or upgrade the SDK. Falls back to whatever is already present if the
+    pip call fails; only raises when the SDK is missing entirely.
+
+    Uses create_subprocess_exec with a fixed argument list (no shell), so the call
+    is not injectable."""
+    if AUTO_UPDATE_SDK:
+        logger.info(f"Updating {SDK_PACKAGE}...")
+        args = [sys.executable, "-m", "pip", "install", "-U", SDK_PACKAGE]
+        proc = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        out, _ = await proc.communicate()
+        if proc.returncode != 0:
+            logger.warning(f"SDK update failed:\n{out.decode(errors='replace')}")
+
+    version = installed_version()
+    if version is None:
+        raise RuntimeError(
+            f"{SDK_PACKAGE} is not installed and could not be installed automatically. "
+            f"Run: {sys.executable} -m pip install {SDK_PACKAGE}"
+        )
+    logger.info(f"{SDK_PACKAGE} ready (v{version}).")
+
+
+def sdk_status() -> dict:
+    return {"package": SDK_PACKAGE, "version": installed_version()}

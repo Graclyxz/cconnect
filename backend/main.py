@@ -10,6 +10,7 @@ from slowapi.errors import RateLimitExceeded
 
 from core.rate_limit import limiter
 from core.responses import api_response
+from core.sdk import ensure_sdk_installed, ensure_subscription_auth
 from middleware.error_handler import register_error_handlers
 from middleware.security import register_security_middleware
 import routers as routers_pkg
@@ -17,6 +18,8 @@ import routers as routers_pkg
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    ensure_subscription_auth()
+    await ensure_sdk_installed()
     yield
 
 

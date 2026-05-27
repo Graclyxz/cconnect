@@ -5,16 +5,17 @@ import sys
 
 import uvicorn
 
+from core.config import PORT
+
 
 def main():
     is_production = "--production" in sys.argv
-    port = int(os.environ.get("PORT", "8000"))
     workers = int(os.environ.get("WEB_CONCURRENCY", "2")) if is_production else 1
 
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=port,
+        port=PORT,
         reload=not is_production,
         workers=workers,
     )
