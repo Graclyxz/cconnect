@@ -33,6 +33,25 @@ def _session_file(project_key: str, session_id: str) -> Path:
     return path
 
 
+def _encode_cwd(cwd: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]", "-", cwd)
+
+
+def write_session_title(cwd: str, session_id: str, title: str):
+    """Append an ai-title line so the session shows up (named) in `claude --resume`."""
+    if not _SESSION_RE.match(session_id):
+        return
+    path = _base() / _encode_cwd(cwd) / f"{session_id}.jsonl"
+    if not path.is_file():
+        return
+    line = json.dumps(
+        {"type": "ai-title", "aiTitle": title[:80], "sessionId": session_id},
+        ensure_ascii=False,
+    )
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(line + "\n")
+
+
 def _iter_lines(path: Path):
     with path.open("r", encoding="utf-8") as fh:
         for line in fh:
@@ -115,6 +134,14 @@ def list_sessions(project_key: str) -> list[dict]:
         })
     sessions.sort(key=lambda s: s["last_active"], reverse=True)
     return sessions
+
+
+def delete_session(project_key: str, session_id: str) -> bool:
+    file = _session_file(project_key, session_id)
+    if not file.is_file():
+        return False
+    file.unlink()
+    return True
 
 
 def get_session_messages(project_key: str, session_id: str) -> list[dict]:

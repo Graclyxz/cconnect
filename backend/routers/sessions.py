@@ -8,6 +8,17 @@ from services import sessions as sessions_service
 router = APIRouter(tags=["Sessions"])
 
 
+@router.delete("/sessions/{session_id}")
+def delete_session(session_id: str, project: str):
+    try:
+        deleted = sessions_service.delete_session(project, session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not deleted:
+        raise HTTPException(status_code=404, detail="session not found")
+    return api_response(message="deleted")
+
+
 @router.get("/projects")
 def get_projects():
     return api_response(data=sessions_service.list_projects())

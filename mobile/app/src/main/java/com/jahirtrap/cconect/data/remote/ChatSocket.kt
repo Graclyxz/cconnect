@@ -1,5 +1,6 @@
-package com.jahirtrap.cconect.data
+package com.jahirtrap.cconect.data.remote
 
+import com.jahirtrap.cconect.data.ServerEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -19,7 +20,7 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import java.util.concurrent.TimeUnit
 
-class ChatClient(private val scope: CoroutineScope) {
+class ChatSocket(private val scope: CoroutineScope) {
     private val http = OkHttpClient.Builder()
         .pingInterval(20, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.MILLISECONDS)
@@ -34,9 +35,9 @@ class ChatClient(private val scope: CoroutineScope) {
         scope.launch { _events.emit(event) }
     }
 
-    fun connect(host: String, port: Int) {
+    fun connect() {
         close()
-        val request = Request.Builder().url("ws://$host:$port/api/chat/ws").build()
+        val request = Request.Builder().url(Backend.wsUrl).build()
         ws = http.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) = emit(ServerEvent.Open)
 
@@ -54,13 +55,23 @@ class ChatClient(private val scope: CoroutineScope) {
         })
     }
 
-    fun sendStart(cwd: String, permissionMode: String, resume: String?) {
+    fun sendStart(
+        cwd: String,
+        permissionMode: String,
+        resume: String?,
+        model: String,
+        effort: String,
+        partial: Boolean,
+    ) {
         send(buildJsonObject {
             put("type", "start")
             put("cwd", cwd)
             put("permission_mode", permissionMode)
             if (resume != null) put("resume", resume) else put("resume", JsonNull)
             put("fork", false)
+            put("model", model)
+            put("effort", effort)
+            put("partial", partial)
         })
     }
 
@@ -98,7 +109,7 @@ class ChatClient(private val scope: CoroutineScope) {
             "ready" -> ServerEvent.Ready(str("session_id"))
             "assistant_text" -> ServerEvent.AssistantText(str("text").orEmpty())
             "thinking" -> ServerEvent.Thinking(str("text").orEmpty())
-            "tool_use" -> ServerEvent.ToolUse(str("name"), obj["input"]?.toString())
+            "tool_use" -> ServerEvent.ToolUse(str("name"), str("input"))
             "tool_result" -> ServerEvent.ToolResult(obj["content"]?.toString())
             "result" -> ServerEvent.Result(str("session_id"))
             "done" -> ServerEvent.Done

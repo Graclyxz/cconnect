@@ -52,6 +52,7 @@ private fun App() {
                 language = language,
                 onLanguage = { language = it; settings.language = it; applyLanguage(it) },
                 onSaved = { showSettings = false },
+                onBack = if (settings.isConfigured) ({ showSettings = false }) else null,
             )
         } else {
             ChatScreen(onOpenSettings = { showSettings = true })

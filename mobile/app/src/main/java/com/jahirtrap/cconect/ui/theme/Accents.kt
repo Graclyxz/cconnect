@@ -2,7 +2,7 @@ package com.jahirtrap.cconect.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Material 500 palette, mirroring MeowzikPlayer's accent set.
+// Material 500 palette.
 val ACCENTS = listOf(
     Color(0xFFF44336), // Red
     Color(0xFFE91E63), // Pink

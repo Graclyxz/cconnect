@@ -6,11 +6,17 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from loguru import logger
 from pydantic import ValidationError
 
-from core.config import PERMISSION_MODES
+from core.config import permission_modes
 from schemas.chat import PromptMessage, SetPermissionMessage, StartMessage
+from services import sessions as sessions_service
 from services.claude_runtime import run_prompt
 
 router = APIRouter(tags=["Chat"])
+
+
+def _resolve_model(model: str | None) -> str | None:
+    """Treat empty / "default" as "let the CLI pick"."""
+    return None if model in (None, "", "default") else model
 
 
 class _Session:
@@ -19,18 +25,29 @@ class _Session:
         self.permission_mode: str = "default"
         self.session_id: str | None = None
         self.fork: bool = False
+        self.model: str | None = None
+        self.effort: str = "max"
+        self.partial: bool = False
 
 
 async def _stream_prompt(ws: WebSocket, send_lock: asyncio.Lock, state: _Session, text: str):
+    is_new_session = state.session_id is None
     async for event in run_prompt(
         prompt=text,
         cwd=state.cwd,
         permission_mode=state.permission_mode,
         resume=state.session_id,
         fork=state.fork,
+        model=_resolve_model(state.model),
+        effort=state.effort,
+        partial=state.partial,
     ):
         if event.get("type") == "result" and event.get("session_id"):
-            state.session_id = event["session_id"]
+            new_id = event["session_id"]
+            if is_new_session and state.cwd:
+                sessions_service.write_session_title(state.cwd, new_id, text)
+                is_new_session = False
+            state.session_id = new_id
             state.fork = False
         async with send_lock:
             await ws.send_json(event)
@@ -60,13 +77,16 @@ async def chat_ws(ws: WebSocket):
                 except ValidationError as exc:
                     await send({"type": "error", "message": exc.errors()})
                     continue
-                if msg.permission_mode not in PERMISSION_MODES:
+                if msg.permission_mode not in permission_modes():
                     await send({"type": "error", "message": f"invalid permission_mode: {msg.permission_mode}"})
                     continue
                 state.cwd = msg.cwd
                 state.permission_mode = msg.permission_mode
                 state.session_id = msg.resume
                 state.fork = msg.fork
+                state.model = msg.model
+                state.effort = msg.effort
+                state.partial = msg.partial
                 await send({"type": "ready", "session_id": state.session_id})
 
             elif mtype == "prompt":
@@ -89,7 +109,7 @@ async def chat_ws(ws: WebSocket):
                 except ValidationError as exc:
                     await send({"type": "error", "message": exc.errors()})
                     continue
-                if msg.mode not in PERMISSION_MODES:
+                if msg.mode not in permission_modes():
                     await send({"type": "error", "message": f"invalid permission_mode: {msg.mode}"})
                     continue
                 state.permission_mode = msg.mode

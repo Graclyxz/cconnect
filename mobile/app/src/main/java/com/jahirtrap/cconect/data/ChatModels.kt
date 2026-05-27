@@ -9,7 +9,13 @@ data class ChatMessage(
     val toolName: String? = null,
 )
 
-val PERMISSION_MODES = listOf("default", "acceptEdits", "plan", "dontAsk", "bypassPermissions")
+data class ModelOption(val id: String, val label: String)
+
+data class Capabilities(
+    val permissionModes: List<String> = listOf("default", "acceptEdits", "plan", "dontAsk", "bypassPermissions"),
+    val effortLevels: List<String> = listOf("low", "medium", "high", "xhigh", "max"),
+    val models: List<ModelOption> = listOf(ModelOption("opus", "Opus 4.7")),
+)
 
 sealed interface ServerEvent {
     data object Open : ServerEvent

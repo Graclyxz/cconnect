@@ -11,6 +11,11 @@
     <string name="project_path_hint">C:\\DEV\\myproject</string>
     <string name="permissions">Permissions</string>
     <string name="permission_mode">Default permission mode</string>
+    <string name="generation">Generation</string>
+    <string name="model">Model</string>
+    <string name="effort">Effort</string>
+    <string name="streaming">Stream tokens</string>
+    <string name="streaming_desc">Show reasoning and replies as they are generated</string>
     <string name="appearance">Appearance</string>
     <string name="theme">Theme</string>
     <string name="theme_system">System</string>
@@ -22,14 +27,17 @@
     <string name="language_system">System</string>
     <string name="connect">Connect</string>
     <string name="save">Save</string>
+    <string name="back">Back</string>
 
     <!-- Chat -->
     <string name="new_session">New session</string>
+    <string name="new_chat">New chat</string>
     <string name="session_history">Session history (coming soon)</string>
-    <string name="type_message">Message</string>
+    <string name="type_message">Type a message…</string>
     <string name="send">Send</string>
     <string name="stop">Stop</string>
     <string name="thinking">Thinking</string>
+    <string name="scroll_to_bottom">Scroll to bottom</string>
     <string name="connecting">Connecting…</string>
     <string name="disconnected">Disconnected</string>
     <string name="tool">Tool</string>

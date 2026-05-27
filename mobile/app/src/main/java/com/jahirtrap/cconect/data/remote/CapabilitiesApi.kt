@@ -1,0 +1,27 @@
+package com.jahirtrap.cconect.data.remote
+
+import com.jahirtrap.cconect.data.Capabilities
+import com.jahirtrap.cconect.data.ModelOption
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
+object CapabilitiesApi {
+
+    suspend fun capabilities(): Capabilities? {
+        val data = Http.get("/capabilities")?.jsonObject ?: return null
+        val fallback = Capabilities()
+        return Capabilities(
+            permissionModes = data["permission_modes"]?.jsonArray
+                ?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: fallback.permissionModes,
+            effortLevels = data["effort_levels"]?.jsonArray
+                ?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: fallback.effortLevels,
+            models = data["models"]?.jsonArray?.mapNotNull { el ->
+                val o = el.jsonObject
+                val id = o["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                ModelOption(id, o["label"]?.jsonPrimitive?.contentOrNull ?: id)
+            } ?: fallback.models,
+        )
+    }
+}

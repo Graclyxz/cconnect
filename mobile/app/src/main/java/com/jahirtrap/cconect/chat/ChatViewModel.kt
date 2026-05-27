@@ -3,11 +3,13 @@ package com.jahirtrap.cconect.chat
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.jahirtrap.cconect.data.ChatClient
+import com.jahirtrap.cconect.data.Capabilities
 import com.jahirtrap.cconect.data.ChatMessage
 import com.jahirtrap.cconect.data.Role
 import com.jahirtrap.cconect.data.ServerEvent
 import com.jahirtrap.cconect.data.Settings
+import com.jahirtrap.cconect.data.remote.CapabilitiesApi
+import com.jahirtrap.cconect.data.remote.ChatSocket
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,19 +23,31 @@ data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
     val streaming: Boolean = false,
     val permissionMode: String = "default",
+    val model: String = "opus",
+    val effort: String = "max",
+    val streamTokens: Boolean = false,
+    val capabilities: Capabilities = Capabilities(),
     val sessionId: String? = null,
     val error: String? = null,
 )
 
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val settings = Settings(app)
-    private val client = ChatClient(viewModelScope)
+    private val client = ChatSocket(viewModelScope)
 
-    private val _state = MutableStateFlow(ChatUiState(permissionMode = settings.permissionMode))
+    private val _state = MutableStateFlow(
+        ChatUiState(
+            permissionMode = settings.permissionMode,
+            model = settings.model,
+            effort = settings.effort,
+            streamTokens = settings.streaming,
+        )
+    )
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
     private var nextId = 0L
     private var currentAssistantId: Long? = null
+    private var currentThinkingId: Long? = null
 
     init {
         viewModelScope.launch {
@@ -44,7 +58,16 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun connect() {
         if (!settings.isConfigured) return
         _state.update { it.copy(connection = ConnectionState.Connecting, error = null) }
-        client.connect(settings.host, settings.port)
+        viewModelScope.launch {
+            CapabilitiesApi.capabilities()?.let { caps ->
+                _state.update { it.copy(capabilities = caps) }
+            }
+            client.connect()
+        }
+    }
+
+    private fun startSession(resume: String?) {
+        client.sendStart(settings.cwd, _state.value.permissionMode, resume, settings.model, settings.effort, settings.streaming)
     }
 
     fun sendPrompt(text: String) {
@@ -52,6 +75,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (trimmed.isEmpty() || _state.value.streaming) return
         addMessage(Role.USER, trimmed)
         currentAssistantId = null
+        currentThinkingId = null
         _state.update { it.copy(streaming = true, error = null) }
         client.sendPrompt(trimmed)
     }
@@ -66,59 +90,81 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (_state.value.connection == ConnectionState.Connected) client.sendSetPermissionMode(mode)
     }
 
+    fun setModel(model: String) {
+        settings.model = model
+        _state.update { it.copy(model = model) }
+    }
+
+    fun setEffort(effort: String) {
+        settings.effort = effort
+        _state.update { it.copy(effort = effort) }
+    }
+
+    fun setStreaming(enabled: Boolean) {
+        settings.streaming = enabled
+        _state.update { it.copy(streamTokens = enabled) }
+    }
+
     fun newSession() {
         currentAssistantId = null
+        currentThinkingId = null
         _state.update { it.copy(messages = emptyList(), sessionId = null, streaming = false) }
-        client.sendStart(settings.cwd, _state.value.permissionMode, resume = null)
+        startSession(resume = null)
     }
 
     private fun onEvent(event: ServerEvent) {
         when (event) {
-            is ServerEvent.Open -> client.sendStart(settings.cwd, _state.value.permissionMode, _state.value.sessionId)
+            is ServerEvent.Open -> startSession(_state.value.sessionId)
             is ServerEvent.Ready -> _state.update {
                 it.copy(connection = ConnectionState.Connected, sessionId = event.sessionId ?: it.sessionId)
             }
-            is ServerEvent.AssistantText -> appendAssistant(event.text)
-            is ServerEvent.Thinking -> {
+            is ServerEvent.AssistantText -> {
+                currentThinkingId = null
+                currentAssistantId = append(currentAssistantId, Role.ASSISTANT, event.text)
+            }
+            is ServerEvent.Thinking -> if (event.text.isNotEmpty()) {
                 currentAssistantId = null
-                addMessage(Role.THINKING, event.text)
+                currentThinkingId = append(currentThinkingId, Role.THINKING, event.text)
             }
             is ServerEvent.ToolUse -> {
                 currentAssistantId = null
+                currentThinkingId = null
                 addMessage(Role.TOOL, event.input.orEmpty(), toolName = event.name)
             }
             is ServerEvent.ToolResult -> Unit
             is ServerEvent.Result -> _state.update { it.copy(sessionId = event.sessionId ?: it.sessionId) }
-            is ServerEvent.Done -> {
-                currentAssistantId = null
-                _state.update { it.copy(streaming = false) }
-            }
-            is ServerEvent.Interrupted -> {
-                currentAssistantId = null
-                _state.update { it.copy(streaming = false) }
-            }
+            is ServerEvent.Done -> resetStreaming()
+            is ServerEvent.Interrupted -> resetStreaming()
             is ServerEvent.Err -> {
-                currentAssistantId = null
-                _state.update { it.copy(streaming = false) }
+                resetStreaming()
                 addMessage(Role.ERROR, event.message)
             }
-            is ServerEvent.Closed -> _state.update {
-                it.copy(connection = ConnectionState.Disconnected, streaming = false, error = event.reason)
+            is ServerEvent.Closed -> {
+                currentAssistantId = null
+                currentThinkingId = null
+                _state.update {
+                    it.copy(connection = ConnectionState.Disconnected, streaming = false, error = event.reason)
+                }
             }
         }
     }
 
-    private fun appendAssistant(delta: String) {
-        val id = currentAssistantId
-        if (id == null) {
+    private fun resetStreaming() {
+        currentAssistantId = null
+        currentThinkingId = null
+        _state.update { it.copy(streaming = false) }
+    }
+
+    private fun append(currentId: Long?, role: Role, delta: String): Long {
+        if (currentId == null) {
             val newId = nextId++
-            currentAssistantId = newId
-            _state.update { it.copy(messages = it.messages + ChatMessage(newId, Role.ASSISTANT, delta)) }
-        } else {
-            _state.update {
-                it.copy(messages = it.messages.map { m -> if (m.id == id) m.copy(text = m.text + delta) else m })
-            }
+            _state.update { it.copy(messages = it.messages + ChatMessage(newId, role, delta)) }
+            return newId
         }
+        _state.update {
+            it.copy(messages = it.messages.map { m -> if (m.id == currentId) m.copy(text = m.text + delta) else m })
+        }
+        return currentId
     }
 
     private fun addMessage(role: Role, text: String, toolName: String? = null) {

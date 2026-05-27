@@ -16,8 +16,45 @@ CLAUDE_PROJECTS_DIR = os.environ.get(
     str(Path.home() / ".claude" / "projects"),
 )
 
-PERMISSION_MODES = ("default", "acceptEdits", "plan", "dontAsk", "bypassPermissions")
+# Fallbacks used only if the SDK can't be introspected yet.
+_FALLBACK_PERMISSION_MODES = ("default", "acceptEdits", "plan", "dontAsk", "bypassPermissions", "auto")
+_FALLBACK_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
+
 DEFAULT_PERMISSION_MODE = os.environ.get("DEFAULT_PERMISSION_MODE", "default")
+DEFAULT_EFFORT = os.environ.get("DEFAULT_EFFORT", "max")
+
+# Curated model list (the SDK does not enumerate models). Ids are CLI aliases
+# that always resolve to the latest matching model; "default" lets the CLI pick.
+MODELS = [
+    {"id": "default", "label": "Default"},
+    {"id": "opus", "label": "Opus 4.7"},
+    {"id": "opus[1m]", "label": "Opus 4.7 (1M)"},
+    {"id": "sonnet", "label": "Sonnet 4.6"},
+    {"id": "sonnet[1m]", "label": "Sonnet 4.6 (1M)"},
+    {"id": "haiku", "label": "Haiku 4.5"},
+]
+DEFAULT_MODEL = os.environ.get("DEFAULT_MODEL", "opus")
+
+
+def permission_modes() -> tuple[str, ...]:
+    """Permission modes from the installed SDK, falling back to a static list."""
+    try:
+        from typing import get_args
+        from claude_agent_sdk.types import PermissionMode
+        return tuple(get_args(PermissionMode)) or _FALLBACK_PERMISSION_MODES
+    except Exception:
+        return _FALLBACK_PERMISSION_MODES
+
+
+def effort_levels() -> tuple[str, ...]:
+    """Effort levels from the installed SDK, falling back to a static list."""
+    try:
+        from typing import get_args
+        from claude_agent_sdk.types import EffortLevel
+        return tuple(get_args(EffortLevel)) or _FALLBACK_EFFORT_LEVELS
+    except Exception:
+        return _FALLBACK_EFFORT_LEVELS
+
 
 # Pull the latest claude-agent-sdk on startup. Disable for faster dev reloads.
 AUTO_UPDATE_SDK = os.environ.get("AUTO_UPDATE_SDK", "1") not in ("0", "false", "False")
@@ -25,7 +62,11 @@ AUTO_UPDATE_SDK = os.environ.get("AUTO_UPDATE_SDK", "1") not in ("0", "false", "
 __all__ = [
     "PORT",
     "CLAUDE_PROJECTS_DIR",
-    "PERMISSION_MODES",
     "DEFAULT_PERMISSION_MODE",
+    "DEFAULT_EFFORT",
+    "DEFAULT_MODEL",
+    "MODELS",
+    "permission_modes",
+    "effort_levels",
     "AUTO_UPDATE_SDK",
 ]

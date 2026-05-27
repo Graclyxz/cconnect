@@ -1,5 +1,6 @@
 package com.jahirtrap.cconect.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,9 +17,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBackIos
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -26,7 +31,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,8 +46,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.jahirtrap.cconect.R
-import com.jahirtrap.cconect.data.PERMISSION_MODES
+import com.jahirtrap.cconect.chat.permissionStyle
+import com.jahirtrap.cconect.data.Capabilities
 import com.jahirtrap.cconect.data.Settings
+import com.jahirtrap.cconect.data.remote.Backend
+import com.jahirtrap.cconect.data.remote.CapabilitiesApi
 import com.jahirtrap.cconect.ui.theme.ACCENTS
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +65,7 @@ fun SettingsScreen(
     language: String,
     onLanguage: (String) -> Unit,
     onSaved: () -> Unit,
+    onBack: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val settings = remember { Settings(context) }
@@ -63,14 +74,41 @@ fun SettingsScreen(
     var port by remember { mutableStateOf(settings.port.toString()) }
     var cwd by remember { mutableStateOf(settings.cwd) }
     var permissionMode by remember { mutableStateOf(settings.permissionMode) }
+    var model by remember { mutableStateOf(settings.model) }
+    var effort by remember { mutableStateOf(settings.effort) }
+    var streaming by remember { mutableStateOf(settings.streaming) }
+    var caps by remember { mutableStateOf(Capabilities()) }
 
-    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.settings)) }) }) { padding ->
+    LaunchedEffect(Unit) {
+        if (Backend.isConfigured) CapabilitiesApi.capabilities()?.let { caps = it }
+    }
+
+    onBack?.let { BackHandler(onBack = it) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    scrolledContainerColor = MaterialTheme.colorScheme.background,
+                ),
+                title = { Text(stringResource(R.string.settings)) },
+                navigationIcon = {
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBackIos, contentDescription = stringResource(R.string.back))
+                        }
+                    }
+                },
+            )
+        },
+    ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(24.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             Section(stringResource(R.string.backend)) {
@@ -102,11 +140,42 @@ fun SettingsScreen(
 
             Section(stringResource(R.string.permissions)) {
                 Text(stringResource(R.string.permission_mode), style = MaterialTheme.typography.bodyMedium)
-                PERMISSION_MODES.forEach { mode ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                caps.permissionModes.forEach { mode ->
+                    val s = permissionStyle(mode)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clickable { permissionMode = mode },
+                    ) {
                         RadioButton(selected = permissionMode == mode, onClick = { permissionMode = mode })
-                        Text(mode)
+                        Icon(s.icon, contentDescription = null, tint = s.color, modifier = Modifier.size(20.dp))
+                        Text("  ${s.label}")
                     }
+                }
+            }
+
+            Section(stringResource(R.string.generation)) {
+                Text(stringResource(R.string.model), style = MaterialTheme.typography.bodyMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    caps.models.forEach { m ->
+                        FilterChip(selected = model == m.id, onClick = { model = m.id }, label = { Text(m.label) })
+                    }
+                }
+                Text(stringResource(R.string.effort), style = MaterialTheme.typography.bodyMedium)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    caps.effortLevels.forEach { e ->
+                        FilterChip(selected = effort == e, onClick = { effort = e }, label = { Text(e) })
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.streaming), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            stringResource(R.string.streaming_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = streaming, onCheckedChange = { streaming = it })
                 }
             }
 
@@ -145,6 +214,9 @@ fun SettingsScreen(
                     settings.port = port.toIntOrNull() ?: 8723
                     settings.cwd = cwd.trim()
                     settings.permissionMode = permissionMode
+                    settings.model = model
+                    settings.effort = effort
+                    settings.streaming = streaming
                     if (settings.isConfigured) onSaved()
                 },
                 enabled = host.isNotBlank() && cwd.isNotBlank(),

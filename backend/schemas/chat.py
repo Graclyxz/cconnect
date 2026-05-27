@@ -12,6 +12,8 @@ class StartMessage(BaseModel):
     resume: Optional[str] = None
     fork: bool = False
     model: Optional[str] = None
+    effort: str = "max"
+    partial: bool = False
 
 
 class PromptMessage(BaseModel):

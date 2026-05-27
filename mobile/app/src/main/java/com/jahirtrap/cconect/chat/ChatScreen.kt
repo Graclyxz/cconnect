@@ -1,43 +1,86 @@
 package com.jahirtrap.cconect.chat
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.DragInteraction
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconect.R
-import com.jahirtrap.cconect.data.PERMISSION_MODES
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ChatScreen(onOpenSettings: () -> Unit) {
     val vm: ChatViewModel = viewModel()
@@ -45,10 +88,48 @@ fun ChatScreen(onOpenSettings: () -> Unit) {
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val listState = rememberLazyListState()
+    val focusManager = LocalFocusManager.current
+
+    val isAtBottom by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull() ?: return@derivedStateOf true
+            last.index == info.totalItemsCount - 1 && last.offset + last.size <= info.viewportEndOffset + 4
+        }
+    }
+    val showScrollButton by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull() ?: return@derivedStateOf false
+            val viewportHeight = info.viewportEndOffset - info.viewportStartOffset
+            last.index < info.totalItemsCount - 1 ||
+                (last.offset + last.size) - info.viewportEndOffset > viewportHeight / 2
+        }
+    }
 
     LaunchedEffect(Unit) { vm.connect() }
-    LaunchedEffect(state.messages.size) {
-        if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
+
+    // Only manual scrolling changes this, so incoming content can't flip it before we react.
+    var followBottom by remember { mutableStateOf(true) }
+    // A user drag stops the follow immediately so streaming can't fight the gesture.
+    LaunchedEffect(listState) {
+        listState.interactionSource.interactions.collect { interaction ->
+            if (interaction is DragInteraction.Start) followBottom = false
+        }
+    }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
+            if (!scrolling) followBottom = isAtBottom
+        }
+    }
+    LaunchedEffect(state.messages.size, state.messages.lastOrNull()?.text) {
+        if (state.messages.isNotEmpty() && followBottom) {
+            listState.animateScrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
+        }
+    }
+    val imeVisible = WindowInsets.isImeVisible
+    LaunchedEffect(imeVisible) {
+        if (!imeVisible) focusManager.clearFocus()
     }
 
     ModalNavigationDrawer(
@@ -81,34 +162,70 @@ fun ChatScreen(onOpenSettings: () -> Unit) {
         Scaffold(
             topBar = {
                 TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background,
+                        scrolledContainerColor = MaterialTheme.colorScheme.background,
+                    ),
                     navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) { Text("☰") }
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Rounded.Menu, contentDescription = "Menu")
+                        }
                     },
                     title = {
                         Column {
                             Text("CConect")
-                            Text(statusLabel(state), style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
+                            Text(statusLabel(state), style = MaterialTheme.typography.labelSmall)
                         }
                     },
                     actions = {
-                        IconButton(onClick = { vm.newSession() }) { Text("+") }
+                        IconButton(onClick = { vm.newSession() }) {
+                            Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.new_session))
+                        }
                     },
                 )
             },
         ) { padding ->
-            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                ) {
-                    items(state.messages, key = { it.id }) { message ->
-                        ChatMessageItem(message)
+            Column(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
+                Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
+                            ChatMessageItem(message, prevRole = state.messages.getOrNull(index - 1)?.role)
+                        }
+                    }
+                    if (showScrollButton && state.messages.isNotEmpty()) {
+                        Surface(
+                            onClick = { scope.launch { listState.animateScrollToItem(state.messages.lastIndex, Int.MAX_VALUE) } },
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            shadowElevation = 4.dp,
+                            modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).size(40.dp),
+                        ) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Rounded.KeyboardArrowDown,
+                                    contentDescription = stringResource(R.string.scroll_to_bottom),
+                                    tint = MaterialTheme.colorScheme.background,
+                                )
+                            }
+                        }
                     }
                 }
-                Composer(
+                ChatToolbar(
+                    model = state.model,
+                    models = state.capabilities.models,
+                    onModel = vm::setModel,
+                    effort = state.effort,
+                    effortLevels = state.capabilities.effortLevels,
+                    onEffort = vm::setEffort,
                     permissionMode = state.permissionMode,
-                    streaming = state.streaming,
+                    permissionModes = state.capabilities.permissionModes,
                     onPermissionMode = vm::setPermissionMode,
+                )
+                Composer(
+                    streaming = state.streaming,
                     onSend = vm::sendPrompt,
                     onStop = vm::stop,
                 )
@@ -121,48 +238,195 @@ fun ChatScreen(onOpenSettings: () -> Unit) {
 private fun statusLabel(state: ChatUiState): String = when (state.connection) {
     ConnectionState.Connecting -> stringResource(R.string.connecting)
     ConnectionState.Disconnected -> state.error ?: stringResource(R.string.disconnected)
-    ConnectionState.Connected -> state.sessionId?.take(8) ?: ""
+    ConnectionState.Connected -> state.sessionId?.take(8) ?: stringResource(R.string.new_chat)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ChatToolbar(
+    model: String,
+    models: List<com.jahirtrap.cconect.data.ModelOption>,
+    onModel: (String) -> Unit,
+    effort: String,
+    effortLevels: List<String>,
+    onEffort: (String) -> Unit,
+    permissionMode: String,
+    permissionModes: List<String>,
+    onPermissionMode: (String) -> Unit,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    val pstyle = permissionStyle(permissionMode)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(start = 8.dp, end = 8.dp, top = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        SelectorChip(
+            label = models.firstOrNull { it.id == model }?.label ?: model,
+            icon = Icons.Rounded.AutoAwesome,
+            tint = accent,
+            options = models.map { it.id to it.label },
+            selected = model,
+            onSelect = onModel,
+        )
+        SelectorChip(
+            label = effort,
+            icon = Icons.Rounded.Speed,
+            tint = accent,
+            options = effortLevels.map { it to it },
+            selected = effort,
+            onSelect = onEffort,
+        )
+        SelectorChip(
+            label = pstyle.label,
+            icon = pstyle.icon,
+            tint = pstyle.color,
+            options = permissionModes.map { it to permissionStyle(it).label },
+            selected = permissionMode,
+            optionStyle = { permissionStyle(it).let { s -> s.icon to s.color } },
+            onSelect = onPermissionMode,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SelectorChip(
+    label: String,
+    icon: ImageVector,
+    tint: Color,
+    options: List<Pair<String, String>>,
+    selected: String,
+    optionStyle: ((String) -> Pair<ImageVector, Color>)? = null,
+    onSelect: (String) -> Unit,
+) {
+    var open by remember { mutableStateOf(false) }
+    // Guard against the dismiss-then-reopen race when re-tapping the chip while open.
+    var lastChange by remember { mutableStateOf(0L) }
+    fun setOpen(value: Boolean) {
+        open = value
+        lastChange = System.currentTimeMillis()
+    }
+    Box {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                .pointerInput(Unit) {
+                    detectTapGestures {
+                        if (System.currentTimeMillis() - lastChange > 200) setOpen(!open)
+                    }
+                }
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(4.dp))
+            Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+        }
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { setOpen(false) },
+            properties = PopupProperties(focusable = false),
+        ) {
+            options.forEach { (value, display) ->
+                val style = optionStyle?.invoke(value)
+                DropdownMenuItem(
+                    text = { Text(display) },
+                    leadingIcon = if (style != null) {
+                        { Icon(style.first, contentDescription = null, tint = style.second, modifier = Modifier.size(20.dp)) }
+                    } else {
+                        null
+                    },
+                    trailingIcon = {
+                        if (value == selected) {
+                            Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        }
+                    },
+                    onClick = { onSelect(value); setOpen(false) },
+                )
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Composer(
-    permissionMode: String,
     streaming: Boolean,
-    onPermissionMode: (String) -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
 ) {
     var input by remember { mutableStateOf("") }
-    var menuOpen by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(22.dp)
 
-    Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
-        androidx.compose.foundation.layout.Box {
-            TextButton(onClick = { menuOpen = true }) { Text(permissionMode) }
-            androidx.compose.material3.DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                PERMISSION_MODES.forEach { mode ->
-                    androidx.compose.material3.DropdownMenuItem(
-                        text = { Text(mode) },
-                        onClick = { onPermissionMode(mode); menuOpen = false },
-                    )
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        BasicTextField(
+            value = input,
+            onValueChange = { input = it },
+            modifier = Modifier.weight(1f),
+            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            maxLines = 6,
+            decorationBox = { innerTextField ->
+                Box(
+                    modifier = Modifier
+                        .clip(shape)
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                ) {
+                    if (input.isEmpty()) {
+                        Text(
+                            stringResource(R.string.type_message),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    innerTextField()
                 }
-            }
-        }
-        Row(modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it },
-                label = { Text(stringResource(R.string.type_message)) },
-                modifier = Modifier.weight(1f),
+            },
+        )
+        Spacer(Modifier.width(6.dp))
+        if (streaming) {
+            CircleActionButton(
+                icon = Icons.Rounded.Stop,
+                contentDescription = stringResource(R.string.stop),
+                enabled = true,
+                onClick = onStop,
             )
-            if (streaming) {
-                TextButton(onClick = onStop) { Text(stringResource(R.string.stop)) }
-            } else {
-                TextButton(
-                    onClick = { onSend(input); input = "" },
-                    enabled = input.isNotBlank(),
-                ) { Text(stringResource(R.string.send)) }
-            }
+        } else {
+            CircleActionButton(
+                icon = Icons.Rounded.ArrowUpward,
+                contentDescription = stringResource(R.string.send),
+                enabled = input.isNotBlank(),
+                onClick = { onSend(input); input = "" },
+            )
         }
+    }
+}
+
+@Composable
+private fun CircleActionButton(
+    icon: ImageVector,
+    contentDescription: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val bg = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    val fg = if (enabled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+    Box(
+        modifier = Modifier
+            .size(42.dp)
+            .clip(CircleShape)
+            .background(bg)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = contentDescription, tint = fg, modifier = Modifier.size(24.dp))
     }
 }
