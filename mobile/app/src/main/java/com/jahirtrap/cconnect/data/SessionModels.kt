@@ -1,4 +1,4 @@
-package com.jahirtrap.cconect.data
+package com.jahirtrap.cconnect.data
 
 data class ProjectInfo(
     val projectKey: String,

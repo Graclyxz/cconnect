@@ -1,4 +1,4 @@
-# CConect
+# CConnect
 
 Remote interface for **Claude Code** from your phone. Control Claude Code running
 on your home PC — with its sessions, files and projects — from a mobile app,
@@ -7,7 +7,7 @@ reachable from any network via Tailscale.
 ## Structure
 
 ```
-cconect/
+cconnect/
 ├── backend/   # FastAPI bridge (Python) between the app and Claude Code — see backend/CLAUDE.md
 └── mobile/    # Android app (interface) — TBD
 ```

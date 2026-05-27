@@ -1,6 +1,6 @@
-# CLAUDE.md — CConect Backend
+# CLAUDE.md — CConnect Backend
 
-Bridge between the CConect mobile app and Claude Code, running locally on the
+Bridge between the CConnect mobile app and Claude Code, running locally on the
 user's PC. Backend only — FastAPI + Python 3.11.
 
 It drives Claude Code through the official **Claude Agent SDK** (`claude-agent-sdk`),

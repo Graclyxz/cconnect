@@ -1,4 +1,4 @@
-"""CConect — FastAPI application entry point."""
+"""CConnect — FastAPI application entry point."""
 
 import importlib
 import pkgutil
@@ -24,9 +24,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="CConect API",
+    title="CConnect API",
     version="0.1.0",
-    description="Remote bridge between the CConect mobile app and Claude Code",
+    description="Remote bridge between the CConnect mobile app and Claude Code",
     docs_url=None,
     redoc_url=None,
     openapi_url=None,

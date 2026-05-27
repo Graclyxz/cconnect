@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "com.jahirtrap.cconect"
+    namespace = "com.jahirtrap.cconnect"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.jahirtrap.cconect"
+        applicationId = "com.jahirtrap.cconnect"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

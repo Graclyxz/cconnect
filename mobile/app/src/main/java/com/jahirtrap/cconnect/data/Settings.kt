@@ -1,11 +1,11 @@
-package com.jahirtrap.cconect.data
+package com.jahirtrap.cconnect.data
 
 import android.content.Context
 import androidx.core.content.edit
-import com.jahirtrap.cconect.data.remote.Backend
+import com.jahirtrap.cconnect.data.remote.Backend
 
 class Settings(context: Context) {
-    private val prefs = context.getSharedPreferences("cconect", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences("cconnect", Context.MODE_PRIVATE)
 
     init {
         Backend.host = host

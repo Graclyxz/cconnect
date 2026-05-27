@@ -1,7 +1,7 @@
-package com.jahirtrap.cconect.data.remote
+package com.jahirtrap.cconnect.data.remote
 
-import com.jahirtrap.cconect.data.Capabilities
-import com.jahirtrap.cconect.data.ModelOption
+import com.jahirtrap.cconnect.data.Capabilities
+import com.jahirtrap.cconnect.data.ModelOption
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject

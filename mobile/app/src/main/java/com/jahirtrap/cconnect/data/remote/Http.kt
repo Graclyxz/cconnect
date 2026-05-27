@@ -1,4 +1,4 @@
-package com.jahirtrap.cconect.data.remote
+package com.jahirtrap.cconnect.data.remote
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

@@ -1,4 +1,4 @@
-package com.jahirtrap.cconect.chat
+package com.jahirtrap.cconnect.chat
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,10 +27,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.jahirtrap.cconect.R
-import com.jahirtrap.cconect.data.ChatMessage
-import com.jahirtrap.cconect.data.Role
-import com.jahirtrap.cconect.ui.MarkdownText
+import com.jahirtrap.cconnect.R
+import com.jahirtrap.cconnect.data.ChatMessage
+import com.jahirtrap.cconnect.data.Role
+import com.jahirtrap.cconnect.ui.MarkdownText
 
 @Composable
 fun ChatMessageItem(message: ChatMessage, prevRole: Role? = null) {

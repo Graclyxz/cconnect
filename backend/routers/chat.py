@@ -31,7 +31,7 @@ class _Session:
 
 
 async def _stream_prompt(ws: WebSocket, send_lock: asyncio.Lock, state: _Session, text: str):
-    is_new_session = state.session_id is None
+    name = text.strip()[:80] if state.session_id is None else None
     async for event in run_prompt(
         prompt=text,
         cwd=state.cwd,
@@ -41,16 +41,17 @@ async def _stream_prompt(ws: WebSocket, send_lock: asyncio.Lock, state: _Session
         model=_resolve_model(state.model),
         effort=state.effort,
         partial=state.partial,
+        name=name,
     ):
         if event.get("type") == "result" and event.get("session_id"):
-            new_id = event["session_id"]
-            if is_new_session and state.cwd:
-                sessions_service.write_session_title(state.cwd, new_id, text)
-                is_new_session = False
-            state.session_id = new_id
+            state.session_id = event["session_id"]
             state.fork = False
+            if state.cwd:
+                sessions_service.record_prompt_history(state.cwd, state.session_id, text)
         async with send_lock:
             await ws.send_json(event)
+    if state.cwd and state.session_id:
+        sessions_service.normalize_session_entrypoint(state.cwd, state.session_id)
     async with send_lock:
         await ws.send_json({"type": "done"})
 

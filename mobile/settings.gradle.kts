@@ -24,5 +24,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "CConect"
+rootProject.name = "CConnect"
 include(":app")

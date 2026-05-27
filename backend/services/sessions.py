@@ -2,6 +2,7 @@
 
 import json
 import re
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -13,6 +14,35 @@ _SESSION_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 def _base() -> Path:
     return Path(CLAUDE_PROJECTS_DIR)
+
+
+def record_prompt_history(cwd: str, session_id: str, text: str):
+    if not session_id:
+        return
+    path = _base().parent / "history.jsonl"
+    entry = {
+        "display": text,
+        "pastedContents": {},
+        "timestamp": int(time.time() * 1000),
+        "project": cwd,
+        "sessionId": session_id,
+    }
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+
+def normalize_session_entrypoint(cwd: str, session_id: str):
+    """Rewrite the SDK's "sdk-*" entrypoint to "cli"; `claude --resume` hides sdk sessions."""
+    if not _SESSION_RE.match(session_id or ""):
+        return
+    encoded = re.sub(r"[^A-Za-z0-9]", "-", cwd)
+    path = _base() / encoded / f"{session_id}.jsonl"
+    if not path.is_file():
+        return
+    text = path.read_text(encoding="utf-8")
+    fixed = re.sub(r'"entrypoint":"sdk-[A-Za-z]+"', '"entrypoint":"cli"', text)
+    if fixed != text:
+        path.write_text(fixed, encoding="utf-8")
 
 
 def _project_dir(project_key: str) -> Path:
@@ -31,25 +61,6 @@ def _session_file(project_key: str, session_id: str) -> Path:
     if path.parent != _project_dir(project_key):
         raise ValueError("session id escapes the project directory")
     return path
-
-
-def _encode_cwd(cwd: str) -> str:
-    return re.sub(r"[^A-Za-z0-9]", "-", cwd)
-
-
-def write_session_title(cwd: str, session_id: str, title: str):
-    """Append an ai-title line so the session shows up (named) in `claude --resume`."""
-    if not _SESSION_RE.match(session_id):
-        return
-    path = _base() / _encode_cwd(cwd) / f"{session_id}.jsonl"
-    if not path.is_file():
-        return
-    line = json.dumps(
-        {"type": "ai-title", "aiTitle": title[:80], "sessionId": session_id},
-        ensure_ascii=False,
-    )
-    with path.open("a", encoding="utf-8") as fh:
-        fh.write(line + "\n")
 
 
 def _iter_lines(path: Path):

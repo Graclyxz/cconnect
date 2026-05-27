@@ -1,15 +1,15 @@
-package com.jahirtrap.cconect.chat
+package com.jahirtrap.cconnect.chat
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.jahirtrap.cconect.data.Capabilities
-import com.jahirtrap.cconect.data.ChatMessage
-import com.jahirtrap.cconect.data.Role
-import com.jahirtrap.cconect.data.ServerEvent
-import com.jahirtrap.cconect.data.Settings
-import com.jahirtrap.cconect.data.remote.CapabilitiesApi
-import com.jahirtrap.cconect.data.remote.ChatSocket
+import com.jahirtrap.cconnect.data.Capabilities
+import com.jahirtrap.cconnect.data.ChatMessage
+import com.jahirtrap.cconnect.data.Role
+import com.jahirtrap.cconnect.data.ServerEvent
+import com.jahirtrap.cconnect.data.Settings
+import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
+import com.jahirtrap.cconnect.data.remote.ChatSocket
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

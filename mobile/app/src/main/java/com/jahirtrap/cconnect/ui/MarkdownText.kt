@@ -1,4 +1,4 @@
-package com.jahirtrap.cconect.ui
+package com.jahirtrap.cconnect.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

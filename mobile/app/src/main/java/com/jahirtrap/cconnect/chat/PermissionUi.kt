@@ -1,4 +1,4 @@
-package com.jahirtrap.cconect.chat
+package com.jahirtrap.cconnect.chat
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoMode

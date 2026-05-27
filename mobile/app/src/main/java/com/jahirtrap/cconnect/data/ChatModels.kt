@@ -1,4 +1,4 @@
-package com.jahirtrap.cconect.data
+package com.jahirtrap.cconnect.data
 
 enum class Role { USER, ASSISTANT, THINKING, TOOL, SYSTEM, ERROR }
 

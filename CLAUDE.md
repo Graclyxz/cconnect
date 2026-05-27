@@ -1,4 +1,4 @@
-# CConect
+# CConnect
 
 ## Project Overview
 

@@ -1,4 +1,4 @@
-package com.jahirtrap.cconect.settings
+package com.jahirtrap.cconnect.settings
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -45,13 +45,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.jahirtrap.cconect.R
-import com.jahirtrap.cconect.chat.permissionStyle
-import com.jahirtrap.cconect.data.Capabilities
-import com.jahirtrap.cconect.data.Settings
-import com.jahirtrap.cconect.data.remote.Backend
-import com.jahirtrap.cconect.data.remote.CapabilitiesApi
-import com.jahirtrap.cconect.ui.theme.ACCENTS
+import com.jahirtrap.cconnect.R
+import com.jahirtrap.cconnect.chat.permissionStyle
+import com.jahirtrap.cconnect.data.Capabilities
+import com.jahirtrap.cconnect.data.Settings
+import com.jahirtrap.cconnect.data.remote.Backend
+import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
+import com.jahirtrap.cconnect.ui.theme.ACCENTS
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

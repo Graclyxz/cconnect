@@ -1,4 +1,4 @@
-package com.jahirtrap.cconect.ui.theme
+package com.jahirtrap.cconnect.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -20,7 +20,7 @@ fun themeModeOf(value: String): ThemeMode = when (value) {
 }
 
 @Composable
-fun CConectTheme(
+fun CConnectTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     dynamicColor: Boolean = true,
     accent: Color = accentAt(4),

@@ -1,6 +1,6 @@
-package com.jahirtrap.cconect.data.remote
+package com.jahirtrap.cconnect.data.remote
 
-import com.jahirtrap.cconect.data.ServerEvent
+import com.jahirtrap.cconnect.data.ServerEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow

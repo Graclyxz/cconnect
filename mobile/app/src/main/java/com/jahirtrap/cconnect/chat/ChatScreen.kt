@@ -1,5 +1,6 @@
-package com.jahirtrap.cconect.chat
+package com.jahirtrap.cconnect.chat
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -76,7 +77,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.jahirtrap.cconect.R
+import com.jahirtrap.cconnect.R
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
@@ -97,20 +98,24 @@ fun ChatScreen(onOpenSettings: () -> Unit) {
             last.index == info.totalItemsCount - 1 && last.offset + last.size <= info.viewportEndOffset + 4
         }
     }
+
+    // Only manual scrolling changes this, so incoming content can't flip it before we react.
+    var followBottom by remember { mutableStateOf(true) }
+
+    // Hidden while following so streaming doesn't flicker it; shows only well above the bottom.
     val showScrollButton by remember {
         derivedStateOf {
+            if (followBottom) return@derivedStateOf false
             val info = listState.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull() ?: return@derivedStateOf false
             val viewportHeight = info.viewportEndOffset - info.viewportStartOffset
-            last.index < info.totalItemsCount - 1 ||
-                (last.offset + last.size) - info.viewportEndOffset > viewportHeight / 2
+            val itemsBelow = info.totalItemsCount - 1 - last.index
+            itemsBelow >= 2 || (last.offset + last.size) - info.viewportEndOffset > viewportHeight
         }
     }
 
     LaunchedEffect(Unit) { vm.connect() }
 
-    // Only manual scrolling changes this, so incoming content can't flip it before we react.
-    var followBottom by remember { mutableStateOf(true) }
     // A user drag stops the follow immediately so streaming can't fight the gesture.
     LaunchedEffect(listState) {
         listState.interactionSource.interactions.collect { interaction ->
@@ -129,14 +134,20 @@ fun ChatScreen(onOpenSettings: () -> Unit) {
     }
     val imeVisible = WindowInsets.isImeVisible
     LaunchedEffect(imeVisible) {
-        if (!imeVisible) focusManager.clearFocus()
+        if (imeVisible) {
+            if (followBottom && state.messages.isNotEmpty()) {
+                listState.animateScrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
+            }
+        } else {
+            focusManager.clearFocus()
+        }
     }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet {
-                Text("CConect", modifier = Modifier.padding(16.dp))
+                Text(stringResource(R.string.app_name), modifier = Modifier.padding(16.dp))
                 HorizontalDivider()
                 NavigationDrawerItem(
                     label = { Text(stringResource(R.string.new_session)) },
@@ -173,7 +184,7 @@ fun ChatScreen(onOpenSettings: () -> Unit) {
                     },
                     title = {
                         Column {
-                            Text("CConect")
+                            Text(stringResource(R.string.app_name))
                             Text(statusLabel(state), style = MaterialTheme.typography.labelSmall)
                         }
                     },
@@ -245,7 +256,7 @@ private fun statusLabel(state: ChatUiState): String = when (state.connection) {
 @Composable
 private fun ChatToolbar(
     model: String,
-    models: List<com.jahirtrap.cconect.data.ModelOption>,
+    models: List<com.jahirtrap.cconnect.data.ModelOption>,
     onModel: (String) -> Unit,
     effort: String,
     effortLevels: List<String>,
@@ -309,6 +320,7 @@ private fun SelectorChip(
         open = value
         lastChange = System.currentTimeMillis()
     }
+    BackHandler(enabled = open) { setOpen(false) }
     Box {
         Row(
             modifier = Modifier

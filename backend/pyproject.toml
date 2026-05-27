@@ -1,7 +1,7 @@
 [project]
-name = "cconect-backend"
+name = "cconnect-backend"
 version = "0.1.0"
-description = "Remote bridge between the CConect mobile app and Claude Code"
+description = "Remote bridge between the CConnect mobile app and Claude Code"
 requires-python = ">=3.11"
 
 dependencies = [

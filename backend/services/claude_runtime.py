@@ -70,6 +70,7 @@ async def run_prompt(
     model: Optional[str] = None,
     effort: str = "max",
     partial: bool = False,
+    name: Optional[str] = None,
 ) -> AsyncIterator[dict]:
     """Yield normalized events for one prompt. The SDK import is deferred because the
     package is installed/upgraded during app startup."""
@@ -82,8 +83,8 @@ async def run_prompt(
         StreamEvent,
     )
 
-    # "default"/empty effort means: don't pin a level, let adaptive thinking decide.
     effort_level = None if effort in (None, "", "default") else effort
+    extra_args = {"name": name} if name else {}
 
     options = ClaudeAgentOptions(
         cwd=cwd,
@@ -96,6 +97,7 @@ async def run_prompt(
         setting_sources=["user", "project"],
         thinking={"type": "adaptive", "display": "summarized"},
         include_partial_messages=partial,
+        extra_args=extra_args,
     )
 
     try:

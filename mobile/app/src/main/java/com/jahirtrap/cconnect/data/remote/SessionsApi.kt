@@ -1,8 +1,8 @@
-package com.jahirtrap.cconect.data.remote
+package com.jahirtrap.cconnect.data.remote
 
-import com.jahirtrap.cconect.data.ProjectInfo
-import com.jahirtrap.cconect.data.SessionInfo
-import com.jahirtrap.cconect.data.SessionMessage
+import com.jahirtrap.cconnect.data.ProjectInfo
+import com.jahirtrap.cconnect.data.SessionInfo
+import com.jahirtrap.cconnect.data.SessionMessage
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull

@@ -1,4 +1,4 @@
-package com.jahirtrap.cconect.data.remote
+package com.jahirtrap.cconnect.data.remote
 
 // Single source of the backend address; every service reads from here.
 object Backend {
