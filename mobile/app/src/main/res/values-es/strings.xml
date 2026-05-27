@@ -1,0 +1,36 @@
+<resources>
+    <string name="app_name">CConect</string>
+
+    <!-- Settings -->
+    <string name="settings">Ajustes</string>
+    <string name="backend">Backend (por Tailscale)</string>
+    <string name="host">Host (IP de Tailscale)</string>
+    <string name="host_hint">100.x.x.x</string>
+    <string name="port">Puerto</string>
+    <string name="project_path">Ruta del proyecto (cwd)</string>
+    <string name="project_path_hint">C:\\DEV\\miproyecto</string>
+    <string name="permissions">Permisos</string>
+    <string name="permission_mode">Modo de permisos por defecto</string>
+    <string name="appearance">Apariencia</string>
+    <string name="theme">Tema</string>
+    <string name="theme_system">Sistema</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_dark">Oscuro</string>
+    <string name="dynamic_color">Color dinámico (Material You)</string>
+    <string name="accent">Acento</string>
+    <string name="language">Idioma</string>
+    <string name="language_system">Sistema</string>
+    <string name="connect">Conectar</string>
+    <string name="save">Guardar</string>
+
+    <!-- Chat -->
+    <string name="new_session">Nueva sesión</string>
+    <string name="session_history">Historial de sesiones (próximamente)</string>
+    <string name="type_message">Mensaje</string>
+    <string name="send">Enviar</string>
+    <string name="stop">Detener</string>
+    <string name="thinking">Razonando</string>
+    <string name="connecting">Conectando…</string>
+    <string name="disconnected">Desconectado</string>
+    <string name="tool">Herramienta</string>
+</resources>

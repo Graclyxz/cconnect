@@ -3,6 +3,7 @@
 import asyncio
 import importlib.metadata
 import os
+import subprocess
 import sys
 
 from loguru import logger
@@ -35,15 +36,16 @@ async def ensure_sdk_installed():
     is not injectable."""
     if AUTO_UPDATE_SDK:
         logger.info(f"Updating {SDK_PACKAGE}...")
-        args = [sys.executable, "-m", "pip", "install", "-U", SDK_PACKAGE]
-        proc = await asyncio.create_subprocess_exec(
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
+        # Runs in a worker thread so it does not depend on the asyncio event loop
+        # type (Windows SelectorEventLoop cannot spawn asyncio subprocesses).
+        result = await asyncio.to_thread(
+            subprocess.run,
+            [sys.executable, "-m", "pip", "install", "-U", SDK_PACKAGE],
+            capture_output=True,
+            text=True,
         )
-        out, _ = await proc.communicate()
-        if proc.returncode != 0:
-            logger.warning(f"SDK update failed:\n{out.decode(errors='replace')}")
+        if result.returncode != 0:
+            logger.warning(f"SDK update failed:\n{result.stdout}{result.stderr}")
 
     version = installed_version()
     if version is None:
