@@ -11,6 +11,8 @@ data class ChatMessage(
 
 data class ModelOption(val id: String, val label: String)
 
+data class TodoItem(val id: String? = null, val content: String, val status: String, val activeForm: String = "")
+
 data class Capabilities(
     val permissionModes: List<String> = listOf("default", "acceptEdits", "plan", "dontAsk", "bypassPermissions"),
     val effortLevels: List<String> = listOf("low", "medium", "high", "xhigh", "max"),
@@ -25,6 +27,8 @@ sealed interface ServerEvent {
     data class Thinking(val text: String) : ServerEvent
     data class ToolUse(val name: String?, val input: String?) : ServerEvent
     data class ToolResult(val content: String?) : ServerEvent
+    data class Todos(val items: List<TodoItem>) : ServerEvent
+    data class Task(val id: String, val content: String?, val status: String?) : ServerEvent
     data class Result(val sessionId: String?) : ServerEvent
     data object Done : ServerEvent
     data object Interrupted : ServerEvent

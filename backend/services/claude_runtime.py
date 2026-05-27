@@ -33,6 +33,37 @@ def _stream_event_to_events(event: Any) -> list[dict]:
     return []
 
 
+def _task_events_from_result(result: Any) -> list[dict]:
+    """Task* tools return their task(s) in tool_use_result, not in the tool block."""
+    if not isinstance(result, dict):
+        return []
+    if isinstance(result.get("task"), dict):
+        tasks = [result["task"]]
+    elif isinstance(result.get("tasks"), list):
+        tasks = [t for t in result["tasks"] if isinstance(t, dict)]
+    else:
+        return []
+    return [
+        {"type": "task", "id": str(t.get("id") or ""), "content": t.get("subject"), "status": t.get("status")}
+        for t in tasks
+        if t.get("id")
+    ]
+
+
+def _todo_items(todos: Any) -> list[dict]:
+    if not isinstance(todos, list):
+        return []
+    return [
+        {
+            "content": t.get("content", ""),
+            "status": t.get("status", "pending"),
+            "active_form": t.get("activeForm", ""),
+        }
+        for t in todos
+        if isinstance(t, dict)
+    ]
+
+
 def _blocks_to_events(content: Any, skip_streamed: bool = False) -> list[dict]:
     """Convert final message blocks to events. When ``skip_streamed`` is set,
     text and thinking are omitted because they already arrived as deltas."""
@@ -48,12 +79,24 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False) -> list[dict]:
                 continue
             events.append({"type": "thinking", "text": getattr(block, "thinking", "") or getattr(block, "text", "")})
         elif kind == "ToolUseBlock":
-            events.append({
-                "type": "tool_use",
-                "id": getattr(block, "id", None),
-                "name": (getattr(block, "name", None) or "").strip() or "tool",
-                "input": _format_tool_input(getattr(block, "input", None)),
-            })
+            name = (getattr(block, "name", None) or "").strip() or "tool"
+            raw_input = getattr(block, "input", None)
+            if name == "TodoWrite" and isinstance(raw_input, dict):
+                events.append({"type": "todos", "items": _todo_items(raw_input.get("todos"))})
+            elif name == "TaskUpdate" and isinstance(raw_input, dict):
+                events.append({
+                    "type": "task",
+                    "id": str(raw_input.get("taskId") or ""),
+                    "content": raw_input.get("subject"),
+                    "status": raw_input.get("status"),
+                })
+            elif not name.startswith("Task"):
+                events.append({
+                    "type": "tool_use",
+                    "id": getattr(block, "id", None),
+                    "name": name,
+                    "input": _format_tool_input(raw_input),
+                })
         elif kind == "ToolResultBlock":
             events.append({
                 "type": "tool_result",
@@ -84,6 +127,7 @@ async def run_prompt(
         SystemMessage,
         ResultMessage,
         StreamEvent,
+        UserMessage,
     )
 
     effort_level = None if effort in (None, "", "default") else effort
@@ -110,6 +154,9 @@ async def run_prompt(
                     yield event
             elif isinstance(message, AssistantMessage):
                 for event in _blocks_to_events(message.content, skip_streamed=partial):
+                    yield event
+            elif isinstance(message, UserMessage):
+                for event in _task_events_from_result(getattr(message, "tool_use_result", None)):
                     yield event
             elif isinstance(message, SystemMessage):
                 yield {

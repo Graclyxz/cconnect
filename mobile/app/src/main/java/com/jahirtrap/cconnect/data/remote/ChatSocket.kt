@@ -1,6 +1,7 @@
 package com.jahirtrap.cconnect.data.remote
 
 import com.jahirtrap.cconnect.data.ServerEvent
+import com.jahirtrap.cconnect.data.TodoItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -12,6 +13,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -149,6 +151,17 @@ class ChatSocket(private val scope: CoroutineScope) {
             "thinking" -> ServerEvent.Thinking(str("text").orEmpty())
             "tool_use" -> ServerEvent.ToolUse(str("name"), str("input"))
             "tool_result" -> ServerEvent.ToolResult(obj["content"]?.toString())
+            "todos" -> ServerEvent.Todos(
+                obj["items"]?.jsonArray?.map { el ->
+                    val o = el.jsonObject
+                    TodoItem(
+                        content = o["content"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                        status = o["status"]?.jsonPrimitive?.contentOrNull ?: "pending",
+                        activeForm = o["active_form"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    )
+                } ?: emptyList()
+            )
+            "task" -> ServerEvent.Task(str("id").orEmpty(), str("content"), str("status"))
             "result" -> ServerEvent.Result(str("session_id"))
             "done" -> ServerEvent.Done
             "interrupted" -> ServerEvent.Interrupted

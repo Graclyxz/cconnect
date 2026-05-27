@@ -1,6 +1,7 @@
 package com.jahirtrap.cconnect.chat
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,25 +18,30 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.CheckBox
+import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
 import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.RadioButtonChecked
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Menu
@@ -80,6 +86,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
@@ -87,6 +95,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.SessionInfo
+import com.jahirtrap.cconnect.data.TodoItem
 import com.jahirtrap.cconnect.ui.ColorDialog
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.ConfirmDialog
@@ -256,6 +265,7 @@ fun ChatScreen(
                         }
                     },
                     actions = {
+                        TaskIndicator(todos = state.todos)
                         IconButton(onClick = { vm.newSession() }) {
                             Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.new_session))
                         }
@@ -367,6 +377,63 @@ private fun statusLabel(state: ChatUiState): String = when (state.connection) {
     ConnectionState.Connected -> state.sessionId?.take(8) ?: stringResource(R.string.new_chat)
 }
 
+@Composable
+private fun TaskIndicator(todos: List<TodoItem>) {
+    if (todos.isEmpty()) return
+    var open by remember { mutableStateOf(false) }
+    val done = todos.count { it.status == "completed" }
+    val inProgress = todos.count { it.status == "in_progress" }
+    Box {
+        IconButton(onClick = { open = true }) {
+            TaskPie(done = done, inProgress = inProgress, total = todos.size)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 320.dp)
+                    .heightIn(max = 380.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                todos.forEach { TaskRow(it) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TaskPie(done: Int, inProgress: Int, total: Int) {
+    val track = MaterialTheme.colorScheme.surfaceVariant
+    val doneColor = MaterialTheme.colorScheme.primary
+    val runningColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val doneSweep = if (total > 0) 360f * done / total else 0f
+    val runSweep = if (total > 0) 360f * inProgress / total else 0f
+    Canvas(modifier = Modifier.size(20.dp)) {
+        drawCircle(color = track)
+        drawArc(color = doneColor, startAngle = -90f, sweepAngle = doneSweep, useCenter = true)
+        drawArc(color = runningColor, startAngle = -90f + doneSweep, sweepAngle = runSweep, useCenter = true)
+    }
+}
+
+@Composable
+private fun TaskRow(todo: TodoItem) {
+    val completed = todo.status == "completed"
+    val inProgress = todo.status == "in_progress"
+    val icon = when {
+        completed -> Icons.Rounded.CheckBox
+        inProgress -> Icons.Rounded.RadioButtonChecked
+        else -> Icons.Rounded.CheckBoxOutlineBlank
+    }
+    val tint = if (completed || inProgress) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    val text = if (inProgress && todo.activeForm.isNotBlank()) todo.activeForm else todo.content
+    CompactDropdownItem(
+        text = text,
+        leadingIcon = { Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp)) },
+        color = if (completed) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+        textDecoration = if (completed) TextDecoration.LineThrough else null,
+        fontWeight = if (inProgress) FontWeight.SemiBold else null,
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatToolbar(
@@ -462,7 +529,7 @@ private fun SelectorChip(
                 val style = optionStyle?.invoke(value)
                 CompactDropdownItem(
                     text = display,
-                    leadingIcon = style?.let { { Icon(it.first, contentDescription = null, tint = it.second, modifier = Modifier.size(18.dp)) } },
+                    leadingIcon = style?.let { { Icon(it.first, contentDescription = null, tint = it.second, modifier = Modifier.size(20.dp)) } },
                     selected = value == selected,
                     onClick = { onSelect(value); setOpen(false) },
                 )
@@ -566,7 +633,7 @@ private fun ProjectSelector(projects: List<ProjectInfo>, selected: String?, onSe
             Icon(Icons.Rounded.FolderOpen, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
+            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             CompactDropdownItem(stringResource(R.string.all_projects), selected = selected == null) { onSelect(null); open = false }

@@ -12,6 +12,7 @@ import com.jahirtrap.cconnect.data.ServerEvent
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.SessionMessage
 import com.jahirtrap.cconnect.data.Settings
+import com.jahirtrap.cconnect.data.TodoItem
 import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
 import com.jahirtrap.cconnect.data.remote.ChatSocket
 import com.jahirtrap.cconnect.data.remote.SessionsApi
@@ -39,6 +40,7 @@ data class ChatUiState(
     val capabilities: Capabilities = Capabilities(),
     val sessionId: String? = null,
     val sessionColor: String? = null,
+    val todos: List<TodoItem> = emptyList(),
     val error: String? = null,
     val historyProjects: List<ProjectInfo> = emptyList(),
     val historySessions: List<SessionInfo> = emptyList(),
@@ -136,7 +138,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun newSession() {
         currentAssistantId = null
         currentThinkingId = null
-        _state.update { it.copy(messages = emptyList(), sessionId = null, sessionColor = null, streaming = false) }
+        _state.update { it.copy(messages = emptyList(), sessionId = null, sessionColor = null, todos = emptyList(), streaming = false) }
         startSession(resume = null)
     }
 
@@ -174,7 +176,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             currentAssistantId = null
             currentThinkingId = null
             session.path?.let { settings.cwd = it }
-            _state.update { it.copy(messages = loaded, sessionId = session.sessionId, sessionColor = session.color, streaming = false) }
+            _state.update { it.copy(messages = loaded, sessionId = session.sessionId, sessionColor = session.color, todos = emptyList(), streaming = false) }
             startSession(resume = session.sessionId)
         }
     }
@@ -256,6 +258,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 addMessage(Role.TOOL, event.input.orEmpty(), toolName = event.name)
             }
             is ServerEvent.ToolResult -> Unit
+            is ServerEvent.Todos -> _state.update { it.copy(todos = event.items) }
+            is ServerEvent.Task -> upsertTask(event)
             is ServerEvent.Result -> _state.update { it.copy(sessionId = event.sessionId ?: it.sessionId) }
             is ServerEvent.Done -> resetStreaming()
             is ServerEvent.Interrupted -> resetStreaming()
@@ -271,6 +275,24 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     it.copy(connection = ConnectionState.Disconnected, streaming = false, error = event.reason)
                 }
             }
+        }
+    }
+
+    private fun upsertTask(event: ServerEvent.Task) {
+        if (event.id.isBlank()) return
+        _state.update { st ->
+            if (event.status == "deleted") {
+                return@update st.copy(todos = st.todos.filterNot { it.id == event.id })
+            }
+            val existing = st.todos.firstOrNull { it.id == event.id }
+            val merged = TodoItem(
+                id = event.id,
+                content = event.content ?: existing?.content ?: "",
+                status = event.status ?: existing?.status ?: "pending",
+            )
+            val todos = if (existing == null) st.todos + merged
+            else st.todos.map { if (it.id == event.id) merged else it }
+            st.copy(todos = todos)
         }
     }
 
