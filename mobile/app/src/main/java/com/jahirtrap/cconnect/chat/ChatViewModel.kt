@@ -105,7 +105,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         addMessage(Role.USER, trimmed)
         currentAssistantId = null
         currentThinkingId = null
-        _state.update { it.copy(streaming = true, error = null) }
+        _state.update { it.copy(streaming = true, error = null, todos = emptyList()) }
         ConnectionService.start(appContext)
         client.sendPrompt(trimmed)
     }

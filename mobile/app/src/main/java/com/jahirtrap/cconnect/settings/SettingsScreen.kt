@@ -17,8 +17,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBackIos
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -46,6 +44,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.jahirtrap.cconnect.R
+import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.Lucide
 import com.jahirtrap.cconnect.chat.permissionStyle
 import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.Settings
@@ -96,7 +96,7 @@ fun SettingsScreen(
                 navigationIcon = {
                     if (onBack != null) {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBackIos, contentDescription = stringResource(R.string.back))
+                            Icon(Lucide.ArrowLeft, contentDescription = stringResource(R.string.back))
                         }
                     }
                 },
@@ -140,15 +140,15 @@ fun SettingsScreen(
 
             Section(stringResource(R.string.permissions)) {
                 Text(stringResource(R.string.permission_mode), style = MaterialTheme.typography.bodyMedium)
-                caps.permissionModes.forEach { mode ->
-                    val s = permissionStyle(mode)
+                caps.permissionModes.forEach { pm ->
+                    val s = permissionStyle(pm.id)
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().clickable { permissionMode = mode },
+                        modifier = Modifier.fillMaxWidth().clickable { permissionMode = pm.id },
                     ) {
-                        RadioButton(selected = permissionMode == mode, onClick = { permissionMode = mode })
+                        RadioButton(selected = permissionMode == pm.id, onClick = { permissionMode = pm.id })
                         Icon(s.icon, contentDescription = null, tint = s.color, modifier = Modifier.size(20.dp))
-                        Text("  ${s.label}")
+                        Text("  ${pm.label}")
                     }
                 }
             }

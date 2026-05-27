@@ -30,13 +30,19 @@
     <string name="back">Atrás</string>
 
     <!-- Chat -->
+    <string name="menu">Menú</string>
     <string name="new_session">Nueva sesión</string>
     <string name="new_chat">Nuevo chat</string>
     <string name="all_projects">Todos los proyectos</string>
     <string name="rename">Renombrar</string>
+    <string name="auto_rename">Auto-renombrar</string>
+    <string name="conversation_color">Color de conversación</string>
+    <string name="color_none">Ninguno</string>
     <string name="delete">Borrar</string>
     <string name="cancel">Cancelar</string>
     <string name="reload">Recargar</string>
+    <string name="session_channel">Sesión activa</string>
+    <string name="session_active">Sesión activa</string>
     <string name="delete_conversation">¿Borrar conversación?</string>
     <string name="type_message">Escribe un mensaje…</string>
     <string name="send">Enviar</string>

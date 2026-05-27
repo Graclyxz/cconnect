@@ -8,6 +8,7 @@ from core.config import (
     DEFAULT_MODEL,
     DEFAULT_PERMISSION_MODE,
     MODELS,
+    PERMISSION_LABELS,
     effort_levels,
     permission_modes,
 )
@@ -19,7 +20,7 @@ router = APIRouter(tags=["Capabilities"])
 @router.get("/capabilities")
 def get_capabilities():
     return api_response(data={
-        "permission_modes": list(permission_modes()),
+        "permission_modes": [{"id": m, "label": PERMISSION_LABELS.get(m, m)} for m in permission_modes()],
         "effort_levels": ["default"] + list(effort_levels()),
         "models": MODELS,
         "colors": COLORS,

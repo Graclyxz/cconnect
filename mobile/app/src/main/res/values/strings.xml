@@ -30,6 +30,7 @@
     <string name="back">Back</string>
 
     <!-- Chat -->
+    <string name="menu">Menu</string>
     <string name="new_session">New session</string>
     <string name="new_chat">New chat</string>
     <string name="all_projects">All projects</string>

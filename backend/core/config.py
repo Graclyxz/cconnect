@@ -39,6 +39,17 @@ MODELS = [
 ]
 DEFAULT_MODEL = os.environ.get("DEFAULT_MODEL", "opus")
 
+# Display labels for permission modes (the SDK only exposes the raw ids). Served with
+# capabilities so the app doesn't hardcode/translate them.
+PERMISSION_LABELS = {
+    "default": "Default",
+    "acceptEdits": "Accept edits",
+    "plan": "Plan",
+    "bypassPermissions": "Bypass",
+    "dontAsk": "Don't ask",
+    "auto": "Auto",
+}
+
 # The named set Claude uses for agent colors; the app maps each to a swatch.
 COLORS = ["red", "orange", "yellow", "green", "cyan", "blue", "purple", "pink"]
 

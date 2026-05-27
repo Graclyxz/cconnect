@@ -34,22 +34,24 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.CheckBox
-import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
-import androidx.compose.material.icons.rounded.FolderOpen
-import androidx.compose.material.icons.rounded.RadioButtonChecked
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.Language
-import androidx.compose.material.icons.rounded.Menu
-import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.Palette
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material.icons.rounded.Stop
+import com.composables.icons.lucide.ArrowUp
+import com.composables.icons.lucide.Check
+import com.composables.icons.lucide.ChevronDown
+import com.composables.icons.lucide.CircleDot
+import com.composables.icons.lucide.EllipsisVertical
+import com.composables.icons.lucide.FolderOpen
+import com.composables.icons.lucide.Gauge
+import com.composables.icons.lucide.Languages
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Menu
+import com.composables.icons.lucide.Palette
+import com.composables.icons.lucide.Settings
+import com.composables.icons.lucide.Sparkles
+import com.composables.icons.lucide.Square
+import com.composables.icons.lucide.SquareCheckBig
+import com.composables.icons.lucide.SquarePen
+import com.jahirtrap.cconnect.ui.CustomIcons
+import com.jahirtrap.cconnect.ui.Stop
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -89,10 +91,12 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.R
+import com.jahirtrap.cconnect.data.PermissionMode
 import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.TodoItem
@@ -200,7 +204,7 @@ fun ChatScreen(
                         modifier = Modifier.weight(1f),
                     )
                     IconButton(onClick = { vm.newSession(); scope.launch { drawerState.close() } }) {
-                        Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.new_session))
+                        Icon(Lucide.SquarePen, contentDescription = stringResource(R.string.new_session))
                     }
                 }
                 ProjectSelector(
@@ -234,13 +238,13 @@ fun ChatScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = { showLanguageDialog = true }) {
-                        Icon(Icons.Rounded.Language, contentDescription = stringResource(R.string.language))
+                        Icon(Lucide.Languages, contentDescription = stringResource(R.string.language))
                     }
                     IconButton(onClick = { showThemeDialog = true }) {
-                        Icon(Icons.Rounded.Palette, contentDescription = stringResource(R.string.theme))
+                        Icon(Lucide.Palette, contentDescription = stringResource(R.string.theme))
                     }
                     IconButton(onClick = { scope.launch { drawerState.close() }; onOpenSettings() }) {
-                        Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.settings))
+                        Icon(Lucide.Settings, contentDescription = stringResource(R.string.settings))
                     }
                 }
             }
@@ -255,7 +259,7 @@ fun ChatScreen(
                     ),
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Rounded.Menu, contentDescription = "Menu")
+                            Icon(Lucide.Menu, contentDescription = stringResource(R.string.menu))
                         }
                     },
                     title = {
@@ -267,7 +271,7 @@ fun ChatScreen(
                     actions = {
                         TaskIndicator(todos = state.todos)
                         IconButton(onClick = { vm.newSession() }) {
-                            Icon(Icons.Rounded.Add, contentDescription = stringResource(R.string.new_session))
+                            Icon(Lucide.SquarePen, contentDescription = stringResource(R.string.new_session))
                         }
                     },
                 )
@@ -289,7 +293,10 @@ fun ChatScreen(
                     }
                     if (showScrollButton && state.messages.isNotEmpty()) {
                         Surface(
-                            onClick = { scope.launch { listState.animateScrollToItem(state.messages.lastIndex, Int.MAX_VALUE) } },
+                            onClick = {
+                                followBottom = true
+                                scope.launch { listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE) }
+                            },
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.onBackground,
                             shadowElevation = 4.dp,
@@ -297,7 +304,7 @@ fun ChatScreen(
                         ) {
                             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                 Icon(
-                                    Icons.Rounded.KeyboardArrowDown,
+                                    Lucide.ChevronDown,
                                     contentDescription = stringResource(R.string.scroll_to_bottom),
                                     tint = MaterialTheme.colorScheme.background,
                                 )
@@ -402,15 +409,26 @@ private fun TaskIndicator(todos: List<TodoItem>) {
 
 @Composable
 private fun TaskPie(done: Int, inProgress: Int, total: Int) {
-    val track = MaterialTheme.colorScheme.surfaceVariant
+    val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f)
     val doneColor = MaterialTheme.colorScheme.primary
     val runningColor = MaterialTheme.colorScheme.onSurfaceVariant
     val doneSweep = if (total > 0) 360f * done / total else 0f
     val runSweep = if (total > 0) 360f * inProgress / total else 0f
-    Canvas(modifier = Modifier.size(20.dp)) {
-        drawCircle(color = track)
-        drawArc(color = doneColor, startAngle = -90f, sweepAngle = doneSweep, useCenter = true)
-        drawArc(color = runningColor, startAngle = -90f + doneSweep, sweepAngle = runSweep, useCenter = true)
+    val allDone = total > 0 && done == total
+    Box(contentAlignment = Alignment.Center) {
+        Canvas(modifier = Modifier.size(24.dp)) {
+            drawCircle(color = track)
+            drawArc(color = doneColor, startAngle = -90f, sweepAngle = doneSweep, useCenter = true)
+            drawArc(color = runningColor, startAngle = -90f + doneSweep, sweepAngle = runSweep, useCenter = true)
+        }
+        if (allDone) {
+            Icon(
+                Lucide.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(16.dp),
+            )
+        }
     }
 }
 
@@ -419,9 +437,9 @@ private fun TaskRow(todo: TodoItem) {
     val completed = todo.status == "completed"
     val inProgress = todo.status == "in_progress"
     val icon = when {
-        completed -> Icons.Rounded.CheckBox
-        inProgress -> Icons.Rounded.RadioButtonChecked
-        else -> Icons.Rounded.CheckBoxOutlineBlank
+        completed -> Lucide.SquareCheckBig
+        inProgress -> Lucide.CircleDot
+        else -> Lucide.Square
     }
     val tint = if (completed || inProgress) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     val text = if (inProgress && todo.activeForm.isNotBlank()) todo.activeForm else todo.content
@@ -444,7 +462,7 @@ private fun ChatToolbar(
     effortLevels: List<String>,
     onEffort: (String) -> Unit,
     permissionMode: String,
-    permissionModes: List<String>,
+    permissionModes: List<PermissionMode>,
     onPermissionMode: (String) -> Unit,
 ) {
     val accent = MaterialTheme.colorScheme.primary
@@ -458,7 +476,7 @@ private fun ChatToolbar(
     ) {
         SelectorChip(
             label = models.firstOrNull { it.id == model }?.label ?: model,
-            icon = Icons.Rounded.AutoAwesome,
+            icon = Lucide.Sparkles,
             tint = accent,
             options = models.map { it.id to it.label },
             selected = model,
@@ -466,17 +484,17 @@ private fun ChatToolbar(
         )
         SelectorChip(
             label = effort,
-            icon = Icons.Rounded.Speed,
+            icon = Lucide.Gauge,
             tint = accent,
             options = effortLevels.map { it to it },
             selected = effort,
             onSelect = onEffort,
         )
         SelectorChip(
-            label = pstyle.label,
+            label = permissionModes.firstOrNull { it.id == permissionMode }?.label ?: permissionMode,
             icon = pstyle.icon,
             tint = pstyle.color,
-            options = permissionModes.map { it to permissionStyle(it).label },
+            options = permissionModes.map { it.id to it.label },
             selected = permissionMode,
             optionStyle = { permissionStyle(it).let { s -> s.icon to s.color } },
             onSelect = onPermissionMode,
@@ -582,14 +600,14 @@ private fun Composer(
         Spacer(Modifier.width(6.dp))
         if (streaming) {
             CircleActionButton(
-                icon = Icons.Rounded.Stop,
+                icon = CustomIcons.Stop,
                 contentDescription = stringResource(R.string.stop),
                 enabled = true,
                 onClick = onStop,
             )
         } else {
             CircleActionButton(
-                icon = Icons.Rounded.ArrowUpward,
+                icon = Lucide.ArrowUp,
                 contentDescription = stringResource(R.string.send),
                 enabled = input.isNotBlank(),
                 onClick = { onSend(input); input = "" },
@@ -603,6 +621,7 @@ private fun CircleActionButton(
     icon: ImageVector,
     contentDescription: String,
     enabled: Boolean,
+    iconSize: Dp = 24.dp,
     onClick: () -> Unit,
 ) {
     val bg = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
@@ -615,7 +634,7 @@ private fun CircleActionButton(
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = contentDescription, tint = fg, modifier = Modifier.size(24.dp))
+        Icon(icon, contentDescription = contentDescription, tint = fg, modifier = Modifier.size(iconSize))
     }
 }
 
@@ -630,10 +649,10 @@ private fun ProjectSelector(projects: List<ProjectInfo>, selected: String?, onSe
             modifier = Modifier.fillMaxWidth().clickable { open = true }.padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Rounded.FolderOpen, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            Icon(Lucide.FolderOpen, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Lucide.ChevronDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             CompactDropdownItem(stringResource(R.string.all_projects), selected = selected == null) { onSelect(null); open = false }
@@ -671,7 +690,7 @@ private fun ConversationRow(
         )
         Box {
             IconButton(onClick = { menu = true }) {
-                Icon(Icons.Rounded.MoreVert, contentDescription = null)
+                Icon(Lucide.EllipsisVertical, contentDescription = null)
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 CompactDropdownItem(stringResource(R.string.rename)) { menu = false; onRename() }

@@ -7,10 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,67 +24,65 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.jahirtrap.cconnect.R
+import com.composables.icons.lucide.ChevronDown
+import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Terminal
 import com.jahirtrap.cconnect.data.ChatMessage
 import com.jahirtrap.cconnect.data.Role
 import com.jahirtrap.cconnect.ui.MarkdownText
 
+private val BIG = 16.dp
+private val SMALL = 6.dp
+
 @Composable
 fun ChatMessageItem(message: ChatMessage, prevRole: Role? = null, nextRole: Role? = null) {
-    when (message.role) {
-        Role.USER -> Block(background = MaterialTheme.colorScheme.surfaceVariant) {
-            Text(
-                message.text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = gapAbove(prevRole, message.role), bottom = if (nextRole == null) BIG else 0.dp),
+    ) {
+        when (message.role) {
+            Role.USER -> Band(MaterialTheme.colorScheme.surfaceVariant) {
+                Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+            }
 
-        Role.ASSISTANT -> Block(background = MaterialTheme.colorScheme.background) {
-            MarkdownText(message.text, modifier = Modifier.fillMaxWidth())
-        }
+            Role.ASSISTANT -> Plain {
+                MarkdownText(message.text, modifier = Modifier.fillMaxWidth())
+            }
 
-        Role.THINKING -> Collapsible(
-            label = stringResource(R.string.thinking),
-            text = message.text,
-            top = specialTop(prevRole),
-            bottom = specialBottom(nextRole),
-        )
+            Role.THINKING -> Collapsible(label = stringResource(R.string.thinking), text = message.text)
 
-        Role.TOOL -> ToolBlock(
-            name = message.toolName,
-            input = message.text,
-            top = specialTop(prevRole),
-            bottom = specialBottom(nextRole),
-        )
+            Role.TOOL -> ToolBlock(name = message.toolName, input = message.text)
 
-        Role.ERROR -> Block(background = MaterialTheme.colorScheme.errorContainer) {
-            Text(
-                message.text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onErrorContainer,
-            )
-        }
+            Role.ERROR -> Band(MaterialTheme.colorScheme.errorContainer) {
+                Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+            }
 
-        Role.SYSTEM -> Block(background = Color.Transparent) {
-            Text(
-                message.text,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Role.SYSTEM -> Plain {
+                Text(message.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
 
-private fun isSpecial(role: Role?) = role == Role.THINKING || role == Role.TOOL
+private fun group(role: Role?): Int = when (role) {
+    Role.THINKING, Role.TOOL -> 0
+    Role.ASSISTANT -> 1
+    Role.USER -> 2
+    else -> 3
+}
 
-// Thinking/tool blocks cluster tightly with each other (6dp) but take the normal block
-// margin (12dp) against normal blocks and at the list edges (first/last).
-private fun specialTop(prev: Role?): Dp = if (isSpecial(prev)) 6.dp else 12.dp
-
-private fun specialBottom(next: Role?): Dp = if (next != null && isSpecial(next)) 0.dp else 12.dp
+private fun gapAbove(prev: Role?, cur: Role): Dp {
+    if (prev == null) return BIG
+    val a = group(prev)
+    val b = group(cur)
+    if (a != 0 && b != 0) return BIG
+    return if (a == 1 || b == 1) 0.dp else SMALL
+}
 
 @Composable
-private fun Block(background: Color, content: @Composable () -> Unit) {
+private fun Band(background: Color, content: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -100,19 +94,22 @@ private fun Block(background: Color, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun Collapsible(label: String, text: String, top: Dp, bottom: Dp) {
+private fun Plain(content: @Composable () -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        content()
+    }
+}
+
+@Composable
+private fun Collapsible(label: String, text: String) {
     var expanded by remember { mutableStateOf(false) }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = top, bottom = bottom),
-    ) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = if (expanded) Icons.Rounded.KeyboardArrowDown else Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp),
@@ -136,13 +133,13 @@ private fun Collapsible(label: String, text: String, top: Dp, bottom: Dp) {
 }
 
 @Composable
-private fun ToolBlock(name: String?, input: String, top: Dp, bottom: Dp) {
+private fun ToolBlock(name: String?, input: String) {
     var expanded by remember { mutableStateOf(false) }
     val preview = input.replace("\n", " ").trim()
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = top, bottom = bottom)
+            .padding(horizontal = 16.dp)
             .clickable { expanded = !expanded },
     ) {
         Row(
@@ -150,7 +147,7 @@ private fun ToolBlock(name: String?, input: String, top: Dp, bottom: Dp) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = Icons.Rounded.Terminal,
+                imageVector = Lucide.Terminal,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(16.dp),

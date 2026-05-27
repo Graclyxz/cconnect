@@ -11,10 +11,12 @@ data class ChatMessage(
 
 data class ModelOption(val id: String, val label: String)
 
+data class PermissionMode(val id: String, val label: String)
+
 data class TodoItem(val id: String? = null, val content: String, val status: String, val activeForm: String = "")
 
 data class Capabilities(
-    val permissionModes: List<String> = listOf("default", "acceptEdits", "plan", "dontAsk", "bypassPermissions"),
+    val permissionModes: List<PermissionMode> = listOf(PermissionMode("default", "Default")),
     val effortLevels: List<String> = listOf("low", "medium", "high", "xhigh", "max"),
     val models: List<ModelOption> = listOf(ModelOption("opus", "Opus 4.7")),
     val colors: List<String> = listOf("red", "orange", "yellow", "green", "cyan", "blue", "purple", "pink"),
