@@ -65,6 +65,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private var currentAssistantId: Long? = null
     private var currentThinkingId: Long? = null
     private var historyJob: Job? = null
+    private var historyLoaded = false
 
     // Reconnect-and-resume when the app returns to the foreground after a drop.
     private val foregroundObserver = object : DefaultLifecycleObserver {
@@ -139,8 +140,13 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         startSession(resume = null)
     }
 
+    fun ensureHistoryLoaded() {
+        if (!historyLoaded) loadHistory()
+    }
+
     fun loadHistory() {
         historyJob?.cancel()
+        historyLoaded = true
         val key = _state.value.historyProjectKey
         historyJob = viewModelScope.launch {
             _state.update { it.copy(historyLoading = true) }

@@ -33,9 +33,7 @@ import com.jahirtrap.cconnect.data.Role
 import com.jahirtrap.cconnect.ui.MarkdownText
 
 @Composable
-fun ChatMessageItem(message: ChatMessage, prevRole: Role? = null) {
-    val prevSeparates = prevRole == Role.USER || prevRole == Role.THINKING || prevRole == Role.TOOL
-    val topGap = if (prevSeparates) 6.dp else 0.dp
+fun ChatMessageItem(message: ChatMessage, prevRole: Role? = null, nextRole: Role? = null) {
     when (message.role) {
         Role.USER -> Block(background = MaterialTheme.colorScheme.surfaceVariant) {
             Text(
@@ -49,12 +47,26 @@ fun ChatMessageItem(message: ChatMessage, prevRole: Role? = null) {
             MarkdownText(message.text, modifier = Modifier.fillMaxWidth())
         }
 
-        Role.THINKING -> Collapsible(label = stringResource(R.string.thinking), text = message.text, topPadding = topGap)
+        Role.THINKING -> Collapsible(
+            label = stringResource(R.string.thinking),
+            text = message.text,
+            top = specialTop(prevRole),
+            bottom = specialBottom(nextRole),
+        )
 
-        Role.TOOL -> ToolBlock(name = message.toolName, input = message.text, topPadding = topGap)
+        Role.TOOL -> ToolBlock(
+            name = message.toolName,
+            input = message.text,
+            top = specialTop(prevRole),
+            bottom = specialBottom(nextRole),
+        )
 
         Role.ERROR -> Block(background = MaterialTheme.colorScheme.errorContainer) {
-            Text(message.text, color = MaterialTheme.colorScheme.onErrorContainer)
+            Text(
+                message.text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
         }
 
         Role.SYSTEM -> Block(background = Color.Transparent) {
@@ -66,6 +78,14 @@ fun ChatMessageItem(message: ChatMessage, prevRole: Role? = null) {
         }
     }
 }
+
+private fun isSpecial(role: Role?) = role == Role.THINKING || role == Role.TOOL
+
+// Thinking/tool blocks cluster tightly with each other (6dp) but take the normal block
+// margin (12dp) against normal blocks and at the list edges (first/last).
+private fun specialTop(prev: Role?): Dp = if (isSpecial(prev)) 6.dp else 12.dp
+
+private fun specialBottom(next: Role?): Dp = if (next != null && isSpecial(next)) 0.dp else 12.dp
 
 @Composable
 private fun Block(background: Color, content: @Composable () -> Unit) {
@@ -80,12 +100,12 @@ private fun Block(background: Color, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun Collapsible(label: String, text: String, topPadding: Dp) {
+private fun Collapsible(label: String, text: String, top: Dp, bottom: Dp) {
     var expanded by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = topPadding),
+            .padding(start = 16.dp, end = 16.dp, top = top, bottom = bottom),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
@@ -116,13 +136,13 @@ private fun Collapsible(label: String, text: String, topPadding: Dp) {
 }
 
 @Composable
-private fun ToolBlock(name: String?, input: String, topPadding: Dp) {
+private fun ToolBlock(name: String?, input: String, top: Dp, bottom: Dp) {
     var expanded by remember { mutableStateOf(false) }
     val preview = input.replace("\n", " ").trim()
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 16.dp, end = 16.dp, top = topPadding)
+            .padding(start = 16.dp, end = 16.dp, top = top, bottom = bottom)
             .clickable { expanded = !expanded },
     ) {
         Row(
@@ -136,7 +156,7 @@ private fun ToolBlock(name: String?, input: String, topPadding: Dp) {
                 modifier = Modifier.size(16.dp),
             )
             Text(
-                text = "  ${name ?: "tool"}",
+                text = "  ${name.orEmpty()}",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,

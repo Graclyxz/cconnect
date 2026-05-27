@@ -35,7 +35,6 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Language
@@ -47,7 +46,6 @@ import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -90,6 +88,7 @@ import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.ui.ColorDialog
+import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.LANGUAGE_TAGS
 import com.jahirtrap.cconnect.ui.RenameDialog
@@ -123,7 +122,7 @@ fun ChatScreen(
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     LaunchedEffect(drawerState.targetValue) {
-        if (drawerState.targetValue == DrawerValue.Open) vm.loadHistory()
+        if (drawerState.targetValue == DrawerValue.Open) vm.ensureHistoryLoaded()
     }
 
     val isAtBottom by remember {
@@ -271,7 +270,11 @@ fun ChatScreen(
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
-                            ChatMessageItem(message, prevRole = state.messages.getOrNull(index - 1)?.role)
+                            ChatMessageItem(
+                                message,
+                                prevRole = state.messages.getOrNull(index - 1)?.role,
+                                nextRole = state.messages.getOrNull(index + 1)?.role,
+                            )
                         }
                     }
                     if (showScrollButton && state.messages.isNotEmpty()) {
@@ -457,18 +460,10 @@ private fun SelectorChip(
         ) {
             options.forEach { (value, display) ->
                 val style = optionStyle?.invoke(value)
-                DropdownMenuItem(
-                    text = { Text(display) },
-                    leadingIcon = if (style != null) {
-                        { Icon(style.first, contentDescription = null, tint = style.second, modifier = Modifier.size(20.dp)) }
-                    } else {
-                        null
-                    },
-                    trailingIcon = {
-                        if (value == selected) {
-                            Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        }
-                    },
+                CompactDropdownItem(
+                    text = display,
+                    leadingIcon = style?.let { { Icon(it.first, contentDescription = null, tint = it.second, modifier = Modifier.size(18.dp)) } },
+                    selected = value == selected,
                     onClick = { onSelect(value); setOpen(false) },
                 )
             }
@@ -574,9 +569,9 @@ private fun ProjectSelector(projects: List<ProjectInfo>, selected: String?, onSe
             Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            DropdownMenuItem(text = { Text(stringResource(R.string.all_projects)) }, onClick = { onSelect(null); open = false })
+            CompactDropdownItem(stringResource(R.string.all_projects), selected = selected == null) { onSelect(null); open = false }
             projects.forEach { p ->
-                DropdownMenuItem(text = { Text(projectLabel(p)) }, onClick = { onSelect(p.projectKey); open = false })
+                CompactDropdownItem(projectLabel(p), selected = selected == p.projectKey) { onSelect(p.projectKey); open = false }
             }
         }
     }
@@ -612,10 +607,10 @@ private fun ConversationRow(
                 Icon(Icons.Rounded.MoreVert, contentDescription = null)
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                DropdownMenuItem(text = { Text(stringResource(R.string.rename)) }, onClick = { menu = false; onRename() })
-                DropdownMenuItem(text = { Text(stringResource(R.string.auto_rename)) }, onClick = { menu = false; onAutoRename() })
-                DropdownMenuItem(text = { Text(stringResource(R.string.conversation_color)) }, onClick = { menu = false; onColor() })
-                DropdownMenuItem(text = { Text(stringResource(R.string.delete)) }, onClick = { menu = false; onDelete() })
+                CompactDropdownItem(stringResource(R.string.rename)) { menu = false; onRename() }
+                CompactDropdownItem(stringResource(R.string.auto_rename)) { menu = false; onAutoRename() }
+                CompactDropdownItem(stringResource(R.string.conversation_color)) { menu = false; onColor() }
+                CompactDropdownItem(stringResource(R.string.delete)) { menu = false; onDelete() }
             }
         }
     }

@@ -51,7 +51,7 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False) -> list[dict]:
             events.append({
                 "type": "tool_use",
                 "id": getattr(block, "id", None),
-                "name": getattr(block, "name", None),
+                "name": (getattr(block, "name", None) or "").strip() or "tool",
                 "input": _format_tool_input(getattr(block, "input", None)),
             })
         elif kind == "ToolResultBlock":
