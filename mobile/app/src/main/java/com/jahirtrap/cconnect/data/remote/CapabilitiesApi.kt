@@ -1,6 +1,7 @@
 package com.jahirtrap.cconnect.data.remote
 
 import com.jahirtrap.cconnect.data.Capabilities
+import com.jahirtrap.cconnect.data.CapabilitiesDefaults
 import com.jahirtrap.cconnect.data.ModelOption
 import com.jahirtrap.cconnect.data.PermissionMode
 import kotlinx.serialization.json.contentOrNull
@@ -28,6 +29,13 @@ object CapabilitiesApi {
             } ?: fallback.models,
             colors = data["colors"]?.jsonArray
                 ?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: fallback.colors,
+            defaults = data["defaults"]?.jsonObject?.let { o ->
+                CapabilitiesDefaults(
+                    permissionMode = o["permission_mode"]?.jsonPrimitive?.contentOrNull ?: fallback.defaults.permissionMode,
+                    effort = o["effort"]?.jsonPrimitive?.contentOrNull ?: fallback.defaults.effort,
+                    model = o["model"]?.jsonPrimitive?.contentOrNull ?: fallback.defaults.model,
+                )
+            } ?: fallback.defaults,
         )
     }
 }

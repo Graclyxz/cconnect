@@ -58,14 +58,16 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val client = ChatSocket(viewModelScope)
 
     private val _state = MutableStateFlow(
-        ChatUiState(
-            permissionMode = settings.permissionMode,
-            model = settings.model,
-            effort = settings.effort,
-            streamTokens = settings.streaming,
-            connections = settings.connections,
-            activeConnectionId = settings.activeConnection?.id,
-        )
+        Capabilities().defaults.let { d ->
+            ChatUiState(
+                permissionMode = settings.permissionMode ?: d.permissionMode,
+                model = settings.model ?: d.model,
+                effort = settings.effort ?: d.effort,
+                streamTokens = settings.streaming,
+                connections = settings.connections,
+                activeConnectionId = settings.activeConnection?.id,
+            )
+        }
     )
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
@@ -100,14 +102,22 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(connection = ConnectionState.Connecting, error = null) }
         viewModelScope.launch {
             CapabilitiesApi.capabilities()?.let { caps ->
-                _state.update { it.copy(capabilities = caps) }
+                _state.update {
+                    it.copy(
+                        capabilities = caps,
+                        permissionMode = settings.permissionMode ?: caps.defaults.permissionMode,
+                        model = settings.model ?: caps.defaults.model,
+                        effort = settings.effort ?: caps.defaults.effort,
+                    )
+                }
             }
             client.connect()
         }
     }
 
     private fun startSession(resume: String?) {
-        client.sendStart(settings.cwd, _state.value.permissionMode, resume, settings.model, settings.effort, settings.streaming)
+        val s = _state.value
+        client.sendStart(settings.cwd, s.permissionMode, resume, s.model, s.effort, settings.streaming)
     }
 
     fun sendPrompt(text: String) {

@@ -39,6 +39,13 @@ data class Capabilities(
     val effortLevels: List<String> = listOf("low", "medium", "high", "xhigh", "max"),
     val models: List<ModelOption> = listOf(ModelOption("opus", "Opus 4.7")),
     val colors: List<String> = listOf("red", "orange", "yellow", "green", "cyan", "blue", "purple", "pink"),
+    val defaults: CapabilitiesDefaults = CapabilitiesDefaults(),
+)
+
+data class CapabilitiesDefaults(
+    val permissionMode: String = "bypassPermissions",
+    val effort: String = "xhigh",
+    val model: String = "opus[1m]",
 )
 
 sealed interface ServerEvent {

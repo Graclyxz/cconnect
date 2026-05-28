@@ -72,16 +72,17 @@ class Settings(context: Context) {
         get() = prefs.getString("cwd", "") ?: ""
         set(value) = prefs.edit { putString("cwd", value) }
 
-    var permissionMode: String
-        get() = prefs.getString("permission_mode", "bypassPermissions") ?: "bypassPermissions"
+    // Null when the user hasn't picked one yet
+    var permissionMode: String?
+        get() = prefs.getString("permission_mode", null)
         set(value) = prefs.edit { putString("permission_mode", value) }
 
-    var model: String
-        get() = prefs.getString("model", "opus[1m]") ?: "opus[1m]"
+    var model: String?
+        get() = prefs.getString("model", null)
         set(value) = prefs.edit { putString("model", value) }
 
-    var effort: String
-        get() = prefs.getString("effort", "xhigh") ?: "xhigh"
+    var effort: String?
+        get() = prefs.getString("effort", null)
         set(value) = prefs.edit { putString("effort", value) }
 
     var streaming: Boolean

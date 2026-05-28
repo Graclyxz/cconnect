@@ -27,8 +27,8 @@ SHARED_DIR = str(Path(__file__).resolve().parent.parent / "shared")
 _FALLBACK_PERMISSION_MODES = ("default", "acceptEdits", "plan", "dontAsk", "bypassPermissions", "auto")
 _FALLBACK_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
 
-DEFAULT_PERMISSION_MODE = os.environ.get("DEFAULT_PERMISSION_MODE", "default")
-DEFAULT_EFFORT = os.environ.get("DEFAULT_EFFORT", "max")
+DEFAULT_PERMISSION_MODE = os.environ.get("DEFAULT_PERMISSION_MODE", "bypassPermissions")
+DEFAULT_EFFORT = os.environ.get("DEFAULT_EFFORT", "xhigh")
 
 # Curated model list (the SDK does not enumerate models). Ids are CLI aliases
 # that always resolve to the latest matching model; "default" lets the CLI pick.
@@ -40,7 +40,7 @@ MODELS = [
     {"id": "sonnet[1m]", "label": "Sonnet 4.6 (1M)"},
     {"id": "haiku", "label": "Haiku 4.5"},
 ]
-DEFAULT_MODEL = os.environ.get("DEFAULT_MODEL", "opus")
+DEFAULT_MODEL = os.environ.get("DEFAULT_MODEL", "opus[1m]")
 
 # Display labels for permission modes (the SDK only exposes the raw ids). Served with
 # capabilities so the app doesn't hardcode/translate them.

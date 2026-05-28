@@ -109,14 +109,19 @@ fun SettingsScreen(
 
     var connections by remember { mutableStateOf(settings.connections) }
     var activeId by remember { mutableStateOf(settings.activeConnection?.id) }
-    var model by remember { mutableStateOf(settings.model) }
-    var effort by remember { mutableStateOf(settings.effort) }
-    var permissionMode by remember { mutableStateOf(settings.permissionMode) }
-    var streaming by remember { mutableStateOf(settings.streaming) }
     var caps by remember { mutableStateOf(Capabilities()) }
+    var model by remember { mutableStateOf(settings.model ?: caps.defaults.model) }
+    var effort by remember { mutableStateOf(settings.effort ?: caps.defaults.effort) }
+    var permissionMode by remember { mutableStateOf(settings.permissionMode ?: caps.defaults.permissionMode) }
+    var streaming by remember { mutableStateOf(settings.streaming) }
 
     LaunchedEffect(activeId, connections) {
-        if (Backend.isConfigured) CapabilitiesApi.capabilities()?.let { caps = it }
+        if (Backend.isConfigured) CapabilitiesApi.capabilities()?.let { c ->
+            caps = c
+            if (settings.model == null) model = c.defaults.model
+            if (settings.effort == null) effort = c.defaults.effort
+            if (settings.permissionMode == null) permissionMode = c.defaults.permissionMode
+        }
     }
 
     var dialog by remember { mutableStateOf<SettingsDialog?>(null) }
@@ -235,8 +240,10 @@ fun SettingsScreen(
                 settings.resetDefaults()
                 onThemeMode(settings.themeMode); onLanguage(settings.language)
                 onDynamicColor(settings.dynamicColor); onAccent(settings.accentIndex)
-                model = settings.model; effort = settings.effort
-                permissionMode = settings.permissionMode; streaming = settings.streaming
+                model = settings.model ?: caps.defaults.model
+                effort = settings.effort ?: caps.defaults.effort
+                permissionMode = settings.permissionMode ?: caps.defaults.permissionMode
+                streaming = settings.streaming
                 dialog = null
             },
             onDismiss = { dialog = null },

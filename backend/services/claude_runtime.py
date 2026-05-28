@@ -9,6 +9,7 @@ from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 from loguru import logger
 
 from core.config import AI_WORKDIR, PORT, SHARED_DIR
+from mcps import build_cconnect_server
 
 _AGENT_PROMPT_FILE = Path(__file__).resolve().parent.parent / "prompts" / "agent.md"
 _FILE_EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
@@ -306,6 +307,7 @@ async def run_prompt(
         thinking={"type": "adaptive", "display": "summarized"},
         include_partial_messages=partial,
         extra_args=extra_args,
+        mcp_servers={"cconnect": build_cconnect_server()},
     )
     if ask_user is not None:
         options_kwargs["can_use_tool"] = _can_use_tool
@@ -385,3 +387,5 @@ async def generate_title(transcript: str) -> str:
     except Exception as exc:
         logger.error(f"generate_title failed: {type(exc).__name__}: {exc}")
     return "".join(parts).strip()
+
+
