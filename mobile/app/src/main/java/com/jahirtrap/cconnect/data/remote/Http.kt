@@ -41,12 +41,20 @@ object Http {
 
     private suspend fun execute(builder: Request.Builder): JsonElement? = withContext(Dispatchers.IO) {
         runCatching {
+            applyAuth(builder)
             client.newCall(builder.build()).execute().use { resp ->
                 val text = resp.body?.string() ?: return@use null
                 val obj = json.parseToJsonElement(text).jsonObject
                 if (obj["success"]?.jsonPrimitive?.booleanOrNull == true) obj["data"] ?: JsonObject(emptyMap()) else null
             }
         }.getOrNull()
+    }
+
+    internal fun applyAuth(builder: Request.Builder) {
+        Backend.authorizationHeader?.let { builder.header("Authorization", it) }
+        if (Backend.authKind == "header" && Backend.authHeaderName.isNotBlank() && Backend.authHeaderValue.isNotBlank()) {
+            builder.header(Backend.authHeaderName, Backend.authHeaderValue)
+        }
     }
 
     private val client = OkHttpClient()

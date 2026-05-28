@@ -47,6 +47,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
@@ -398,10 +399,19 @@ private fun ConnectionsDialog(
 
 @Composable
 private fun ConnectionEditDialog(initial: ConnectionProfile?, onConfirm: (ConnectionProfile) -> Unit, onDismiss: () -> Unit) {
+    var kind by remember { mutableStateOf(initial?.kind ?: "http") }
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var host by remember { mutableStateOf(initial?.host ?: "") }
     var port by remember { mutableStateOf((initial?.port ?: 8723).toString()) }
     var directory by remember { mutableStateOf(initial?.directory ?: "") }
+    var authKind by remember { mutableStateOf(initial?.authKind ?: "none") }
+    var authToken by remember { mutableStateOf(initial?.authToken ?: "") }
+    var authUser by remember { mutableStateOf(initial?.authUser ?: "") }
+    var authPassword by remember { mutableStateOf(initial?.authPassword ?: "") }
+    var authHeaderName by remember { mutableStateOf(initial?.authHeaderName ?: "") }
+    var authHeaderValue by remember { mutableStateOf(initial?.authHeaderValue ?: "") }
+
+    fun defaultPortFor(k: String) = if (k == "https") "443" else "8723"
 
     CompactDialog(
         onDismiss = onDismiss,
@@ -410,12 +420,29 @@ private fun ConnectionEditDialog(initial: ConnectionProfile?, onConfirm: (Connec
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
             TextButton(
                 onClick = {
+                    var finalKind = kind
+                    var finalHost = host.trim().trimEnd('/')
+                    var finalPort = port.trim()
+                    val parsed = parseHostInput(finalHost)
+                    if (parsed != null) {
+                        finalKind = parsed.kind
+                        finalHost = parsed.host
+                        finalPort = parsed.port
+                    }
+                    val portInt = finalPort.toIntOrNull() ?: defaultPortFor(finalKind).toInt()
                     onConfirm(
                         ConnectionProfile(
                             id = initial?.id ?: UUID.randomUUID().toString(),
-                            name = name.trim().ifBlank { host.trim() },
-                            host = host.trim(),
-                            port = port.toIntOrNull() ?: 8723,
+                            name = name.trim().ifBlank { finalHost },
+                            kind = finalKind,
+                            host = finalHost,
+                            port = portInt,
+                            authKind = authKind,
+                            authToken = authToken.trim(),
+                            authUser = authUser.trim(),
+                            authPassword = authPassword,
+                            authHeaderName = authHeaderName.trim(),
+                            authHeaderValue = authHeaderValue.trim(),
                             directory = directory.trim(),
                         )
                     )
@@ -424,12 +451,67 @@ private fun ConnectionEditDialog(initial: ConnectionProfile?, onConfirm: (Connec
             ) { Text(stringResource(R.string.save)) }
         },
     ) {
+        SelectField(
+            label = stringResource(R.string.connection_kind),
+            selected = kind,
+            options = listOf("http" to "HTTP", "https" to "HTTPS"),
+            onSelect = { newKind ->
+                if (newKind != kind) {
+                    port = defaultPortFor(newKind)
+                    kind = newKind
+                }
+            },
+        )
+        Spacer(Modifier.height(8.dp))
         OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.connection_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(value = host, onValueChange = { host = it }, label = { Text(stringResource(R.string.host)) }, placeholder = { Text(stringResource(R.string.host_hint)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(
+            value = host,
+            onValueChange = { input ->
+                val parsed = parseHostInput(input)
+                if (parsed != null) {
+                    host = parsed.host
+                    port = parsed.port
+                    kind = parsed.kind
+                } else {
+                    host = input
+                }
+            },
+            label = { Text(stringResource(R.string.host)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(value = port, onValueChange = { port = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.port)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
+        if (kind != "https" || (port.toIntOrNull() ?: 443) != 443) {
+            OutlinedTextField(value = port, onValueChange = { port = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.port)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
+        }
+        SelectField(
+            label = stringResource(R.string.connection_auth),
+            selected = authKind,
+            options = listOf(
+                "none" to stringResource(R.string.auth_none),
+                "bearer" to stringResource(R.string.auth_bearer),
+                "basic" to stringResource(R.string.auth_basic),
+                "header" to stringResource(R.string.auth_header),
+            ),
+            onSelect = { authKind = it },
+        )
         Spacer(Modifier.height(8.dp))
+        when (authKind) {
+            "bearer" -> OutlinedTextField(value = authToken, onValueChange = { authToken = it }, label = { Text(stringResource(R.string.connection_token)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            "basic" -> {
+                OutlinedTextField(value = authUser, onValueChange = { authUser = it }, label = { Text(stringResource(R.string.auth_user)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = authPassword, onValueChange = { authPassword = it }, label = { Text(stringResource(R.string.auth_password)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+            }
+            "header" -> {
+                OutlinedTextField(value = authHeaderName, onValueChange = { authHeaderName = it }, label = { Text(stringResource(R.string.auth_header_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = authHeaderValue, onValueChange = { authHeaderValue = it }, label = { Text(stringResource(R.string.auth_header_value)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+        }
+        if (authKind != "none") Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = directory,
             onValueChange = { directory = it },
@@ -475,4 +557,32 @@ private fun GenerationDialog(
             Switch(checked = s, onCheckedChange = { s = it })
         }
     }
+}
+
+private data class ParsedHost(val host: String, val port: String, val kind: String)
+
+// Returns non-null only when the user pasted a URL with a scheme (http(s)/ws(s)); plain
+// host text falls through to the normal onValueChange path.
+private fun parseHostInput(input: String): ParsedHost? {
+    val raw = input.trim()
+    val sep = raw.indexOf("://")
+    if (sep <= 0) return null
+    val parsedKind = when (raw.substring(0, sep).lowercase()) {
+        "https", "wss" -> "https"
+        "http", "ws" -> "http"
+        else -> return null
+    }
+    val secure = parsedKind == "https"
+    val rest = raw.substring(sep + 3).substringBefore('/').substringBefore('?')
+    val colon = rest.indexOf(':')
+    val host: String
+    val port: String
+    if (colon >= 0) {
+        host = rest.substring(0, colon)
+        port = rest.substring(colon + 1).filter(Char::isDigit).ifEmpty { if (secure) "443" else "80" }
+    } else {
+        host = rest
+        port = if (secure) "443" else "80"
+    }
+    return ParsedHost(host, port, parsedKind)
 }

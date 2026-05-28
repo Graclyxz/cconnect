@@ -1,21 +1,25 @@
 package com.jahirtrap.cconnect.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -24,7 +28,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,6 +40,7 @@ import com.jahirtrap.cconnect.R
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Send
 import com.composables.icons.lucide.Shield
 import com.composables.icons.lucide.Terminal
 import com.jahirtrap.cconnect.data.ChatMessage
@@ -104,6 +111,7 @@ private fun bottomGap(cur: Role, next: Role?): Dp = when {
 
 private fun gapAbove(prev: Role?, cur: Role): Dp {
     if (prev == null) return BIG
+    if (prev == cur) return 0.dp
     if (cur == Role.ERROR || prev == Role.ERROR) {
         val other = if (cur == Role.ERROR) prev else cur
         return if (other == Role.USER || other == Role.ASSISTANT) 0.dp else SMALL
@@ -243,23 +251,48 @@ private fun InteractionBlock(
             Spacer(Modifier.height(8.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 data.options.forEach { opt ->
-                    OutlinedButton(onClick = {
-                        onAnswer?.invoke(data.requestId, opt.id, freeText.ifBlank { null })
-                    }) {
-                        Text(optionLabel(opt))
+                    OutlinedButton(
+                        onClick = { onAnswer?.invoke(data.requestId, opt.id, null) },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    ) {
+                        Text(optionLabel(opt), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
             if (data.freeText != "off") {
-                Spacer(Modifier.height(6.dp))
-                OutlinedTextField(
-                    value = freeText,
-                    onValueChange = { freeText = it },
-                    placeholder = { Text(stringResource(R.string.interaction_text_hint)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    maxLines = 3,
-                    textStyle = MaterialTheme.typography.bodySmall,
-                )
+                Spacer(Modifier.height(8.dp))
+                val shape = RoundedCornerShape(8.dp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    BasicTextField(
+                        value = freeText,
+                        onValueChange = { freeText = it },
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        maxLines = 3,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(shape)
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        decorationBox = { inner ->
+                            if (freeText.isEmpty()) {
+                                Text(
+                                    stringResource(R.string.interaction_text_hint),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            inner()
+                        },
+                    )
+                    Spacer(Modifier.size(4.dp))
+                    IconButton(
+                        onClick = { onAnswer?.invoke(data.requestId, "", freeText.trim()) },
+                        enabled = freeText.isNotBlank(),
+                    ) {
+                        Icon(Lucide.Send, contentDescription = stringResource(R.string.send), modifier = Modifier.size(20.dp))
+                    }
+                }
             }
         } else {
             val chosen = data.options.firstOrNull { it.id == resolved }

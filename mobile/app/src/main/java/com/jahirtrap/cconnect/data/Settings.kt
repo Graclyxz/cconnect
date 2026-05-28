@@ -5,6 +5,7 @@ import androidx.core.content.edit
 import com.jahirtrap.cconnect.data.remote.Backend
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -55,8 +56,15 @@ class Settings(context: Context) {
 
     private fun syncBackend() {
         activeConnection?.let {
+            Backend.kind = it.kind
             Backend.host = it.host
             Backend.port = it.port
+            Backend.authKind = it.authKind
+            Backend.authToken = it.authToken
+            Backend.authUser = it.authUser
+            Backend.authPassword = it.authPassword
+            Backend.authHeaderName = it.authHeaderName
+            Backend.authHeaderValue = it.authHeaderValue
         }
     }
 
@@ -113,7 +121,12 @@ class Settings(context: Context) {
         if (prefs.contains("connections")) return
         val legacy = prefs.getString("host", "") ?: ""
         if (legacy.isNotBlank()) {
-            val profile = ConnectionProfile(UUID.randomUUID().toString(), "Default", legacy, prefs.getInt("port", 8723))
+            val profile = ConnectionProfile(
+                id = UUID.randomUUID().toString(),
+                name = "Default",
+                host = legacy,
+                port = prefs.getInt("port", 8723),
+            )
             connections = listOf(profile)
             activeConnectionId = profile.id
         }
@@ -124,11 +137,24 @@ class Settings(context: Context) {
         return runCatching {
             Json.parseToJsonElement(raw).jsonArray.map { el ->
                 val o = el.jsonObject
+                val legacySecure = o["secure"]?.jsonPrimitive?.booleanOrNull
+                val legacyToken = o["token"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                val kindStored = o["kind"]?.jsonPrimitive?.contentOrNull
                 ConnectionProfile(
                     id = o["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                     name = o["name"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    kind = kindStored?.let { if (it == "url") if (legacySecure == true) "https" else "http" else it }
+                        ?: if (legacySecure == true) "https" else "http",
                     host = o["host"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                     port = o["port"]?.jsonPrimitive?.intOrNull ?: 8723,
+                    authKind = o["authKind"]?.jsonPrimitive?.contentOrNull
+                        ?: if (legacyToken.isNotBlank()) "bearer" else "none",
+                    authToken = o["authToken"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotEmpty() }
+                        ?: legacyToken,
+                    authUser = o["authUser"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    authPassword = o["authPassword"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    authHeaderName = o["authHeaderName"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    authHeaderValue = o["authHeaderValue"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                     directory = o["directory"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                 )
             }
@@ -141,8 +167,15 @@ class Settings(context: Context) {
                 addJsonObject {
                     put("id", p.id)
                     put("name", p.name)
+                    put("kind", p.kind)
                     put("host", p.host)
                     put("port", p.port)
+                    put("authKind", p.authKind)
+                    put("authToken", p.authToken)
+                    put("authUser", p.authUser)
+                    put("authPassword", p.authPassword)
+                    put("authHeaderName", p.authHeaderName)
+                    put("authHeaderValue", p.authHeaderValue)
                     put("directory", p.directory)
                 }
             }

@@ -8,6 +8,7 @@ import secrets
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 import uvicorn
 
@@ -59,6 +60,7 @@ def _ensure_public_token() -> bool:
 def _start_tailscale_funnel(port: int) -> str:
     """Start Tailscale Funnel in the background and return the public URL."""
     try:
+        subprocess.run(["tailscale", "up"], capture_output=True, text=True, timeout=60)
         result = subprocess.run(
             ["tailscale", "funnel", "--bg", str(port)],
             capture_output=True, text=True, check=True, timeout=20,
@@ -96,9 +98,12 @@ def _expose(provider: str, port: int) -> None:
         return  # unreachable, satisfies static checkers
     token = os.environ[_TOKEN_VAR]
     token_tag = " [Auto]" if generated else ""
+    parsed = urlparse(public_url)
+    pub_port = parsed.port or (443 if parsed.scheme == "https" else 80)
     print(
         f"\n  Public URL : {public_url}"
         f"\n  Provider   : {provider}"
+        f"\n  Port       : {pub_port}"
         f"\n  Token      : {token}{token_tag}\n"
     )
 

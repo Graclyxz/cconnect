@@ -56,7 +56,9 @@ class ChatSocket(private val scope: CoroutineScope) {
     private fun open() {
         val gen = ++generation
         ws?.cancel()
-        val request = Request.Builder().url(Backend.wsUrl).build()
+        val builder = Request.Builder().url(Backend.wsUrl)
+        Http.applyAuth(builder)
+        val request = builder.build()
         ws = http.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 if (gen != generation) return

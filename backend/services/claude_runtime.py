@@ -1,6 +1,5 @@
 """Wraps the Claude Agent SDK query() into a stream of normalized event dicts."""
 
-import asyncio
 import json
 import os
 import subprocess
@@ -92,10 +91,28 @@ def _todo_items(todos: Any) -> list[dict]:
     ]
 
 
-def _blocks_to_events(content: Any, skip_streamed: bool = False) -> list[dict]:
-    """Convert final message blocks to events. When ``skip_streamed`` is set,
-    text and thinking are omitted because they already arrived as deltas."""
+def _flatten_result_content(content: Any) -> str:
+    """Tool results can be a string, a list of {type:'text', text:...} blocks, or raw text."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for r in content:
+            if isinstance(r, dict) and r.get("type") == "text":
+                parts.append(r.get("text", ""))
+            elif isinstance(r, str):
+                parts.append(r)
+        return "\n".join(p for p in parts if p)
+    return "" if content is None else str(content)
+
+
+def _blocks_to_events(content: Any, skip_streamed: bool = False, hidden_tool_ids: set[str] | None = None) -> list[dict]:
+    """Convert message blocks to events. When ``skip_streamed`` is set,
+    text and thinking are omitted because they already arrived as deltas.
+    ``hidden_tool_ids`` collects tool_use ids that should be suppressed
+    (used to hide AskUserQuestion's tool_use AND its matching tool_result)."""
     events: list[dict] = []
+    hidden = hidden_tool_ids if hidden_tool_ids is not None else set()
     for block in content or []:
         kind = type(block).__name__
         if kind == "TextBlock":
@@ -109,6 +126,12 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False) -> list[dict]:
         elif kind == "ToolUseBlock":
             name = (getattr(block, "name", None) or "").strip() or "tool"
             raw_input = getattr(block, "input", None)
+            if name == "AskUserQuestion":
+                # Surfaced as an interaction block; don't render the tool_use itself.
+                bid = getattr(block, "id", None)
+                if bid:
+                    hidden.add(bid)
+                continue
             if name == "TodoWrite" and isinstance(raw_input, dict):
                 events.append({"type": "todos", "items": _todo_items(raw_input.get("todos"))})
             elif name == "TaskUpdate" and isinstance(raw_input, dict):
@@ -126,10 +149,13 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False) -> list[dict]:
                     "input": _format_tool_input(raw_input),
                 })
         elif kind == "ToolResultBlock":
+            tuid = getattr(block, "tool_use_id", None)
+            if tuid and tuid in hidden:
+                continue
             events.append({
                 "type": "tool_result",
-                "tool_use_id": getattr(block, "tool_use_id", None),
-                "content": getattr(block, "content", None),
+                "tool_use_id": tuid,
+                "content": _flatten_result_content(getattr(block, "content", None)),
                 "is_error": getattr(block, "is_error", None),
             })
     return events
@@ -159,6 +185,7 @@ async def run_prompt(
         UserMessage,
         PermissionResultAllow,
         PermissionResultDeny,
+        HookMatcher,
     )
 
     effort_level = None if effort in (None, "", "default") else effort
@@ -171,25 +198,29 @@ async def run_prompt(
 
     async def _can_use_tool(tool_name: str, tool_input: dict, ctx) -> Any:
         if tool_name == "AskUserQuestion" and isinstance(tool_input, dict):
-            q = (tool_input.get("questions") or [{}])[0]
-            options = [
-                {"id": f"q_{i}", "label": opt.get("label", ""), "description": opt.get("description")}
-                for i, opt in enumerate(q.get("options", []))
-                if isinstance(opt, dict)
-            ]
-            response = await ask_user({
-                "kind": "question",
-                "title": q.get("question") or q.get("header"),
-                "tool_name": q.get("header"),
-                "input": "",
-                "options": options,
-                "free_text": "optional",
-            })
-            free_text = (response.get("free_text") or "").strip()
-            chosen_id = response.get("option_id")
-            chosen_label = next((o["label"] for o in options if o["id"] == chosen_id), "")
-            answer = free_text or chosen_label
-            return PermissionResultDeny(message=answer or "(no answer)")
+            questions = tool_input.get("questions") or []
+            answers: dict[str, Any] = {}
+            for q in questions:
+                if not isinstance(q, dict):
+                    continue
+                opts = [
+                    {"id": f"q_{i}", "label": str(opt.get("label", "")), "description": opt.get("description")}
+                    for i, opt in enumerate(q.get("options", []))
+                    if isinstance(opt, dict)
+                ]
+                response = await ask_user({
+                    "kind": "question",
+                    "title": q.get("question") or q.get("header"),
+                    "tool_name": q.get("header"),
+                    "input": "",
+                    "options": opts,
+                    "free_text": "optional",
+                })
+                free_text = (response.get("free_text") or "").strip()
+                chosen_id = response.get("option_id")
+                chosen_label = next((o["label"] for o in opts if o["id"] == chosen_id), "")
+                answers[str(q.get("question", ""))] = free_text or chosen_label
+            return PermissionResultAllow(updated_input={"questions": questions, "answers": answers})
 
         response = await ask_user({
             "kind": "permission",
@@ -200,17 +231,25 @@ async def run_prompt(
                 {"id": "allow_always"},
                 {"id": "deny"},
             ],
-            "free_text": "optional",
+            "free_text": "off",
         })
         option = response.get("option_id")
-        free_text = (response.get("free_text") or "").strip()
         if option == "allow_always":
-            return PermissionResultAllow(updated_permissions=list(getattr(ctx, "suggestions", []) or []))
+            persist = [
+                s for s in (getattr(ctx, "suggestions", []) or [])
+                if getattr(s, "destination", None) == "localSettings"
+            ]
+            return PermissionResultAllow(updated_input=tool_input, updated_permissions=persist)
         if option == "allow":
-            return PermissionResultAllow()
-        return PermissionResultDeny(message=free_text)
+            return PermissionResultAllow(updated_input=tool_input)
+        return PermissionResultDeny(message="User declined")
 
-    options = ClaudeAgentOptions(
+    # Required by the SDK: a no-op PreToolUse hook keeps the prompt stream open while
+    # can_use_tool waits for the user's decision (without it, the stream closes first).
+    async def _keep_stream_open(input_data, tool_use_id, context):
+        return {"continue_": True}
+
+    options_kwargs: dict[str, Any] = dict(
         cwd=cwd,
         permission_mode=permission_mode,
         resume=resume,
@@ -222,20 +261,17 @@ async def run_prompt(
         thinking={"type": "adaptive", "display": "summarized"},
         include_partial_messages=partial,
         extra_args=extra_args,
-        can_use_tool=_can_use_tool if ask_user is not None else None,
     )
-
-    # can_use_tool requires the SDK in streaming mode → wrap the prompt as an AsyncIterable.
-    done = asyncio.Event()
+    if ask_user is not None:
+        options_kwargs["can_use_tool"] = _can_use_tool
+        options_kwargs["hooks"] = {"PreToolUse": [HookMatcher(matcher=None, hooks=[_keep_stream_open])]}
+    options = ClaudeAgentOptions(**options_kwargs)
 
     async def _prompt_stream():
-        yield {
-            "type": "user",
-            "message": {"role": "user", "content": prompt},
-            "parent_tool_use_id": None,
-        }
-        await done.wait()
+        yield {"type": "user", "message": {"role": "user", "content": prompt}}
     prompt_arg = _prompt_stream() if ask_user is not None else prompt
+
+    hidden_tool_ids: set[str] = set()
 
     try:
         async for message in query(prompt=prompt_arg, options=options):
@@ -243,9 +279,21 @@ async def run_prompt(
                 for event in _stream_event_to_events(message.event):
                     yield event
             elif isinstance(message, AssistantMessage):
-                for event in _blocks_to_events(message.content, skip_streamed=partial):
+                for event in _blocks_to_events(message.content, skip_streamed=partial, hidden_tool_ids=hidden_tool_ids):
                     yield event
             elif isinstance(message, UserMessage):
+                for block in getattr(message, "content", None) or []:
+                    if type(block).__name__ != "ToolResultBlock":
+                        continue
+                    tuid = getattr(block, "tool_use_id", None)
+                    if tuid and tuid in hidden_tool_ids:
+                        continue
+                    yield {
+                        "type": "tool_result",
+                        "tool_use_id": tuid,
+                        "content": _flatten_result_content(getattr(block, "content", None)),
+                        "is_error": getattr(block, "is_error", None),
+                    }
                 for event in _task_events_from_result(getattr(message, "tool_use_result", None)):
                     yield event
             elif isinstance(message, SystemMessage):
@@ -264,8 +312,6 @@ async def run_prompt(
     except Exception as exc:
         logger.error(f"run_prompt failed: {type(exc).__name__}: {exc}")
         yield {"type": "error", "message": f"{type(exc).__name__}: {exc}"}
-    finally:
-        done.set()
 
 
 async def generate_title(transcript: str) -> str:
