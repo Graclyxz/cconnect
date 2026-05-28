@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -13,18 +15,45 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    val keystorePropsFile = rootProject.file("key.properties")
+    if (!keystorePropsFile.exists()) {
+        throw GradleException("Missing key.properties at project root. Create it based on key.properties.example")
+    }
+    val keystoreProps = Properties().apply {
+        keystorePropsFile.inputStream().use { load(it) }
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file(keystoreProps["storeFile"] as String)
+            storePassword = keystoreProps["storePassword"] as String
+            keyAlias = keystoreProps["keyAlias"] as String
+            keyPassword = keystoreProps["keyPassword"] as String
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
+            applicationVariants.all {
+                outputs.all {
+                    val outputImpl = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+                    val version = defaultConfig.versionName
+                    val buildType = buildType.name
+                    outputImpl.outputFileName = "CConnect-$version-$buildType.apk"
+                }
+            }
         }
     }
     compileOptions {
