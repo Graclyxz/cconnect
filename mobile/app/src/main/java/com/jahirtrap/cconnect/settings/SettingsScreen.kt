@@ -42,6 +42,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -351,6 +353,7 @@ private fun ConnectionsDialog(
     var editing by remember { mutableStateOf<ConnectionProfile?>(null) }
     var adding by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<ConnectionProfile?>(null) }
+    var scanned by remember { mutableStateOf<ConnectionProfile?>(null) }
 
     CompactDialog(
         onDismiss = onDismiss,
@@ -361,11 +364,7 @@ private fun ConnectionsDialog(
             IconButton(
                 onClick = {
                     QrScanner.scan(context) { raw ->
-                        val profile = raw?.let(::profileFromQrPayload)
-                        if (profile != null) {
-                            onSave(profile)
-                            onSetActive(profile.id)
-                        }
+                        raw?.let(::profileFromQrPayload)?.let { scanned = it }
                     }
                 },
                 modifier = Modifier.size(36.dp),
@@ -395,6 +394,14 @@ private fun ConnectionsDialog(
     editing?.let { c ->
         ConnectionEditDialog(initial = c, onConfirm = { onSave(it); editing = null }, onDismiss = { editing = null })
     }
+    scanned?.let { c ->
+        ConnectionEditDialog(
+            initial = c,
+            focusName = true,
+            onConfirm = { onSave(it); onSetActive(it.id); scanned = null },
+            onDismiss = { scanned = null },
+        )
+    }
     deleting?.let { c ->
         ConfirmDialog(
             title = stringResource(R.string.delete),
@@ -407,7 +414,12 @@ private fun ConnectionsDialog(
 }
 
 @Composable
-private fun ConnectionEditDialog(initial: ConnectionProfile?, onConfirm: (ConnectionProfile) -> Unit, onDismiss: () -> Unit) {
+private fun ConnectionEditDialog(
+    initial: ConnectionProfile?,
+    onConfirm: (ConnectionProfile) -> Unit,
+    onDismiss: () -> Unit,
+    focusName: Boolean = false,
+) {
     var kind by remember { mutableStateOf(initial?.kind ?: "http") }
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var host by remember { mutableStateOf(initial?.host ?: "") }
@@ -472,7 +484,9 @@ private fun ConnectionEditDialog(initial: ConnectionProfile?, onConfirm: (Connec
             },
         )
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.connection_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        val nameFocus = remember { FocusRequester() }
+        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.connection_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth().focusRequester(nameFocus))
+        LaunchedEffect(focusName) { if (focusName) nameFocus.requestFocus() }
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = host,
@@ -574,7 +588,7 @@ private fun profileFromQrPayload(raw: String): ConnectionProfile? {
     val port: Int? = if (parsed.kind == "https") null else parsed.port.toIntOrNull()
     return ConnectionProfile(
         id = UUID.randomUUID().toString(),
-        name = parsed.host,
+        name = "",
         kind = parsed.kind,
         host = parsed.host,
         port = port,
