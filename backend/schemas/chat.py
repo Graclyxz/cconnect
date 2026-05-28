@@ -14,6 +14,7 @@ class StartMessage(BaseModel):
     model: Optional[str] = None
     effort: str = "max"
     partial: bool = False
+    base_url: Optional[str] = None
 
 
 class PromptMessage(BaseModel):

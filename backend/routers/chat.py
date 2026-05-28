@@ -63,6 +63,7 @@ class _Session:
         self.model: str | None = None
         self.effort: str = "max"
         self.partial: bool = False
+        self.base_url: str | None = None
 
 
 async def _stream_prompt(ws: WebSocket, send_lock: asyncio.Lock, state: _Session, broker: _InteractionBroker, text: str):
@@ -82,6 +83,7 @@ async def _stream_prompt(ws: WebSocket, send_lock: asyncio.Lock, state: _Session
         partial=state.partial,
         name=name,
         ask_user=lambda payload: broker.ask(send, payload),
+        base_url=state.base_url,
     ):
         if event.get("type") == "result" and event.get("session_id"):
             state.session_id = event["session_id"]
@@ -143,6 +145,7 @@ async def chat_ws(ws: WebSocket):
                 state.model = msg.model
                 state.effort = msg.effort
                 state.partial = msg.partial
+                state.base_url = msg.base_url
                 await send({"type": "ready", "session_id": state.session_id})
 
             elif mtype == "prompt":

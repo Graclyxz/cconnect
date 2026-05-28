@@ -27,8 +27,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -358,7 +361,15 @@ private fun AnnotatedString.Builder.appendInline(node: Node, linkColor: Color, c
             is Emphasis -> styled(SpanStyle(fontStyle = FontStyle.Italic)) { appendInline(n, linkColor, codeBg) }
             is StrongEmphasis -> styled(SpanStyle(fontWeight = FontWeight.Bold)) { appendInline(n, linkColor, codeBg) }
             is Code -> styled(SpanStyle(fontFamily = FontFamily.Monospace, background = codeBg)) { append(n.literal) }
-            is Link -> styled(SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)) { appendInline(n, linkColor, codeBg) }
+            is Link -> {
+                val url = n.destination?.trim().orEmpty()
+                val style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
+                if (url.isNotEmpty()) {
+                    withLink(LinkAnnotation.Url(url = url, styles = TextLinkStyles(style = style))) {
+                        appendInline(n, linkColor, codeBg)
+                    }
+                } else styled(style) { appendInline(n, linkColor, codeBg) }
+            }
             is Strikethrough -> styled(SpanStyle(textDecoration = TextDecoration.LineThrough)) { appendInline(n, linkColor, codeBg) }
             is Ins -> styled(SpanStyle(textDecoration = TextDecoration.Underline)) { appendInline(n, linkColor, codeBg) }
             is Image -> {

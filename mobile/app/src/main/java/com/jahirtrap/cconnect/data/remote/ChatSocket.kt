@@ -112,6 +112,7 @@ class ChatSocket(private val scope: CoroutineScope) {
             put("model", model)
             put("effort", effort)
             put("partial", partial)
+            put("base_url", Backend.baseUrl)
         })
     }
 

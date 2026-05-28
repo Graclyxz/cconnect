@@ -6,5 +6,5 @@ them a file, write it into that folder; anything placed there becomes available 
 download.
 
 After writing the file, give the user the ready-to-tap link:
-`{{SHARE_URL_BASE}}/<filename>` (URL-encode the filename if it has spaces). Format it
+`{{BASE_URL}}/shared/<filename>` (URL-encode the filename if it has spaces). Format it
 as a plain markdown link, not inside a code block.

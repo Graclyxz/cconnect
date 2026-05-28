@@ -2,7 +2,6 @@
 
 import json
 import os
-import subprocess
 from pathlib import Path
 from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 
@@ -13,26 +12,14 @@ from core.config import AI_WORKDIR, PORT, SHARED_DIR
 _AGENT_PROMPT_FILE = Path(__file__).resolve().parent.parent / "prompts" / "agent.md"
 
 
-def _share_url_base() -> str:
-    """Tailscale IP resolved live since it can change; falls back to localhost."""
-    host = "localhost"
-    try:
-        out = subprocess.run(["tailscale", "ip", "-4"], capture_output=True, text=True, timeout=3)
-        ip = out.stdout.strip().splitlines()[0].strip() if out.returncode == 0 else ""
-        if ip:
-            host = ip
-    except Exception:
-        pass
-    return f"http://{host}:{PORT}/api/shared"
-
-
-def _agent_append() -> str:
+def _agent_append(base_url: Optional[str]) -> str:
     """Read on every call so the markdown can be edited without restarting the server."""
     try:
         text = _AGENT_PROMPT_FILE.read_text(encoding="utf-8")
     except OSError:
         return ""
-    text = text.replace("{{SHARED_DIR}}", SHARED_DIR).replace("{{SHARE_URL_BASE}}", _share_url_base())
+    effective = base_url or f"http://localhost:{PORT}/api"
+    text = text.replace("{{SHARED_DIR}}", SHARED_DIR).replace("{{BASE_URL}}", effective.rstrip("/"))
     return text.strip()
 
 
@@ -172,6 +159,7 @@ async def run_prompt(
     partial: bool = False,
     name: Optional[str] = None,
     ask_user: Optional[Callable[[dict], Awaitable[dict]]] = None,
+    base_url: Optional[str] = None,
 ) -> AsyncIterator[dict]:
     """Yield normalized events for one prompt. The SDK import is deferred because the
     package is installed/upgraded during app startup."""
@@ -192,7 +180,7 @@ async def run_prompt(
     extra_args = {"name": name} if name else {}
 
     system_prompt: dict = {"type": "preset", "preset": "claude_code"}
-    append = _agent_append()
+    append = _agent_append(base_url)
     if append:
         system_prompt["append"] = append
 

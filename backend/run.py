@@ -47,7 +47,9 @@ def _persist_token_in_env(token: str) -> str:
 
 def _ensure_public_token() -> bool:
     """Make sure a Bearer token exists for public exposure. Returns True if just generated."""
-    if os.environ.get(_TOKEN_VAR):
+    existing = os.environ.get(_TOKEN_VAR)
+    if existing:
+        core.config.PUBLIC_ACCESS_TOKEN = existing  # mutated before main:app imports it
         return False
 
     token = secrets.token_urlsafe(32)
