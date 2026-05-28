@@ -80,8 +80,11 @@ def effort_levels() -> tuple[str, ...]:
 # Pull the latest claude-agent-sdk on startup. Disable for faster dev reloads.
 AUTO_UPDATE_SDK = os.environ.get("AUTO_UPDATE_SDK", "1") not in ("0", "false", "False")
 
-# Set by run.py --expose at startup; None elsewhere keeps the auth middleware a no-op.
-PUBLIC_ACCESS_TOKEN: str | None = None
+# Gated by CCONNECT_AUTH_ACTIVE so a token left in .env from a previous --expose run
+# doesn't auth-gate plain `python run.py`.
+PUBLIC_ACCESS_TOKEN: str | None = (
+    os.environ.get("PUBLIC_ACCESS_TOKEN") if os.environ.get("CCONNECT_AUTH_ACTIVE") == "1" else None
+)
 
 __all__ = [
     "PORT",

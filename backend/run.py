@@ -12,7 +12,6 @@ from urllib.parse import urlparse
 
 import uvicorn
 
-import core.config
 from core.config import PORT
 
 _ENV_PATH = Path(__file__).resolve().parent / ".env"
@@ -47,15 +46,14 @@ def _persist_token_in_env(token: str) -> str:
 
 def _ensure_public_token() -> bool:
     """Make sure a Bearer token exists for public exposure. Returns True if just generated."""
-    existing = os.environ.get(_TOKEN_VAR)
-    if existing:
-        core.config.PUBLIC_ACCESS_TOKEN = existing  # mutated before main:app imports it
+    # Env var (not module mutation) so uvicorn's reload subprocess inherits the state.
+    os.environ["CCONNECT_AUTH_ACTIVE"] = "1"
+    if os.environ.get(_TOKEN_VAR):
         return False
 
     token = secrets.token_urlsafe(32)
     _persist_token_in_env(token)
     os.environ[_TOKEN_VAR] = token
-    core.config.PUBLIC_ACCESS_TOKEN = token  # mutated before main:app imports it
     return True
 
 
@@ -123,10 +121,8 @@ def main():
     if args.expose:
         _expose(args.expose, PORT)
 
-    # On Windows the Claude CLI is spawned via asyncio subprocess, which needs
-    # ProactorEventLoop. uvicorn only selects it for a single, non-reload process,
-    # so reload and extra workers are disabled there.
-    reload = not args.production and not is_windows
+    # Windows reload is safe because main.py forces the Proactor loop for the Claude CLI subprocess.
+    reload = not args.production
     workers = int(os.environ.get("WEB_CONCURRENCY", "2")) if (args.production and not is_windows) else 1
 
     uvicorn.run(

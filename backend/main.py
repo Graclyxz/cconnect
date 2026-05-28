@@ -1,9 +1,15 @@
 """CConnect — FastAPI application entry point."""
 
+import asyncio
 import importlib
 import pkgutil
+import sys
 
 from contextlib import asynccontextmanager
+
+# Needed for reload=True on Windows.
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from fastapi import FastAPI, Request
 from slowapi.errors import RateLimitExceeded
