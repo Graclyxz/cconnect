@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import com.jahirtrap.cconnect.chat.ChatScreen
+import com.jahirtrap.cconnect.files.FileExplorerScreen
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.settings.SettingsScreen
 import com.jahirtrap.cconnect.ui.theme.CConnectTheme
@@ -43,6 +44,7 @@ private fun App() {
     var accentIndex by remember { mutableStateOf(settings.accentIndex) }
     var language by remember { mutableStateOf(settings.language) }
     var showSettings by remember { mutableStateOf(!settings.isConfigured) }
+    var showExplorer by remember { mutableStateOf(false) }
     // Hoisted so the open/closed state survives navigating to settings and back.
     val drawerState = rememberDrawerState(DrawerValue.Closed)
 
@@ -66,8 +68,8 @@ private fun App() {
             dynamicColor = dynamicColor,
             accent = accentAt(accentIndex),
         ) {
-            if (showSettings) {
-                SettingsScreen(
+            when {
+                showSettings -> SettingsScreen(
                     themeMode = themeMode,
                     onThemeMode = { themeMode = it; settings.themeMode = it },
                     dynamicColor = dynamicColor,
@@ -78,9 +80,12 @@ private fun App() {
                     onLanguage = { language = it; settings.language = it },
                     onClose = { showSettings = false },
                 )
-            } else {
-                ChatScreen(
+
+                showExplorer -> FileExplorerScreen(onClose = { showExplorer = false })
+
+                else -> ChatScreen(
                     onOpenSettings = { showSettings = true },
+                    onOpenExplorer = { showExplorer = true },
                     drawerState = drawerState,
                     themeMode = themeMode,
                     onThemeMode = { themeMode = it; settings.themeMode = it },

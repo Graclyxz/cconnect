@@ -4,7 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.horizontalScroll
@@ -39,6 +41,7 @@ import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.CircleDot
 import com.composables.icons.lucide.EllipsisVertical
+import com.composables.icons.lucide.Folder
 import com.composables.icons.lucide.FolderOpen
 import com.composables.icons.lucide.Gauge
 import com.composables.icons.lucide.Languages
@@ -86,6 +89,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -102,6 +107,7 @@ import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.TodoItem
 import com.jahirtrap.cconnect.ui.ColorDialog
+import com.jahirtrap.cconnect.ui.ConfirmSelectDialog
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.LANGUAGE_TAGS
@@ -119,6 +125,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ChatScreen(
     onOpenSettings: () -> Unit,
+    onOpenExplorer: () -> Unit,
     drawerState: DrawerState,
     themeMode: String,
     onThemeMode: (String) -> Unit,
@@ -245,9 +252,12 @@ fun ChatScreen(
                 HorizontalDivider()
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    IconButton(onClick = onOpenExplorer) {
+                        Icon(Lucide.Folder, contentDescription = stringResource(R.string.files))
+                    }
+                    Spacer(Modifier.weight(1f))
                     IconButton(onClick = { showLanguageDialog = true }) {
                         Icon(Lucide.Languages, contentDescription = stringResource(R.string.language))
                     }
@@ -378,11 +388,11 @@ fun ChatScreen(
         )
     }
     if (showLanguageDialog) {
-        SelectDialog(
+        ConfirmSelectDialog(
             title = stringResource(R.string.language),
             options = LANGUAGE_TAGS.map { it to languageLabel(it) },
             selected = language,
-            onSelect = onLanguage,
+            onConfirm = { onLanguage(it); showLanguageDialog = false },
             onDismiss = { showLanguageDialog = false },
         )
     }
@@ -654,10 +664,16 @@ private fun CircleActionButton(
 private fun EnvironmentSelector(connections: List<ConnectionProfile>, activeId: String?, onSelect: (String) -> Unit) {
     if (connections.isEmpty()) return
     var open by remember { mutableStateOf(false) }
+    var fieldWidth by remember { mutableStateOf(0.dp) }
+    val density = LocalDensity.current
     val active = connections.firstOrNull { it.id == activeId } ?: connections.first()
     Box {
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { open = true }.padding(horizontal = 16.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onSizeChanged { fieldWidth = with(density) { it.width.toDp() } }
+                .clickable { open = true }
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Lucide.Server, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
@@ -668,7 +684,7 @@ private fun EnvironmentSelector(connections: List<ConnectionProfile>, activeId: 
             }
             Icon(Lucide.ChevronDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.widthIn(min = fieldWidth)) {
             connections.forEach { c ->
                 CompactDropdownItem(c.name, selected = c.id == active.id) { onSelect(c.id); open = false }
             }
@@ -680,11 +696,17 @@ private fun EnvironmentSelector(connections: List<ConnectionProfile>, activeId: 
 @Composable
 private fun ProjectSelector(projects: List<ProjectInfo>, selected: String?, onSelect: (String?) -> Unit) {
     var open by remember { mutableStateOf(false) }
+    var fieldWidth by remember { mutableStateOf(0.dp) }
+    val density = LocalDensity.current
     val label = if (selected == null) stringResource(R.string.all_projects)
     else projects.firstOrNull { it.projectKey == selected }?.let(::projectLabel) ?: selected
     Box {
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { open = true }.padding(horizontal = 16.dp, vertical = 10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onSizeChanged { fieldWidth = with(density) { it.width.toDp() } }
+                .clickable { open = true }
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Lucide.FolderOpen, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
@@ -692,7 +714,7 @@ private fun ProjectSelector(projects: List<ProjectInfo>, selected: String?, onSe
             Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Icon(Lucide.ChevronDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.widthIn(min = fieldWidth)) {
             CompactDropdownItem(stringResource(R.string.all_projects), selected = selected == null) { onSelect(null); open = false }
             projects.forEach { p ->
                 CompactDropdownItem(projectLabel(p), selected = selected == p.projectKey) { onSelect(p.projectKey); open = false }
@@ -704,7 +726,7 @@ private fun ProjectSelector(projects: List<ProjectInfo>, selected: String?, onSe
 private fun projectLabel(p: ProjectInfo): String =
     p.path?.substringAfterLast('\\')?.substringAfterLast('/')?.ifBlank { null } ?: p.path ?: p.projectKey
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 private fun ConversationRow(
     title: String,
@@ -716,7 +738,10 @@ private fun ConversationRow(
 ) {
     var menu by remember { mutableStateOf(false) }
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(start = 16.dp, end = 4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onOpen, onLongClick = { menu = true })
+            .padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(

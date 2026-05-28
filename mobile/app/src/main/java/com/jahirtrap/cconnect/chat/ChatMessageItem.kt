@@ -69,7 +69,7 @@ fun ChatMessageItem(message: ChatMessage, prevRole: Role? = null, nextRole: Role
 private fun group(role: Role?): Int = when (role) {
     Role.THINKING, Role.TOOL -> 0
     Role.ASSISTANT -> 1
-    Role.USER -> 2
+    Role.USER, Role.ERROR -> 2
     else -> 3
 }
 

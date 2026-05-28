@@ -25,3 +25,10 @@ data class SessionMessage(
     val timestamp: String?,
     val uuid: String?,
 )
+
+data class SharedEntry(
+    val name: String,
+    val isDir: Boolean,
+    val size: Long,
+    val modified: Double,
+)

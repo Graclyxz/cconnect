@@ -80,6 +80,7 @@ import com.jahirtrap.cconnect.ui.LANGUAGE_TAGS
 import com.jahirtrap.cconnect.ui.THEME_MODES
 import com.jahirtrap.cconnect.ui.theme.ACCENTS
 import com.jahirtrap.cconnect.ui.theme.accentAt
+import com.jahirtrap.cconnect.ui.theme.accentNameAt
 import com.jahirtrap.cconnect.ui.theme.dynamicAccent
 import java.util.UUID
 
@@ -143,16 +144,17 @@ fun SettingsScreen(
             PreferenceRow(
                 icon = Lucide.Palette,
                 title = stringResource(R.string.accent),
-                summary = if (dynamicColor) stringResource(R.string.accent_dynamic) else null,
+                summary = if (dynamicColor) stringResource(R.string.accent_dynamic)
+                else accentNameAt(accentIndex),
                 trailing = { AccentDot(if (dynamicColor) MaterialTheme.colorScheme.primary else accentAt(accentIndex)) },
             ) { dialog = SettingsDialog.Accent }
             PreferenceRow(
                 Lucide.Server,
                 stringResource(R.string.connections),
-                connections.firstOrNull { it.id == activeId }?.let { "${it.name} · ${it.host}:${it.port}" }
+                connections.firstOrNull { it.id == activeId }?.let { "${it.name} • ${it.host}:${it.port}" }
                     ?: stringResource(R.string.no_connections),
             ) { dialog = SettingsDialog.Connections }
-            PreferenceRow(Lucide.Sparkles, stringResource(R.string.generation), "${caps.models.firstOrNull { it.id == model }?.label ?: model} · $effort") { dialog = SettingsDialog.Generation }
+            PreferenceRow(Lucide.Sparkles, stringResource(R.string.generation), "${caps.models.firstOrNull { it.id == model }?.label ?: model} • $effort") { dialog = SettingsDialog.Generation }
             PreferenceRow(Lucide.Shield, stringResource(R.string.permissions), permissionLabel(caps, permissionMode)) { dialog = SettingsDialog.Permissions }
             PreferenceRow(Lucide.History, stringResource(R.string.reset_settings), stringResource(R.string.reset_settings_summary)) { dialog = SettingsDialog.Reset }
         }
@@ -304,7 +306,7 @@ private fun AccentDialog(
             maxItemsInEachRow = 5,
         ) {
             Swatch(color = dynamicColor, selected = pickedDynamic, dynamic = true) { pickedDynamic = true }
-            ACCENTS.forEachIndexed { index, color ->
+            ACCENTS.forEachIndexed { index, (_, color) ->
                 Swatch(color = color, selected = !pickedDynamic && index == pickedIndex, dynamic = false) {
                     pickedDynamic = false; pickedIndex = index
                 }

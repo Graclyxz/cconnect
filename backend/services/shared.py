@@ -1,5 +1,6 @@
-"""Download-only file serving from the shared drop folder (PC -> phone)."""
+"""File serving from the shared drop folder (PC <-> phone), with subfolders."""
 
+import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -12,23 +13,41 @@ def _base() -> Path:
     return base
 
 
-def list_files() -> list[dict]:
-    base = _base()
-    items = [
-        {"name": entry.name, "size": stat.st_size, "modified": stat.st_mtime}
-        for entry in base.iterdir()
-        if entry.is_file() and not entry.name.startswith(".")
-        for stat in (entry.stat(),)
-    ]
-    items.sort(key=lambda f: f["modified"], reverse=True)
-    return items
-
-
-def resolve_file(name: str) -> Optional[Path]:
-    base = _base()
-    path = (base / name).resolve()
-    if path.parent != base.resolve():
-        raise ValueError("name escapes the shared directory")
-    if not path.is_file():
-        return None
+def _resolve(relpath: str) -> Path:
+    base = _base().resolve()
+    path = (base / relpath).resolve()
+    if path != base and base not in path.parents:
+        raise ValueError("path escapes the shared directory")
     return path
+
+
+def list_entries(relpath: str = "") -> list[dict]:
+    target = _resolve(relpath)
+    if not target.is_dir():
+        raise ValueError("not a directory")
+    entries = [
+        {"name": e.name, "is_dir": e.is_dir(), "size": stat.st_size, "modified": stat.st_mtime}
+        for e in target.iterdir()
+        if not e.name.startswith(".")
+        for stat in (e.stat(),)
+    ]
+    entries.sort(key=lambda f: (not f["is_dir"], -f["modified"]))
+    return entries
+
+
+def resolve_file(relpath: str) -> Optional[Path]:
+    path = _resolve(relpath)
+    return path if path.is_file() else None
+
+
+def delete_entry(relpath: str) -> bool:
+    path = _resolve(relpath)
+    if path == _base().resolve():
+        raise ValueError("cannot delete the shared root")
+    if path.is_dir():
+        shutil.rmtree(path)
+        return True
+    if path.is_file():
+        path.unlink()
+        return True
+    return False

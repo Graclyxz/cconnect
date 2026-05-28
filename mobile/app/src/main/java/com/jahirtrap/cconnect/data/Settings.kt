@@ -65,19 +65,19 @@ class Settings(context: Context) {
         set(value) = prefs.edit { putString("cwd", value) }
 
     var permissionMode: String
-        get() = prefs.getString("permission_mode", "default") ?: "default"
+        get() = prefs.getString("permission_mode", "bypassPermissions") ?: "bypassPermissions"
         set(value) = prefs.edit { putString("permission_mode", value) }
 
     var model: String
-        get() = prefs.getString("model", "opus") ?: "opus"
+        get() = prefs.getString("model", "opus[1m]") ?: "opus[1m]"
         set(value) = prefs.edit { putString("model", value) }
 
     var effort: String
-        get() = prefs.getString("effort", "max") ?: "max"
+        get() = prefs.getString("effort", "xhigh") ?: "xhigh"
         set(value) = prefs.edit { putString("effort", value) }
 
     var streaming: Boolean
-        get() = prefs.getBoolean("streaming", false)
+        get() = prefs.getBoolean("streaming", true)
         set(value) = prefs.edit { putBoolean("streaming", value) }
 
     // "" = follow system, otherwise a language tag like "en" / "es"

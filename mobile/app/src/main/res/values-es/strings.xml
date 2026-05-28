@@ -36,6 +36,12 @@
 
     <!-- Chat -->
     <string name="menu">Menú</string>
+    <string name="environment">Entorno</string>
+    <string name="files">Archivos</string>
+    <string name="save_as">Guardar en…</string>
+    <string name="share">Compartir</string>
+    <string name="empty_folder">Carpeta vacía</string>
+    <string name="delete_file_confirm">¿Borrar «%1$s»?</string>
     <string name="new_session">Nueva sesión</string>
     <string name="new_chat">Nuevo chat</string>
     <string name="all_projects">Todos los proyectos</string>
@@ -51,7 +57,7 @@
     <string name="type_message">Escribe un mensaje…</string>
     <string name="send">Enviar</string>
     <string name="stop">Detener</string>
-    <string name="thinking">Razonando</string>
+    <string name="thinking">Pensando</string>
     <string name="scroll_to_bottom">Ir al final</string>
     <string name="connecting">Conectando…</string>
     <string name="disconnected">Desconectado</string>

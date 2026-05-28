@@ -36,6 +36,12 @@
 
     <!-- Chat -->
     <string name="menu">Menu</string>
+    <string name="environment">Environment</string>
+    <string name="files">Files</string>
+    <string name="save_as">Save as…</string>
+    <string name="share">Share</string>
+    <string name="empty_folder">Empty folder</string>
+    <string name="delete_file_confirm">Delete \"%1$s\"?</string>
     <string name="new_session">New session</string>
     <string name="new_chat">New chat</string>
     <string name="all_projects">All projects</string>
