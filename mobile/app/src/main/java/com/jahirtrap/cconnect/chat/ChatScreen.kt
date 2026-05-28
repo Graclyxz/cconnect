@@ -54,6 +54,7 @@ import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Sparkles
 import com.composables.icons.lucide.Square
 import com.composables.icons.lucide.SquareCheckBig
+import com.composables.icons.lucide.SquareTerminal
 import com.composables.icons.lucide.SquarePen
 import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.Stop
@@ -132,6 +133,7 @@ import kotlinx.coroutines.launch
 fun ChatScreen(
     onOpenSettings: () -> Unit,
     onOpenExplorer: () -> Unit,
+    onOpenTerminal: () -> Unit,
     drawerState: DrawerState,
     themeMode: String,
     onThemeMode: (String) -> Unit,
@@ -278,6 +280,9 @@ fun ChatScreen(
                 ) {
                     IconButton(onClick = onOpenExplorer) {
                         Icon(Lucide.Folder, contentDescription = stringResource(R.string.files))
+                    }
+                    IconButton(onClick = onOpenTerminal) {
+                        Icon(Lucide.SquareTerminal, contentDescription = stringResource(R.string.terminal))
                     }
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = { showLanguageDialog = true }) {

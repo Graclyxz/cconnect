@@ -20,14 +20,21 @@ import com.jahirtrap.cconnect.chat.ChatScreen
 import com.jahirtrap.cconnect.files.FileExplorerScreen
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.settings.SettingsScreen
+import com.jahirtrap.cconnect.terminal.TerminalScreen
 import com.jahirtrap.cconnect.ui.theme.CConnectTheme
 import com.jahirtrap.cconnect.ui.theme.accentAt
 import com.jahirtrap.cconnect.ui.theme.themeModeOf
+import org.bouncycastle.jce.provider.BouncyCastleProvider
+import java.security.Security
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Android ships a stripped BC provider; swap it for the full BouncyCastle so sshj
+        // has curve25519, ed25519, chacha20-poly1305, etc. Modern OpenSSH defaults need this.
+        Security.removeProvider("BC")
+        Security.insertProviderAt(BouncyCastleProvider(), 1)
         enableEdgeToEdge()
         setContent { App() }
     }
@@ -45,6 +52,8 @@ private fun App() {
     var language by remember { mutableStateOf(settings.language) }
     var showSettings by remember { mutableStateOf(!settings.isConfigured) }
     var showExplorer by remember { mutableStateOf(false) }
+    var showTerminal by remember { mutableStateOf(false) }
+    var terminalFromSettings by remember { mutableStateOf(false) }
     // Hoisted so the open/closed state survives navigating to settings and back.
     val drawerState = rememberDrawerState(DrawerValue.Closed)
 
@@ -78,14 +87,28 @@ private fun App() {
                     onAccent = { accentIndex = it; settings.accentIndex = it },
                     language = language,
                     onLanguage = { language = it; settings.language = it },
+                    onOpenSshHosts = {
+                        terminalFromSettings = true
+                        showSettings = false
+                        showTerminal = true
+                    },
                     onClose = { showSettings = false },
                 )
 
                 showExplorer -> FileExplorerScreen(onClose = { showExplorer = false })
 
+                showTerminal -> TerminalScreen(onClose = {
+                    showTerminal = false
+                    if (terminalFromSettings) {
+                        terminalFromSettings = false
+                        showSettings = true
+                    }
+                })
+
                 else -> ChatScreen(
                     onOpenSettings = { showSettings = true },
                     onOpenExplorer = { showExplorer = true },
+                    onOpenTerminal = { showTerminal = true },
                     drawerState = drawerState,
                     themeMode = themeMode,
                     onThemeMode = { themeMode = it; settings.themeMode = it },

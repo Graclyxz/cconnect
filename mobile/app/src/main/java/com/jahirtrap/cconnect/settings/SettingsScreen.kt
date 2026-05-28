@@ -49,7 +49,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
@@ -62,6 +61,7 @@ import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.ScanQrCode
 import com.composables.icons.lucide.Server
+import com.composables.icons.lucide.SquareTerminal
 import com.composables.icons.lucide.Shield
 import com.composables.icons.lucide.Sparkles
 import com.composables.icons.lucide.Trash
@@ -78,6 +78,7 @@ import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.ConfirmSelectDialog
 import com.jahirtrap.cconnect.ui.DialogActionItem
 import com.jahirtrap.cconnect.ui.DialogSelectItem
+import com.jahirtrap.cconnect.ui.SecretTextField
 import com.jahirtrap.cconnect.ui.SelectDialog
 import com.jahirtrap.cconnect.ui.SelectField
 import com.jahirtrap.cconnect.ui.languageLabel
@@ -102,6 +103,7 @@ fun SettingsScreen(
     onAccent: (Int) -> Unit,
     language: String,
     onLanguage: (String) -> Unit,
+    onOpenSshHosts: () -> Unit,
     onClose: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -166,6 +168,12 @@ fun SettingsScreen(
                 connections.firstOrNull { it.id == activeId }?.let { "${it.name} • ${it.address}" }
                     ?: stringResource(R.string.no_connections),
             ) { dialog = SettingsDialog.Connections }
+            PreferenceRow(
+                Lucide.SquareTerminal,
+                stringResource(R.string.ssh_hosts),
+                stringResource(R.string.ssh_hosts_summary),
+                onClick = onOpenSshHosts,
+            )
             PreferenceRow(Lucide.Sparkles, stringResource(R.string.generation), "${caps.models.firstOrNull { it.id == model }?.label ?: model} • $effort") { dialog = SettingsDialog.Generation }
             PreferenceRow(Lucide.Shield, stringResource(R.string.permissions), permissionLabel(caps, permissionMode)) { dialog = SettingsDialog.Permissions }
             PreferenceRow(Lucide.History, stringResource(R.string.reset_settings), stringResource(R.string.reset_settings_summary)) { dialog = SettingsDialog.Reset }
@@ -548,16 +556,16 @@ private fun ConnectionEditDialog(
         )
         Spacer(Modifier.height(8.dp))
         when (authKind) {
-            "bearer" -> OutlinedTextField(value = authToken, onValueChange = { authToken = it }, label = { Text(stringResource(R.string.connection_token)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            "bearer" -> SecretTextField(value = authToken, onValueChange = { authToken = it }, label = stringResource(R.string.connection_token), modifier = Modifier.fillMaxWidth())
             "basic" -> {
                 OutlinedTextField(value = authUser, onValueChange = { authUser = it }, label = { Text(stringResource(R.string.auth_user)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = authPassword, onValueChange = { authPassword = it }, label = { Text(stringResource(R.string.auth_password)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                SecretTextField(value = authPassword, onValueChange = { authPassword = it }, label = stringResource(R.string.auth_password), modifier = Modifier.fillMaxWidth())
             }
             "header" -> {
                 OutlinedTextField(value = authHeaderName, onValueChange = { authHeaderName = it }, label = { Text(stringResource(R.string.auth_header_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(value = authHeaderValue, onValueChange = { authHeaderValue = it }, label = { Text(stringResource(R.string.auth_header_value)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                SecretTextField(value = authHeaderValue, onValueChange = { authHeaderValue = it }, label = stringResource(R.string.auth_header_value), modifier = Modifier.fillMaxWidth())
             }
         }
         if (authKind != "none") Spacer(Modifier.height(8.dp))
