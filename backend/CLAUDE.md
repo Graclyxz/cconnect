@@ -130,6 +130,46 @@ Server → client (JSON):
 `permission_mode` ∈
 `default | acceptEdits | plan | dontAsk | bypassPermissions | auto`.
 
+## Custom MCP server (`mcps/`)
+
+`backend/mcps/` is an in-process MCP server exposed to Claude under the name
+`cconnect`. Tools auto-register from sibling modules so adding one is a
+single-file drop:
+
+- Each `.py` in `backend/mcps/` exposes a module-level `tools = [<fn>, ...]`.
+- `mcps/__init__.build_cconnect_server()` walks the package on startup and
+  hands the collected list to `claude_agent_sdk.create_sdk_mcp_server`.
+- `services/claude_runtime.run_prompt` wires it into the SDK via
+  `ClaudeAgentOptions(mcp_servers={"cconnect": build_cconnect_server()})`.
+- Tools surface to Claude as `mcp__cconnect__<tool_name>`.
+
+### Adding a tool
+
+1. Drop `backend/mcps/<your_module>.py`.
+2. Decorate the handler with `@tool("name", "description", {"arg": type})`
+   from `claude_agent_sdk`. Return
+   `{"content": [{"type": "text", "text": "..."}]}` from the handler.
+3. Expose `tools = [your_handler]` at module level.
+4. Restart the backend — it's picked up automatically.
+5. Recommended: add a section to `prompts/agent.md` telling Claude when to
+   call it. Without that guidance the SDK often won't reach for it.
+
+### Prompt template (`prompts/agent.md`)
+
+The file is appended verbatim to every session's system prompt by
+`_agent_append()`. Two placeholders are substituted at request time:
+
+- `{{SHARED_DIR}}` → absolute path of `backend/shared/`.
+- `{{BASE_URL}}` → the request's effective base URL. The phone sends its
+  current `base_url` in the WS `start` payload, so the substituted shared
+  links always work for whichever device issued the prompt.
+
+### Bundled tools
+
+| Tool | Purpose |
+|---|---|
+| `check_progress` | Summarizes the latest session of another project into Done / Pending / Files touched / Next step. Runs an isolated SDK subquery in `AI_WORKDIR` with `haiku`. |
+
 ## Session transcript transformation
 
 `services/sessions.get_session_messages` reads the JSONL transcript and

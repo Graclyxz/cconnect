@@ -64,6 +64,24 @@ Open Settings → Connections → scan QR (top-right of the dialog) to autofill 
 connection from `--expose`'s output. The connection becomes active immediately
 and the chat reconnects.
 
+## Built-in features
+
+On top of plain Claude Code, the backend ships a few helpers wired into the
+agent so they're available out of the box from the phone:
+
+- **Shared folder.** Drop a file into `backend/shared/` — or just ask Claude to
+  write one there — and you get a tap-to-download link in the chat. The phone
+  lets you save it to Downloads, save as somewhere else, or share to another
+  app, all over the same authenticated connection.
+- **Cross-project progress check.** Ask things like _"how's the README I left
+  running in <other-project> going?"_ and Claude summarizes that other
+  session's latest activity into Done / Pending / Files touched / Next step,
+  without you having to open it.
+- **Editable system prompt.** `backend/prompts/agent.md` is auto-appended to
+  every chat — that's where the file-sharing and progress-check conventions
+  live. Edit it to teach Claude your own conventions or to add guidance for
+  new tools.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
