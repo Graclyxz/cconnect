@@ -107,6 +107,7 @@ import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.data.ConnectionProfile
 import com.jahirtrap.cconnect.data.PermissionMode
 import com.jahirtrap.cconnect.data.ProjectInfo
+import com.jahirtrap.cconnect.data.Role
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.TodoItem
 import com.jahirtrap.cconnect.files.FileTransfer
@@ -202,6 +203,14 @@ fun ChatScreen(
     }
     LaunchedEffect(state.messages.size, state.messages.lastOrNull()?.text) {
         if (state.messages.isNotEmpty() && followBottom) {
+            listState.animateScrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
+        }
+    }
+    // A pending interaction needs the user's attention.
+    LaunchedEffect(state.messages.lastOrNull()?.id) {
+        val last = state.messages.lastOrNull() ?: return@LaunchedEffect
+        if (last.role == Role.INTERACTION && last.interaction?.resolved == null) {
+            followBottom = true
             listState.animateScrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
         }
     }
