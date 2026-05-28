@@ -29,6 +29,7 @@
     <string name="connection_directory">Directory (Optional)</string>
     <string name="add_connection">Add connection</string>
     <string name="edit_connection">Edit connection</string>
+    <string name="scan_qr">Scan QR</string>
     <string name="delete_connection_confirm">Delete the connection \"%1$s\"?</string>
     <string name="no_connections">No connections yet</string>
     <string name="generation">Generation</string>

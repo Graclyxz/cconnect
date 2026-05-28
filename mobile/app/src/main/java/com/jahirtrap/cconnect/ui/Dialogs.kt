@@ -64,6 +64,7 @@ fun CompactDialog(
     title: String,
     buttons: @Composable RowScope.() -> Unit,
     contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp),
+    titleTrailing: (@Composable RowScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     BasicAlertDialog(onDismissRequest = onDismiss) {
@@ -74,11 +75,17 @@ fun CompactDialog(
             tonalElevation = AlertDialogDefaults.TonalElevation,
         ) {
             Column(modifier = Modifier.heightIn(max = 560.dp).padding(vertical = 14.dp)) {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 20.sp),
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = if (titleTrailing != null) 8.dp else 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 20.sp),
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (titleTrailing != null) titleTrailing()
+                }
                 Spacer(Modifier.height(12.dp))
                 Column(
                     modifier = Modifier

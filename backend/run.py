@@ -2,6 +2,8 @@
 
 import argparse
 import atexit
+import io
+import json
 import os
 import re
 import secrets
@@ -10,6 +12,7 @@ import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
+import qrcode
 import uvicorn
 
 from core.config import PORT
@@ -88,6 +91,16 @@ def _stop_tailscale_funnel() -> None:
         pass
 
 
+def _print_qr(payload: str) -> None:
+    qr = qrcode.QRCode(border=1)
+    qr.add_data(payload)
+    qr.make(fit=True)
+    buf = io.StringIO()
+    qr.print_ascii(out=buf, invert=True)
+    sys.stdout.buffer.write(buf.getvalue().encode("utf-8"))
+    sys.stdout.buffer.flush()
+
+
 def _expose(provider: str, port: int) -> None:
     generated = _ensure_public_token()
     if provider == "tailscale":
@@ -106,6 +119,7 @@ def _expose(provider: str, port: int) -> None:
         f"\n  Port       : {pub_port}"
         f"\n  Token      : {token}{token_tag}\n"
     )
+    _print_qr(json.dumps({"url": public_url, "token": token}, separators=(",", ":")))
 
 
 def main():

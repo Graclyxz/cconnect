@@ -58,6 +58,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Palette
 import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.Plus
+import com.composables.icons.lucide.ScanQrCode
 import com.composables.icons.lucide.Server
 import com.composables.icons.lucide.Shield
 import com.composables.icons.lucide.Sparkles
@@ -66,6 +67,7 @@ import com.composables.icons.lucide.Wand
 import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.ConnectionProfile
+import com.jahirtrap.cconnect.data.QrConnectionPayload
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.remote.Backend
 import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
@@ -345,6 +347,7 @@ private fun ConnectionsDialog(
     onDelete: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
     var editing by remember { mutableStateOf<ConnectionProfile?>(null) }
     var adding by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<ConnectionProfile?>(null) }
@@ -354,6 +357,22 @@ private fun ConnectionsDialog(
         title = stringResource(R.string.connections),
         contentPadding = PaddingValues(0.dp),
         buttons = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.back)) } },
+        titleTrailing = {
+            IconButton(
+                onClick = {
+                    QrScanner.scan(context) { raw ->
+                        val profile = raw?.let(::profileFromQrPayload)
+                        if (profile != null) {
+                            onSave(profile)
+                            onSetActive(profile.id)
+                        }
+                    }
+                },
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(Lucide.ScanQrCode, contentDescription = stringResource(R.string.scan_qr), modifier = Modifier.size(20.dp))
+            }
+        },
     ) {
         connections.forEach { c ->
             DialogSelectItem(
@@ -547,6 +566,21 @@ private fun GenerationDialog(
             Switch(checked = s, onCheckedChange = { s = it })
         }
     }
+}
+
+private fun profileFromQrPayload(raw: String): ConnectionProfile? {
+    val payload = QrConnectionPayload.parse(raw) ?: return null
+    val parsed = parseHostInput(payload.url) ?: return null
+    val port: Int? = if (parsed.kind == "https") null else parsed.port.toIntOrNull()
+    return ConnectionProfile(
+        id = UUID.randomUUID().toString(),
+        name = parsed.host,
+        kind = parsed.kind,
+        host = parsed.host,
+        port = port,
+        authKind = "bearer",
+        authToken = payload.token,
+    )
 }
 
 private data class ParsedHost(val host: String, val port: String, val kind: String)
