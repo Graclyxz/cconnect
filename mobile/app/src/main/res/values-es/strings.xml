@@ -58,6 +58,8 @@
     <string name="send">Enviar</string>
     <string name="stop">Detener</string>
     <string name="thinking">Pensando</string>
+    <string name="result">Resultado</string>
+    <string name="summary">Resumen</string>
     <string name="scroll_to_bottom">Ir al final</string>
     <string name="connecting">Conectando…</string>
     <string name="disconnected">Desconectado</string>

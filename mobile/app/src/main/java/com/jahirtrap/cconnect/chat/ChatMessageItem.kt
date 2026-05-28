@@ -55,6 +55,10 @@ fun ChatMessageItem(message: ChatMessage, prevRole: Role? = null, nextRole: Role
 
             Role.TOOL -> ToolBlock(name = message.toolName, input = message.text)
 
+            Role.TOOL_RESULT -> Collapsible(label = stringResource(R.string.result), text = message.text)
+
+            Role.SUMMARY -> Collapsible(label = stringResource(R.string.summary), text = message.text)
+
             Role.ERROR -> Band(MaterialTheme.colorScheme.errorContainer) {
                 Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
             }
@@ -67,7 +71,7 @@ fun ChatMessageItem(message: ChatMessage, prevRole: Role? = null, nextRole: Role
 }
 
 private fun group(role: Role?): Int = when (role) {
-    Role.THINKING, Role.TOOL -> 0
+    Role.THINKING, Role.TOOL, Role.TOOL_RESULT -> 0
     Role.ASSISTANT -> 1
     Role.USER, Role.ERROR -> 2
     else -> 3

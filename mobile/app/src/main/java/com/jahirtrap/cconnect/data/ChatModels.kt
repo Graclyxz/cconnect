@@ -1,6 +1,6 @@
 package com.jahirtrap.cconnect.data
 
-enum class Role { USER, ASSISTANT, THINKING, TOOL, SYSTEM, ERROR }
+enum class Role { USER, ASSISTANT, THINKING, TOOL, TOOL_RESULT, SUMMARY, SYSTEM, ERROR }
 
 data class ChatMessage(
     val id: Long,

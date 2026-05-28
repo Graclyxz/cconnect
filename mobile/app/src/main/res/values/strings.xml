@@ -58,6 +58,8 @@
     <string name="send">Send</string>
     <string name="stop">Stop</string>
     <string name="thinking">Thinking</string>
+    <string name="result">Result</string>
+    <string name="summary">Summary</string>
     <string name="scroll_to_bottom">Scroll to bottom</string>
     <string name="connecting">Connecting…</string>
     <string name="disconnected">Disconnected</string>

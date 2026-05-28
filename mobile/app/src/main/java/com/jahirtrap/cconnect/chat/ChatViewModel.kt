@@ -148,7 +148,6 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun newSession() {
         currentAssistantId = null
         currentThinkingId = null
-        applyDefaultDirectory()
         _state.update { it.copy(messages = emptyList(), sessionId = null, sessionColor = null, todos = emptyList(), streaming = false) }
         startSession(resume = null)
     }
@@ -215,7 +214,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val loaded = SessionsApi.sessionMessages(session.sessionId, projectKey)
                 .filter { it.text.isNotBlank() }
-                .mapIndexed { index, m -> ChatMessage(index.toLong(), m.toRole(), m.text) }
+                .mapIndexed { index, m -> ChatMessage(index.toLong(), m.toRole(), m.text, toolName = m.name) }
             nextId = loaded.size.toLong()
             currentAssistantId = null
             currentThinkingId = null
@@ -276,9 +275,12 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun SessionMessage.toRole(): Role = when (role ?: type) {
-        "user" -> Role.USER
-        "assistant" -> Role.ASSISTANT
+    private fun SessionMessage.toRole(): Role = when (type) {
+        "text" -> if (role == "assistant") Role.ASSISTANT else Role.USER
+        "thinking" -> Role.THINKING
+        "tool_use" -> Role.TOOL
+        "tool_result" -> Role.TOOL_RESULT
+        "summary" -> Role.SUMMARY
         else -> Role.SYSTEM
     }
 
@@ -301,7 +303,12 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 currentThinkingId = null
                 addMessage(Role.TOOL, event.input.orEmpty(), toolName = event.name)
             }
-            is ServerEvent.ToolResult -> Unit
+            is ServerEvent.ToolResult -> {
+                currentAssistantId = null
+                currentThinkingId = null
+                val text = event.content.orEmpty()
+                if (text.isNotBlank()) addMessage(Role.TOOL_RESULT, text)
+            }
             is ServerEvent.Todos -> _state.update { it.copy(todos = event.items) }
             is ServerEvent.Task -> upsertTask(event)
             is ServerEvent.Result -> _state.update { it.copy(sessionId = event.sessionId ?: it.sessionId) }

@@ -1,6 +1,7 @@
 """Interactive chat over WebSocket — drives Claude Code and streams events back."""
 
 import asyncio
+import os
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from loguru import logger
@@ -81,7 +82,7 @@ async def chat_ws(ws: WebSocket):
                 if msg.permission_mode not in permission_modes():
                     await send({"type": "error", "message": f"invalid permission_mode: {msg.permission_mode}"})
                     continue
-                state.cwd = msg.cwd
+                state.cwd = msg.cwd or os.getcwd()
                 state.permission_mode = msg.permission_mode
                 state.session_id = msg.resume
                 state.fork = msg.fork

@@ -22,8 +22,7 @@ data class SessionMessage(
     val type: String?,
     val role: String?,
     val text: String,
-    val timestamp: String?,
-    val uuid: String?,
+    val name: String? = null,
 )
 
 data class SharedEntry(

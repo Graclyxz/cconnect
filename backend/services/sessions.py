@@ -300,18 +300,55 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
     file = _session_file(project_key, session_id)
     if not file.is_file():
         return []
-    messages = []
+    messages: list[dict] = []
     for entry in _iter_lines(file):
         etype = entry.get("type")
         if etype == "summary":
-            messages.append({"type": "summary", "text": entry.get("summary", "")})
+            text = entry.get("summary", "")
+            if text:
+                messages.append({"type": "summary", "text": text})
+            continue
+        if entry.get("isMeta") or entry.get("isSidechain"):
             continue
         message = entry.get("message", {})
-        messages.append({
-            "type": etype,
-            "role": message.get("role", etype),
-            "text": _text_from_content(message.get("content")),
-            "timestamp": entry.get("timestamp"),
-            "uuid": entry.get("uuid"),
-        })
+        if message.get("stop_reason") == "stop_sequence":
+            continue
+        role = message.get("role", etype)
+        content = message.get("content")
+        if isinstance(content, str):
+            if content.strip():
+                messages.append({"type": "text", "role": role, "text": content})
+            continue
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            btype = block.get("type")
+            if btype == "text":
+                text = block.get("text", "")
+                if text.strip():
+                    messages.append({"type": "text", "role": role, "text": text})
+            elif btype == "thinking":
+                text = block.get("thinking") or block.get("text", "")
+                if text.strip():
+                    messages.append({"type": "thinking", "text": text})
+            elif btype == "tool_use":
+                inp = block.get("input")
+                text = json.dumps(inp, ensure_ascii=False, indent=2) if isinstance(inp, (dict, list)) else (str(inp) if inp is not None else "")
+                messages.append({"type": "tool_use", "name": block.get("name", ""), "text": text})
+            elif btype == "tool_result":
+                result = block.get("content")
+                if isinstance(result, list):
+                    parts = []
+                    for r in result:
+                        if isinstance(r, dict) and r.get("type") == "text":
+                            parts.append(r.get("text", ""))
+                        elif isinstance(r, str):
+                            parts.append(r)
+                    text = "\n".join(p for p in parts if p)
+                else:
+                    text = str(result) if result is not None else ""
+                if text.strip():
+                    messages.append({"type": "tool_result", "text": text})
     return messages

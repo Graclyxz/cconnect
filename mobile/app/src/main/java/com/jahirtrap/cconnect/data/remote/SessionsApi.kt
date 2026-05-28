@@ -55,8 +55,7 @@ object SessionsApi {
                 type = o["type"]?.jsonPrimitive?.contentOrNull,
                 role = o["role"]?.jsonPrimitive?.contentOrNull,
                 text = o["text"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                timestamp = o["timestamp"]?.jsonPrimitive?.contentOrNull,
-                uuid = o["uuid"]?.jsonPrimitive?.contentOrNull,
+                name = o["name"]?.jsonPrimitive?.contentOrNull,
             )
         } ?: emptyList()
 
