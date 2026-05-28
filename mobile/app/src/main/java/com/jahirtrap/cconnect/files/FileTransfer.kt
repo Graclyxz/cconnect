@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Environment
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
+import com.jahirtrap.cconnect.data.remote.Backend
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -23,13 +24,14 @@ object FileTransfer {
             .setMimeType(mimeOf(filename))
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
+        Backend.authHeaders.forEach { (name, value) -> request.addRequestHeader(name, value) }
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         manager.enqueue(request)
     }
 
     suspend fun saveTo(context: Context, url: String, dest: Uri): Boolean = withContext(Dispatchers.IO) {
         runCatching {
-            client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
+            client.newCall(authorizedRequest(url)).execute().use { resp ->
                 val body = resp.body ?: return@use false
                 context.contentResolver.openOutputStream(dest)?.use { out -> body.byteStream().copyTo(out) } != null
             }
@@ -40,7 +42,7 @@ object FileTransfer {
         runCatching {
             val dir = File(context.cacheDir, "shared").apply { mkdirs() }
             val file = File(dir, filename)
-            client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
+            client.newCall(authorizedRequest(url)).execute().use { resp ->
                 val body = resp.body ?: return@withContext null
                 file.outputStream().use { body.byteStream().copyTo(it) }
             }
@@ -51,6 +53,12 @@ object FileTransfer {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
         }.getOrNull()
+    }
+
+    private fun authorizedRequest(url: String): Request {
+        val builder = Request.Builder().url(url)
+        Backend.authHeaders.forEach { (name, value) -> builder.header(name, value) }
+        return builder.build()
     }
 
     private fun mimeOf(filename: String): String {

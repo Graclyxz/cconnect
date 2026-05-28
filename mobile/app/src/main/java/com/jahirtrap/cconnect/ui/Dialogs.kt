@@ -44,7 +44,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.Check
+import com.composables.icons.lucide.Download
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Save
+import com.composables.icons.lucide.Share2
 import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.ui.theme.sessionColorOf
@@ -220,6 +223,38 @@ fun ConfirmSelectDialog(
         options.forEach { (value, label) ->
             ChoiceRow(label = label, selected = value == choice) { choice = value }
         }
+    }
+}
+
+@Composable
+fun SharedLinkActionsDialog(
+    filename: String,
+    onSave: () -> Unit,
+    onSaveAs: () -> Unit,
+    onShare: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    CompactDialog(
+        onDismiss = onDismiss,
+        title = filename,
+        contentPadding = PaddingValues(0.dp),
+        buttons = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    ) {
+        CompactDropdownItem(
+            text = stringResource(R.string.save),
+            leadingIcon = { Icon(Lucide.Download, contentDescription = null, modifier = Modifier.size(20.dp)) },
+            onClick = { onDismiss(); onSave() },
+        )
+        CompactDropdownItem(
+            text = stringResource(R.string.save_as),
+            leadingIcon = { Icon(Lucide.Save, contentDescription = null, modifier = Modifier.size(20.dp)) },
+            onClick = { onDismiss(); onSaveAs() },
+        )
+        CompactDropdownItem(
+            text = stringResource(R.string.share),
+            leadingIcon = { Icon(Lucide.Share2, contentDescription = null, modifier = Modifier.size(20.dp)) },
+            onClick = { onDismiss(); onShare() },
+        )
     }
 }
 

@@ -1,6 +1,8 @@
 package com.jahirtrap.cconnect.chat
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -90,6 +92,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
@@ -106,6 +109,7 @@ import com.jahirtrap.cconnect.data.PermissionMode
 import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.TodoItem
+import com.jahirtrap.cconnect.files.FileTransfer
 import com.jahirtrap.cconnect.ui.ColorDialog
 import com.jahirtrap.cconnect.ui.ConfirmSelectDialog
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
@@ -113,6 +117,7 @@ import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.LANGUAGE_TAGS
 import com.jahirtrap.cconnect.ui.RenameDialog
 import com.jahirtrap.cconnect.ui.SelectDialog
+import com.jahirtrap.cconnect.ui.SharedLinkActionsDialog
 import com.jahirtrap.cconnect.ui.THEME_MODES
 import com.jahirtrap.cconnect.ui.languageLabel
 import com.jahirtrap.cconnect.ui.themeIcon
@@ -138,11 +143,19 @@ fun ChatScreen(
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
 
+    val context = LocalContext.current
     var renameTarget by remember { mutableStateOf<SessionInfo?>(null) }
     var deleteTarget by remember { mutableStateOf<SessionInfo?>(null) }
     var colorTarget by remember { mutableStateOf<SessionInfo?>(null) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
+    var sharedLinkAction by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var pendingSaveAsUrl by remember { mutableStateOf<String?>(null) }
+    val saveAsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
+        val url = pendingSaveAsUrl
+        if (uri != null && url != null) scope.launch { FileTransfer.saveTo(context, url, uri) }
+        pendingSaveAsUrl = null
+    }
     LaunchedEffect(drawerState.targetValue) {
         if (drawerState.targetValue == DrawerValue.Open) {
             focusManager.clearFocus()
@@ -310,6 +323,7 @@ fun ChatScreen(
                                 prevRole = state.messages.getOrNull(index - 1)?.role,
                                 nextRole = state.messages.getOrNull(index + 1)?.role,
                                 onAnswer = vm::answerInteraction,
+                                onSharedLink = { url, filename -> sharedLinkAction = url to filename },
                             )
                         }
                     }
@@ -395,6 +409,21 @@ fun ChatScreen(
             selected = language,
             onConfirm = { onLanguage(it); showLanguageDialog = false },
             onDismiss = { showLanguageDialog = false },
+        )
+    }
+    sharedLinkAction?.let { (url, filename) ->
+        SharedLinkActionsDialog(
+            filename = filename,
+            onSave = { FileTransfer.enqueueToDownloads(context, url, filename) },
+            onSaveAs = { pendingSaveAsUrl = url; saveAsLauncher.launch(filename) },
+            onShare = {
+                scope.launch {
+                    FileTransfer.shareIntent(context, url, filename)?.let {
+                        context.startActivity(android.content.Intent.createChooser(it, null))
+                    }
+                }
+            },
+            onDismiss = { sharedLinkAction = null },
         )
     }
 }

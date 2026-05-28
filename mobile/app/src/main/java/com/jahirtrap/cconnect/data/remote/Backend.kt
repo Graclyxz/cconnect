@@ -22,12 +22,19 @@ object Backend {
     val wsUrl: String get() = "${if (secure) "wss" else "ws"}://$host$portSuffix/api/chat/ws"
     val isConfigured: Boolean get() = host.isNotBlank()
 
-    // For "header" auth, the caller adds (authHeaderName, authHeaderValue) directly.
-    val authorizationHeader: String?
+    private val authorizationHeader: String?
         get() = when (authKind) {
             "bearer" -> if (authToken.isBlank()) null else "Bearer $authToken"
             "basic" -> if (authUser.isBlank() && authPassword.isBlank()) null
             else "Basic " + Base64.encodeToString("$authUser:$authPassword".toByteArray(), Base64.NO_WRAP)
             else -> null
+        }
+
+    val authHeaders: List<Pair<String, String>>
+        get() = buildList {
+            authorizationHeader?.let { add("Authorization" to it) }
+            if (authKind == "header" && authHeaderName.isNotBlank() && authHeaderValue.isNotBlank()) {
+                add(authHeaderName to authHeaderValue)
+            }
         }
 }

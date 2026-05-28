@@ -59,6 +59,7 @@ fun ChatMessageItem(
     prevRole: Role? = null,
     nextRole: Role? = null,
     onAnswer: ((String, String, String?) -> Unit)? = null,
+    onSharedLink: ((String, String) -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier
@@ -71,7 +72,7 @@ fun ChatMessageItem(
             }
 
             Role.ASSISTANT -> Plain {
-                MarkdownText(message.text, modifier = Modifier.fillMaxWidth())
+                MarkdownText(message.text, modifier = Modifier.fillMaxWidth(), onSharedLink = onSharedLink)
             }
 
             Role.THINKING -> Collapsible(label = stringResource(R.string.thinking), text = message.text)

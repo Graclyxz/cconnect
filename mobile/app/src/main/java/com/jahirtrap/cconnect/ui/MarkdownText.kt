@@ -21,11 +21,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
@@ -38,6 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import android.net.Uri
+import com.jahirtrap.cconnect.data.remote.Backend
 import org.commonmark.ext.autolink.AutolinkExtension
 import org.commonmark.ext.footnotes.FootnoteDefinition
 import org.commonmark.ext.footnotes.FootnoteReference
@@ -88,12 +93,32 @@ private val parser: Parser = Parser.builder()
     .build()
 
 @Composable
-fun MarkdownText(markdown: String, modifier: Modifier = Modifier) {
+fun MarkdownText(
+    markdown: String,
+    modifier: Modifier = Modifier,
+    onSharedLink: ((url: String, filename: String) -> Unit)? = null,
+) {
     val root = remember(markdown) { parser.parse(markdown) }
     val codeBg = MaterialTheme.colorScheme.surface
     val linkColor = MaterialTheme.colorScheme.primary
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Blocks(root, codeBg, linkColor, depth = 0)
+    val defaultHandler = LocalUriHandler.current
+    val uriHandler = remember(onSharedLink, defaultHandler) {
+        if (onSharedLink == null) defaultHandler
+        else object : UriHandler {
+            override fun openUri(uri: String) {
+                val prefix = Backend.baseUrl + "/shared/"
+                if (uri.startsWith(prefix)) {
+                    val raw = uri.substring(prefix.length).substringBefore('?').substringBefore('#')
+                    val filename = Uri.decode(raw.substringAfterLast('/')) ?: raw
+                    onSharedLink(uri, filename)
+                } else defaultHandler.openUri(uri)
+            }
+        }
+    }
+    CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+        Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Blocks(root, codeBg, linkColor, depth = 0)
+        }
     }
 }
 

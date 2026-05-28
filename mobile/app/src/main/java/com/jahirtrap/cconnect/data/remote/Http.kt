@@ -51,10 +51,7 @@ object Http {
     }
 
     internal fun applyAuth(builder: Request.Builder) {
-        Backend.authorizationHeader?.let { builder.header("Authorization", it) }
-        if (Backend.authKind == "header" && Backend.authHeaderName.isNotBlank() && Backend.authHeaderValue.isNotBlank()) {
-            builder.header(Backend.authHeaderName, Backend.authHeaderValue)
-        }
+        Backend.authHeaders.forEach { (name, value) -> builder.header(name, value) }
     }
 
     private val client = OkHttpClient()
