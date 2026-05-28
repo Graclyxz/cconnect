@@ -56,10 +56,18 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.ChevronDown
+import com.composables.icons.lucide.ChevronLeft
+import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.ChevronUp
+import com.composables.icons.lucide.Eraser
 import com.composables.icons.lucide.Keyboard
+import com.composables.icons.lucide.LogOut
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Pause
 import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.Plus
+import com.composables.icons.lucide.Square
 import com.composables.icons.lucide.SquareTerminal
 import com.composables.icons.lucide.Trash
 import com.composables.icons.lucide.X
@@ -283,8 +291,8 @@ private fun TerminalSession(
                 ),
                 title = {
                     Column {
-                        Text(profile.name.ifBlank { profile.host }, style = MaterialTheme.typography.titleLarge, maxLines = 1)
-                        Text(statusLabel(state), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(profile.name.ifBlank { profile.host }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(statusLabel(state), style = MaterialTheme.typography.labelSmall)
                     }
                 },
                 navigationIcon = {
@@ -321,11 +329,12 @@ private fun TerminalSession(
     }
 }
 
+@Composable
 private fun statusLabel(state: SshConnection.State): String = when (state) {
-    SshConnection.State.Idle, SshConnection.State.Connecting -> "Connecting…"
-    SshConnection.State.Connected -> "Connected"
-    SshConnection.State.Closed -> "Disconnected"
-    is SshConnection.State.Failed -> "Failed: ${state.message}"
+    SshConnection.State.Idle, SshConnection.State.Connecting -> stringResource(R.string.ssh_connecting)
+    SshConnection.State.Connected -> stringResource(R.string.ssh_connected)
+    SshConnection.State.Closed -> stringResource(R.string.ssh_closed)
+    is SshConnection.State.Failed -> stringResource(R.string.ssh_failed, state.message)
 }
 
 @Composable
@@ -347,27 +356,27 @@ private fun SoftKeyRow(
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             // ESC = 0x1B; arrows = ESC + "[A/B/C/D"; Ctrl+letter = letter - 64.
-            val items = listOf(
-                "Esc" to byteArrayOf(0x1B),
-                "Tab" to byteArrayOf(0x09),
-                "↑" to byteArrayOf(0x1B, 0x5B, 0x41),
-                "↓" to byteArrayOf(0x1B, 0x5B, 0x42),
-                "←" to byteArrayOf(0x1B, 0x5B, 0x44),
-                "→" to byteArrayOf(0x1B, 0x5B, 0x43),
-                "^C" to byteArrayOf(0x03),
-                "^D" to byteArrayOf(0x04),
-                "^L" to byteArrayOf(0x0C),
-                "^Z" to byteArrayOf(0x1A),
-                "/" to byteArrayOf('/'.code.toByte()),
-                "|" to byteArrayOf('|'.code.toByte()),
-                "-" to byteArrayOf('-'.code.toByte()),
-                "_" to byteArrayOf('_'.code.toByte()),
-                "~" to byteArrayOf('~'.code.toByte()),
-                "Home" to byteArrayOf(0x1B, 0x5B, 0x48),
-                "End" to byteArrayOf(0x1B, 0x5B, 0x46),
+            val keys = listOf(
+                SoftKey.Lbl("Esc", byteArrayOf(0x1B)),
+                SoftKey.Lbl("Tab", byteArrayOf(0x09)),
+                SoftKey.Ico(Lucide.ChevronUp, "↑", byteArrayOf(0x1B, 0x5B, 0x41)),
+                SoftKey.Ico(Lucide.ChevronDown, "↓", byteArrayOf(0x1B, 0x5B, 0x42)),
+                SoftKey.Ico(Lucide.ChevronLeft, "←", byteArrayOf(0x1B, 0x5B, 0x44)),
+                SoftKey.Ico(Lucide.ChevronRight, "→", byteArrayOf(0x1B, 0x5B, 0x43)),
+                SoftKey.Ico(Lucide.Square, "Ctrl+C", byteArrayOf(0x03)),
+                SoftKey.Ico(Lucide.LogOut, "Ctrl+D", byteArrayOf(0x04)),
+                SoftKey.Ico(Lucide.Eraser, "Ctrl+L", byteArrayOf(0x0C)),
+                SoftKey.Ico(Lucide.Pause, "Ctrl+Z", byteArrayOf(0x1A)),
+                SoftKey.Lbl("Home", byteArrayOf(0x1B, 0x5B, 0x48)),
+                SoftKey.Lbl("End", byteArrayOf(0x1B, 0x5B, 0x46)),
             )
-            items(items) { (label, value) ->
-                SoftBtn(label) { onKey(value) }
+            items(keys) { key ->
+                SoftBtn(onClick = { onKey(key.bytes) }) {
+                    when (key) {
+                        is SoftKey.Lbl -> Text(key.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+                        is SoftKey.Ico -> Icon(key.icon, contentDescription = key.desc, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurface)
+                    }
+                }
             }
         }
         Box(
@@ -392,8 +401,13 @@ private fun SoftKeyRow(
     }
 }
 
+private sealed class SoftKey(val bytes: ByteArray) {
+    class Lbl(val label: String, bytes: ByteArray) : SoftKey(bytes)
+    class Ico(val icon: androidx.compose.ui.graphics.vector.ImageVector, val desc: String, bytes: ByteArray) : SoftKey(bytes)
+}
+
 @Composable
-private fun SoftBtn(label: String, onClick: () -> Unit) {
+private fun SoftBtn(onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
         modifier = Modifier
             .height(32.dp)
@@ -407,6 +421,6 @@ private fun SoftBtn(label: String, onClick: () -> Unit) {
             .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+        content()
     }
 }
