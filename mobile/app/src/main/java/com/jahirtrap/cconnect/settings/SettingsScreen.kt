@@ -427,6 +427,7 @@ private fun ConnectionEditDialog(
     onDismiss: () -> Unit,
     focusName: Boolean = false,
 ) {
+    val context = LocalContext.current
     var kind by remember { mutableStateOf(initial?.kind ?: "http") }
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var host by remember { mutableStateOf(initial?.host ?: "") }
@@ -444,6 +445,24 @@ private fun ConnectionEditDialog(
     CompactDialog(
         onDismiss = onDismiss,
         title = stringResource(if (initial == null) R.string.add_connection else R.string.edit_connection),
+        titleTrailing = {
+            IconButton(
+                onClick = {
+                    QrScanner.scan(context) { raw ->
+                        val payload = raw?.let(QrConnectionPayload::parse) ?: return@scan
+                        val parsed = parseHostInput(payload.url) ?: return@scan
+                        kind = parsed.kind
+                        host = parsed.host
+                        port = if (parsed.kind == "https") "" else parsed.port
+                        authKind = "bearer"
+                        authToken = payload.token
+                    }
+                },
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(Lucide.ScanQrCode, contentDescription = stringResource(R.string.scan_qr), modifier = Modifier.size(20.dp))
+            }
+        },
         buttons = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
             TextButton(
