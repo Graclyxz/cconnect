@@ -1,6 +1,6 @@
 package com.jahirtrap.cconnect.data
 
-enum class Role { USER, ASSISTANT, THINKING, TOOL, TOOL_RESULT, SUMMARY, INTERACTION, SYSTEM, ERROR }
+enum class Role { USER, ASSISTANT, THINKING, TOOL, TOOL_RESULT, SUMMARY, INTERACTION, FILE_CHANGE, SYSTEM, ERROR }
 
 data class ChatMessage(
     val id: Long,
@@ -9,6 +9,7 @@ data class ChatMessage(
     val toolName: String? = null,
     val toolUseId: String? = null,
     val interaction: InteractionData? = null,
+    val path: String? = null,
 )
 
 data class InteractionOption(
@@ -47,6 +48,7 @@ sealed interface ServerEvent {
     data class Thinking(val text: String) : ServerEvent
     data class ToolUse(val id: String?, val name: String?, val input: String?) : ServerEvent
     data class ToolResult(val content: String?) : ServerEvent
+    data class FileChange(val id: String?, val path: String, val diff: String) : ServerEvent
     data class Todos(val items: List<TodoItem>) : ServerEvent
     data class Task(val id: String, val content: String?, val status: String?) : ServerEvent
     data class Result(val sessionId: String?) : ServerEvent

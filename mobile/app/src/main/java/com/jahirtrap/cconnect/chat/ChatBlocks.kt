@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,11 +41,16 @@ import androidx.compose.ui.unit.dp
 import com.jahirtrap.cconnect.R
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.CircleQuestionMark
+import com.composables.icons.lucide.FilePen
+import com.composables.icons.lucide.Lightbulb
 import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.Send
+import com.composables.icons.lucide.SendHorizontal
 import com.composables.icons.lucide.Shield
+import com.composables.icons.lucide.SquareTerminal
 import com.composables.icons.lucide.X
-import com.composables.icons.lucide.Terminal
+import com.jahirtrap.cconnect.ui.CustomIcons
+import com.jahirtrap.cconnect.ui.PlayFilled
 import com.jahirtrap.cconnect.data.ChatMessage
 import com.jahirtrap.cconnect.data.InteractionData
 import com.jahirtrap.cconnect.data.InteractionOption
@@ -68,14 +75,16 @@ fun ChatMessageItem(
     ) {
         when (message.role) {
             Role.USER -> Band(MaterialTheme.colorScheme.surfaceVariant) {
-                Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                SelectionContainer {
+                    Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                }
             }
 
             Role.ASSISTANT -> Plain {
                 MarkdownText(message.text, modifier = Modifier.fillMaxWidth(), onSharedLink = onSharedLink)
             }
 
-            Role.THINKING -> Collapsible(label = stringResource(R.string.thinking), text = message.text)
+            Role.THINKING -> Collapsible(label = stringResource(R.string.thinking), text = message.text, icon = Lucide.Lightbulb)
 
             Role.TOOL -> ToolBlock(name = message.toolName, input = message.text)
 
@@ -87,19 +96,25 @@ fun ChatMessageItem(
                 InteractionBlock(data = it, toolName = message.toolName, input = message.text, onAnswer = onAnswer)
             }
 
+            Role.FILE_CHANGE -> FileChangeBlock(path = message.path.orEmpty(), diff = message.text)
+
             Role.ERROR -> Band(MaterialTheme.colorScheme.errorContainer) {
-                Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+                SelectionContainer {
+                    Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+                }
             }
 
             Role.SYSTEM -> Plain {
-                Text(message.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SelectionContainer {
+                    Text(message.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
     }
 }
 
 private fun group(role: Role?): Int = when (role) {
-    Role.THINKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION -> 0
+    Role.THINKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION, Role.FILE_CHANGE -> 0
     Role.ASSISTANT -> 1
     Role.USER, Role.ERROR -> 2
     else -> 3
@@ -144,33 +159,43 @@ private fun Plain(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun Collapsible(label: String, text: String) {
+private fun Collapsible(label: String, text: String, icon: ImageVector? = null) {
     var expanded by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.size(6.dp))
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
             Icon(
                 imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp),
             )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp),
-            )
         }
         if (expanded) {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
+            SelectionContainer(modifier = Modifier.padding(top = 4.dp)) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -190,7 +215,7 @@ private fun ToolBlock(name: String?, input: String) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                imageVector = Lucide.Terminal,
+                imageVector = Lucide.SquareTerminal,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(16.dp),
@@ -204,21 +229,68 @@ private fun ToolBlock(name: String?, input: String) {
             if (!expanded && preview.isNotEmpty()) {
                 Text(
                     text = "  $preview",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+            } else {
+                Spacer(Modifier.weight(1f))
             }
+            Icon(
+                imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
         }
         if (expanded && input.isNotBlank()) {
+            SelectionContainer(modifier = Modifier.padding(top = 4.dp)) {
+                Text(
+                    text = input,
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FileChangeBlock(path: String, diff: String) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Lucide.FilePen,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp),
+            )
             Text(
-                text = input,
-                fontFamily = FontFamily.Monospace,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
+                text = "  $path",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        if (expanded && diff.isNotBlank()) {
+            com.jahirtrap.cconnect.ui.MarkdownText(
+                markdown = "```diff\n$diff\n```",
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
             )
         }
     }
@@ -235,9 +307,10 @@ private fun InteractionBlock(
     var freeText by remember { mutableStateOf("") }
     val resolved = data.resolved
     val title = data.title ?: toolName ?: stringResource(R.string.permission_title)
+    val headerIcon = if (data.kind == "question") Lucide.CircleQuestionMark else Lucide.Shield
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Lucide.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+            Icon(headerIcon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
             Text("  $title", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
         }
         if (input.isNotBlank()) {
@@ -272,10 +345,16 @@ private fun InteractionBlock(
             }
         } else {
             val chosen = data.options.firstOrNull { it.id == resolved }
-            val label = chosen?.let { optionLabel(it) } ?: resolved
-            Text("→ $label", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
-            if (!data.resolvedText.isNullOrBlank()) {
-                Text(data.resolvedText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val label = chosen?.let { optionLabel(it) }.orEmpty()
+            val display = label.ifBlank { data.resolvedText.orEmpty() }
+            val extra = if (label.isNotBlank()) data.resolvedText else null
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                Icon(CustomIcons.PlayFilled, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(10.dp))
+                Spacer(Modifier.size(6.dp))
+                Text(display, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (!extra.isNullOrBlank()) {
+                Text(extra, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -323,7 +402,7 @@ private fun TextInputRow(
         )
         Spacer(Modifier.size(4.dp))
         IconButton(onClick = onSend, enabled = value.isNotBlank()) {
-            Icon(Lucide.Send, contentDescription = stringResource(R.string.send), modifier = Modifier.size(20.dp))
+            Icon(Lucide.SendHorizontal, contentDescription = stringResource(R.string.send), modifier = Modifier.size(20.dp))
         }
         if (onCancel != null) {
             IconButton(onClick = onCancel) {

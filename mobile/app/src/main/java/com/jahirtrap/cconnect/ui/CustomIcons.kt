@@ -34,3 +34,24 @@ val CustomIcons.Stop: ImageVector
     }
 
 private var cachedStop: ImageVector? = null
+
+val CustomIcons.PlayFilled: ImageVector
+    get() {
+        cachedPlay?.let { return it }
+        return ImageVector.Builder(
+            name = "PlayFilled",
+            defaultWidth = 24.dp,
+            defaultHeight = 24.dp,
+            viewportWidth = 24f,
+            viewportHeight = 24f,
+        ).apply {
+            path(fill = SolidColor(Color.Black)) {
+                moveTo(6f, 3f)
+                lineTo(20f, 12f)
+                lineTo(6f, 21f)
+                close()
+            }
+        }.build().also { cachedPlay = it }
+    }
+
+private var cachedPlay: ImageVector? = null

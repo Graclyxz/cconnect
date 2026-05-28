@@ -23,6 +23,8 @@ data class SessionMessage(
     val role: String?,
     val text: String,
     val name: String? = null,
+    val path: String? = null,
+    val interaction: InteractionData? = null,
 )
 
 data class SharedEntry(

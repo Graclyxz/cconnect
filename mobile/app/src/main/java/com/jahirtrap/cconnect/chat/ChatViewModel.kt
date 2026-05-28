@@ -165,7 +165,6 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (id == settings.activeConnection?.id) return
         settings.activeConnectionId = id
         applyDefaultDirectory()
-        historyLoaded = false
         currentAssistantId = null
         currentThinkingId = null
         client.close()
@@ -184,6 +183,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
         connect()
+        loadHistory()
     }
 
     fun ensureHistoryLoaded() {
@@ -214,8 +214,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val projectKey = session.projectKey ?: return
         viewModelScope.launch {
             val loaded = SessionsApi.sessionMessages(session.sessionId, projectKey)
-                .filter { it.text.isNotBlank() }
-                .mapIndexed { index, m -> ChatMessage(index.toLong(), m.toRole(), m.text, toolName = m.name) }
+                .filter { it.text.isNotBlank() || it.interaction != null }
+                .mapIndexed { index, m -> ChatMessage(index.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction) }
             nextId = loaded.size.toLong()
             currentAssistantId = null
             currentThinkingId = null
@@ -281,6 +281,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         "thinking" -> Role.THINKING
         "tool_use" -> Role.TOOL
         "tool_result" -> Role.TOOL_RESULT
+        "file_change" -> Role.FILE_CHANGE
+        "interaction" -> Role.INTERACTION
         "summary" -> Role.SUMMARY
         else -> Role.SYSTEM
     }
@@ -309,6 +311,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 currentThinkingId = null
                 val text = event.content.orEmpty()
                 if (text.isNotBlank()) addMessage(Role.TOOL_RESULT, text)
+            }
+            is ServerEvent.FileChange -> {
+                currentAssistantId = null
+                currentThinkingId = null
+                addMessage(Role.FILE_CHANGE, event.diff, toolUseId = event.id, path = event.path)
             }
             is ServerEvent.Todos -> _state.update { it.copy(todos = event.items) }
             is ServerEvent.Task -> upsertTask(event)
@@ -383,8 +390,15 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         return currentId
     }
 
-    private fun addMessage(role: Role, text: String, toolName: String? = null, toolUseId: String? = null, interaction: InteractionData? = null) {
-        _state.update { it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction)) }
+    private fun addMessage(
+        role: Role,
+        text: String,
+        toolName: String? = null,
+        toolUseId: String? = null,
+        interaction: InteractionData? = null,
+        path: String? = null,
+    ) {
+        _state.update { it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path)) }
     }
 
     fun answerInteraction(requestId: String, optionId: String, freeText: String?) {

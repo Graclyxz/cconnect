@@ -1,5 +1,7 @@
 package com.jahirtrap.cconnect.data.remote
 
+import com.jahirtrap.cconnect.data.InteractionData
+import com.jahirtrap.cconnect.data.InteractionOption
 import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.SessionMessage
@@ -51,13 +53,44 @@ object SessionsApi {
     suspend fun sessionMessages(sessionId: String, project: String): List<SessionMessage> =
         Http.get("/sessions/$sessionId/messages", mapOf("project" to project))?.jsonArray?.map { el ->
             val o = el.jsonObject
+            val type = o["type"]?.jsonPrimitive?.contentOrNull
+            val text = when (type) {
+                "file_change" -> o["diff"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                "interaction" -> ""
+                else -> o["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            }
+            val interaction = if (type == "interaction") parseInteraction(o) else null
             SessionMessage(
-                type = o["type"]?.jsonPrimitive?.contentOrNull,
+                type = type,
                 role = o["role"]?.jsonPrimitive?.contentOrNull,
-                text = o["text"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                name = o["name"]?.jsonPrimitive?.contentOrNull,
+                text = text,
+                name = o["name"]?.jsonPrimitive?.contentOrNull ?: o["tool_name"]?.jsonPrimitive?.contentOrNull,
+                path = o["path"]?.jsonPrimitive?.contentOrNull,
+                interaction = interaction,
             )
         } ?: emptyList()
+
+    private fun parseInteraction(o: kotlinx.serialization.json.JsonObject): InteractionData {
+        val opts = o["options"]?.jsonArray?.mapNotNull { el ->
+            val it = el.jsonObject
+            val id = it["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            InteractionOption(
+                id = id,
+                label = it["label"]?.jsonPrimitive?.contentOrNull,
+                description = it["description"]?.jsonPrimitive?.contentOrNull,
+            )
+        } ?: emptyList()
+        val resolved = o["resolved"]?.jsonPrimitive?.contentOrNull
+        return InteractionData(
+            requestId = "resumed",
+            kind = "question",
+            options = opts,
+            freeText = o["free_text"]?.jsonPrimitive?.contentOrNull ?: "off",
+            title = o["title"]?.jsonPrimitive?.contentOrNull,
+            resolved = resolved ?: "",
+            resolvedText = o["resolved_text"]?.jsonPrimitive?.contentOrNull,
+        )
+    }
 
     suspend fun deleteSession(sessionId: String, project: String): Boolean =
         Http.delete("/sessions/$sessionId", mapOf("project" to project)) != null

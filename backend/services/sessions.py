@@ -14,6 +14,8 @@ _SESSION_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 # Project key for the internal AI workspace, hidden from history listings.
 _AI_PROJECT_KEY = re.sub(r"[^A-Za-z0-9]", "-", AI_WORKDIR)
 
+_ASK_ANSWERS_RE = re.compile(r'"([^"]+)"="([^"]*)"')
+
 
 def _base() -> Path:
     return Path(CLAUDE_PROJECTS_DIR)
@@ -296,12 +298,33 @@ def delete_session(project_key: str, session_id: str) -> bool:
     return True
 
 
+def _parse_ask_answers(content: object) -> dict[str, str]:
+    """Claude Code stores AskUserQuestion answers in the tool_result content as `"Q"="A"`."""
+    from services.claude_runtime import _flatten_result_content
+    text = _flatten_result_content(content)
+    return dict(_ASK_ANSWERS_RE.findall(text))
+
+
 def get_session_messages(project_key: str, session_id: str) -> list[dict]:
     file = _session_file(project_key, session_id)
     if not file.is_file():
         return []
+    entries = list(_iter_lines(file))
+    # AskUserQuestion answers live in the tool_result, not in the tool_use input.
+    tool_result_by_id: dict[str, object] = {}
+    for entry in entries:
+        msg = entry.get("message", {})
+        content = msg.get("content")
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "tool_result":
+                tuid = block.get("tool_use_id")
+                if isinstance(tuid, str):
+                    tool_result_by_id[tuid] = block.get("content")
     messages: list[dict] = []
-    for entry in _iter_lines(file):
+    hidden_ids: set[str] = set()
+    for entry in entries:
         etype = entry.get("type")
         if etype == "summary":
             text = entry.get("summary", "")
@@ -334,21 +357,58 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                 if text.strip():
                     messages.append({"type": "thinking", "text": text})
             elif btype == "tool_use":
+                from services.claude_runtime import _FILE_EDIT_TOOLS, _build_file_diff, _format_tool_input
+                name = block.get("name", "")
                 inp = block.get("input")
-                text = json.dumps(inp, ensure_ascii=False, indent=2) if isinstance(inp, (dict, list)) else (str(inp) if inp is not None else "")
-                messages.append({"type": "tool_use", "name": block.get("name", ""), "text": text})
+                bid = block.get("id")
+                if name == "AskUserQuestion" and isinstance(inp, dict):
+                    if isinstance(bid, str):
+                        hidden_ids.add(bid)
+                    questions = inp.get("questions") or []
+                    answers = _parse_ask_answers(tool_result_by_id.get(bid or ""))
+                    for q in questions:
+                        if not isinstance(q, dict):
+                            continue
+                        qtext = q.get("question") or q.get("header") or ""
+                        opts = [
+                            {"id": f"q_{i}", "label": str(opt.get("label", "")), "description": opt.get("description")}
+                            for i, opt in enumerate(q.get("options", []))
+                            if isinstance(opt, dict)
+                        ]
+                        answer = answers.get(qtext, "")
+                        chosen_id = next((o["id"] for o in opts if o["label"] == answer), None)
+                        messages.append({
+                            "type": "interaction",
+                            "title": qtext,
+                            "tool_name": q.get("header"),
+                            "options": opts,
+                            "free_text": "optional",
+                            "resolved": chosen_id or "",
+                            "resolved_text": None if chosen_id else answer,
+                        })
+                    continue
+                if name == "TodoWrite" or name.startswith("Task"):
+                    if isinstance(bid, str):
+                        hidden_ids.add(bid)
+                    continue
+                if name in _FILE_EDIT_TOOLS and isinstance(inp, dict):
+                    path = inp.get("file_path") or inp.get("notebook_path")
+                    if isinstance(path, str) and path:
+                        if isinstance(bid, str):
+                            hidden_ids.add(bid)
+                        messages.append({
+                            "type": "file_change",
+                            "path": path,
+                            "diff": _build_file_diff(name, inp, path),
+                            "id": bid,
+                        })
+                        continue
+                messages.append({"type": "tool_use", "name": name, "text": _format_tool_input(inp)})
             elif btype == "tool_result":
-                result = block.get("content")
-                if isinstance(result, list):
-                    parts = []
-                    for r in result:
-                        if isinstance(r, dict) and r.get("type") == "text":
-                            parts.append(r.get("text", ""))
-                        elif isinstance(r, str):
-                            parts.append(r)
-                    text = "\n".join(p for p in parts if p)
-                else:
-                    text = str(result) if result is not None else ""
+                if block.get("tool_use_id") in hidden_ids:
+                    continue
+                from services.claude_runtime import _flatten_result_content
+                text = _flatten_result_content(block.get("content"))
                 if text.strip():
                     messages.append({"type": "tool_result", "text": text})
     return messages

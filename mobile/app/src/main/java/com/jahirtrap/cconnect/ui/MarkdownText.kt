@@ -8,25 +8,45 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import com.composables.icons.lucide.Check
+import com.composables.icons.lucide.Copy
+import com.composables.icons.lucide.Lucide
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.text.AnnotatedString
@@ -99,7 +119,7 @@ fun MarkdownText(
     onSharedLink: ((url: String, filename: String) -> Unit)? = null,
 ) {
     val root = remember(markdown) { parser.parse(markdown) }
-    val codeBg = MaterialTheme.colorScheme.surface
+    val codeBg = MaterialTheme.colorScheme.surfaceContainerHigh
     val linkColor = MaterialTheme.colorScheme.primary
     val defaultHandler = LocalUriHandler.current
     val uriHandler = remember(onSharedLink, defaultHandler) {
@@ -116,8 +136,10 @@ fun MarkdownText(
         }
     }
     CompositionLocalProvider(LocalUriHandler provides uriHandler) {
-        Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Blocks(root, codeBg, linkColor, depth = 0)
+        SelectionContainer(modifier = modifier) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Blocks(root, codeBg, linkColor, depth = 0)
+            }
         }
     }
 }
@@ -147,27 +169,28 @@ private fun Blocks(parent: Node, codeBg: Color, linkColor: Color, depth: Int) {
 @Composable
 private fun RenderNode(node: Node, codeBg: Color, linkColor: Color, depth: Int) {
     when (node) {
-        is Heading -> Text(
+        is Heading -> MdText(
             text = inline(node, linkColor, codeBg),
-            style = when (node.level) {
+            codeBg = codeBg,
+            style = (when (node.level) {
                 1 -> MaterialTheme.typography.titleLarge
                 2 -> MaterialTheme.typography.titleMedium
                 else -> MaterialTheme.typography.titleSmall
-            },
-            fontWeight = FontWeight.Bold,
+            }).copy(fontWeight = FontWeight.Bold),
         )
 
-        is Paragraph -> Text(
+        is Paragraph -> MdText(
             text = inline(node, linkColor, codeBg),
+            codeBg = codeBg,
             style = MaterialTheme.typography.bodyMedium,
         )
 
         is FencedCodeBlock -> {
             val lang = node.info?.trim()?.lowercase().orEmpty()
-            if (lang == "diff" || lang == "patch" || looksLikeDiff(node.literal)) DiffBlock(node.literal, codeBg)
-            else CodeBlock(node.literal, codeBg)
+            if (lang == "diff" || lang == "patch" || looksLikeDiff(node.literal)) DiffBlock(node.literal, codeBg, lang.ifEmpty { "diff" })
+            else CodeBlock(node.literal, codeBg, lang)
         }
-        is IndentedCodeBlock -> CodeBlock(node.literal, codeBg)
+        is IndentedCodeBlock -> CodeBlock(node.literal, codeBg, "")
         is BulletList -> ListBlock(node, ordered = false, start = 1, codeBg = codeBg, linkColor = linkColor, depth = depth)
         is OrderedList -> ListBlock(node, ordered = true, start = node.markerStartNumber ?: 1, codeBg = codeBg, linkColor = linkColor, depth = depth)
         is BlockQuote -> QuoteBlock(node, codeBg, linkColor, depth)
@@ -206,12 +229,23 @@ private fun QuoteBlock(node: Node, codeBg: Color, linkColor: Color, depth: Int) 
 private fun DetailsBlock(summary: String, inner: List<Node>, codeBg: Color, linkColor: Color, depth: Int) {
     var expanded by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = if (expanded) "▼ $summary" else "▶ $summary",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Row(
             modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = CustomIcons.PlayFilled,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(10.dp).rotate(if (expanded) 90f else 0f),
+            )
+            Spacer(Modifier.size(6.dp))
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         if (expanded) {
             Column(
                 modifier = Modifier.padding(start = 8.dp, top = 4.dp),
@@ -229,7 +263,7 @@ private fun TableView(table: Node, codeBg: Color, linkColor: Color) {
     val cols = tableColumnCount(table)
     val cellWidth = 140.dp
     val totalWidth = cellWidth * cols.coerceAtLeast(1)
-    Column(modifier = Modifier.fillMaxWidth().horizontalScroll(scroll)) {
+    Column(modifier = Modifier.fillMaxWidth().horizontalScrollIndicator(scroll).horizontalScroll(scroll)) {
         var section = table.firstChild
         while (section != null) {
             val header = section is TableHead
@@ -239,11 +273,13 @@ private fun TableView(table: Node, codeBg: Color, linkColor: Color) {
                     var cell = row.firstChild
                     while (cell != null) {
                         if (cell is TableCell) {
-                            Text(
+                            MdText(
                                 text = inline(cell, linkColor, codeBg),
+                                codeBg = codeBg,
                                 modifier = Modifier.width(cellWidth).padding(6.dp),
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = if (header) FontWeight.Bold else FontWeight.Normal,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontWeight = if (header) FontWeight.Bold else FontWeight.Normal,
+                                ),
                             )
                         }
                         cell = cell.next
@@ -314,20 +350,60 @@ private fun taskMarker(item: Node): Boolean? {
 }
 
 @Composable
-private fun CodeBlock(code: String, bg: Color) {
-    Surface(
-        color = bg,
-        shape = RoundedCornerShape(6.dp),
-        modifier = Modifier.fillMaxWidth(),
+private fun CodeBlock(code: String, bg: Color, lang: String) {
+    val scroll = rememberScrollState()
+    Surface(color = bg, shape = RoundedCornerShape(6.dp), modifier = Modifier.fillMaxWidth()) {
+        Column {
+            CodeBlockHeader(lang, code)
+            Text(
+                text = code.trimEnd('\n'),
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier
+                    .horizontalScrollIndicator(scroll)
+                    .horizontalScroll(scroll)
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CodeBlockHeader(lang: String, code: String) {
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1000)
+            copied = false
+        }
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 10.dp, end = 2.dp, top = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = code.trimEnd('\n'),
-            fontFamily = FontFamily.Monospace,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier
-                .horizontalScroll(rememberScrollState())
-                .padding(10.dp),
+            text = lang.ifBlank { "code" },
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
         )
+        IconButton(
+            onClick = {
+                clipboard.setText(AnnotatedString(code.trimEnd('\n')))
+                copied = true
+            },
+            modifier = Modifier.size(28.dp),
+        ) {
+            Icon(
+                imageVector = if (copied) Lucide.Check else Lucide.Copy,
+                contentDescription = "Copy",
+                tint = if (copied) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(14.dp),
+            )
+        }
     }
 }
 
@@ -352,24 +428,27 @@ private fun diffLineColors(line: String, defaultFg: Color): Pair<Color, Color> =
 }
 
 @Composable
-private fun DiffBlock(code: String, bg: Color) {
+private fun DiffBlock(code: String, bg: Color, lang: String) {
     val defaultFg = MaterialTheme.colorScheme.onSurfaceVariant
     val scroll = rememberScrollState()
     Surface(color = bg, shape = RoundedCornerShape(6.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.horizontalScroll(scroll).padding(vertical = 6.dp)) {
-            code.trimEnd('\n').lines().forEach { line ->
-                val (fg, lineBg) = diffLineColors(line, defaultFg)
-                Text(
-                    text = if (line.isEmpty()) " " else line,
-                    color = fg,
-                    fontFamily = FontFamily.Monospace,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier
-                        .background(lineBg)
-                        .padding(horizontal = 10.dp, vertical = 1.dp),
-                )
+        Column {
+            CodeBlockHeader(lang, code)
+            Column(modifier = Modifier.horizontalScrollIndicator(scroll).horizontalScroll(scroll).padding(vertical = 4.dp)) {
+                code.trimEnd('\n').lines().forEach { line ->
+                    val (fg, lineBg) = diffLineColors(line, defaultFg)
+                    Text(
+                        text = if (line.isEmpty()) " " else line,
+                        color = fg,
+                        fontFamily = FontFamily.Monospace,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier
+                            .background(lineBg)
+                            .padding(horizontal = 10.dp, vertical = 1.dp),
+                    )
+                }
             }
         }
     }
@@ -385,7 +464,11 @@ private fun AnnotatedString.Builder.appendInline(node: Node, linkColor: Color, c
             is CmText -> append(n.literal)
             is Emphasis -> styled(SpanStyle(fontStyle = FontStyle.Italic)) { appendInline(n, linkColor, codeBg) }
             is StrongEmphasis -> styled(SpanStyle(fontWeight = FontWeight.Bold)) { appendInline(n, linkColor, codeBg) }
-            is Code -> styled(SpanStyle(fontFamily = FontFamily.Monospace, background = codeBg)) { append(n.literal) }
+            is Code -> {
+                val start = length
+                styled(SpanStyle(fontFamily = FontFamily.Monospace)) { append(n.literal) }
+                addStringAnnotation(INLINE_CODE_TAG, n.literal, start, length)
+            }
             is Link -> {
                 val url = n.destination?.trim().orEmpty()
                 val style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
@@ -424,3 +507,43 @@ private inline fun AnnotatedString.Builder.styled(style: SpanStyle, block: Annot
 }
 
 private val SUMMARY_RE = Regex("<summary>(.*?)</summary>", RegexOption.IGNORE_CASE)
+private const val INLINE_CODE_TAG = "inline_code"
+
+@Composable
+private fun MdText(
+    text: androidx.compose.ui.text.AnnotatedString,
+    codeBg: Color,
+    modifier: Modifier = Modifier,
+    style: TextStyle = LocalTextStyle.current,
+) {
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    Text(
+        text = text,
+        style = style,
+        onTextLayout = { layout = it },
+        modifier = modifier.drawBehind {
+            val result = layout ?: return@drawBehind
+            val padX = 3.dp.toPx()
+            val padY = 1.dp.toPx()
+            val radius = 6.dp.toPx()
+            text.getStringAnnotations(INLINE_CODE_TAG, 0, text.length).forEach { ann ->
+                val firstLine = result.getLineForOffset(ann.start)
+                val lastLine = result.getLineForOffset((ann.end - 1).coerceAtLeast(ann.start))
+                for (line in firstLine..lastLine) {
+                    val lineStart = if (line == firstLine) ann.start else result.getLineStart(line)
+                    val lineEnd = if (line == lastLine) ann.end else result.getLineEnd(line, visibleEnd = true)
+                    val left = result.getHorizontalPosition(lineStart, usePrimaryDirection = true) - padX
+                    val right = result.getHorizontalPosition(lineEnd, usePrimaryDirection = false) + padX
+                    val top = result.getLineTop(line) + padY
+                    val bottom = result.getLineBottom(line) - padY
+                    drawRoundRect(
+                        color = codeBg,
+                        topLeft = Offset(left, top),
+                        size = Size(right - left, bottom - top),
+                        cornerRadius = CornerRadius(radius, radius),
+                    )
+                }
+            }
+        },
+    )
+}

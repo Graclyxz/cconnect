@@ -135,8 +135,8 @@ def main():
     if args.expose:
         _expose(args.expose, PORT)
 
-    # Windows reload is safe because main.py forces the Proactor loop for the Claude CLI subprocess.
-    reload = not args.production
+    # Disabled on Windows: uvicorn's reload worker breaks the Claude CLI's asyncio subprocess.
+    reload = not args.production and not is_windows
     workers = int(os.environ.get("WEB_CONCURRENCY", "2")) if (args.production and not is_windows) else 1
 
     uvicorn.run(

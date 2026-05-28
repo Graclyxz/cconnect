@@ -163,7 +163,8 @@ class ChatSocket(private val scope: CoroutineScope) {
             "assistant_text" -> ServerEvent.AssistantText(str("text").orEmpty())
             "thinking" -> ServerEvent.Thinking(str("text").orEmpty())
             "tool_use" -> ServerEvent.ToolUse(str("id"), str("name"), str("input"))
-            "tool_result" -> ServerEvent.ToolResult(obj["content"]?.toString())
+            "tool_result" -> ServerEvent.ToolResult(str("content"))
+            "file_change" -> ServerEvent.FileChange(str("id"), str("path").orEmpty(), str("diff").orEmpty())
             "todos" -> ServerEvent.Todos(
                 obj["items"]?.jsonArray?.map { el ->
                     val o = el.jsonObject

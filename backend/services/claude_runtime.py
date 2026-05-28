@@ -1,5 +1,6 @@
 """Wraps the Claude Agent SDK query() into a stream of normalized event dicts."""
 
+import difflib
 import json
 import os
 from pathlib import Path
@@ -10,6 +11,7 @@ from loguru import logger
 from core.config import AI_WORKDIR, PORT, SHARED_DIR
 
 _AGENT_PROMPT_FILE = Path(__file__).resolve().parent.parent / "prompts" / "agent.md"
+_FILE_EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 
 
 def _agent_append(base_url: Optional[str]) -> str:
@@ -93,6 +95,51 @@ def _flatten_result_content(content: Any) -> str:
     return "" if content is None else str(content)
 
 
+def _unified_diff(old: str, new: str, path: str) -> str:
+    return "\n".join(
+        difflib.unified_diff(
+            (old or "").splitlines(),
+            (new or "").splitlines(),
+            fromfile=path,
+            tofile=path,
+            lineterm="",
+        )
+    )
+
+
+def _build_file_diff(name: str, raw_input: dict, path: str) -> str:
+    if name == "Edit":
+        return _unified_diff(raw_input.get("old_string") or "", raw_input.get("new_string") or "", path)
+    if name == "MultiEdit":
+        parts = []
+        for edit in raw_input.get("edits") or []:
+            if not isinstance(edit, dict):
+                continue
+            chunk = _unified_diff(edit.get("old_string") or "", edit.get("new_string") or "", path)
+            if chunk:
+                parts.append(chunk)
+        return "\n".join(parts)
+    if name == "Write":
+        return _unified_diff("", raw_input.get("content") or "", path)
+    if name == "NotebookEdit":
+        return _unified_diff("", raw_input.get("new_source") or "", path)
+    return ""
+
+
+def _file_change_event(block: Any, raw_input: Any, hidden: set[str]) -> dict | None:
+    if not isinstance(raw_input, dict):
+        return None
+    path = raw_input.get("file_path") or raw_input.get("notebook_path")
+    if not isinstance(path, str) or not path:
+        return None
+    name = (getattr(block, "name", None) or "").strip()
+    diff = _build_file_diff(name, raw_input, path)
+    bid = getattr(block, "id", None)
+    if bid:
+        hidden.add(bid)
+    return {"type": "file_change", "id": bid, "path": path, "diff": diff}
+
+
 def _blocks_to_events(content: Any, skip_streamed: bool = False, hidden_tool_ids: set[str] | None = None) -> list[dict]:
     """Convert message blocks to events. When ``skip_streamed`` is set,
     text and thinking are omitted because they already arrived as deltas.
@@ -128,6 +175,10 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False, hidden_tool_ids
                     "content": raw_input.get("subject"),
                     "status": raw_input.get("status"),
                 })
+            elif name in _FILE_EDIT_TOOLS:
+                event = _file_change_event(block, raw_input, hidden)
+                if event is not None:
+                    events.append(event)
             elif not name.startswith("Task"):
                 events.append({
                     "type": "tool_use",
