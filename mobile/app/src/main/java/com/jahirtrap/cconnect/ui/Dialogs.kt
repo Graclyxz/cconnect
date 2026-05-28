@@ -9,15 +9,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,10 +52,11 @@ import com.jahirtrap.cconnect.ui.theme.sessionColorOf
 // Compact replacement for Material3 AlertDialog, whose built-in paddings look too airy.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CompactDialog(
+fun CompactDialog(
     onDismiss: () -> Unit,
     title: String,
     buttons: @Composable RowScope.() -> Unit,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     BasicAlertDialog(onDismissRequest = onDismiss) {
@@ -61,13 +66,19 @@ private fun CompactDialog(
             color = AlertDialogDefaults.containerColor,
             tonalElevation = AlertDialogDefaults.TonalElevation,
         ) {
-            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(10.dp))
-                content()
+            Column(modifier = Modifier.heightIn(max = 560.dp).padding(vertical = 16.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp))
+                Spacer(Modifier.height(12.dp))
+                Column(
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState())
+                        .padding(contentPadding),
+                    content = content,
+                )
                 Spacer(Modifier.height(12.dp))
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.End,
                     content = buttons,
                 )
@@ -179,18 +190,49 @@ fun SelectDialog(
     CompactDialog(
         onDismiss = onDismiss,
         title = title,
+        contentPadding = PaddingValues(0.dp),
         buttons = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     ) {
         options.forEach { (value, label) ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onSelect(value); onDismiss() },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(selected = value == selected, onClick = { onSelect(value); onDismiss() })
-                Text(label)
-            }
+            ChoiceRow(label = label, selected = value == selected) { onSelect(value); onDismiss() }
         }
+    }
+}
+
+@Composable
+fun ConfirmSelectDialog(
+    title: String,
+    options: List<Pair<String, String>>,
+    selected: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var choice by remember { mutableStateOf(selected) }
+    CompactDialog(
+        onDismiss = onDismiss,
+        title = title,
+        contentPadding = PaddingValues(0.dp),
+        buttons = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            TextButton(onClick = { onConfirm(choice) }) { Text(stringResource(R.string.save)) }
+        },
+    ) {
+        options.forEach { (value, label) ->
+            ChoiceRow(label = label, selected = value == choice) { choice = value }
+        }
+    }
+}
+
+@Composable
+private fun ChoiceRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(label)
     }
 }

@@ -44,7 +44,7 @@ import com.composables.icons.lucide.Gauge
 import com.composables.icons.lucide.Languages
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Menu
-import com.composables.icons.lucide.Palette
+import com.composables.icons.lucide.Server
 import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Sparkles
 import com.composables.icons.lucide.Square
@@ -52,6 +52,7 @@ import com.composables.icons.lucide.SquareCheckBig
 import com.composables.icons.lucide.SquarePen
 import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.Stop
+import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,7 +69,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -96,6 +96,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.R
+import com.jahirtrap.cconnect.data.ConnectionProfile
 import com.jahirtrap.cconnect.data.PermissionMode
 import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.SessionInfo
@@ -108,6 +109,7 @@ import com.jahirtrap.cconnect.ui.RenameDialog
 import com.jahirtrap.cconnect.ui.SelectDialog
 import com.jahirtrap.cconnect.ui.THEME_MODES
 import com.jahirtrap.cconnect.ui.languageLabel
+import com.jahirtrap.cconnect.ui.themeIcon
 import com.jahirtrap.cconnect.ui.themeLabel
 import com.jahirtrap.cconnect.ui.theme.sessionColorOf
 import kotlinx.coroutines.flow.collect
@@ -117,6 +119,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ChatScreen(
     onOpenSettings: () -> Unit,
+    drawerState: DrawerState,
     themeMode: String,
     onThemeMode: (String) -> Unit,
     language: String,
@@ -125,7 +128,6 @@ fun ChatScreen(
     val vm: ChatViewModel = viewModel()
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
-    val drawerState = rememberDrawerState(DrawerValue.Closed)
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
 
@@ -135,7 +137,11 @@ fun ChatScreen(
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     LaunchedEffect(drawerState.targetValue) {
-        if (drawerState.targetValue == DrawerValue.Open) vm.ensureHistoryLoaded()
+        if (drawerState.targetValue == DrawerValue.Open) {
+            focusManager.clearFocus()
+            vm.refreshConnections()
+            vm.ensureHistoryLoaded()
+        }
     }
 
     val isAtBottom by remember {
@@ -207,6 +213,11 @@ fun ChatScreen(
                         Icon(Lucide.SquarePen, contentDescription = stringResource(R.string.new_session))
                     }
                 }
+                EnvironmentSelector(
+                    connections = state.connections,
+                    activeId = state.activeConnectionId,
+                    onSelect = vm::selectConnection,
+                )
                 ProjectSelector(
                     projects = state.historyProjects,
                     selected = state.historyProjectKey,
@@ -241,9 +252,9 @@ fun ChatScreen(
                         Icon(Lucide.Languages, contentDescription = stringResource(R.string.language))
                     }
                     IconButton(onClick = { showThemeDialog = true }) {
-                        Icon(Lucide.Palette, contentDescription = stringResource(R.string.theme))
+                        Icon(themeIcon(themeMode), contentDescription = stringResource(R.string.theme))
                     }
-                    IconButton(onClick = { scope.launch { drawerState.close() }; onOpenSettings() }) {
+                    IconButton(onClick = onOpenSettings) {
                         Icon(Lucide.Settings, contentDescription = stringResource(R.string.settings))
                     }
                 }
@@ -635,6 +646,33 @@ private fun CircleActionButton(
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = contentDescription, tint = fg, modifier = Modifier.size(iconSize))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EnvironmentSelector(connections: List<ConnectionProfile>, activeId: String?, onSelect: (String) -> Unit) {
+    if (connections.isEmpty()) return
+    var open by remember { mutableStateOf(false) }
+    val active = connections.firstOrNull { it.id == activeId } ?: connections.first()
+    Box {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { open = true }.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Lucide.Server, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(active.name, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${active.host}:${active.port}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Icon(Lucide.ChevronDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            connections.forEach { c ->
+                CompactDropdownItem(c.name, selected = c.id == active.id) { onSelect(c.id); open = false }
+            }
+        }
     }
 }
 

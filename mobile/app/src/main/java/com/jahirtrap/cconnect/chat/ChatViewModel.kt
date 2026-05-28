@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.ChatMessage
+import com.jahirtrap.cconnect.data.ConnectionProfile
 import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.Role
 import com.jahirtrap.cconnect.data.ServerEvent
@@ -46,6 +47,8 @@ data class ChatUiState(
     val historySessions: List<SessionInfo> = emptyList(),
     val historyProjectKey: String? = null,
     val historyLoading: Boolean = false,
+    val connections: List<ConnectionProfile> = emptyList(),
+    val activeConnectionId: String? = null,
 )
 
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
@@ -59,6 +62,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             model = settings.model,
             effort = settings.effort,
             streamTokens = settings.streaming,
+            connections = settings.connections,
+            activeConnectionId = settings.activeConnection?.id,
         )
     )
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
@@ -77,10 +82,15 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     init {
+        applyDefaultDirectory()
         ProcessLifecycleOwner.get().lifecycle.addObserver(foregroundObserver)
         viewModelScope.launch {
             client.events.collect(::onEvent)
         }
+    }
+
+    private fun applyDefaultDirectory() {
+        settings.cwd = settings.activeConnection?.directory.orEmpty()
     }
 
     fun connect() {
@@ -138,8 +148,42 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun newSession() {
         currentAssistantId = null
         currentThinkingId = null
+        applyDefaultDirectory()
         _state.update { it.copy(messages = emptyList(), sessionId = null, sessionColor = null, todos = emptyList(), streaming = false) }
         startSession(resume = null)
+    }
+
+    // Pull the latest connection profiles from settings (they may have been edited in
+    // the settings screen while this ViewModel stayed alive).
+    fun refreshConnections() {
+        _state.update { it.copy(connections = settings.connections, activeConnectionId = settings.activeConnection?.id) }
+    }
+
+    // Switch the active backend (device) and reconnect from scratch — the new host has
+    // its own sessions/projects, so clear the chat and history.
+    fun selectConnection(id: String) {
+        if (id == settings.activeConnection?.id) return
+        settings.activeConnectionId = id
+        applyDefaultDirectory()
+        historyLoaded = false
+        currentAssistantId = null
+        currentThinkingId = null
+        client.close()
+        _state.update {
+            it.copy(
+                activeConnectionId = id,
+                connection = ConnectionState.Disconnected,
+                messages = emptyList(),
+                sessionId = null,
+                sessionColor = null,
+                todos = emptyList(),
+                streaming = false,
+                historyProjects = emptyList(),
+                historySessions = emptyList(),
+                historyProjectKey = null,
+            )
+        }
+        connect()
     }
 
     fun ensureHistoryLoaded() {

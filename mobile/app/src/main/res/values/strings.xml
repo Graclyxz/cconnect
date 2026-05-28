@@ -3,29 +3,34 @@
 
     <!-- Settings -->
     <string name="settings">Settings</string>
-    <string name="backend">Backend (over Tailscale)</string>
+    <string name="theme">Theme</string>
+    <string name="theme_system">System default</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="language">Language</string>
+    <string name="language_system">System default</string>
+    <string name="accent">Accent color</string>
+    <string name="accent_dynamic">Dynamic</string>
+    <string name="connections">Connections</string>
+    <string name="connection_name">Name</string>
     <string name="host">Host (Tailscale IP)</string>
     <string name="host_hint">100.x.x.x</string>
     <string name="port">Port</string>
-    <string name="project_path">Project path (cwd)</string>
-    <string name="project_path_hint">C:\\DEV\\myproject</string>
-    <string name="permissions">Permissions</string>
-    <string name="permission_mode">Default permission mode</string>
+    <string name="connection_directory">Directory (Optional)</string>
+    <string name="add_connection">Add connection</string>
+    <string name="edit_connection">Edit connection</string>
+    <string name="delete_connection_confirm">Delete the connection \"%1$s\"?</string>
+    <string name="no_connections">No connections yet</string>
     <string name="generation">Generation</string>
     <string name="model">Model</string>
     <string name="effort">Effort</string>
     <string name="streaming">Stream tokens</string>
     <string name="streaming_desc">Show reasoning and replies as they are generated</string>
-    <string name="appearance">Appearance</string>
-    <string name="theme">Theme</string>
-    <string name="theme_system">System</string>
-    <string name="theme_light">Light</string>
-    <string name="theme_dark">Dark</string>
-    <string name="dynamic_color">Dynamic color (Material You)</string>
-    <string name="accent">Accent</string>
-    <string name="language">Language</string>
-    <string name="language_system">System</string>
-    <string name="connect">Connect</string>
+    <string name="permissions">Permissions</string>
+    <string name="permission_mode">Default permission mode</string>
+    <string name="reset_settings">Reset settings</string>
+    <string name="reset_settings_summary">Restore default values (does not affect saved connections)</string>
+    <string name="reset_settings_confirm">Restore all settings to their defaults? Saved connections are kept.</string>
     <string name="save">Save</string>
     <string name="back">Back</string>
 
@@ -40,7 +45,6 @@
     <string name="color_none">None</string>
     <string name="delete">Delete</string>
     <string name="cancel">Cancel</string>
-    <string name="reload">Reload</string>
     <string name="session_channel">Active session</string>
     <string name="session_active">Session active</string>
     <string name="delete_conversation">Delete conversation?</string>
@@ -51,5 +55,4 @@
     <string name="scroll_to_bottom">Scroll to bottom</string>
     <string name="connecting">Connecting…</string>
     <string name="disconnected">Disconnected</string>
-    <string name="tool">Tool</string>
 </resources>

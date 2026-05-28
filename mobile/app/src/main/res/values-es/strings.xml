@@ -3,29 +3,34 @@
 
     <!-- Settings -->
     <string name="settings">Ajustes</string>
-    <string name="backend">Backend (por Tailscale)</string>
+    <string name="theme">Tema</string>
+    <string name="theme_system">Predeterminado del sistema</string>
+    <string name="theme_light">Claro</string>
+    <string name="theme_dark">Oscuro</string>
+    <string name="language">Idioma</string>
+    <string name="language_system">Predeterminado del sistema</string>
+    <string name="accent">Color de acento</string>
+    <string name="accent_dynamic">Dinámico</string>
+    <string name="connections">Conexiones</string>
+    <string name="connection_name">Nombre</string>
     <string name="host">Host (IP de Tailscale)</string>
     <string name="host_hint">100.x.x.x</string>
     <string name="port">Puerto</string>
-    <string name="project_path">Ruta del proyecto (cwd)</string>
-    <string name="project_path_hint">C:\\DEV\\miproyecto</string>
-    <string name="permissions">Permisos</string>
-    <string name="permission_mode">Modo de permisos por defecto</string>
+    <string name="connection_directory">Directorio (Opcional)</string>
+    <string name="add_connection">Agregar conexión</string>
+    <string name="edit_connection">Editar conexión</string>
+    <string name="delete_connection_confirm">¿Borrar la conexión «%1$s»?</string>
+    <string name="no_connections">Sin conexiones aún</string>
     <string name="generation">Generación</string>
     <string name="model">Modelo</string>
     <string name="effort">Esfuerzo</string>
     <string name="streaming">Transmitir tokens</string>
     <string name="streaming_desc">Mostrar el razonamiento y las respuestas mientras se generan</string>
-    <string name="appearance">Apariencia</string>
-    <string name="theme">Tema</string>
-    <string name="theme_system">Sistema</string>
-    <string name="theme_light">Claro</string>
-    <string name="theme_dark">Oscuro</string>
-    <string name="dynamic_color">Color dinámico (Material You)</string>
-    <string name="accent">Acento</string>
-    <string name="language">Idioma</string>
-    <string name="language_system">Sistema</string>
-    <string name="connect">Conectar</string>
+    <string name="permissions">Permisos</string>
+    <string name="permission_mode">Modo de permisos por defecto</string>
+    <string name="reset_settings">Restablecer ajustes</string>
+    <string name="reset_settings_summary">Restaura los valores predeterminados (no afecta a las conexiones guardadas)</string>
+    <string name="reset_settings_confirm">¿Restablecer todos los ajustes a sus valores predeterminados? Las conexiones guardadas se conservan.</string>
     <string name="save">Guardar</string>
     <string name="back">Atrás</string>
 
@@ -40,7 +45,6 @@
     <string name="color_none">Ninguno</string>
     <string name="delete">Borrar</string>
     <string name="cancel">Cancelar</string>
-    <string name="reload">Recargar</string>
     <string name="session_channel">Sesión activa</string>
     <string name="session_active">Sesión activa</string>
     <string name="delete_conversation">¿Borrar conversación?</string>
@@ -51,5 +55,4 @@
     <string name="scroll_to_bottom">Ir al final</string>
     <string name="connecting">Conectando…</string>
     <string name="disconnected">Desconectado</string>
-    <string name="tool">Herramienta</string>
 </resources>

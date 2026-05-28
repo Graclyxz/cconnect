@@ -5,6 +5,9 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -29,6 +32,7 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun App() {
     val baseContext = LocalContext.current
@@ -39,6 +43,8 @@ private fun App() {
     var accentIndex by remember { mutableStateOf(settings.accentIndex) }
     var language by remember { mutableStateOf(settings.language) }
     var showSettings by remember { mutableStateOf(!settings.isConfigured) }
+    // Hoisted so the open/closed state survives navigating to settings and back.
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
 
     // Override the locale in-place so changing language recomposes instead of recreating the activity.
     val localizedContext = remember(language) {
@@ -70,12 +76,12 @@ private fun App() {
                     onAccent = { accentIndex = it; settings.accentIndex = it },
                     language = language,
                     onLanguage = { language = it; settings.language = it },
-                    onSaved = { showSettings = false },
-                    onBack = if (settings.isConfigured) ({ showSettings = false }) else null,
+                    onClose = { showSettings = false },
                 )
             } else {
                 ChatScreen(
                     onOpenSettings = { showSettings = true },
+                    drawerState = drawerState,
                     themeMode = themeMode,
                     onThemeMode = { themeMode = it; settings.themeMode = it },
                     language = language,
