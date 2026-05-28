@@ -309,6 +309,7 @@ fun ChatScreen(
                                 message,
                                 prevRole = state.messages.getOrNull(index - 1)?.role,
                                 nextRole = state.messages.getOrNull(index + 1)?.role,
+                                onAnswer = vm::answerInteraction,
                             )
                         }
                     }

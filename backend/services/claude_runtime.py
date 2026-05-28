@@ -1,10 +1,11 @@
 """Wraps the Claude Agent SDK query() into a stream of normalized event dicts."""
 
+import asyncio
 import json
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, AsyncIterator, Optional
+from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 
 from loguru import logger
 
@@ -144,6 +145,7 @@ async def run_prompt(
     effort: str = "max",
     partial: bool = False,
     name: Optional[str] = None,
+    ask_user: Optional[Callable[[dict], Awaitable[dict]]] = None,
 ) -> AsyncIterator[dict]:
     """Yield normalized events for one prompt. The SDK import is deferred because the
     package is installed/upgraded during app startup."""
@@ -155,6 +157,8 @@ async def run_prompt(
         ResultMessage,
         StreamEvent,
         UserMessage,
+        PermissionResultAllow,
+        PermissionResultDeny,
     )
 
     effort_level = None if effort in (None, "", "default") else effort
@@ -164,6 +168,47 @@ async def run_prompt(
     append = _agent_append()
     if append:
         system_prompt["append"] = append
+
+    async def _can_use_tool(tool_name: str, tool_input: dict, ctx) -> Any:
+        if tool_name == "AskUserQuestion" and isinstance(tool_input, dict):
+            q = (tool_input.get("questions") or [{}])[0]
+            options = [
+                {"id": f"q_{i}", "label": opt.get("label", ""), "description": opt.get("description")}
+                for i, opt in enumerate(q.get("options", []))
+                if isinstance(opt, dict)
+            ]
+            response = await ask_user({
+                "kind": "question",
+                "title": q.get("question") or q.get("header"),
+                "tool_name": q.get("header"),
+                "input": "",
+                "options": options,
+                "free_text": "optional",
+            })
+            free_text = (response.get("free_text") or "").strip()
+            chosen_id = response.get("option_id")
+            chosen_label = next((o["label"] for o in options if o["id"] == chosen_id), "")
+            answer = free_text or chosen_label
+            return PermissionResultDeny(message=answer or "(no answer)")
+
+        response = await ask_user({
+            "kind": "permission",
+            "tool_name": tool_name,
+            "input": _format_tool_input(tool_input),
+            "options": [
+                {"id": "allow"},
+                {"id": "allow_always"},
+                {"id": "deny"},
+            ],
+            "free_text": "optional",
+        })
+        option = response.get("option_id")
+        free_text = (response.get("free_text") or "").strip()
+        if option == "allow_always":
+            return PermissionResultAllow(updated_permissions=list(getattr(ctx, "suggestions", []) or []))
+        if option == "allow":
+            return PermissionResultAllow()
+        return PermissionResultDeny(message=free_text)
 
     options = ClaudeAgentOptions(
         cwd=cwd,
@@ -177,10 +222,23 @@ async def run_prompt(
         thinking={"type": "adaptive", "display": "summarized"},
         include_partial_messages=partial,
         extra_args=extra_args,
+        can_use_tool=_can_use_tool if ask_user is not None else None,
     )
 
+    # can_use_tool requires the SDK in streaming mode → wrap the prompt as an AsyncIterable.
+    done = asyncio.Event()
+
+    async def _prompt_stream():
+        yield {
+            "type": "user",
+            "message": {"role": "user", "content": prompt},
+            "parent_tool_use_id": None,
+        }
+        await done.wait()
+    prompt_arg = _prompt_stream() if ask_user is not None else prompt
+
     try:
-        async for message in query(prompt=prompt, options=options):
+        async for message in query(prompt=prompt_arg, options=options):
             if isinstance(message, StreamEvent):
                 for event in _stream_event_to_events(message.event):
                     yield event
@@ -206,6 +264,8 @@ async def run_prompt(
     except Exception as exc:
         logger.error(f"run_prompt failed: {type(exc).__name__}: {exc}")
         yield {"type": "error", "message": f"{type(exc).__name__}: {exc}"}
+    finally:
+        done.set()
 
 
 async def generate_title(transcript: str) -> str:

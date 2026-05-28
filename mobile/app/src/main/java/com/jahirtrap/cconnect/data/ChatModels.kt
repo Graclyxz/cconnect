@@ -1,12 +1,29 @@
 package com.jahirtrap.cconnect.data
 
-enum class Role { USER, ASSISTANT, THINKING, TOOL, TOOL_RESULT, SUMMARY, SYSTEM, ERROR }
+enum class Role { USER, ASSISTANT, THINKING, TOOL, TOOL_RESULT, SUMMARY, INTERACTION, SYSTEM, ERROR }
 
 data class ChatMessage(
     val id: Long,
     val role: Role,
     val text: String = "",
     val toolName: String? = null,
+    val interaction: InteractionData? = null,
+)
+
+data class InteractionOption(
+    val id: String,
+    val label: String? = null,
+    val description: String? = null,
+)
+
+data class InteractionData(
+    val requestId: String,
+    val kind: String,
+    val options: List<InteractionOption>,
+    val freeText: String,
+    val title: String? = null,
+    val resolved: String? = null,
+    val resolvedText: String? = null,
 )
 
 data class ModelOption(val id: String, val label: String)
@@ -36,4 +53,13 @@ sealed interface ServerEvent {
     data object Interrupted : ServerEvent
     data class Err(val message: String) : ServerEvent
     data class Closed(val reason: String) : ServerEvent
+    data class InteractionRequest(
+        val requestId: String,
+        val kind: String,
+        val toolName: String?,
+        val input: String?,
+        val title: String?,
+        val options: List<InteractionOption>,
+        val freeText: String,
+    ) : ServerEvent
 }

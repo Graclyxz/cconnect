@@ -2,13 +2,20 @@ package com.jahirtrap.cconnect.chat
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -27,8 +34,11 @@ import com.jahirtrap.cconnect.R
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Shield
 import com.composables.icons.lucide.Terminal
 import com.jahirtrap.cconnect.data.ChatMessage
+import com.jahirtrap.cconnect.data.InteractionData
+import com.jahirtrap.cconnect.data.InteractionOption
 import com.jahirtrap.cconnect.data.Role
 import com.jahirtrap.cconnect.ui.MarkdownText
 
@@ -36,11 +46,16 @@ private val BIG = 16.dp
 private val SMALL = 6.dp
 
 @Composable
-fun ChatMessageItem(message: ChatMessage, prevRole: Role? = null, nextRole: Role? = null) {
+fun ChatMessageItem(
+    message: ChatMessage,
+    prevRole: Role? = null,
+    nextRole: Role? = null,
+    onAnswer: ((String, String, String?) -> Unit)? = null,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = gapAbove(prevRole, message.role), bottom = if (nextRole == null) BIG else 0.dp),
+            .padding(top = gapAbove(prevRole, message.role), bottom = bottomGap(message.role, nextRole)),
     ) {
         when (message.role) {
             Role.USER -> Band(MaterialTheme.colorScheme.surfaceVariant) {
@@ -59,6 +74,10 @@ fun ChatMessageItem(message: ChatMessage, prevRole: Role? = null, nextRole: Role
 
             Role.SUMMARY -> Collapsible(label = stringResource(R.string.summary), text = message.text)
 
+            Role.INTERACTION -> message.interaction?.let {
+                InteractionBlock(data = it, toolName = message.toolName, input = message.text, onAnswer = onAnswer)
+            }
+
             Role.ERROR -> Band(MaterialTheme.colorScheme.errorContainer) {
                 Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
             }
@@ -71,14 +90,24 @@ fun ChatMessageItem(message: ChatMessage, prevRole: Role? = null, nextRole: Role
 }
 
 private fun group(role: Role?): Int = when (role) {
-    Role.THINKING, Role.TOOL, Role.TOOL_RESULT -> 0
+    Role.THINKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION -> 0
     Role.ASSISTANT -> 1
     Role.USER, Role.ERROR -> 2
     else -> 3
 }
 
+private fun bottomGap(cur: Role, next: Role?): Dp = when {
+    next != null -> 0.dp
+    cur == Role.ERROR -> 0.dp
+    else -> BIG
+}
+
 private fun gapAbove(prev: Role?, cur: Role): Dp {
     if (prev == null) return BIG
+    if (cur == Role.ERROR || prev == Role.ERROR) {
+        val other = if (cur == Role.ERROR) prev else cur
+        return if (other == Role.USER || other == Role.ASSISTANT) 0.dp else SMALL
+    }
     val a = group(prev)
     val b = group(cur)
     if (a != 0 && b != 0) return BIG
@@ -182,5 +211,74 @@ private fun ToolBlock(name: String?, input: String) {
                 modifier = Modifier.padding(top = 4.dp),
             )
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun InteractionBlock(
+    data: InteractionData,
+    toolName: String?,
+    input: String,
+    onAnswer: ((String, String, String?) -> Unit)?,
+) {
+    var freeText by remember { mutableStateOf("") }
+    val resolved = data.resolved
+    val title = data.title ?: toolName ?: stringResource(R.string.permission_title)
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Lucide.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+            Text("  $title", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+        }
+        if (input.isNotBlank()) {
+            Text(
+                text = input,
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        if (resolved == null) {
+            Spacer(Modifier.height(8.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                data.options.forEach { opt ->
+                    OutlinedButton(onClick = {
+                        onAnswer?.invoke(data.requestId, opt.id, freeText.ifBlank { null })
+                    }) {
+                        Text(optionLabel(opt))
+                    }
+                }
+            }
+            if (data.freeText != "off") {
+                Spacer(Modifier.height(6.dp))
+                OutlinedTextField(
+                    value = freeText,
+                    onValueChange = { freeText = it },
+                    placeholder = { Text(stringResource(R.string.interaction_text_hint)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 3,
+                    textStyle = MaterialTheme.typography.bodySmall,
+                )
+            }
+        } else {
+            val chosen = data.options.firstOrNull { it.id == resolved }
+            val label = chosen?.let { optionLabel(it) } ?: resolved
+            Text("→ $label", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+            if (!data.resolvedText.isNullOrBlank()) {
+                Text(data.resolvedText, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+private fun optionLabel(opt: InteractionOption): String {
+    if (!opt.label.isNullOrBlank()) return opt.label
+    return when (opt.id) {
+        "allow" -> stringResource(R.string.permission_allow)
+        "allow_always" -> stringResource(R.string.permission_allow_always)
+        "deny" -> stringResource(R.string.permission_deny)
+        else -> opt.id
     }
 }

@@ -12,6 +12,7 @@ from core.rate_limit import limiter
 from core.responses import api_response
 from core.sdk import ensure_sdk_installed, ensure_subscription_auth
 from middleware.error_handler import register_error_handlers
+from middleware.public_auth import register_public_auth_middleware
 from middleware.security import register_security_middleware
 import routers as routers_pkg
 
@@ -43,6 +44,7 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded):
 app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
 register_security_middleware(app)
+register_public_auth_middleware(app)
 register_error_handlers(app)
 
 for module_info in pkgutil.iter_modules(routers_pkg.__path__):

@@ -1,5 +1,6 @@
 package com.jahirtrap.cconnect.data.remote
 
+import com.jahirtrap.cconnect.data.InteractionOption
 import com.jahirtrap.cconnect.data.ServerEvent
 import com.jahirtrap.cconnect.data.TodoItem
 import kotlinx.coroutines.CoroutineScope
@@ -130,6 +131,15 @@ class ChatSocket(private val scope: CoroutineScope) {
         send(buildJsonObject { put("type", "interrupt") })
     }
 
+    fun sendInteractionResponse(requestId: String, optionId: String, freeText: String?) {
+        send(buildJsonObject {
+            put("type", "interaction_response")
+            put("id", requestId)
+            put("option_id", optionId)
+            if (!freeText.isNullOrBlank()) put("free_text", freeText)
+        })
+    }
+
     fun close() {
         closed = true
         reconnectJob?.cancel()
@@ -165,7 +175,27 @@ class ChatSocket(private val scope: CoroutineScope) {
             "result" -> ServerEvent.Result(str("session_id"))
             "done" -> ServerEvent.Done
             "interrupted" -> ServerEvent.Interrupted
-            "error" -> ServerEvent.Err(obj["message"]?.toString() ?: "error")
+            "error" -> ServerEvent.Err(
+                obj["message"]?.jsonPrimitive?.contentOrNull
+                    ?: obj["message"]?.toString()
+                    ?: "error"
+            )
+            "interaction_request" -> ServerEvent.InteractionRequest(
+                requestId = str("id").orEmpty(),
+                kind = str("kind") ?: "permission",
+                toolName = str("tool_name"),
+                input = str("input"),
+                title = str("title"),
+                options = obj["options"]?.jsonArray?.map { el ->
+                    val o = el.jsonObject
+                    InteractionOption(
+                        id = o["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                        label = o["label"]?.jsonPrimitive?.contentOrNull,
+                        description = o["description"]?.jsonPrimitive?.contentOrNull,
+                    )
+                } ?: emptyList(),
+                freeText = str("free_text") ?: "off",
+            )
             else -> null
         }
     }

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.ChatMessage
 import com.jahirtrap.cconnect.data.ConnectionProfile
+import com.jahirtrap.cconnect.data.InteractionData
 import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.Role
 import com.jahirtrap.cconnect.data.ServerEvent
@@ -318,6 +319,18 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 resetStreaming()
                 addMessage(Role.ERROR, event.message)
             }
+            is ServerEvent.InteractionRequest -> {
+                currentAssistantId = null
+                currentThinkingId = null
+                val data = InteractionData(
+                    requestId = event.requestId,
+                    kind = event.kind,
+                    options = event.options,
+                    freeText = event.freeText,
+                    title = event.title,
+                )
+                addMessage(Role.INTERACTION, text = event.input.orEmpty(), toolName = event.toolName, interaction = data)
+            }
             is ServerEvent.Closed -> {
                 currentAssistantId = null
                 currentThinkingId = null
@@ -366,8 +379,20 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         return currentId
     }
 
-    private fun addMessage(role: Role, text: String, toolName: String? = null) {
-        _state.update { it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName)) }
+    private fun addMessage(role: Role, text: String, toolName: String? = null, interaction: InteractionData? = null) {
+        _state.update { it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, interaction)) }
+    }
+
+    fun answerInteraction(requestId: String, optionId: String, freeText: String?) {
+        client.sendInteractionResponse(requestId, optionId, freeText)
+        _state.update { st ->
+            st.copy(messages = st.messages.map { m ->
+                val data = m.interaction
+                if (data != null && data.requestId == requestId && data.resolved == null) {
+                    m.copy(interaction = data.copy(resolved = optionId, resolvedText = freeText))
+                } else m
+            })
+        }
     }
 
     override fun onCleared() {
