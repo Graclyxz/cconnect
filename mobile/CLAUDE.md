@@ -38,6 +38,8 @@ mobile/app/src/main/java/com/jahirtrap/cconnect/
 │   ├── QrConnectionPayload.kt   # Parse the QR JSON {url, token}
 │   ├── ConnectionProfile.kt     # kind, host, port?, authKind, authToken, ...
 │   ├── Settings.kt              # SharedPreferences-backed; syncs Backend
+│   ├── SshProfile.kt            # id, name, host, port, user, password, os?
+│   ├── SshStore.kt              # EncryptedSharedPreferences-backed list of SshProfile
 │   └── remote/
 │       ├── Backend.kt           # Active connection + computed baseUrl/wsUrl + auth headers
 │       ├── Http.kt              # GET/POST/DELETE helpers, applyAuth
@@ -49,11 +51,16 @@ mobile/app/src/main/java/com/jahirtrap/cconnect/
 ├── files/
 │   ├── FileExplorerScreen.kt    # Browse backend/shared/
 │   └── FileTransfer.kt          # DownloadManager + OkHttp save-as / share (with auth headers)
+├── terminal/
+│   ├── TerminalScreen.kt        # SSH host list + edit dialog + termlib-backed session
+│   ├── SshConnection.kt         # sshj wrapper: connect, PTY shell, debounced resize, OS probe
+│   └── OsIcons.kt               # iconForOs / colorForOs: FA Brands + distro brand colors
 └── ui/
     ├── MarkdownText.kt          # CommonMark parser + Compose renderer (selection, inline-code box, copy)
     ├── Dialogs.kt               # CompactDialog, DialogSelectItem, DialogActionItem, SharedLinkActionsDialog
     ├── ScrollIndicator.kt       # Thin custom scrollbars for horizontalScroll
     ├── CustomIcons.kt           # PlayFilled, Stop — filled icons matching Lucide shapes
+    ├── SecretTextField.kt       # OutlinedTextField with show/hide toggle for tokens/passwords
     └── theme/                   # Accents + sessionColor + dynamic color
 ```
 
@@ -158,6 +165,30 @@ identically.
   re-asserts `followBottom = true`) when the last message is an unresolved
   interaction — so the user always sees the prompt they have to act on.
 
+## SSH client
+
+Standalone feature, independent of the Claude Code bridge. Entry point is
+`TerminalScreen`, reachable from Chat top bar and from Settings → SSH hosts
+(returning from there restores the previous screen via the `terminalFromSettings`
+flag in `MainActivity`).
+
+- **Transport**: `sshj` over password auth, no `known_hosts` (MVP, uses
+  `PromiscuousVerifier`). Renderer is `connectbot/termlib` (libvterm).
+- **Crypto**: Android ships a stripped BouncyCastle; `MainActivity.onCreate`
+  swaps it for the full `bcprov-jdk18on` so modern OpenSSH defaults
+  (curve25519, ed25519, chacha20-poly1305) work.
+- **At-rest storage**: `SshStore` uses `EncryptedSharedPreferences` with a
+  Keystore-backed master key — saved passwords are for third-party systems we
+  don't control.
+- **OS detection**: after auth, `SshConnection.probeOs` runs
+  `sh -c 'uname -s; cat /etc/os-release /etc/lsb-release /etc/system-release'`
+  on a separate exec channel (invisible to the user's shell). The parsed `ID`
+  (or `DARWIN`/`MINGW`/empty → `windows`) is persisted on the profile and
+  drives `iconForOs` (Font Awesome Brands) + `colorForOs` (distro brand color).
+- **Resize debounce**: termlib fires `onResize` many times during IME
+  animations and each `SIGWINCH` makes the remote TUI repaint a partial frame
+  into scrollback. `SshConnection.resize` coalesces them with a 50ms delay.
+
 ## Build / Signing
 
 - Debug: `./gradlew :app:installDebug` (debug keystore, auto).
@@ -165,6 +196,10 @@ identically.
   `mobile/key.properties` (gitignored) which points at `mobile/keystore.jks`.
   Output filename is `CConnect-<version>-release.apk`.
 - `versionCode` and `versionName` live in `app/build.gradle.kts`.
+- Release minifies via R8. `proguard-rules.pro` keeps `net.schmizz.sshj.**`,
+  `com.hierynomus.**`, `org.bouncycastle.**`, `org.connectbot.**` — sshj
+  resolves cipher/MAC/KEX factories by FQCN and BouncyCastle providers are
+  loaded by name, so stripping them crashes on connect.
 
 ## Conventions
 

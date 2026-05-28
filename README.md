@@ -82,6 +82,27 @@ agent so they're available out of the box from the phone:
   live. Edit it to teach Claude your own conventions or to add guidance for
   new tools.
 
+## SSH client
+
+The mobile app also bundles a lightweight SSH client. Open Settings → SSH
+hosts to save a target — its address, the SSH port (`22` unless the server
+listens somewhere else), and the credentials you log in with — then tap it
+to open an embedded terminal. On Linux that's your shell user + password;
+on Windows hosts running OpenSSH it's your account password. Password auth
+must be enabled on the target.
+
+### Local
+
+Phone and target on the same network — use the target's LAN IP or
+hostname. No extra setup.
+
+### Remote (via Tailscale)
+
+Install Tailscale on both the phone and the target machine, sign into the
+same account, and use the target's tailnet IP (`100.x.x.x`) shown in the
+Tailscale app. The port stays the same (`22`); no port forwarding, no VPN
+setup.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

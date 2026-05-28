@@ -7,6 +7,9 @@ the user's PC — sessions, files, projects, file edits and interactive permissi
 prompts — over HTTP/WS, reachable either locally via Tailscale or publicly via
 Tailscale Funnel.
 
+The mobile app also bundles a standalone SSH client (saved hosts, embedded
+terminal, OS auto-detection) — see `mobile/CLAUDE.md`.
+
 **Monorepo** — backend and mobile are a single project and MUST stay in sync.
 Changes to API contracts, event shapes, or schemas have to be reflected in both.
 
