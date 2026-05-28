@@ -3,14 +3,13 @@
 import asyncio
 import hmac
 import json
-import os
 import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from loguru import logger
 from pydantic import ValidationError
 
-from core.config import PUBLIC_ACCESS_TOKEN, permission_modes
+from core.config import DEFAULT_CWD, PUBLIC_ACCESS_TOKEN, permission_modes
 from schemas.chat import PromptMessage, SetPermissionMessage, StartMessage
 from services import sessions as sessions_service
 from services.claude_runtime import run_prompt
@@ -138,7 +137,7 @@ async def chat_ws(ws: WebSocket):
                 if msg.permission_mode not in permission_modes():
                     await send({"type": "error", "message": f"invalid permission_mode: {msg.permission_mode}"})
                     continue
-                state.cwd = msg.cwd or os.getcwd()
+                state.cwd = msg.cwd or DEFAULT_CWD
                 state.permission_mode = msg.permission_mode
                 state.session_id = msg.resume
                 state.fork = msg.fork

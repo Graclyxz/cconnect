@@ -23,6 +23,10 @@ AI_WORKDIR = os.environ.get("AI_WORKDIR", str(Path(__file__).resolve().parent.pa
 # Drop folder served download-only to the phone.
 SHARED_DIR = str(Path(__file__).resolve().parent.parent / "shared")
 
+# Fallback cwd when the mobile starts a chat without picking a directory and the
+# active connection has none. Defaults to the parent of the backend folder.
+DEFAULT_CWD = os.environ.get("DEFAULT_CWD", str(Path(__file__).resolve().parent.parent.parent))
+
 # Fallbacks used only if the SDK can't be introspected yet.
 _FALLBACK_PERMISSION_MODES = ("default", "acceptEdits", "plan", "dontAsk", "bypassPermissions", "auto")
 _FALLBACK_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
@@ -91,6 +95,7 @@ __all__ = [
     "CLAUDE_PROJECTS_DIR",
     "AI_WORKDIR",
     "SHARED_DIR",
+    "DEFAULT_CWD",
     "DEFAULT_PERMISSION_MODE",
     "DEFAULT_EFFORT",
     "DEFAULT_MODEL",
