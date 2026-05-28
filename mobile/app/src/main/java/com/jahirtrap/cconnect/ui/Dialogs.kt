@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -28,7 +29,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -41,8 +41,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Download
 import com.composables.icons.lucide.Lucide
@@ -69,8 +73,12 @@ fun CompactDialog(
             color = AlertDialogDefaults.containerColor,
             tonalElevation = AlertDialogDefaults.TonalElevation,
         ) {
-            Column(modifier = Modifier.heightIn(max = 560.dp).padding(vertical = 16.dp)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp))
+            Column(modifier = Modifier.heightIn(max = 560.dp).padding(vertical = 14.dp)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 20.sp),
+                    modifier = Modifier.padding(horizontal = 20.dp),
+                )
                 Spacer(Modifier.height(12.dp))
                 Column(
                     modifier = Modifier
@@ -81,7 +89,7 @@ fun CompactDialog(
                 )
                 Spacer(Modifier.height(12.dp))
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.End,
                     content = buttons,
                 )
@@ -197,7 +205,7 @@ fun SelectDialog(
         buttons = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     ) {
         options.forEach { (value, label) ->
-            ChoiceRow(label = label, selected = value == selected) { onSelect(value); onDismiss() }
+            DialogSelectItem(label = label, selected = value == selected, onClick = { onSelect(value); onDismiss() })
         }
     }
 }
@@ -221,7 +229,7 @@ fun ConfirmSelectDialog(
         },
     ) {
         options.forEach { (value, label) ->
-            ChoiceRow(label = label, selected = value == choice) { choice = value }
+            DialogSelectItem(label = label, selected = value == choice, onClick = { choice = value })
         }
     }
 }
@@ -240,34 +248,68 @@ fun SharedLinkActionsDialog(
         contentPadding = PaddingValues(0.dp),
         buttons = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     ) {
-        CompactDropdownItem(
-            text = stringResource(R.string.save),
-            leadingIcon = { Icon(Lucide.Download, contentDescription = null, modifier = Modifier.size(20.dp)) },
-            onClick = { onDismiss(); onSave() },
-        )
-        CompactDropdownItem(
-            text = stringResource(R.string.save_as),
-            leadingIcon = { Icon(Lucide.Save, contentDescription = null, modifier = Modifier.size(20.dp)) },
-            onClick = { onDismiss(); onSaveAs() },
-        )
-        CompactDropdownItem(
-            text = stringResource(R.string.share),
-            leadingIcon = { Icon(Lucide.Share2, contentDescription = null, modifier = Modifier.size(20.dp)) },
-            onClick = { onDismiss(); onShare() },
-        )
+        DialogActionItem(stringResource(R.string.save), Lucide.Download) { onDismiss(); onSave() }
+        DialogActionItem(stringResource(R.string.save_as), Lucide.Save) { onDismiss(); onSaveAs() }
+        DialogActionItem(stringResource(R.string.share), Lucide.Share2) { onDismiss(); onShare() }
     }
 }
 
 @Composable
-private fun ChoiceRow(label: String, selected: Boolean, onClick: () -> Unit) {
+fun DialogActionItem(
+    text: String,
+    icon: ImageVector? = null,
+    onClick: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 2.dp),
+            .padding(horizontal = 20.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RadioButton(selected = selected, onClick = onClick)
-        Text(label)
+        if (icon != null) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(14.dp))
+        }
+        Text(text)
+    }
+}
+
+@Composable
+fun DialogSelectItem(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    subtitle: String? = null,
+    trailing: @Composable (RowScope.() -> Unit)? = null,
+) {
+    val ring = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(start = 20.dp, end = if (trailing != null) 8.dp else 20.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier.size(20.dp).clip(CircleShape).border(2.dp, ring, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (selected) Box(
+                modifier = Modifier.size(10.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
+            )
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (subtitle != null) Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (trailing != null) trailing()
     }
 }

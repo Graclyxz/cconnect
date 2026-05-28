@@ -710,7 +710,7 @@ private fun EnvironmentSelector(connections: List<ConnectionProfile>, activeId: 
             Spacer(Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(active.name, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${active.host}:${active.port}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(active.address, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Icon(Lucide.ChevronDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }

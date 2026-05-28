@@ -6,7 +6,7 @@ import android.util.Base64
 object Backend {
     var kind: String = "http"
     var host: String = ""
-    var port: Int = 8723
+    var port: Int? = null
     var authKind: String = "none"
     var authToken: String = ""
     var authUser: String = ""
@@ -16,7 +16,11 @@ object Backend {
 
     private val secure: Boolean get() = kind == "https"
     private val portSuffix: String
-        get() = if (port == (if (secure) 443 else 80)) "" else ":$port"
+        get() {
+            val p = port ?: return ""
+            val default = if (secure) 443 else 80
+            return if (p == default) "" else ":$p"
+        }
 
     val baseUrl: String get() = "${if (secure) "https" else "http"}://$host$portSuffix/api"
     val wsUrl: String get() = "${if (secure) "wss" else "ws"}://$host$portSuffix/api/chat/ws"

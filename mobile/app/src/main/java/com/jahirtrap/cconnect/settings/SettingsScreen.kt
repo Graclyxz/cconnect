@@ -72,6 +72,8 @@ import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.ConfirmSelectDialog
+import com.jahirtrap.cconnect.ui.DialogActionItem
+import com.jahirtrap.cconnect.ui.DialogSelectItem
 import com.jahirtrap.cconnect.ui.SelectDialog
 import com.jahirtrap.cconnect.ui.SelectField
 import com.jahirtrap.cconnect.ui.languageLabel
@@ -152,7 +154,7 @@ fun SettingsScreen(
             PreferenceRow(
                 Lucide.Server,
                 stringResource(R.string.connections),
-                connections.firstOrNull { it.id == activeId }?.let { "${it.name} • ${it.host}:${it.port}" }
+                connections.firstOrNull { it.id == activeId }?.let { "${it.name} • ${it.address}" }
                     ?: stringResource(R.string.no_connections),
             ) { dialog = SettingsDialog.Connections }
             PreferenceRow(Lucide.Sparkles, stringResource(R.string.generation), "${caps.models.firstOrNull { it.id == model }?.label ?: model} • $effort") { dialog = SettingsDialog.Generation }
@@ -354,30 +356,18 @@ private fun ConnectionsDialog(
         buttons = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.back)) } },
     ) {
         connections.forEach { c ->
-            Row(
-                modifier = Modifier.fillMaxWidth().clickable { onSetActive(c.id) }.padding(start = 20.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
-                    if (c.id == activeId) Icon(Lucide.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                }
-                Spacer(Modifier.width(10.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(c.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${c.host}:${c.port}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                }
-                IconButton(onClick = { editing = c }) { Icon(Lucide.Pencil, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                IconButton(onClick = { deleting = c }) { Icon(Lucide.Trash, contentDescription = stringResource(R.string.delete), modifier = Modifier.size(18.dp)) }
-            }
+            DialogSelectItem(
+                label = c.name,
+                subtitle = c.address,
+                selected = c.id == activeId,
+                onClick = { onSetActive(c.id) },
+                trailing = {
+                    IconButton(onClick = { editing = c }, modifier = Modifier.size(36.dp)) { Icon(Lucide.Pencil, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                    IconButton(onClick = { deleting = c }, modifier = Modifier.size(36.dp)) { Icon(Lucide.Trash, contentDescription = stringResource(R.string.delete), modifier = Modifier.size(18.dp)) }
+                },
+            )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable { adding = true }.padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Lucide.Plus, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(10.dp))
-            Text(stringResource(R.string.add_connection), color = MaterialTheme.colorScheme.primary)
-        }
+        DialogActionItem(stringResource(R.string.add_connection), Lucide.Plus) { adding = true }
     }
 
     if (adding) {
@@ -402,7 +392,7 @@ private fun ConnectionEditDialog(initial: ConnectionProfile?, onConfirm: (Connec
     var kind by remember { mutableStateOf(initial?.kind ?: "http") }
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var host by remember { mutableStateOf(initial?.host ?: "") }
-    var port by remember { mutableStateOf((initial?.port ?: 8723).toString()) }
+    var port by remember { mutableStateOf(initial?.port?.toString() ?: "8723") }
     var directory by remember { mutableStateOf(initial?.directory ?: "") }
     var authKind by remember { mutableStateOf(initial?.authKind ?: "none") }
     var authToken by remember { mutableStateOf(initial?.authToken ?: "") }
@@ -429,7 +419,7 @@ private fun ConnectionEditDialog(initial: ConnectionProfile?, onConfirm: (Connec
                         finalHost = parsed.host
                         finalPort = parsed.port
                     }
-                    val portInt = finalPort.toIntOrNull() ?: defaultPortFor(finalKind).toInt()
+                    val portInt: Int? = if (finalKind == "https") null else (finalPort.toIntOrNull() ?: 8723)
                     onConfirm(
                         ConnectionProfile(
                             id = initial?.id ?: UUID.randomUUID().toString(),
@@ -482,7 +472,7 @@ private fun ConnectionEditDialog(initial: ConnectionProfile?, onConfirm: (Connec
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(8.dp))
-        if (kind != "https" || (port.toIntOrNull() ?: 443) != 443) {
+        if (kind == "http") {
             OutlinedTextField(value = port, onValueChange = { port = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.port)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(8.dp))
         }

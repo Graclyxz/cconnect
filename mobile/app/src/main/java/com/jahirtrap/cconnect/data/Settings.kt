@@ -140,13 +140,19 @@ class Settings(context: Context) {
                 val legacySecure = o["secure"]?.jsonPrimitive?.booleanOrNull
                 val legacyToken = o["token"]?.jsonPrimitive?.contentOrNull.orEmpty()
                 val kindStored = o["kind"]?.jsonPrimitive?.contentOrNull
+                val resolvedKind = kindStored?.let { if (it == "url") if (legacySecure == true) "https" else "http" else it }
+                    ?: if (legacySecure == true) "https" else "http"
+                val portRaw = o["port"]?.jsonPrimitive?.intOrNull
+                val resolvedPort = when {
+                    resolvedKind == "https" -> portRaw?.takeIf { it != 443 }
+                    else -> portRaw ?: 8723
+                }
                 ConnectionProfile(
                     id = o["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                     name = o["name"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                    kind = kindStored?.let { if (it == "url") if (legacySecure == true) "https" else "http" else it }
-                        ?: if (legacySecure == true) "https" else "http",
+                    kind = resolvedKind,
                     host = o["host"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                    port = o["port"]?.jsonPrimitive?.intOrNull ?: 8723,
+                    port = resolvedPort,
                     authKind = o["authKind"]?.jsonPrimitive?.contentOrNull
                         ?: if (legacyToken.isNotBlank()) "bearer" else "none",
                     authToken = o["authToken"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotEmpty() }
@@ -169,7 +175,7 @@ class Settings(context: Context) {
                     put("name", p.name)
                     put("kind", p.kind)
                     put("host", p.host)
-                    put("port", p.port)
+                    p.port?.let { put("port", it) }
                     put("authKind", p.authKind)
                     put("authToken", p.authToken)
                     put("authUser", p.authUser)
