@@ -27,6 +27,9 @@ build/
 # Internal AI workspace (throwaway cwd for backend AI helper actions)
 backend/internal_task/
 
+# Shared drop folder (quick PC -> phone file sharing, served download-only)
+backend/shared/
+
 # Mobile (Android — placeholder for when the app lands)
 mobile/build/
 mobile/.gradle/

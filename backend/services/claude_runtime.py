@@ -2,11 +2,38 @@
 
 import json
 import os
+import subprocess
+from pathlib import Path
 from typing import Any, AsyncIterator, Optional
 
 from loguru import logger
 
-from core.config import AI_WORKDIR
+from core.config import AI_WORKDIR, PORT, SHARED_DIR
+
+_AGENT_PROMPT_FILE = Path(__file__).resolve().parent.parent / "prompts" / "agent.md"
+
+
+def _share_url_base() -> str:
+    """Tailscale IP resolved live since it can change; falls back to localhost."""
+    host = "localhost"
+    try:
+        out = subprocess.run(["tailscale", "ip", "-4"], capture_output=True, text=True, timeout=3)
+        ip = out.stdout.strip().splitlines()[0].strip() if out.returncode == 0 else ""
+        if ip:
+            host = ip
+    except Exception:
+        pass
+    return f"http://{host}:{PORT}/api/shared"
+
+
+def _agent_append() -> str:
+    """Read on every call so the markdown can be edited without restarting the server."""
+    try:
+        text = _AGENT_PROMPT_FILE.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    text = text.replace("{{SHARED_DIR}}", SHARED_DIR).replace("{{SHARE_URL_BASE}}", _share_url_base())
+    return text.strip()
 
 
 def _format_tool_input(inp: Any) -> str:
@@ -133,6 +160,11 @@ async def run_prompt(
     effort_level = None if effort in (None, "", "default") else effort
     extra_args = {"name": name} if name else {}
 
+    system_prompt: dict = {"type": "preset", "preset": "claude_code"}
+    append = _agent_append()
+    if append:
+        system_prompt["append"] = append
+
     options = ClaudeAgentOptions(
         cwd=cwd,
         permission_mode=permission_mode,
@@ -140,7 +172,7 @@ async def run_prompt(
         fork_session=fork,
         model=model,
         effort=effort_level,
-        system_prompt={"type": "preset", "preset": "claude_code"},
+        system_prompt=system_prompt,
         setting_sources=["user", "project"],
         thinking={"type": "adaptive", "display": "summarized"},
         include_partial_messages=partial,
