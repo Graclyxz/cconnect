@@ -42,6 +42,7 @@ import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Send
 import com.composables.icons.lucide.Shield
+import com.composables.icons.lucide.X
 import com.composables.icons.lucide.Terminal
 import com.jahirtrap.cconnect.data.ChatMessage
 import com.jahirtrap.cconnect.data.InteractionData
@@ -261,38 +262,12 @@ private fun InteractionBlock(
             }
             if (data.freeText != "off") {
                 Spacer(Modifier.height(8.dp))
-                val shape = RoundedCornerShape(8.dp)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    BasicTextField(
-                        value = freeText,
-                        onValueChange = { freeText = it },
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        maxLines = 3,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(shape)
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
-                            .padding(horizontal = 10.dp, vertical = 8.dp),
-                        decorationBox = { inner ->
-                            if (freeText.isEmpty()) {
-                                Text(
-                                    stringResource(R.string.interaction_text_hint),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            inner()
-                        },
-                    )
-                    Spacer(Modifier.size(4.dp))
-                    IconButton(
-                        onClick = { onAnswer?.invoke(data.requestId, "", freeText.trim()) },
-                        enabled = freeText.isNotBlank(),
-                    ) {
-                        Icon(Lucide.Send, contentDescription = stringResource(R.string.send), modifier = Modifier.size(20.dp))
-                    }
-                }
+                TextInputRow(
+                    value = freeText,
+                    onValueChange = { freeText = it },
+                    placeholder = stringResource(R.string.interaction_text_hint),
+                    onSend = { onAnswer?.invoke(data.requestId, "", freeText.trim()) },
+                )
             }
         } else {
             val chosen = data.options.firstOrNull { it.id == resolved }
@@ -312,6 +287,47 @@ private fun optionLabel(opt: InteractionOption): String {
         "allow" -> stringResource(R.string.permission_allow)
         "allow_always" -> stringResource(R.string.permission_allow_always)
         "deny" -> stringResource(R.string.permission_deny)
+        "different" -> stringResource(R.string.permission_different)
         else -> opt.id
+    }
+}
+
+@Composable
+private fun TextInputRow(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    onSend: () -> Unit,
+    onCancel: (() -> Unit)? = null,
+) {
+    val shape = RoundedCornerShape(8.dp)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            maxLines = 3,
+            modifier = Modifier
+                .weight(1f)
+                .clip(shape)
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            decorationBox = { inner ->
+                if (value.isEmpty()) {
+                    Text(placeholder, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                inner()
+            },
+        )
+        Spacer(Modifier.size(4.dp))
+        IconButton(onClick = onSend, enabled = value.isNotBlank()) {
+            Icon(Lucide.Send, contentDescription = stringResource(R.string.send), modifier = Modifier.size(20.dp))
+        }
+        if (onCancel != null) {
+            IconButton(onClick = onCancel) {
+                Icon(Lucide.X, contentDescription = stringResource(R.string.cancel), modifier = Modifier.size(20.dp))
+            }
+        }
     }
 }

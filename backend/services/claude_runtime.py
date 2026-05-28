@@ -225,11 +225,13 @@ async def run_prompt(
         response = await ask_user({
             "kind": "permission",
             "tool_name": tool_name,
+            "tool_use_id": getattr(ctx, "tool_use_id", None),
             "input": _format_tool_input(tool_input),
             "options": [
                 {"id": "allow"},
                 {"id": "allow_always"},
                 {"id": "deny"},
+                {"id": "different"},
             ],
             "free_text": "off",
         })
@@ -242,6 +244,10 @@ async def run_prompt(
             return PermissionResultAllow(updated_input=tool_input, updated_permissions=persist)
         if option == "allow":
             return PermissionResultAllow(updated_input=tool_input)
+        if option == "different":
+            return PermissionResultDeny(
+                message="User declined this action and wants to redirect. Ask them how they'd like you to proceed instead."
+            )
         return PermissionResultDeny(message="User declined")
 
     # Required by the SDK: a no-op PreToolUse hook keeps the prompt stream open while

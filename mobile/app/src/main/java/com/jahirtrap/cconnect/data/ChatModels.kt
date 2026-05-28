@@ -7,6 +7,7 @@ data class ChatMessage(
     val role: Role,
     val text: String = "",
     val toolName: String? = null,
+    val toolUseId: String? = null,
     val interaction: InteractionData? = null,
 )
 
@@ -44,7 +45,7 @@ sealed interface ServerEvent {
     data class Ready(val sessionId: String?) : ServerEvent
     data class AssistantText(val text: String) : ServerEvent
     data class Thinking(val text: String) : ServerEvent
-    data class ToolUse(val name: String?, val input: String?) : ServerEvent
+    data class ToolUse(val id: String?, val name: String?, val input: String?) : ServerEvent
     data class ToolResult(val content: String?) : ServerEvent
     data class Todos(val items: List<TodoItem>) : ServerEvent
     data class Task(val id: String, val content: String?, val status: String?) : ServerEvent
@@ -57,6 +58,7 @@ sealed interface ServerEvent {
         val requestId: String,
         val kind: String,
         val toolName: String?,
+        val toolUseId: String?,
         val input: String?,
         val title: String?,
         val options: List<InteractionOption>,

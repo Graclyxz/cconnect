@@ -161,7 +161,7 @@ class ChatSocket(private val scope: CoroutineScope) {
             "ready" -> ServerEvent.Ready(str("session_id"))
             "assistant_text" -> ServerEvent.AssistantText(str("text").orEmpty())
             "thinking" -> ServerEvent.Thinking(str("text").orEmpty())
-            "tool_use" -> ServerEvent.ToolUse(str("name"), str("input"))
+            "tool_use" -> ServerEvent.ToolUse(str("id"), str("name"), str("input"))
             "tool_result" -> ServerEvent.ToolResult(obj["content"]?.toString())
             "todos" -> ServerEvent.Todos(
                 obj["items"]?.jsonArray?.map { el ->
@@ -186,6 +186,7 @@ class ChatSocket(private val scope: CoroutineScope) {
                 requestId = str("id").orEmpty(),
                 kind = str("kind") ?: "permission",
                 toolName = str("tool_name"),
+                toolUseId = str("tool_use_id"),
                 input = str("input"),
                 title = str("title"),
                 options = obj["options"]?.jsonArray?.map { el ->

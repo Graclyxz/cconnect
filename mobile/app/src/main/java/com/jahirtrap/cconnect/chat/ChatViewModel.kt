@@ -302,7 +302,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             is ServerEvent.ToolUse -> {
                 currentAssistantId = null
                 currentThinkingId = null
-                addMessage(Role.TOOL, event.input.orEmpty(), toolName = event.name)
+                addMessage(Role.TOOL, event.input.orEmpty(), toolName = event.name, toolUseId = event.id)
             }
             is ServerEvent.ToolResult -> {
                 currentAssistantId = null
@@ -329,7 +329,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     freeText = event.freeText,
                     title = event.title,
                 )
-                addMessage(Role.INTERACTION, text = event.input.orEmpty(), toolName = event.toolName, interaction = data)
+                val tuid = event.toolUseId
+                _state.update { st ->
+                    val cleaned = if (tuid != null) st.messages.filterNot { it.role == Role.TOOL && it.toolUseId == tuid } else st.messages
+                    st.copy(messages = cleaned + ChatMessage(nextId++, Role.INTERACTION, event.input.orEmpty(), event.toolName, tuid, data))
+                }
             }
             is ServerEvent.Closed -> {
                 currentAssistantId = null
@@ -379,8 +383,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         return currentId
     }
 
-    private fun addMessage(role: Role, text: String, toolName: String? = null, interaction: InteractionData? = null) {
-        _state.update { it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, interaction)) }
+    private fun addMessage(role: Role, text: String, toolName: String? = null, toolUseId: String? = null, interaction: InteractionData? = null) {
+        _state.update { it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction)) }
     }
 
     fun answerInteraction(requestId: String, optionId: String, freeText: String?) {

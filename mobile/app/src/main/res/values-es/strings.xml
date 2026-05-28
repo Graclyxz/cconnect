@@ -74,6 +74,7 @@
     <string name="permission_allow">Permitir</string>
     <string name="permission_allow_always">Permitir siempre</string>
     <string name="permission_deny">Denegar</string>
+    <string name="permission_different">Hacerlo diferente</string>
     <string name="interaction_text_hint">Indícale a Claude qué cambiar…</string>
     <string name="scroll_to_bottom">Ir al final</string>
     <string name="connecting">Conectando…</string>

@@ -74,6 +74,7 @@
     <string name="permission_allow">Allow</string>
     <string name="permission_allow_always">Allow always</string>
     <string name="permission_deny">Deny</string>
+    <string name="permission_different">Do differently</string>
     <string name="interaction_text_hint">Tell Claude what to do differently…</string>
     <string name="scroll_to_bottom">Scroll to bottom</string>
     <string name="connecting">Connecting…</string>
