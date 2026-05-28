@@ -16,8 +16,9 @@ like "I left a README being written in <X>, how is it going?", "check progress o
 <project>", "how's <X> going?" — call the `mcp__cconnect__check_progress` tool
 instead of reading the transcript yourself.
 
-Pass the user's reference verbatim as `project` (folder name, path, or substring —
-the tool resolves it). The tool returns a four-line summary in this shape:
+Pass the user's reference verbatim as `project` (folder name, path, substring, or
+session title — the tool resolves it against project keys, paths, and the custom
+titles of recent sessions). The tool returns a four-line summary in this shape:
 
 ```
 Done: ...

@@ -8,23 +8,31 @@ from claude_agent_sdk import tool
 from loguru import logger
 
 from core.config import AI_WORKDIR
-from services.sessions import _iter_lines, _project_dir, _session_file, list_projects
+from services.sessions import _iter_lines, _project_dir, _session_file, list_all_sessions, list_projects
 
 
-def _resolve_project_key(reference: str) -> Optional[str]:
-    """Exact project_key match, then case-insensitive path substring."""
+def _resolve_target(reference: str) -> Optional[tuple[str, Optional[str]]]:
+    """Returns (project_key, session_id). session_id is set only on title matches."""
     ref = (reference or "").strip()
     if not ref:
         return None
     projects = list_projects()
     for p in projects:
         if p.get("project_key") == ref:
-            return p["project_key"]
+            return (p["project_key"], None)
     needle = ref.lower()
     for p in projects:
         path = (p.get("path") or "").lower()
         if path and needle in path:
-            return p["project_key"]
+            return (p["project_key"], None)
+    matches = [
+        s for s in list_all_sessions()
+        if needle in (s.get("title") or "").lower()
+    ]
+    if matches:
+        matches.sort(key=lambda s: s.get("last_active") or 0, reverse=True)
+        best = matches[0]
+        return (best["project_key"], best["session_id"])
     return None
 
 
@@ -36,12 +44,13 @@ def _latest_session_file(project_key: str) -> Optional[Path]:
     return files[0] if files else None
 
 
-def _transcript_for_progress(path: Path, max_chars: int = 8000) -> str:
-    """Tail of user/assistant text + latest TodoWrite + unique files touched."""
+def _transcript_for_progress(path: Path, max_chars: int = 8000) -> tuple[str, bool]:
+    """Returns (transcript, has_work). has_work flags tool_use/todos/files presence."""
     text_msgs: list[str] = []
     last_todos: Optional[str] = None
     files_touched: list[str] = []
     seen_files: set[str] = set()
+    has_work = False
 
     for entry in _iter_lines(path):
         etype = entry.get("type")
@@ -62,6 +71,7 @@ def _transcript_for_progress(path: Path, max_chars: int = 8000) -> str:
                 if txt:
                     text_msgs.append(f"{etype}: {txt[:600]}")
             elif btype == "tool_use":
+                has_work = True
                 name = block.get("name") or ""
                 inp = block.get("input") or {}
                 if name == "TodoWrite" and isinstance(inp, dict):
@@ -90,7 +100,7 @@ def _transcript_for_progress(path: Path, max_chars: int = 8000) -> str:
         sections.append(f"[Latest todo list]\n{last_todos}")
     if files_touched:
         sections.append("[Files touched]\n" + "\n".join(files_touched[:40]))
-    return "\n\n".join(sections)
+    return "\n\n".join(sections), has_work
 
 
 async def _generate_summary(transcript: str) -> str:
@@ -142,9 +152,16 @@ async def _summarize(project_key: str, session_id: Optional[str] = None) -> Opti
     file = _session_file(project_key, session_id) if session_id else _latest_session_file(project_key)
     if not file or not file.is_file():
         return None
-    transcript = _transcript_for_progress(file)
+    transcript, has_work = _transcript_for_progress(file)
     if not transcript:
         return None
+    if not has_work:
+        return (
+            "Done: -\n"
+            "Pending: -\n"
+            "Files: -\n"
+            "Next: No concrete work captured yet — session only contains chat, no tool use, todos, or file edits."
+        )
     summary = (await _generate_summary(transcript)).strip()
     return summary or None
 
@@ -160,10 +177,11 @@ async def _summarize(project_key: str, session_id: Optional[str] = None) -> Opti
 )
 async def check_progress(args):
     ref = args.get("project") or ""
-    project_key = _resolve_project_key(ref)
-    if not project_key:
+    target = _resolve_target(ref)
+    if not target:
         return {"content": [{"type": "text", "text": f"No project matching '{ref}'."}]}
-    summary = await _summarize(project_key)
+    project_key, session_id = target
+    summary = await _summarize(project_key, session_id)
     return {"content": [{"type": "text", "text": summary or "No session found for that project."}]}
 
 
