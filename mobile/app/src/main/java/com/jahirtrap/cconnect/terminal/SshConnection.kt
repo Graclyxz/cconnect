@@ -17,6 +17,7 @@ import java.io.OutputStream
 class SshConnection(
     private val profile: SshProfile,
     private val scope: CoroutineScope,
+    private val onOsDetected: ((String) -> Unit)? = null,
 ) {
     private var client: SSHClient? = null
     private var session: Session? = null
@@ -42,6 +43,7 @@ class SshConnection(
                 connect(profile.host, profile.port)
                 authPassword(profile.user, profile.password)
             }
+            runCatching { probeOs(ssh) }.getOrNull()?.let { onOsDetected?.invoke(it) }
             val s = ssh.startSession()
             s.allocatePTY("xterm-256color", cols, rows, 0, 0, emptyMap())
             val sh = s.startShell()
@@ -93,6 +95,30 @@ class SshConnection(
             delay(50)
             runCatching { sh.changeWindowDimensions(lastCols, lastRows, 0, 0) }
         }
+    }
+
+    private fun probeOs(ssh: SSHClient): String? {
+        val probeCmd =
+            "sh -c 'uname -s 2>/dev/null; cat /etc/os-release /etc/lsb-release /etc/system-release 2>/dev/null'"
+        val raw = runCatching {
+            ssh.startSession().use { s ->
+                val cmd = s.exec(probeCmd)
+                val text = cmd.inputStream.bufferedReader().readText()
+                cmd.join(3, java.util.concurrent.TimeUnit.SECONDS)
+                text
+            }
+        }.getOrNull().orEmpty()
+        android.util.Log.d("CConnect.SSH", "OS probe raw: ${raw.take(400)}")
+        if (raw.isBlank()) return "windows"
+        val upper = raw.uppercase()
+        when {
+            "DARWIN" in upper -> return "macos"
+            "MINGW" in upper || "MSYS" in upper || "CYGWIN" in upper -> return "windows"
+        }
+        Regex("(?m)^(?:ID|DISTRIB_ID)=\"?([a-zA-Z0-9_.-]+)\"?")
+            .find(raw)?.groupValues?.get(1)?.lowercase()
+            ?.let { return it }
+        return if ("LINUX" in upper) "linux" else null
     }
 
     fun close() {

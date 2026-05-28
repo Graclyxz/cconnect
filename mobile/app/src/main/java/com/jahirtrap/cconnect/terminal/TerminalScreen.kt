@@ -88,7 +88,19 @@ fun TerminalScreen(onClose: () -> Unit) {
     BackHandler { if (active != null) active = null else onClose() }
 
     if (active != null) {
-        TerminalSession(profile = active!!, onClose = { active = null })
+        TerminalSession(
+            profile = active!!,
+            onClose = { active = null },
+            onOsDetected = { detected ->
+                val current = active ?: return@TerminalSession
+                if (current.os != detected) {
+                    val updated = current.copy(os = detected)
+                    store.upsert(updated)
+                    profiles = store.profiles
+                    active = updated
+                }
+            },
+        )
         return
     }
 
@@ -131,7 +143,7 @@ fun TerminalScreen(onClose: () -> Unit) {
                                 .padding(start = 20.dp, end = 8.dp, top = 14.dp, bottom = 14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Lucide.SquareTerminal, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+                            Icon(iconForOs(p.os), contentDescription = null, tint = colorForOs(p.os) ?: MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                             Spacer(Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(p.name.ifBlank { p.host }, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -224,9 +236,13 @@ private fun SshEditDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TerminalSession(profile: SshProfile, onClose: () -> Unit) {
+private fun TerminalSession(
+    profile: SshProfile,
+    onClose: () -> Unit,
+    onOsDetected: (String) -> Unit,
+) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val connection = remember { SshConnection(profile, scope) }
+    val connection = remember { SshConnection(profile, scope, onOsDetected) }
     val state by connection.state.collectAsState(initial = SshConnection.State.Idle)
 
     val emulator: TerminalEmulator = remember {

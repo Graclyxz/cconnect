@@ -44,6 +44,7 @@ androidx-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-man
 androidx-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
 icons-lucide = { module = "com.composables:icons-lucide-cmp", version.ref = "composeIcons" }
+icons-font-awesome-brands = { module = "com.composables:icons-font-awesome-brands-cmp", version.ref = "composeIcons" }
 play-code-scanner = { module = "com.google.android.gms:play-services-code-scanner", version.ref = "playCodeScanner" }
 sshj = { module = "com.hierynomus:sshj", version.ref = "sshj" }
 bouncycastle = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }

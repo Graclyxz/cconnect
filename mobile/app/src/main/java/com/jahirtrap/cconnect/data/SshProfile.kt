@@ -7,6 +7,7 @@ data class SshProfile(
     val port: Int = 22,
     val user: String,
     val password: String,
+    val os: String? = null,
 ) {
     val address: String get() = "$user@$host${if (port != 22) ":$port" else ""}"
 }

@@ -52,6 +52,7 @@ class SshStore(context: Context) {
                     port = o["port"]?.jsonPrimitive?.intOrNull ?: 22,
                     user = o["user"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                     password = o["password"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    os = o["os"]?.jsonPrimitive?.contentOrNull,
                 )
             }
         }.getOrDefault(emptyList())
@@ -67,6 +68,7 @@ class SshStore(context: Context) {
                     put("port", p.port)
                     put("user", p.user)
                     put("password", p.password)
+                    p.os?.let { put("os", it) }
                 }
             }
         }.toString()
