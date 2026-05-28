@@ -20,6 +20,9 @@ CLAUDE_PROJECTS_DIR = os.environ.get(
 # separate project key so they never mix into a user's real history.
 AI_WORKDIR = os.environ.get("AI_WORKDIR", str(Path(__file__).resolve().parent.parent / "internal_task"))
 
+# Drop folder served download-only to the phone.
+SHARED_DIR = str(Path(__file__).resolve().parent.parent / "shared")
+
 # Fallbacks used only if the SDK can't be introspected yet.
 _FALLBACK_PERMISSION_MODES = ("default", "acceptEdits", "plan", "dontAsk", "bypassPermissions", "auto")
 _FALLBACK_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
@@ -81,6 +84,7 @@ __all__ = [
     "PORT",
     "CLAUDE_PROJECTS_DIR",
     "AI_WORKDIR",
+    "SHARED_DIR",
     "DEFAULT_PERMISSION_MODE",
     "DEFAULT_EFFORT",
     "DEFAULT_MODEL",
