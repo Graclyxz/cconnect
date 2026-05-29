@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from core.config import DEFAULT_CWD, PUBLIC_ACCESS_TOKEN, permission_modes
 from schemas.chat import PromptMessage, SetPermissionMessage, StartMessage
 from services import sessions as sessions_service
+from services import settings_store
 from services.claude_runtime import run_prompt
 
 router = APIRouter(tags=["Chat"])
@@ -59,9 +60,6 @@ class _Session:
         self.permission_mode: str = "default"
         self.session_id: str | None = None
         self.fork: bool = False
-        self.model: str | None = None
-        self.effort: str = "max"
-        self.partial: bool = False
         self.base_url: str | None = None
 
 
@@ -77,9 +75,9 @@ async def _stream_prompt(ws: WebSocket, send_lock: asyncio.Lock, state: _Session
         permission_mode=state.permission_mode,
         resume=state.session_id,
         fork=state.fork,
-        model=_resolve_model(state.model),
-        effort=state.effort,
-        partial=state.partial,
+        model=_resolve_model(settings_store.get("model")),
+        effort=settings_store.get("effort"),
+        partial=settings_store.get("streaming"),
         name=name,
         ask_user=lambda payload: broker.ask(send, payload),
         base_url=state.base_url,
@@ -134,16 +132,10 @@ async def chat_ws(ws: WebSocket):
                 except ValidationError as exc:
                     await send({"type": "error", "message": exc.errors()})
                     continue
-                if msg.permission_mode not in permission_modes():
-                    await send({"type": "error", "message": f"invalid permission_mode: {msg.permission_mode}"})
-                    continue
                 state.cwd = msg.cwd or DEFAULT_CWD
-                state.permission_mode = msg.permission_mode
+                state.permission_mode = settings_store.get("permission_mode")
                 state.session_id = msg.resume
                 state.fork = msg.fork
-                state.model = msg.model
-                state.effort = msg.effort
-                state.partial = msg.partial
                 state.base_url = msg.base_url
                 await send({"type": "ready", "session_id": state.session_id})
 

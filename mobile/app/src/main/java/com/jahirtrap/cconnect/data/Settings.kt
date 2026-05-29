@@ -72,23 +72,6 @@ class Settings(context: Context) {
         get() = prefs.getString("cwd", "") ?: ""
         set(value) = prefs.edit { putString("cwd", value) }
 
-    // Null when the user hasn't picked one yet
-    var permissionMode: String?
-        get() = prefs.getString("permission_mode", null)
-        set(value) = prefs.edit { putString("permission_mode", value) }
-
-    var model: String?
-        get() = prefs.getString("model", null)
-        set(value) = prefs.edit { putString("model", value) }
-
-    var effort: String?
-        get() = prefs.getString("effort", null)
-        set(value) = prefs.edit { putString("effort", value) }
-
-    var streaming: Boolean
-        get() = prefs.getBoolean("streaming", true)
-        set(value) = prefs.edit { putBoolean("streaming", value) }
-
     // "" = follow system, otherwise a language tag like "en" / "es"
     var language: String
         get() = prefs.getString("language", "") ?: ""
@@ -110,10 +93,10 @@ class Settings(context: Context) {
     val isConfigured: Boolean
         get() = activeConnection != null
 
-    // Reset everything except saved connections.
+    // Reset app-local prefs (backend-owned settings reset via /api/settings/reset).
     fun resetDefaults() {
         prefs.edit {
-            listOf("cwd", "permission_mode", "model", "effort", "streaming", "language", "theme_mode", "dynamic_color", "accent_index")
+            listOf("cwd", "language", "theme_mode", "dynamic_color", "accent_index")
                 .forEach { remove(it) }
         }
     }

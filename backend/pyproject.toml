@@ -13,6 +13,7 @@ dependencies = [
     "slowapi>=0.1.9",
     "claude-agent-sdk>=0.2.87",
     "qrcode>=7.4.2",
+    "sqlalchemy>=2.0.0",
 ]
 
 [project.optional-dependencies]

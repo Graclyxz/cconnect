@@ -23,8 +23,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -77,6 +80,7 @@ import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.remote.Backend
 import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
 import com.jahirtrap.cconnect.data.remote.CliApi
+import com.jahirtrap.cconnect.data.remote.SettingsApi
 import kotlinx.coroutines.launch
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
@@ -98,7 +102,7 @@ import com.jahirtrap.cconnect.ui.theme.accentNameAt
 import com.jahirtrap.cconnect.ui.theme.dynamicAccent
 import java.util.UUID
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SettingsScreen(
     themeMode: String,
@@ -118,21 +122,32 @@ fun SettingsScreen(
     var connections by remember { mutableStateOf(settings.connections) }
     var activeId by remember { mutableStateOf(settings.activeConnection?.id) }
     var caps by remember { mutableStateOf(Capabilities()) }
-    var model by remember { mutableStateOf(settings.model ?: caps.defaults.model) }
-    var effort by remember { mutableStateOf(settings.effort ?: caps.defaults.effort) }
-    var permissionMode by remember { mutableStateOf(settings.permissionMode ?: caps.defaults.permissionMode) }
-    var streaming by remember { mutableStateOf(settings.streaming) }
+    var model by remember { mutableStateOf(caps.defaults.model) }
+    var effort by remember { mutableStateOf(caps.defaults.effort) }
+    var permissionMode by remember { mutableStateOf(caps.defaults.permissionMode) }
+    var streaming by remember { mutableStateOf(true) }
     var cliInfo by remember { mutableStateOf<CliApi.CliInfo?>(null) }
+    // The generation/permission/CLI rows are server-owned: dimmed/disabled until a fetch
+    // succeeds, with a loading indicator while fetching.
+    var serverReady by remember { mutableStateOf(false) }
+    var loading by remember { mutableStateOf(Backend.isConfigured) }
+    var refreshing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    LaunchedEffect(activeId, connections) {
-        if (Backend.isConfigured) CapabilitiesApi.capabilities()?.let { c ->
-            caps = c
-            if (settings.model == null) model = c.defaults.model
-            if (settings.effort == null) effort = c.defaults.effort
-            if (settings.permissionMode == null) permissionMode = c.defaults.permissionMode
+    suspend fun loadServerSettings() {
+        if (!Backend.isConfigured) { serverReady = false; loading = false; cliInfo = null; return }
+        loading = true
+        CapabilitiesApi.capabilities()?.let { caps = it }
+        val s = SettingsApi.get()
+        if (s != null) {
+            model = s.model; effort = s.effort; permissionMode = s.permissionMode; streaming = s.streaming
         }
-        if (Backend.isConfigured) cliInfo = CliApi.status()
+        cliInfo = CliApi.status()
+        serverReady = s != null
+        loading = false
     }
+
+    LaunchedEffect(activeId, connections) { loadServerSettings() }
 
     var dialog by remember { mutableStateOf<SettingsDialog?>(null) }
 
@@ -154,38 +169,48 @@ fun SettingsScreen(
             )
         },
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 6.dp),
+        PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = { scope.launch { refreshing = true; loadServerSettings(); refreshing = false } },
+            modifier = Modifier.fillMaxSize().padding(padding),
         ) {
-            PreferenceRow(themeIcon(themeMode), stringResource(R.string.theme), themeLabel(themeMode)) { dialog = SettingsDialog.Theme }
-            PreferenceRow(Lucide.Languages, stringResource(R.string.language), languageLabel(language)) { dialog = SettingsDialog.Language }
-            PreferenceRow(
-                icon = Lucide.Palette,
-                title = stringResource(R.string.accent),
-                summary = if (dynamicColor) stringResource(R.string.accent_dynamic)
-                else accentNameAt(accentIndex),
-                trailing = { AccentDot(if (dynamicColor) MaterialTheme.colorScheme.primary else accentAt(accentIndex)) },
-            ) { dialog = SettingsDialog.Accent }
-            PreferenceRow(
-                Lucide.Server,
-                stringResource(R.string.connections),
-                connections.firstOrNull { it.id == activeId }?.let { "${it.name} • ${it.address}" }
-                    ?: stringResource(R.string.no_connections),
-            ) { dialog = SettingsDialog.Connections }
-            PreferenceRow(
-                Lucide.SquareTerminal,
-                stringResource(R.string.ssh_hosts),
-                stringResource(R.string.ssh_hosts_summary),
-                onClick = onOpenSshHosts,
-            )
-            PreferenceRow(Lucide.Terminal, stringResource(R.string.cli), cliInfo?.activeVersion ?: "—") { dialog = SettingsDialog.Cli }
-            PreferenceRow(Lucide.Sparkles, stringResource(R.string.generation), "${caps.models.firstOrNull { it.id == model }?.label ?: model} • $effort") { dialog = SettingsDialog.Generation }
-            PreferenceRow(Lucide.Shield, stringResource(R.string.permissions), permissionLabel(caps, permissionMode)) { dialog = SettingsDialog.Permissions }
-            PreferenceRow(Lucide.History, stringResource(R.string.reset_settings), stringResource(R.string.reset_settings_summary)) { dialog = SettingsDialog.Reset }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 6.dp),
+            ) {
+                PreferenceRow(themeIcon(themeMode), stringResource(R.string.theme), themeLabel(themeMode)) { dialog = SettingsDialog.Theme }
+                PreferenceRow(Lucide.Languages, stringResource(R.string.language), languageLabel(language)) { dialog = SettingsDialog.Language }
+                PreferenceRow(
+                    icon = Lucide.Palette,
+                    title = stringResource(R.string.accent),
+                    summary = if (dynamicColor) stringResource(R.string.accent_dynamic)
+                    else accentNameAt(accentIndex),
+                    trailing = { AccentDot(if (dynamicColor) MaterialTheme.colorScheme.primary else accentAt(accentIndex)) },
+                ) { dialog = SettingsDialog.Accent }
+                PreferenceRow(
+                    Lucide.Server,
+                    stringResource(R.string.connections),
+                    connections.firstOrNull { it.id == activeId }?.let { "${it.name} • ${it.address}" }
+                        ?: stringResource(R.string.no_connections),
+                ) { dialog = SettingsDialog.Connections }
+                PreferenceRow(
+                    Lucide.SquareTerminal,
+                    stringResource(R.string.ssh_hosts),
+                    stringResource(R.string.ssh_hosts_summary),
+                    onClick = onOpenSshHosts,
+                )
+                // Server-owned: always shown, dimmed/disabled until reachable.
+                val spinner: (@Composable () -> Unit)? = if (loading) ({ LoadingIndicator(modifier = Modifier.size(20.dp)) }) else null
+                val loadingText = stringResource(R.string.connecting)
+                val offlineText = stringResource(R.string.server_unavailable)
+                fun serverSummary(real: String) = if (serverReady) real else if (loading) loadingText else offlineText
+                PreferenceRow(Lucide.Terminal, stringResource(R.string.cli), serverSummary(cliInfo?.activeVersion ?: "—"), trailing = spinner, enabled = serverReady) { dialog = SettingsDialog.Cli }
+                PreferenceRow(Lucide.Sparkles, stringResource(R.string.generation), serverSummary("${caps.models.firstOrNull { it.id == model }?.label ?: model} • $effort"), trailing = spinner, enabled = serverReady) { dialog = SettingsDialog.Generation }
+                PreferenceRow(Lucide.Shield, stringResource(R.string.permissions), serverSummary(permissionLabel(caps, permissionMode)), trailing = spinner, enabled = serverReady) { dialog = SettingsDialog.Permissions }
+                PreferenceRow(Lucide.History, stringResource(R.string.reset_settings), stringResource(R.string.reset_settings_summary)) { dialog = SettingsDialog.Reset }
+            }
         }
     }
 
@@ -237,9 +262,8 @@ fun SettingsScreen(
             effort = effort,
             streaming = streaming,
             onConfirm = { m, e, s ->
-                model = m; settings.model = m
-                effort = e; settings.effort = e
-                streaming = s; settings.streaming = s
+                model = m; effort = e; streaming = s
+                scope.launch { SettingsApi.update(model = m, effort = e, streaming = s) }
                 dialog = null
             },
             onDismiss = { dialog = null },
@@ -249,7 +273,7 @@ fun SettingsScreen(
             title = stringResource(R.string.permission_mode),
             options = caps.permissionModes.map { it.id to it.label },
             selected = permissionMode,
-            onConfirm = { permissionMode = it; settings.permissionMode = it; dialog = null },
+            onConfirm = { permissionMode = it; scope.launch { SettingsApi.update(permissionMode = it) }; dialog = null },
             onDismiss = { dialog = null },
         )
 
@@ -261,10 +285,11 @@ fun SettingsScreen(
                 settings.resetDefaults()
                 onThemeMode(settings.themeMode); onLanguage(settings.language)
                 onDynamicColor(settings.dynamicColor); onAccent(settings.accentIndex)
-                model = settings.model ?: caps.defaults.model
-                effort = settings.effort ?: caps.defaults.effort
-                permissionMode = settings.permissionMode ?: caps.defaults.permissionMode
-                streaming = settings.streaming
+                scope.launch {
+                    SettingsApi.reset()?.let {
+                        model = it.model; effort = it.effort; permissionMode = it.permissionMode; streaming = it.streaming
+                    }
+                }
                 dialog = null
             },
             onDismiss = { dialog = null },
@@ -286,21 +311,23 @@ private fun PreferenceRow(
     title: String,
     summary: String?,
     trailing: (@Composable () -> Unit)? = null,
+    enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
+    val alpha = if (enabled) 1f else 0.38f
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary.copy(alpha = alpha), modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha))
             if (summary != null) {
-                Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         if (trailing != null) {
@@ -640,11 +667,23 @@ private fun CliDialog(
     var customPath by remember { mutableStateOf(info.customPath ?: "") }
     var updating by remember { mutableStateOf(false) }
 
-    val sourceOptions = listOf(
-        "system" to (stringResource(R.string.cli_source_system) + (info.systemVersion?.let { " ($it)" } ?: "")),
-        "custom" to stringResource(R.string.cli_source_custom),
-        "bundled" to (stringResource(R.string.cli_source_bundled) + (info.bundledVersion?.let { " ($it)" } ?: "")),
-    )
+    val systemLabel = stringResource(R.string.cli_source_system)
+    val customLabel = stringResource(R.string.cli_source_custom)
+    val bundledLabel = stringResource(R.string.cli_source_bundled)
+    fun labelFor(src: String) = when (src) {
+        "system" -> systemLabel
+        "custom" -> customLabel
+        "bundled" -> bundledLabel
+        else -> src
+    }
+    val sourceOptions = info.sources.map { src ->
+        val version = when (src) {
+            "system" -> info.systemVersion
+            "bundled" -> info.bundledVersion
+            else -> null
+        }
+        src to (labelFor(src) + (version?.let { " - $it" } ?: ""))
+    }
     // Update targets the saved/active CLI, not the unsaved dropdown selection.
     val canUpdate = info.source != "bundled"
 
@@ -678,26 +717,22 @@ private fun CliDialog(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(10.dp))
-        OutlinedButton(
-            onClick = {
-                scope.launch {
-                    updating = true
-                    CliApi.update()
-                    CliApi.status()?.let(onChanged)
-                    updating = false
-                }
-            },
-            enabled = canUpdate && !updating,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                when {
-                    updating -> stringResource(R.string.cli_updating)
-                    !canUpdate -> stringResource(R.string.cli_bundled_fixed)
-                    else -> stringResource(R.string.cli_update)
-                }
-            )
+        if (canUpdate) {
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = {
+                    scope.launch {
+                        updating = true
+                        CliApi.update()
+                        CliApi.status()?.let(onChanged)
+                        updating = false
+                    }
+                },
+                enabled = !updating,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(if (updating) stringResource(R.string.cli_updating) else stringResource(R.string.cli_update))
+            }
         }
     }
 }

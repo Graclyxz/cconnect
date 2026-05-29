@@ -4,16 +4,14 @@ The SDK defaults to its bundled claude.exe, which may lag the CLI the user alrea
 on PATH. This lets the phone point CConnect at the system CLI (newer, carries features
 like ultracode), a custom path, or the bundled one, and update the system CLI in place."""
 
-import json
 import platform
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
 
-_STATE_FILE = Path(__file__).resolve().parent.parent / ".cli_settings.json"
-_VALID_SOURCES = ("system", "custom", "bundled")
-_DEFAULT_SOURCE = "system"
+from core.settings_defs import SETTINGS
+from services import settings_store
 
 # Same fallback locations the SDK's own _find_cli scans after PATH, using the
 # platform-correct binary name (claude.exe on Windows, claude elsewhere).
@@ -26,24 +24,12 @@ _KNOWN_LOCATIONS = (
 )
 
 
-def _load() -> dict:
-    try:
-        return json.loads(_STATE_FILE.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-
-def _save(state: dict) -> None:
-    _STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
-
-
 def get_source() -> str:
-    source = _load().get("source")
-    return source if source in _VALID_SOURCES else _DEFAULT_SOURCE
+    return settings_store.get("cli_source")
 
 
 def get_custom_path() -> Optional[str]:
-    return _load().get("custom_path")
+    return settings_store.get("cli_custom_path")
 
 
 def system_cli() -> Optional[str]:
@@ -102,11 +88,10 @@ def update_cli() -> dict:
 
 
 def set_source(source: str, custom_path: Optional[str] = None) -> None:
-    if source not in _VALID_SOURCES:
-        raise ValueError(f"invalid source: {source}")
     if source == "custom" and not (custom_path and Path(custom_path).exists()):
         raise ValueError("custom source requires an existing path")
-    _save({"source": source, "custom_path": custom_path})
+    settings_store.set("cli_source", source)  # validates against the registry's allowed set
+    settings_store.set("cli_custom_path", custom_path)
 
 
 def status() -> dict:
@@ -115,6 +100,7 @@ def status() -> dict:
     system = system_cli()
     return {
         "source": source,
+        "sources": list(SETTINGS["cli_source"].allowed or ()),
         "resolved_path": resolved,
         "active_version": cli_version(resolved) if resolved else bundled_version(),
         "bundled_version": bundled_version(),

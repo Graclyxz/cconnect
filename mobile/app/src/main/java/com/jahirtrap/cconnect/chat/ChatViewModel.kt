@@ -19,6 +19,7 @@ import com.jahirtrap.cconnect.data.TodoItem
 import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
 import com.jahirtrap.cconnect.data.remote.ChatSocket
 import com.jahirtrap.cconnect.data.remote.SessionsApi
+import com.jahirtrap.cconnect.data.remote.SettingsApi
 import com.jahirtrap.cconnect.service.ConnectionService
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -65,13 +66,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val settings = Settings(app)
     private val client = ChatSocket(viewModelScope)
 
+    // Generation settings (model/effort/permission/streaming) are backend-owned
     private val _state = MutableStateFlow(
         Capabilities().defaults.let { d ->
             ChatUiState(
-                permissionMode = settings.permissionMode ?: d.permissionMode,
-                model = settings.model ?: d.model,
-                effort = settings.effort ?: d.effort,
-                streamTokens = settings.streaming,
+                permissionMode = d.permissionMode,
+                model = d.model,
+                effort = d.effort,
+                streamTokens = true,
                 connections = settings.connections,
                 activeConnectionId = settings.activeConnection?.id,
             )
@@ -109,14 +111,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (_state.value.connection != ConnectionState.Disconnected) return
         _state.update { it.copy(connection = ConnectionState.Connecting, error = null) }
         viewModelScope.launch {
-            CapabilitiesApi.capabilities()?.let { caps ->
+            CapabilitiesApi.capabilities()?.let { caps -> _state.update { it.copy(capabilities = caps) } }
+            SettingsApi.get()?.let { s ->
                 _state.update {
-                    it.copy(
-                        capabilities = caps,
-                        permissionMode = settings.permissionMode ?: caps.defaults.permissionMode,
-                        model = settings.model ?: caps.defaults.model,
-                        effort = settings.effort ?: caps.defaults.effort,
-                    )
+                    it.copy(model = s.model, effort = s.effort, permissionMode = s.permissionMode, streamTokens = s.streaming)
                 }
             }
             client.connect()
@@ -125,7 +123,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun startSession(resume: String?) {
         val s = _state.value
-        client.sendStart(settings.cwd, s.permissionMode, resume, s.model, s.effort, settings.streaming)
+        client.sendStart(settings.cwd, s.permissionMode, resume, s.model, s.effort, s.streamTokens)
     }
 
     fun sendPrompt(text: String) {
@@ -144,24 +142,24 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setPermissionMode(mode: String) {
-        settings.permissionMode = mode
         _state.update { it.copy(permissionMode = mode) }
+        viewModelScope.launch { SettingsApi.update(permissionMode = mode) }
         if (_state.value.connection == ConnectionState.Connected) client.sendSetPermissionMode(mode)
     }
 
     fun setModel(model: String) {
-        settings.model = model
         _state.update { it.copy(model = model) }
+        viewModelScope.launch { SettingsApi.update(model = model) }
     }
 
     fun setEffort(effort: String) {
-        settings.effort = effort
         _state.update { it.copy(effort = effort) }
+        viewModelScope.launch { SettingsApi.update(effort = effort) }
     }
 
     fun setStreaming(enabled: Boolean) {
-        settings.streaming = enabled
         _state.update { it.copy(streamTokens = enabled) }
+        viewModelScope.launch { SettingsApi.update(streaming = enabled) }
     }
 
     fun newSession() {

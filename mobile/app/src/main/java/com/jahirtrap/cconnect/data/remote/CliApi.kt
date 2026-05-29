@@ -4,6 +4,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -12,6 +13,7 @@ object CliApi {
 
     data class CliInfo(
         val source: String,
+        val sources: List<String>,
         val resolvedPath: String?,
         val activeVersion: String?,
         val bundledVersion: String?,
@@ -22,6 +24,7 @@ object CliApi {
 
     private fun parse(o: JsonObject) = CliInfo(
         source = o["source"]?.jsonPrimitive?.contentOrNull ?: "system",
+        sources = o["sources"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: listOf("system", "custom", "bundled"),
         resolvedPath = o["resolved_path"]?.jsonPrimitive?.contentOrNull,
         activeVersion = o["active_version"]?.jsonPrimitive?.contentOrNull,
         bundledVersion = o["bundled_version"]?.jsonPrimitive?.contentOrNull,

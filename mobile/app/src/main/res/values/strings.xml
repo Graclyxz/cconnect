@@ -55,7 +55,7 @@
     <string name="cli_custom_path">CLI path</string>
     <string name="cli_update">Update to latest</string>
     <string name="cli_updating">Updating…</string>
-    <string name="cli_bundled_fixed">Bundled CLI can\'t be updated</string>
+    <string name="server_unavailable">Server unavailable</string>
     <string name="generation">Generation</string>
     <string name="model">Model</string>
     <string name="effort">Effort</string>

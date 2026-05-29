@@ -49,13 +49,13 @@
     <string name="no_connections">Sin conexiones aún</string>
     <string name="cli">CLI de Claude</string>
     <string name="cli_source">Origen del CLI</string>
-    <string name="cli_source_system">Sistema</string>
+    <string name="cli_source_system">System</string>
     <string name="cli_source_custom">Ruta personalizada</string>
-    <string name="cli_source_bundled">Incluido</string>
+    <string name="cli_source_bundled">Bundled</string>
     <string name="cli_custom_path">Ruta del CLI</string>
     <string name="cli_update">Actualizar a la última</string>
     <string name="cli_updating">Actualizando…</string>
-    <string name="cli_bundled_fixed">El CLI incluido no se puede actualizar</string>
+    <string name="server_unavailable">Servidor no disponible</string>
     <string name="generation">Generación</string>
     <string name="model">Modelo</string>
     <string name="effort">Esfuerzo</string>

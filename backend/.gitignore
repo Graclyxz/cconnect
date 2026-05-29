@@ -1,3 +1,4 @@
-
-# Runtime CLI source selection (mobile-controlled)
-.cli_settings.json
+# SQLite store: backend-owned settings (CLI source, model/effort/permission, ...)
+cconnect.db
+cconnect.db-wal
+cconnect.db-shm
