@@ -268,12 +268,16 @@ fun ChatScreen(
                         onSelect = vm::selectHistoryProject,
                     )
                     HorizontalDivider()
+                    val drawerListState = rememberLazyListState()
+                    LaunchedEffect(state.historySessions.size) {
+                        if (state.historySessions.isNotEmpty()) drawerListState.scrollToItem(0)
+                    }
                     PullToRefreshBox(
                         isRefreshing = state.historyLoading,
                         onRefresh = { vm.loadHistory() },
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                     ) {
-                        LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        LazyColumn(state = drawerListState, modifier = Modifier.fillMaxSize()) {
                             items(state.historySessions, key = { it.sessionId }) { s ->
                                 ConversationRow(
                                     title = s.title ?: s.preview ?: s.sessionId.take(8),
@@ -579,13 +583,14 @@ private fun ChatToolbar(
             selected = effort,
             onSelect = onEffort,
         )
+        val styles = permissionModes.associate { it.id to permissionStyle(it.id).let { s -> s.icon to s.color } }
         SelectorChip(
             label = permissionModes.firstOrNull { it.id == permissionMode }?.label ?: permissionMode,
             icon = pstyle.icon,
             tint = pstyle.color,
             options = permissionModes.map { it.id to it.label },
             selected = permissionMode,
-            optionStyle = { permissionStyle(it).let { s -> s.icon to s.color } },
+            optionStyle = { styles[it] ?: (pstyle.icon to pstyle.color) },
             onSelect = onPermissionMode,
         )
     }

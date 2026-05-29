@@ -62,6 +62,7 @@ import com.jahirtrap.cconnect.data.InteractionData
 import com.jahirtrap.cconnect.data.InteractionOption
 import com.jahirtrap.cconnect.data.Role
 import com.jahirtrap.cconnect.ui.MarkdownText
+import com.jahirtrap.cconnect.ui.theme.palette
 
 private val BIG = 16.dp
 private val SMALL = 6.dp
@@ -327,12 +328,16 @@ private fun FileChangeBlock(path: String, diffLines: List<DiffLine>) {
     }
 }
 
-private fun diffStyleFor(kind: DiffKind, defaultFg: Color): Triple<Color, Color, String> = when (kind) {
-    DiffKind.HEADER -> Triple(Color(0xFF8B949E), Color.Transparent, "")
-    DiffKind.HUNK -> Triple(Color(0xFF79C0FF), Color(0x1A58A6FF), "")
-    DiffKind.ADD -> Triple(Color(0xFF56D364), Color(0x2628A745), "+")
-    DiffKind.DEL -> Triple(Color(0xFFFF7B72), Color(0x26F85149), "-")
-    DiffKind.CTX -> Triple(defaultFg, Color.Transparent, " ")
+@Composable
+private fun diffStyleFor(kind: DiffKind, defaultFg: Color): Triple<Color, Color, String> {
+    val p = palette
+    return when (kind) {
+        DiffKind.HEADER -> Triple(p.gray, Color.Transparent, "")
+        DiffKind.HUNK -> Triple(p.blue, p.blueBg, "")
+        DiffKind.ADD -> Triple(p.green, p.greenBg, "+")
+        DiffKind.DEL -> Triple(p.red, p.redBg, "-")
+        DiffKind.CTX -> Triple(defaultFg, Color.Transparent, " ")
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

@@ -80,6 +80,7 @@ import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.SecretTextField
 import com.jahirtrap.cconnect.ui.TooltipIconButton
+import com.jahirtrap.cconnect.ui.theme.palette
 import org.connectbot.terminal.Terminal as TermlibTerminal
 import org.connectbot.terminal.TerminalEmulator
 import org.connectbot.terminal.TerminalEmulatorFactory
@@ -305,7 +306,7 @@ private fun TerminalSession(
                                             modifier = Modifier
                                                 .size(8.dp)
                                                 .clip(CircleShape)
-                                                .background(Color(0xFF22C55E)),
+                                                .background(palette.green),
                                         )
                                     else -> {}
                                 }
