@@ -1,6 +1,6 @@
 package com.jahirtrap.cconnect.data
 
-enum class Role { USER, ASSISTANT, THINKING, TOOL, TOOL_RESULT, SUMMARY, INTERACTION, FILE_CHANGE, SYSTEM, ERROR }
+enum class Role { USER, ASSISTANT, THINKING, TOOL, TOOL_RESULT, SUMMARY, INTERACTION, FILE_CHANGE, COMPACT, SYSTEM, ERROR }
 
 data class ChatMessage(
     val id: Long,
@@ -11,7 +11,15 @@ data class ChatMessage(
     val interaction: InteractionData? = null,
     val path: String? = null,
     val diffLines: List<DiffLine>? = null,
+    val compact: CompactData? = null,
     val sourceIndex: Int = -1,
+)
+
+data class CompactData(
+    val trigger: String?,    // "auto" | "manual"
+    val preTokens: Int?,
+    val postTokens: Int?,
+    val summary: String,
 )
 
 enum class DiffKind { HEADER, HUNK, ADD, DEL, CTX }
@@ -70,6 +78,7 @@ sealed interface ServerEvent {
     data class ToolUse(val id: String?, val name: String?, val input: String?) : ServerEvent
     data class ToolResult(val content: String?) : ServerEvent
     data class FileChange(val id: String?, val path: String, val diffLines: List<DiffLine>) : ServerEvent
+    data class Compact(val trigger: String?, val preTokens: Int?, val postTokens: Int?, val summary: String) : ServerEvent
     data class Todos(val items: List<TodoItem>) : ServerEvent
     data class Task(val id: String, val content: String?, val status: String?) : ServerEvent
     data class Result(val sessionId: String?) : ServerEvent

@@ -305,6 +305,17 @@ def _parse_ask_answers(content: object) -> dict[str, str]:
     return dict(_ASK_ANSWERS_RE.findall(text))
 
 
+def _compact_summary_text(entry: dict) -> str:
+    """The recap text from an isCompactSummary user entry (string or text blocks)."""
+    content = entry.get("message", {}).get("content")
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = [b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"]
+        return "\n".join(p for p in parts if p).strip()
+    return ""
+
+
 def get_session_messages(project_key: str, session_id: str) -> list[dict]:
     file = _session_file(project_key, session_id)
     if not file.is_file():
@@ -322,16 +333,42 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                 tuid = block.get("tool_use_id")
                 if isinstance(tuid, str):
                     tool_result_by_id[tuid] = block.get("content")
+    # Everything before the last compaction boundary is replaced by its summary.
+    last_boundary = max(
+        (i for i, e in enumerate(entries)
+         if e.get("type") == "system" and e.get("subtype") == "compact_boundary"),
+        default=-1,
+    )
     messages: list[dict] = []
     hidden_ids: set[str] = set()
-    for entry in entries:
+    compact_block: dict | None = None
+    for i, entry in enumerate(entries):
         etype = entry.get("type")
+        if etype == "system" and entry.get("subtype") == "compact_boundary":
+            if i != last_boundary:
+                continue  # an earlier compaction, part of the truncated-away history
+            meta = entry.get("compactMetadata") or {}
+            compact_block = {
+                "type": "compact",
+                "trigger": meta.get("trigger"),
+                "pre_tokens": meta.get("preTokens"),
+                "post_tokens": meta.get("postTokens"),
+                "summary": "",
+            }
+            messages.append(compact_block)
+            continue
+        if entry.get("isCompactSummary"):
+            if compact_block is not None and i > last_boundary:
+                compact_block["summary"] = _compact_summary_text(entry)
+            continue
         if etype == "summary":
             text = entry.get("summary", "").strip()
             if text:
                 messages.append({"type": "summary", "text": text})
             continue
         if entry.get("isMeta") or entry.get("isSidechain"):
+            continue
+        if i < last_boundary:
             continue
         message = entry.get("message", {})
         if message.get("stop_reason") == "stop_sequence":

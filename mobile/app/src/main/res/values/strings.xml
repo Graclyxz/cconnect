@@ -95,6 +95,9 @@
     <string name="thinking">Thinking</string>
     <string name="result">Result</string>
     <string name="summary">Summary</string>
+    <string name="compact_title">Conversation compacted</string>
+    <string name="compact_auto">Auto</string>
+    <string name="compact_manual">Manual</string>
     <string name="permission_title">Permission</string>
     <string name="permission_allow">Allow</string>
     <string name="permission_allow_always">Allow always</string>

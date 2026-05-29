@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.jahirtrap.cconnect.R
+import com.composables.icons.lucide.Archive
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.CircleQuestionMark
@@ -56,6 +57,7 @@ import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.PlayFilled
 import com.jahirtrap.cconnect.data.ChatMessage
+import com.jahirtrap.cconnect.data.CompactData
 import com.jahirtrap.cconnect.data.DiffKind
 import com.jahirtrap.cconnect.data.DiffLine
 import com.jahirtrap.cconnect.data.InteractionData
@@ -105,6 +107,8 @@ fun ChatMessageItem(
 
             Role.FILE_CHANGE -> FileChangeBlock(path = message.path.orEmpty(), diffLines = message.diffLines.orEmpty())
 
+            Role.COMPACT -> message.compact?.let { CompactBlock(it) }
+
             Role.ERROR -> Band(MaterialTheme.colorScheme.errorContainer) {
                 SelectionContainer {
                     Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
@@ -121,7 +125,7 @@ fun ChatMessageItem(
 }
 
 private fun group(role: Role?): Int = when (role) {
-    Role.THINKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION, Role.FILE_CHANGE -> 0
+    Role.THINKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION, Role.FILE_CHANGE, Role.COMPACT -> 0
     Role.ASSISTANT -> 1
     Role.USER, Role.ERROR -> 2
     else -> 3
@@ -326,6 +330,51 @@ private fun FileChangeBlock(path: String, diffLines: List<DiffLine>) {
             }
         }
     }
+}
+
+@Composable
+private fun CompactBlock(data: CompactData) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    val hasSummary = data.summary.isNotBlank()
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable(enabled = hasSummary) { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Lucide.Archive, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.size(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(stringResource(R.string.compact_title), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+                compactSubtitle(data)?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            if (hasSummary) {
+                Icon(if (expanded) Lucide.ChevronDown else Lucide.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+            }
+        }
+        if (expanded && hasSummary) {
+            MarkdownText(data.summary, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+        }
+    }
+}
+
+@Composable
+private fun compactSubtitle(data: CompactData): String? {
+    val trigger = when (data.trigger) {
+        "manual" -> stringResource(R.string.compact_manual)
+        "auto" -> stringResource(R.string.compact_auto)
+        else -> null
+    }
+    val tokens = if (data.preTokens != null && data.postTokens != null)
+        "${fmtTokens(data.preTokens)} → ${fmtTokens(data.postTokens)}" else null
+    return listOfNotNull(trigger, tokens).joinToString(" • ").ifBlank { null }
+}
+
+private fun fmtTokens(n: Int): String = when {
+    n >= 1_000_000 -> "${n / 1_000_000}M"
+    n >= 1_000 -> "${n / 1_000}k"
+    else -> n.toString()
 }
 
 @Composable

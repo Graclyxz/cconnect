@@ -377,11 +377,19 @@ async def run_prompt(
                 for event in _task_events_from_result(getattr(message, "tool_use_result", None)):
                     yield event
             elif isinstance(message, SystemMessage):
-                yield {
-                    "type": "system",
-                    "subtype": getattr(message, "subtype", None),
-                    "data": getattr(message, "data", None),
-                }
+                subtype = getattr(message, "subtype", None)
+                data = getattr(message, "data", None)
+                if subtype == "compact_boundary":
+                    meta = (data or {}).get("compactMetadata", {}) if isinstance(data, dict) else {}
+                    yield {
+                        "type": "compact",
+                        "trigger": meta.get("trigger"),
+                        "pre_tokens": meta.get("preTokens"),
+                        "post_tokens": meta.get("postTokens"),
+                        "summary": "",
+                    }
+                else:
+                    yield {"type": "system", "subtype": subtype, "data": data}
             elif isinstance(message, ResultMessage):
                 yield {
                     "type": "result",

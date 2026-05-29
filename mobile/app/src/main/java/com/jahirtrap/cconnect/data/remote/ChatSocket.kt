@@ -16,6 +16,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -186,6 +187,12 @@ class ChatSocket(private val scope: CoroutineScope) {
                         text = o["text"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                     )
                 } ?: emptyList(),
+            )
+            "compact" -> ServerEvent.Compact(
+                trigger = str("trigger"),
+                preTokens = obj["pre_tokens"]?.jsonPrimitive?.intOrNull,
+                postTokens = obj["post_tokens"]?.jsonPrimitive?.intOrNull,
+                summary = str("summary").orEmpty(),
             )
             "todos" -> ServerEvent.Todos(
                 obj["items"]?.jsonArray?.map { el ->

@@ -1,5 +1,6 @@
 package com.jahirtrap.cconnect.data.remote
 
+import com.jahirtrap.cconnect.data.CompactData
 import com.jahirtrap.cconnect.data.DiffLine
 import com.jahirtrap.cconnect.data.InteractionData
 import com.jahirtrap.cconnect.data.InteractionOption
@@ -80,7 +81,7 @@ object SessionsApi {
         val o = el.jsonObject
         val type = o["type"]?.jsonPrimitive?.contentOrNull
         val text = when (type) {
-            "file_change", "interaction" -> ""
+            "file_change", "interaction", "compact" -> ""
             else -> o["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
         }
         val interaction = if (type == "interaction") parseInteraction(o) else null
@@ -93,6 +94,12 @@ object SessionsApi {
                 )
             }
         } else null
+        val compact = if (type == "compact") CompactData(
+            trigger = o["trigger"]?.jsonPrimitive?.contentOrNull,
+            preTokens = o["pre_tokens"]?.jsonPrimitive?.intOrNull,
+            postTokens = o["post_tokens"]?.jsonPrimitive?.intOrNull,
+            summary = o["summary"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+        ) else null
         return SessionMessage(
             type = type,
             role = o["role"]?.jsonPrimitive?.contentOrNull,
@@ -101,6 +108,7 @@ object SessionsApi {
             path = o["path"]?.jsonPrimitive?.contentOrNull,
             interaction = interaction,
             diffLines = diffLines,
+            compact = compact,
             index = o["index"]?.jsonPrimitive?.intOrNull ?: -1,
         )
     }

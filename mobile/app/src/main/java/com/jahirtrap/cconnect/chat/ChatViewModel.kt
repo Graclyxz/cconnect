@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.ChatMessage
 import com.jahirtrap.cconnect.data.ConnectionProfile
+import com.jahirtrap.cconnect.data.CompactData
 import com.jahirtrap.cconnect.data.DiffLine
 import com.jahirtrap.cconnect.data.InteractionData
 import com.jahirtrap.cconnect.data.ProjectInfo
@@ -244,9 +245,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val projectKey = session.projectKey ?: return
         viewModelScope.launch {
             val page = SessionsApi.sessionMessages(session.sessionId, projectKey, limit = 100)
-            val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() }
+            val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null }
             val loaded = visible.mapIndexed { i, m ->
-                ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, sourceIndex = m.index)
+                ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index)
             }
             nextId = loaded.size.toLong()
             currentAssistantId = null
@@ -336,6 +337,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         "tool_result" -> Role.TOOL_RESULT
         "file_change" -> Role.FILE_CHANGE
         "interaction" -> Role.INTERACTION
+        "compact" -> Role.COMPACT
         "summary" -> Role.SUMMARY
         else -> Role.SYSTEM
     }
@@ -369,6 +371,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 currentAssistantId = null
                 currentThinkingId = null
                 addMessage(Role.FILE_CHANGE, text = "", toolUseId = event.id, path = event.path, diffLines = event.diffLines)
+            }
+            is ServerEvent.Compact -> {
+                currentAssistantId = null
+                currentThinkingId = null
+                addMessage(Role.COMPACT, text = "", compact = CompactData(event.trigger, event.preTokens, event.postTokens, event.summary))
             }
             is ServerEvent.Todos -> _state.update { it.copy(todos = event.items) }
             is ServerEvent.Task -> upsertTask(event)
@@ -413,10 +420,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val older = event.items
-            .filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() }
+            .filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null }
         _state.update { st ->
             val prepended = older.mapIndexed { i, m ->
-                ChatMessage(nextId + i, m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, sourceIndex = m.index)
+                ChatMessage(nextId + i, m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index)
             }
             nextId += prepended.size
             st.copy(
@@ -478,9 +485,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         interaction: InteractionData? = null,
         path: String? = null,
         diffLines: List<DiffLine>? = null,
+        compact: CompactData? = null,
     ) {
         _state.update {
-            applyTailCap(it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines)))
+            applyTailCap(it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines, compact)))
         }
     }
 

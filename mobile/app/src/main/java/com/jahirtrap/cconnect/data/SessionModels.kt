@@ -26,6 +26,7 @@ data class SessionMessage(
     val path: String? = null,
     val interaction: InteractionData? = null,
     val diffLines: List<DiffLine>? = null,
+    val compact: CompactData? = null,
     val index: Int = -1,
 )
 
