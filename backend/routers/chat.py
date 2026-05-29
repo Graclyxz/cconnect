@@ -161,6 +161,10 @@ async def chat_ws(ws: WebSocket):
                     "session_id": state.session_id,
                     "project": sessions_service.project_key_for(state.cwd or ""),
                 })
+                # Restore the task indicator on resume.
+                if state.session_id:
+                    for t in sessions_service.session_tasks(state.session_id):
+                        await send({"type": "task", **t})
 
             elif mtype == "prompt":
                 if task and not task.done():

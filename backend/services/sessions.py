@@ -334,6 +334,30 @@ def compact_boundary_count(cwd: str, session_id: str) -> int:
     )
 
 
+def session_tasks(session_id: str) -> list[dict]:
+    """Current task state Claude persists per session at ~/.claude/tasks/<id>/<n>.json.
+    A resumed chat reads this to restore the task indicator (the SDK doesn't re-stream it)."""
+    if not _SESSION_RE.match(session_id or ""):
+        return []
+    directory = _base().parent / "tasks" / session_id
+    if not directory.is_dir():
+        return []
+    files = sorted(directory.glob("*.json"), key=lambda p: int(p.stem) if p.stem.isdigit() else 0)
+    tasks: list[dict] = []
+    for file in files:
+        try:
+            data = json.loads(file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(data, dict) and data.get("id"):
+            tasks.append({
+                "id": str(data["id"]),
+                "content": data.get("subject", ""),
+                "status": data.get("status", "pending"),
+            })
+    return tasks
+
+
 def latest_compact(cwd: str, session_id: str) -> Optional[dict]:
     """The most recent compaction's metadata + summary from the transcript. Live compaction
     omits the token counts and summary, so the client finalizes the block after the turn to
