@@ -32,6 +32,9 @@ import kotlinx.coroutines.launch
 
 enum class ConnectionState { Disconnected, Connecting, Connected }
 
+private const val MESSAGE_TAIL_CAP = 500
+private const val MESSAGE_INITIAL_CAP = 100
+
 data class ChatUiState(
     val connection: ConnectionState = ConnectionState.Disconnected,
     val messages: List<ChatMessage> = emptyList(),
@@ -51,6 +54,10 @@ data class ChatUiState(
     val historyLoading: Boolean = false,
     val connections: List<ConnectionProfile> = emptyList(),
     val activeConnectionId: String? = null,
+    val oldestLoadedIndex: Int? = null,
+    val transcriptLoading: Boolean = false,
+    val transcriptExhausted: Boolean = false,
+    val followBottom: Boolean = true,
 )
 
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
@@ -127,7 +134,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         addMessage(Role.USER, trimmed)
         currentAssistantId = null
         currentThinkingId = null
-        _state.update { it.copy(streaming = true, error = null, todos = emptyList()) }
+        _state.update { resetToInitialWindow(it).copy(streaming = true, error = null, todos = emptyList()) }
         ConnectionService.start(appContext)
         client.sendPrompt(trimmed)
     }
@@ -160,7 +167,18 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun newSession() {
         currentAssistantId = null
         currentThinkingId = null
-        _state.update { it.copy(messages = emptyList(), sessionId = null, sessionColor = null, todos = emptyList(), streaming = false) }
+        _state.update {
+            it.copy(
+                messages = emptyList(),
+                sessionId = null,
+                sessionColor = null,
+                todos = emptyList(),
+                streaming = false,
+                oldestLoadedIndex = null,
+                transcriptLoading = false,
+                transcriptExhausted = false,
+            )
+        }
         startSession(resume = null)
     }
 
@@ -191,6 +209,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 historyProjects = emptyList(),
                 historySessions = emptyList(),
                 historyProjectKey = null,
+                oldestLoadedIndex = null,
+                transcriptLoading = false,
+                transcriptExhausted = false,
             )
         }
         connect()
@@ -224,16 +245,39 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun openSession(session: SessionInfo) {
         val projectKey = session.projectKey ?: return
         viewModelScope.launch {
-            val loaded = SessionsApi.sessionMessages(session.sessionId, projectKey)
-                .filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() }
-                .mapIndexed { index, m -> ChatMessage(index.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines) }
+            val page = SessionsApi.sessionMessages(session.sessionId, projectKey, limit = 100)
+            val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() }
+            val loaded = visible.mapIndexed { i, m ->
+                ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, sourceIndex = m.index)
+            }
             nextId = loaded.size.toLong()
             currentAssistantId = null
             currentThinkingId = null
             session.path?.let { settings.cwd = it }
-            _state.update { it.copy(messages = loaded, sessionId = session.sessionId, sessionColor = session.color, todos = emptyList(), streaming = false) }
+            _state.update {
+                it.copy(
+                    messages = loaded,
+                    sessionId = session.sessionId,
+                    sessionColor = session.color,
+                    todos = emptyList(),
+                    streaming = false,
+                    oldestLoadedIndex = page.startIndex.takeIf { page.items.isNotEmpty() },
+                    transcriptLoading = false,
+                    transcriptExhausted = !page.hasMore,
+                )
+            }
             startSession(resume = session.sessionId)
         }
+    }
+
+    fun loadMoreHistory() {
+        val s = _state.value
+        val sid = s.sessionId ?: return
+        val before = s.oldestLoadedIndex ?: return
+        if (s.transcriptLoading || s.transcriptExhausted) return
+        val proj = s.historySessions.firstOrNull { it.sessionId == sid }?.projectKey ?: return
+        _state.update { it.copy(transcriptLoading = true) }
+        client.sendLoadHistory(sid, proj, beforeIndex = before)
     }
 
     fun deleteSession(session: SessionInfo) {
@@ -361,6 +405,28 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     it.copy(connection = ConnectionState.Disconnected, streaming = false, error = event.reason)
                 }
             }
+            is ServerEvent.HistoryChunk -> onHistoryChunk(event)
+        }
+    }
+
+    private fun onHistoryChunk(event: ServerEvent.HistoryChunk) {
+        if (event.sessionId != _state.value.sessionId) {
+            _state.update { it.copy(transcriptLoading = false) }
+            return
+        }
+        val older = event.items
+            .filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() }
+        _state.update { st ->
+            val prepended = older.mapIndexed { i, m ->
+                ChatMessage(nextId + i, m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, sourceIndex = m.index)
+            }
+            nextId += prepended.size
+            st.copy(
+                messages = prepended + st.messages,
+                oldestLoadedIndex = event.startIndex,
+                transcriptLoading = false,
+                transcriptExhausted = !event.hasMore,
+            )
         }
     }
 
@@ -392,11 +458,16 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private fun append(currentId: Long?, role: Role, delta: String): Long {
         if (currentId == null) {
             val newId = nextId++
-            _state.update { it.copy(messages = it.messages + ChatMessage(newId, role, delta)) }
+            _state.update { applyTailCap(it.copy(messages = it.messages + ChatMessage(newId, role, delta))) }
             return newId
         }
-        _state.update {
-            it.copy(messages = it.messages.map { m -> if (m.id == currentId) m.copy(text = m.text + delta) else m })
+        // .map allocates a fresh ChatMessage per item every chunk; replace just the slot.
+        _state.update { st ->
+            val idx = st.messages.indexOfLast { it.id == currentId }
+            if (idx < 0) return@update st
+            val updated = st.messages.toMutableList()
+            updated[idx] = updated[idx].copy(text = updated[idx].text + delta)
+            st.copy(messages = updated)
         }
         return currentId
     }
@@ -410,7 +481,30 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         path: String? = null,
         diffLines: List<DiffLine>? = null,
     ) {
-        _state.update { it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines)) }
+        _state.update {
+            applyTailCap(it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines)))
+        }
+    }
+
+    private fun applyTailCap(st: ChatUiState): ChatUiState = capFromTail(st, MESSAGE_TAIL_CAP)
+
+    private fun resetToInitialWindow(st: ChatUiState): ChatUiState = capFromTail(st, MESSAGE_INITIAL_CAP)
+
+    private fun capFromTail(st: ChatUiState, cap: Int): ChatUiState {
+        if (!st.followBottom || st.messages.size <= cap) return st
+        val drop = st.messages.size - cap
+        val kept = st.messages.subList(drop, st.messages.size).toList()
+        val newCursor = kept.firstOrNull { it.sourceIndex >= 0 }?.sourceIndex ?: st.oldestLoadedIndex
+        return st.copy(
+            messages = kept,
+            oldestLoadedIndex = newCursor,
+            transcriptExhausted = false,
+        )
+    }
+
+    fun setFollowBottom(value: Boolean) {
+        if (_state.value.followBottom == value) return
+        _state.update { it.copy(followBottom = value) }
     }
 
     fun answerInteraction(requestId: String, optionId: String, freeText: String?) {

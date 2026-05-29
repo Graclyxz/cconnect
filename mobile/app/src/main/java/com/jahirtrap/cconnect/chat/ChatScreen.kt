@@ -208,7 +208,12 @@ fun ChatScreen(
             if (!scrolling) followBottom = isAtBottom
         }
     }
-    LaunchedEffect(state.messages.size, state.messages.lastOrNull()?.text) {
+    LaunchedEffect(followBottom) { vm.setFollowBottom(followBottom) }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemIndex }
+            .collect { idx -> if (idx < 10) vm.loadMoreHistory() }
+    }
+    LaunchedEffect(state.messages.lastOrNull()?.id, state.messages.lastOrNull()?.text) {
         if (state.messages.isNotEmpty() && followBottom) {
             listState.animateScrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
         }

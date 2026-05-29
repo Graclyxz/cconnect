@@ -30,7 +30,7 @@ OAuth), never an API key. The app reaches it either over the local tailnet
 
 ```
 backend/
-├── main.py                  # FastAPI app; lifespan ensures auth + SDK; router auto-discovery; catch-all 404
+├── main.py                  # FastAPI app; lifespan ensures auth + SDK; router auto-discovery; catch-all 404; GZipMiddleware(minimum_size=512)
 ├── run.py                   # Uvicorn launcher; --expose tailscale brings up Funnel + token + QR
 ├── pyproject.toml
 ├── Dockerfile
@@ -38,7 +38,7 @@ backend/
 ├── core/
 │   ├── config.py            # PORT (8723), CLAUDE_PROJECTS_DIR, SHARED_DIR, AUTO_UPDATE_SDK, PUBLIC_ACCESS_TOKEN
 │   ├── sdk.py               # Subscription auth + SDK install/upgrade + status
-│   ├── responses.py         # api_response() — THE response envelope
+│   ├── responses.py         # api_response() + paginated_response() — THE response envelope
 │   └── rate_limit.py        # slowapi limiter (configured, not globally enforced)
 ├── middleware/
 │   ├── public_auth.py       # Bearer-token gate; no-op when PUBLIC_ACCESS_TOKEN is None
@@ -96,7 +96,7 @@ Every REST endpoint returns `core.responses.api_response()` —
 | GET | `/api/capabilities` | Permission modes, effort levels, models, colors |
 | GET | `/api/projects` | Claude Code projects under `~/.claude/projects` |
 | GET | `/api/sessions?project=<key>` | Sessions in a project (or all when omitted) |
-| GET | `/api/sessions/{id}/messages?project=<key>` | Session transcript (see below) |
+| GET | `/api/sessions/{id}/messages?project=<key>&page=N&per_page=100` | Paginated transcript via `paginated_response`. `page=1` = most recent slice so the client can render before knowing `total_pages`. |
 | POST | `/api/sessions/{id}/rename` | Set a custom title |
 | POST | `/api/sessions/{id}/color` | Set the session color |
 | POST | `/api/sessions/{id}/auto-rename` | Ask the SDK to generate a title |
@@ -113,6 +113,7 @@ Client → server (JSON):
 - `{"type":"set_permission_mode","mode":"..."}`
 - `{"type":"interrupt"}`
 - `{"type":"interaction_response","id":"...","option_id":"...","free_text":"..."}`
+- `{"type":"load_history","session_id":"...","project":"...","page":N,"per_page":100}` — pull older transcript slices in background. `page=2` follows the initial HTTP `page=1` fetch.
 
 Server → client (JSON):
 
@@ -128,6 +129,7 @@ Server → client (JSON):
   tool_use_id) — for `AskUserQuestion` and per-tool permission prompts. Paired
   by id with the client's `interaction_response`.
 - `system`, `result` (carries `session_id`), `done`, `interrupted`, `error`.
+- `history_chunk` (session_id, page, items, has_more) — push response to `load_history`. Each `item` matches the resume transcript shape. When `has_more=false` the client stops requesting.
 
 `permission_mode` ∈
 `default | acceptEdits | plan | dontAsk | bypassPermissions | auto`.

@@ -136,6 +136,16 @@ class ChatSocket(private val scope: CoroutineScope) {
         send(buildJsonObject { put("type", "interrupt") })
     }
 
+    fun sendLoadHistory(sessionId: String, project: String, beforeIndex: Int, limit: Int = 100) {
+        send(buildJsonObject {
+            put("type", "load_history")
+            put("session_id", sessionId)
+            put("project", project)
+            put("before_index", beforeIndex)
+            put("limit", limit)
+        })
+    }
+
     fun sendInteractionResponse(requestId: String, optionId: String, freeText: String?) {
         send(buildJsonObject {
             put("type", "interaction_response")
@@ -195,6 +205,12 @@ class ChatSocket(private val scope: CoroutineScope) {
                 obj["message"]?.jsonPrimitive?.contentOrNull
                     ?: obj["message"]?.toString()
                     ?: "error"
+            )
+            "history_chunk" -> ServerEvent.HistoryChunk(
+                sessionId = str("session_id").orEmpty(),
+                startIndex = obj["start_index"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0,
+                items = obj["items"]?.jsonArray?.map { SessionsApi.parseSessionMessage(it) } ?: emptyList(),
+                hasMore = obj["has_more"]?.jsonPrimitive?.contentOrNull == "true",
             )
             "interaction_request" -> ServerEvent.InteractionRequest(
                 requestId = str("id").orEmpty(),

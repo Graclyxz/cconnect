@@ -26,6 +26,7 @@ data class SessionMessage(
     val path: String? = null,
     val interaction: InteractionData? = null,
     val diffLines: List<DiffLine>? = null,
+    val index: Int = -1,
 )
 
 data class SharedEntry(

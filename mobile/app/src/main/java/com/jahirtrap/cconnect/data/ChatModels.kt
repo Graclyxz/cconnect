@@ -11,6 +11,7 @@ data class ChatMessage(
     val interaction: InteractionData? = null,
     val path: String? = null,
     val diffLines: List<DiffLine>? = null,
+    val sourceIndex: Int = -1,
 )
 
 enum class DiffKind { HEADER, HUNK, ADD, DEL, CTX }
@@ -76,6 +77,12 @@ sealed interface ServerEvent {
     data object Interrupted : ServerEvent
     data class Err(val message: String) : ServerEvent
     data class Closed(val reason: String) : ServerEvent
+    data class HistoryChunk(
+        val sessionId: String,
+        val startIndex: Int,
+        val items: List<SessionMessage>,
+        val hasMore: Boolean,
+    ) : ServerEvent
     data class InteractionRequest(
         val requestId: String,
         val kind: String,

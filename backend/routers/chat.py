@@ -186,6 +186,34 @@ async def chat_ws(ws: WebSocket):
                         "free_text": raw.get("free_text"),
                     })
 
+            elif mtype == "load_history":
+                project = raw.get("project") or state.cwd
+                sid = raw.get("session_id")
+                limit = raw.get("limit") or 200
+                before_index = raw.get("before_index")
+                if not isinstance(sid, str) or not isinstance(limit, int):
+                    await send({"type": "error", "message": "invalid load_history payload"})
+                    continue
+                if limit < 1 or limit > 500:
+                    await send({"type": "error", "message": "invalid limit"})
+                    continue
+                try:
+                    items = sessions_service.get_session_messages(project, sid)
+                except ValueError as exc:
+                    await send({"type": "error", "message": str(exc)})
+                    continue
+                total = len(items)
+                end = total if before_index is None else max(0, min(before_index, total))
+                start = max(0, end - limit)
+                slice_ = [dict(item, index=i) for i, item in enumerate(items[start:end], start=start)]
+                await send({
+                    "type": "history_chunk",
+                    "session_id": sid,
+                    "items": slice_,
+                    "start_index": start,
+                    "has_more": start > 0,
+                })
+
             else:
                 await send({"type": "error", "message": f"unknown message type: {mtype}"})
 

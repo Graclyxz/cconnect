@@ -6,6 +6,7 @@ import pkgutil
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from slowapi.errors import RateLimitExceeded
 
 from core.rate_limit import limiter
@@ -43,6 +44,7 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded):
 
 app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 
+app.add_middleware(GZipMiddleware, minimum_size=512)
 register_security_middleware(app)
 register_public_auth_middleware(app)
 register_error_handlers(app)

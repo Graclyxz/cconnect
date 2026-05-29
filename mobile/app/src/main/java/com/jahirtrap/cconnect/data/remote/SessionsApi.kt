@@ -52,34 +52,58 @@ object SessionsApi {
             )
         } ?: emptyList()
 
-    suspend fun sessionMessages(sessionId: String, project: String): List<SessionMessage> =
-        Http.get("/sessions/$sessionId/messages", mapOf("project" to project))?.jsonArray?.map { el ->
-            val o = el.jsonObject
-            val type = o["type"]?.jsonPrimitive?.contentOrNull
-            val text = when (type) {
-                "file_change", "interaction" -> ""
-                else -> o["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
+    data class MessagesPage(
+        val items: List<SessionMessage>,
+        val startIndex: Int,
+        val hasMore: Boolean,
+    )
+
+    suspend fun sessionMessages(
+        sessionId: String,
+        project: String,
+        limit: Int = 200,
+        beforeIndex: Int? = null,
+    ): MessagesPage {
+        val query = mutableMapOf("project" to project, "limit" to limit.toString())
+        if (beforeIndex != null) query["before_index"] = beforeIndex.toString()
+        val data = Http.get("/sessions/$sessionId/messages", query)?.jsonObject
+            ?: return MessagesPage(emptyList(), startIndex = 0, hasMore = false)
+        val items = data["items"]?.jsonArray?.map(::parseSessionMessage) ?: emptyList()
+        return MessagesPage(
+            items = items,
+            startIndex = data["start_index"]?.jsonPrimitive?.intOrNull ?: 0,
+            hasMore = data["has_more"]?.jsonPrimitive?.contentOrNull == "true",
+        )
+    }
+
+    fun parseSessionMessage(el: JsonElement): SessionMessage {
+        val o = el.jsonObject
+        val type = o["type"]?.jsonPrimitive?.contentOrNull
+        val text = when (type) {
+            "file_change", "interaction" -> ""
+            else -> o["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
+        }
+        val interaction = if (type == "interaction") parseInteraction(o) else null
+        val diffLines = if (type == "file_change") {
+            o["diff_lines"]?.jsonArray?.map { d ->
+                val od = d.jsonObject
+                DiffLine(
+                    kind = diffKindOf(od["kind"]?.jsonPrimitive?.contentOrNull),
+                    text = od["text"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                )
             }
-            val interaction = if (type == "interaction") parseInteraction(o) else null
-            val diffLines = if (type == "file_change") {
-                o["diff_lines"]?.jsonArray?.map { d ->
-                    val od = d.jsonObject
-                    DiffLine(
-                        kind = diffKindOf(od["kind"]?.jsonPrimitive?.contentOrNull),
-                        text = od["text"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                    )
-                }
-            } else null
-            SessionMessage(
-                type = type,
-                role = o["role"]?.jsonPrimitive?.contentOrNull,
-                text = text,
-                name = o["name"]?.jsonPrimitive?.contentOrNull ?: o["tool_name"]?.jsonPrimitive?.contentOrNull,
-                path = o["path"]?.jsonPrimitive?.contentOrNull,
-                interaction = interaction,
-                diffLines = diffLines,
-            )
-        } ?: emptyList()
+        } else null
+        return SessionMessage(
+            type = type,
+            role = o["role"]?.jsonPrimitive?.contentOrNull,
+            text = text,
+            name = o["name"]?.jsonPrimitive?.contentOrNull ?: o["tool_name"]?.jsonPrimitive?.contentOrNull,
+            path = o["path"]?.jsonPrimitive?.contentOrNull,
+            interaction = interaction,
+            diffLines = diffLines,
+            index = o["index"]?.jsonPrimitive?.intOrNull ?: -1,
+        )
+    }
 
     private fun parseInteraction(o: kotlinx.serialization.json.JsonObject): InteractionData {
         val opts = o["options"]?.jsonArray?.mapNotNull { el ->

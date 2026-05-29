@@ -338,11 +338,19 @@ async def run_prompt(
     prompt_arg = _prompt_stream() if ask_user is not None else prompt
 
     hidden_tool_ids: set[str] = set()
+    first_chunk_pending: set[int] = set()
 
     try:
         async for message in query(prompt=prompt_arg, options=options):
             if isinstance(message, StreamEvent):
-                for event in _stream_event_to_events(message.event):
+                raw = message.event
+                idx = raw.get("index") if isinstance(raw, dict) else None
+                if isinstance(raw, dict) and raw.get("type") == "content_block_start" and isinstance(idx, int):
+                    first_chunk_pending.add(idx)
+                for event in _stream_event_to_events(raw):
+                    if isinstance(idx, int) and idx in first_chunk_pending and event.get("text"):
+                        event["text"] = event["text"].lstrip()
+                        first_chunk_pending.discard(idx)
                     yield event
             elif isinstance(message, AssistantMessage):
                 for event in _blocks_to_events(message.content, skip_streamed=partial, hidden_tool_ids=hidden_tool_ids):

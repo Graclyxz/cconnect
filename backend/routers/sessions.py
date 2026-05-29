@@ -91,8 +91,25 @@ def get_sessions(project: Optional[str] = None):
 
 
 @router.get("/sessions/{session_id}/messages")
-def get_session_messages(session_id: str, project: str):
+def get_session_messages(
+    session_id: str,
+    project: str,
+    limit: int = 200,
+    before_index: int | None = None,
+):
+    if limit < 1 or limit > 500:
+        raise HTTPException(status_code=400, detail="invalid limit")
     try:
-        return api_response(data=sessions_service.get_session_messages(project, session_id))
+        items = sessions_service.get_session_messages(project, session_id)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    total = len(items)
+    end = total if before_index is None else max(0, min(before_index, total))
+    start = max(0, end - limit)
+    slice_ = [dict(item, index=i) for i, item in enumerate(items[start:end], start=start)]
+    return api_response(data={
+        "items": slice_,
+        "total": total,
+        "start_index": start,
+        "has_more": start > 0,
+    })

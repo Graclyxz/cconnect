@@ -110,10 +110,26 @@ the settings list, the chat topbar, and the active-connection summary.
 | `task` | updates the task progress UI |
 | `result` | stores the new `sessionId` |
 | `done` / `interrupted` / `error` | UI transitions |
+| `history_chunk` | older messages from the WS backfill — prepended to `state.messages`. Chunks for a non-active `sessionId` are dropped. Next page is requested while `has_more=true`. |
+
+## Resume with progressive backfill
+
+Opening a session pulls the latest 100 messages via REST
+(`SessionsApi.sessionMessages(page=1, perPage=100)` — paginated envelope from
+the backend). Render starts immediately; the rest of the transcript is then
+pushed in background by the WS: the client emits `load_history page=N`, the
+server replies with `history_chunk` items that `onHistoryChunk` prepends to the
+list while keeping `LazyColumn` scroll position. There is no explicit cancel —
+chunks whose `session_id` no longer matches `state.sessionId` are ignored, which
+makes "user switched session" handling free.
 
 ## Markdown rendering (`ui/MarkdownText.kt`)
 
 - CommonMark + GFM (tables, strikethrough, task lists, footnotes, autolink, ins).
+- `parser.parse()` runs on `Dispatchers.Default` via `produceState`, gated by a
+  process-wide `LruCache<String, Node>` bound to 300 entries. The cache hit path
+  is sync (no recomposition flicker); the first sighting of a markdown payload
+  suspends the parse so big resumes don't ANR the main thread.
 - `SelectionContainer` wraps the column so any block is selectable via long-press.
 - Inline code uses `addStringAnnotation(INLINE_CODE_TAG, ...)` instead of
   `SpanStyle.background`; `MdText` then reads the `TextLayoutResult` in
