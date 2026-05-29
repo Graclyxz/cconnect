@@ -247,7 +247,9 @@ async def run_prompt(
         HookMatcher,
     )
 
-    effort_level = None if effort in (None, "", "default") else effort
+    # ultracode maps to xhigh + the `ultracode` session setting (passed via --settings).
+    ultracode = effort == "ultracode"
+    effort_level = "xhigh" if ultracode else (None if effort in (None, "", "default") else effort)
     extra_args = {"name": name} if name else {}
 
     system_prompt: dict = {"type": "preset", "preset": "claude_code"}
@@ -328,6 +330,8 @@ async def run_prompt(
         extra_args=extra_args,
         mcp_servers={"cconnect": build_cconnect_server()},
     )
+    if ultracode:
+        options_kwargs["settings"] = json.dumps({"ultracode": True})
     if ask_user is not None:
         options_kwargs["can_use_tool"] = _can_use_tool
         options_kwargs["hooks"] = {"PreToolUse": [HookMatcher(matcher=None, hooks=[_keep_stream_open])]}

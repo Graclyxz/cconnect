@@ -34,6 +34,9 @@ _FALLBACK_EFFORT_LEVELS = ("low", "medium", "high", "xhigh", "max")
 DEFAULT_PERMISSION_MODE = os.environ.get("DEFAULT_PERMISSION_MODE", "bypassPermissions")
 DEFAULT_EFFORT = os.environ.get("DEFAULT_EFFORT", "xhigh")
 
+# Pseudo-level surfaced in capabilities; run_prompt expands it to xhigh + the ultracode setting.
+ULTRACODE_EFFORT = "ultracode"
+
 # Curated model list (the SDK does not enumerate models). Ids are CLI aliases
 # that always resolve to the latest matching model; "default" lets the CLI pick.
 MODELS = [
