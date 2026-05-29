@@ -80,6 +80,7 @@ import com.jahirtrap.cconnect.ui.DialogActionItem
 import com.jahirtrap.cconnect.ui.DialogSelectItem
 import com.jahirtrap.cconnect.ui.SecretTextField
 import com.jahirtrap.cconnect.ui.SelectDialog
+import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.SelectField
 import com.jahirtrap.cconnect.ui.languageLabel
 import com.jahirtrap.cconnect.ui.themeIcon
@@ -139,8 +140,8 @@ fun SettingsScreen(
                 ),
                 title = { Text(stringResource(R.string.settings)) },
                 navigationIcon = {
-                    IconButton(onClick = onClose) {
-                        Icon(Lucide.ArrowLeft, contentDescription = stringResource(R.string.back))
+                    TooltipIconButton(label = stringResource(R.string.back), onClick = onClose) {
+                        Icon(Lucide.ArrowLeft, contentDescription = null)
                     }
                 },
             )

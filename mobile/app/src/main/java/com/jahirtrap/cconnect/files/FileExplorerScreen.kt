@@ -66,6 +66,7 @@ import com.jahirtrap.cconnect.data.SharedEntry
 import com.jahirtrap.cconnect.data.remote.SharedApi
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.ConfirmDialog
+import com.jahirtrap.cconnect.ui.TooltipIconButton
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -125,14 +126,14 @@ fun FileExplorerScreen(onClose: () -> Unit) {
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = ::goUp) {
-                        Icon(Lucide.ArrowLeft, contentDescription = stringResource(R.string.back))
+                    TooltipIconButton(label = stringResource(R.string.back), onClick = ::goUp) {
+                        Icon(Lucide.ArrowLeft, contentDescription = null)
                     }
                 },
                 actions = {
                     Box {
-                        IconButton(onClick = { envMenu = true }) {
-                            Icon(Lucide.Server, contentDescription = stringResource(R.string.environment))
+                        TooltipIconButton(label = stringResource(R.string.environment), onClick = { envMenu = true }) {
+                            Icon(Lucide.Server, contentDescription = null)
                         }
                         DropdownMenu(expanded = envMenu, onDismissRequest = { envMenu = false }) {
                             state.connections.forEach { c ->

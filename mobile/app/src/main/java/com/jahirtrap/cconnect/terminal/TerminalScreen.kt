@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,9 +20,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -77,6 +79,7 @@ import com.jahirtrap.cconnect.data.SshStore
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.SecretTextField
+import com.jahirtrap.cconnect.ui.TooltipIconButton
 import org.connectbot.terminal.Terminal as TermlibTerminal
 import org.connectbot.terminal.TerminalEmulator
 import org.connectbot.terminal.TerminalEmulatorFactory
@@ -121,13 +124,13 @@ fun TerminalScreen(onClose: () -> Unit) {
                 ),
                 title = { Text(stringResource(R.string.ssh_hosts), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
-                    IconButton(onClick = onClose) {
-                        Icon(Lucide.ArrowLeft, contentDescription = stringResource(R.string.back))
+                    TooltipIconButton(label = stringResource(R.string.back), onClick = onClose) {
+                        Icon(Lucide.ArrowLeft, contentDescription = null)
                     }
                 },
                 actions = {
-                    IconButton(onClick = { adding = true }) {
-                        Icon(Lucide.Plus, contentDescription = stringResource(R.string.add_ssh_host))
+                    TooltipIconButton(label = stringResource(R.string.add_ssh_host), onClick = { adding = true }) {
+                        Icon(Lucide.Plus, contentDescription = null)
                     }
                 },
             )
@@ -242,7 +245,7 @@ private fun SshEditDialog(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun TerminalSession(
     profile: SshProfile,
@@ -292,18 +295,36 @@ private fun TerminalSession(
                 title = {
                     Column {
                         Text(profile.name.ifBlank { profile.host }, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(statusLabel(state), style = MaterialTheme.typography.labelSmall)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(14.dp), contentAlignment = Alignment.Center) {
+                                when (state) {
+                                    SshConnection.State.Idle, SshConnection.State.Connecting ->
+                                        LoadingIndicator(modifier = Modifier.fillMaxSize())
+                                    SshConnection.State.Connected ->
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF22C55E)),
+                                        )
+                                    else -> {}
+                                }
+                            }
+                            Spacer(Modifier.width(6.dp))
+                            Text(statusLabel(state), style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onClose) {
-                        Icon(Lucide.ArrowLeft, contentDescription = stringResource(R.string.back))
+                    TooltipIconButton(label = stringResource(R.string.back), onClick = onClose) {
+                        Icon(Lucide.ArrowLeft, contentDescription = null)
                     }
                 },
                 actions = {
-                    IconButton(onClick = { connection.close(); onClose() }) {
-                        Icon(Lucide.X, contentDescription = stringResource(R.string.ssh_disconnect))
-                    }
+                    TooltipIconButton(
+                        label = stringResource(R.string.ssh_disconnect),
+                        onClick = { connection.close(); onClose() },
+                    ) { Icon(Lucide.X, contentDescription = null) }
                 },
             )
         },
@@ -384,11 +405,7 @@ private fun SoftKeyRow(
                 .size(width = 40.dp, height = 32.dp)
                 .clip(RoundedCornerShape(6.dp))
                 .background(MaterialTheme.colorScheme.surface)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onShowKeyboard,
-                ),
+                .clickable(onClick = onShowKeyboard),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -413,11 +430,7 @@ private fun SoftBtn(onClick: () -> Unit, content: @Composable () -> Unit) {
             .height(32.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            )
+            .clickable(onClick = onClick)
             .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center,
     ) {

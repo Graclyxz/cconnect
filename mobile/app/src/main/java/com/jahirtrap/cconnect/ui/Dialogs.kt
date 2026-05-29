@@ -1,5 +1,7 @@
 package com.jahirtrap.cconnect.ui
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.BasicAlertDialog
@@ -40,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
@@ -181,12 +185,14 @@ fun ColorDialog(
 @Composable
 private fun Swatch(color: Color?, selected: Boolean, onClick: () -> Unit) {
     val ring = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant
+    val cornerRadius by animateDpAsState(if (selected) 12.dp else 18.dp, label = "swatch-shape")
+    val shape = RoundedCornerShape(cornerRadius)
     Box(
         modifier = Modifier
             .size(36.dp)
-            .clip(CircleShape)
+            .clip(shape)
             .background(color ?: MaterialTheme.colorScheme.surfaceVariant)
-            .border(if (selected) 2.dp else 1.dp, ring, CircleShape)
+            .border(if (selected) 2.dp else 1.dp, ring, shape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -298,12 +304,13 @@ fun DialogSelectItem(
             .padding(start = 20.dp, end = if (trailing != null) 8.dp else 20.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        val dotScale by animateFloatAsState(if (selected) 1f else 0f, label = "select-dot")
         Box(
             modifier = Modifier.size(20.dp).clip(CircleShape).border(2.dp, ring, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            if (selected) Box(
-                modifier = Modifier.size(10.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
+            Box(
+                modifier = Modifier.size(10.dp).scale(dotScale).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
             )
         }
         Spacer(Modifier.width(14.dp))

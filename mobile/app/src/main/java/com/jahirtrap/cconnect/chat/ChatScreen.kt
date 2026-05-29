@@ -64,6 +64,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Icon
@@ -124,6 +125,7 @@ import com.jahirtrap.cconnect.ui.RenameDialog
 import com.jahirtrap.cconnect.ui.SelectDialog
 import com.jahirtrap.cconnect.ui.SharedLinkActionsDialog
 import com.jahirtrap.cconnect.ui.THEME_MODES
+import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.languageLabel
 import com.jahirtrap.cconnect.ui.themeIcon
 import com.jahirtrap.cconnect.ui.themeLabel
@@ -232,163 +234,172 @@ fun ChatScreen(
 
     // Expressive motion overshoots the drawer slide and exposes the background; standard avoids it.
     MaterialExpressiveTheme(motionScheme = MotionScheme.standard()) {
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            ModalDrawerSheet {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        stringResource(R.string.app_name),
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.weight(1f),
-                    )
-                    IconButton(onClick = { vm.newSession(); scope.launch { drawerState.close() } }) {
-                        Icon(Lucide.SquarePen, contentDescription = stringResource(R.string.new_session))
-                    }
-                }
-                EnvironmentSelector(
-                    connections = state.connections,
-                    activeId = state.activeConnectionId,
-                    onSelect = vm::selectConnection,
-                )
-                ProjectSelector(
-                    projects = state.historyProjects,
-                    selected = state.historyProjectKey,
-                    onSelect = vm::selectHistoryProject,
-                )
-                HorizontalDivider()
-                PullToRefreshBox(
-                    isRefreshing = state.historyLoading,
-                    onRefresh = { vm.loadHistory() },
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                ) {
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(state.historySessions, key = { it.sessionId }) { s ->
-                            ConversationRow(
-                                title = s.title ?: s.preview ?: s.sessionId.take(8),
-                                onOpen = { vm.openSession(s); scope.launch { drawerState.close() } },
-                                onRename = { renameTarget = s },
-                                onAutoRename = { vm.autoRenameSession(s) },
-                                onColor = { colorTarget = s },
-                                onDelete = { deleteTarget = s },
-                            )
-                        }
-                    }
-                }
-                HorizontalDivider()
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = onOpenExplorer) {
-                        Icon(Lucide.Folder, contentDescription = stringResource(R.string.files))
-                    }
-                    IconButton(onClick = onOpenTerminal) {
-                        Icon(Lucide.SquareTerminal, contentDescription = stringResource(R.string.terminal))
-                    }
-                    Spacer(Modifier.weight(1f))
-                    IconButton(onClick = { showLanguageDialog = true }) {
-                        Icon(Lucide.Languages, contentDescription = stringResource(R.string.language))
-                    }
-                    IconButton(onClick = { showThemeDialog = true }) {
-                        Icon(themeIcon(themeMode), contentDescription = stringResource(R.string.theme))
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Lucide.Settings, contentDescription = stringResource(R.string.settings))
-                    }
-                }
-            }
-        },
-    ) {
-        MaterialExpressiveTheme(motionScheme = MotionScheme.expressive()) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background,
-                        scrolledContainerColor = MaterialTheme.colorScheme.background,
-                    ),
-                    navigationIcon = {
-                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Lucide.Menu, contentDescription = stringResource(R.string.menu))
-                        }
-                    },
-                    title = {
-                        Column {
-                            Text(stringResource(R.string.app_name))
-                            Text(statusLabel(state), style = MaterialTheme.typography.labelSmall)
-                        }
-                    },
-                    actions = {
-                        TaskIndicator(todos = state.todos)
-                        IconButton(onClick = { vm.newSession() }) {
-                            Icon(Lucide.SquarePen, contentDescription = stringResource(R.string.new_session))
-                        }
-                    },
-                )
-            },
-        ) { padding ->
-            Column(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
-                Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize(),
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
-                            ChatMessageItem(
-                                message,
-                                prevRole = state.messages.getOrNull(index - 1)?.role,
-                                nextRole = state.messages.getOrNull(index + 1)?.role,
-                                onAnswer = vm::answerInteraction,
-                                onSharedLink = { url, filename -> sharedLinkAction = url to filename },
-                            )
-                        }
+                        Text(
+                            stringResource(R.string.app_name),
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TooltipIconButton(
+                            label = stringResource(R.string.new_session),
+                            onClick = { vm.newSession(); scope.launch { drawerState.close() } },
+                        ) { Icon(Lucide.SquarePen, contentDescription = null) }
                     }
-                    if (showScrollButton && state.messages.isNotEmpty()) {
-                        Surface(
-                            onClick = {
-                                followBottom = true
-                                scope.launch { listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE) }
-                            },
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            shadowElevation = 4.dp,
-                            modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).size(40.dp),
-                        ) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Lucide.ChevronDown,
-                                    contentDescription = stringResource(R.string.scroll_to_bottom),
-                                    tint = MaterialTheme.colorScheme.background,
+                    EnvironmentSelector(
+                        connections = state.connections,
+                        activeId = state.activeConnectionId,
+                        onSelect = vm::selectConnection,
+                    )
+                    ProjectSelector(
+                        projects = state.historyProjects,
+                        selected = state.historyProjectKey,
+                        onSelect = vm::selectHistoryProject,
+                    )
+                    HorizontalDivider()
+                    PullToRefreshBox(
+                        isRefreshing = state.historyLoading,
+                        onRefresh = { vm.loadHistory() },
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                    ) {
+                        LazyColumn(modifier = Modifier.fillMaxSize()) {
+                            items(state.historySessions, key = { it.sessionId }) { s ->
+                                ConversationRow(
+                                    title = s.title ?: s.preview ?: s.sessionId.take(8),
+                                    onOpen = { vm.openSession(s); scope.launch { drawerState.close() } },
+                                    onRename = { renameTarget = s },
+                                    onAutoRename = { vm.autoRenameSession(s) },
+                                    onColor = { colorTarget = s },
+                                    onDelete = { deleteTarget = s },
                                 )
                             }
                         }
                     }
+                    HorizontalDivider()
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TooltipIconButton(label = stringResource(R.string.files), onClick = onOpenExplorer) {
+                            Icon(Lucide.Folder, contentDescription = null)
+                        }
+                        TooltipIconButton(label = stringResource(R.string.terminal), onClick = onOpenTerminal) {
+                            Icon(Lucide.SquareTerminal, contentDescription = null)
+                        }
+                        Spacer(Modifier.weight(1f))
+                        TooltipIconButton(label = stringResource(R.string.language), onClick = { showLanguageDialog = true }) {
+                            Icon(Lucide.Languages, contentDescription = null)
+                        }
+                        TooltipIconButton(label = stringResource(R.string.theme), onClick = { showThemeDialog = true }) {
+                            Icon(themeIcon(themeMode), contentDescription = null)
+                        }
+                        TooltipIconButton(label = stringResource(R.string.settings), onClick = onOpenSettings) {
+                            Icon(Lucide.Settings, contentDescription = null)
+                        }
+                    }
                 }
-                ChatToolbar(
-                    model = state.model,
-                    models = state.capabilities.models,
-                    onModel = vm::setModel,
-                    effort = state.effort,
-                    effortLevels = state.capabilities.effortLevels,
-                    onEffort = vm::setEffort,
-                    permissionMode = state.permissionMode,
-                    permissionModes = state.capabilities.permissionModes,
-                    onPermissionMode = vm::setPermissionMode,
-                )
-                Composer(
-                    streaming = state.streaming,
-                    sessionColor = state.sessionColor,
-                    onSend = vm::sendPrompt,
-                    onStop = vm::stop,
-                )
+            },
+        ) {
+            MaterialExpressiveTheme(motionScheme = MotionScheme.expressive()) {
+                Scaffold(
+                    topBar = {
+                        TopAppBar(
+                            colors = TopAppBarDefaults.topAppBarColors(
+                                containerColor = MaterialTheme.colorScheme.background,
+                                scrolledContainerColor = MaterialTheme.colorScheme.background,
+                            ),
+                            navigationIcon = {
+                                TooltipIconButton(
+                                    label = stringResource(R.string.menu),
+                                    onClick = { scope.launch { drawerState.open() } },
+                                ) { Icon(Lucide.Menu, contentDescription = null) }
+                            },
+                            title = {
+                                Column {
+                                    Text(stringResource(R.string.app_name))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        if (state.connection == ConnectionState.Connecting) {
+                                            LoadingIndicator(modifier = Modifier.size(14.dp))
+                                            Spacer(Modifier.width(6.dp))
+                                        }
+                                        Text(statusLabel(state), style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                            },
+                            actions = {
+                                TaskIndicator(todos = state.todos)
+                                TooltipIconButton(
+                                    label = stringResource(R.string.new_session),
+                                    onClick = { vm.newSession() },
+                                ) { Icon(Lucide.SquarePen, contentDescription = null) }
+                            },
+                        )
+                    },
+                ) { padding ->
+                    Column(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
+                        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                            LazyColumn(
+                                state = listState,
+                                modifier = Modifier.fillMaxSize(),
+                            ) {
+                                itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
+                                    ChatMessageItem(
+                                        message,
+                                        prevRole = state.messages.getOrNull(index - 1)?.role,
+                                        nextRole = state.messages.getOrNull(index + 1)?.role,
+                                        onAnswer = vm::answerInteraction,
+                                        onSharedLink = { url, filename -> sharedLinkAction = url to filename },
+                                    )
+                                }
+                            }
+                            if (showScrollButton && state.messages.isNotEmpty()) {
+                                Surface(
+                                    onClick = {
+                                        followBottom = true
+                                        scope.launch { listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE) }
+                                    },
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.onBackground,
+                                    shadowElevation = 4.dp,
+                                    modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).size(40.dp),
+                                ) {
+                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            Lucide.ChevronDown,
+                                            contentDescription = stringResource(R.string.scroll_to_bottom),
+                                            tint = MaterialTheme.colorScheme.background,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        ChatToolbar(
+                            model = state.model,
+                            models = state.capabilities.models,
+                            onModel = vm::setModel,
+                            effort = state.effort,
+                            effortLevels = state.capabilities.effortLevels,
+                            onEffort = vm::setEffort,
+                            permissionMode = state.permissionMode,
+                            permissionModes = state.capabilities.permissionModes,
+                            onPermissionMode = vm::setPermissionMode,
+                        )
+                        Composer(
+                            streaming = state.streaming,
+                            sessionColor = state.sessionColor,
+                            onSend = vm::sendPrompt,
+                            onStop = vm::stop,
+                        )
+                    }
+                }
             }
         }
-        }
-    }
     }
 
     renameTarget?.let { s ->
