@@ -1,0 +1,46 @@
+package com.jahirtrap.cconnect.data.remote
+
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+
+object CliApi {
+
+    data class CliInfo(
+        val source: String,
+        val resolvedPath: String?,
+        val activeVersion: String?,
+        val bundledVersion: String?,
+        val systemPath: String?,
+        val systemVersion: String?,
+        val customPath: String?,
+    )
+
+    private fun parse(o: JsonObject) = CliInfo(
+        source = o["source"]?.jsonPrimitive?.contentOrNull ?: "system",
+        resolvedPath = o["resolved_path"]?.jsonPrimitive?.contentOrNull,
+        activeVersion = o["active_version"]?.jsonPrimitive?.contentOrNull,
+        bundledVersion = o["bundled_version"]?.jsonPrimitive?.contentOrNull,
+        systemPath = o["system_path"]?.jsonPrimitive?.contentOrNull,
+        systemVersion = o["system_version"]?.jsonPrimitive?.contentOrNull,
+        customPath = o["custom_path"]?.jsonPrimitive?.contentOrNull,
+    )
+
+    suspend fun status(): CliInfo? = Http.get("/cli")?.jsonObject?.let(::parse)
+
+    suspend fun setSource(source: String, customPath: String?): CliInfo? =
+        Http.post("/cli", buildJsonObject {
+            put("source", source)
+            if (customPath != null) put("custom_path", customPath)
+        })?.jsonObject?.let(::parse)
+
+    // Returns the update outcome: ok flag + the CLI's own output to surface to the user.
+    suspend fun update(): Pair<Boolean, String> {
+        val o = Http.post("/cli/update")?.jsonObject ?: return false to "No response"
+        return (o["ok"]?.jsonPrimitive?.booleanOrNull ?: false) to (o["message"]?.jsonPrimitive?.contentOrNull.orEmpty())
+    }
+}

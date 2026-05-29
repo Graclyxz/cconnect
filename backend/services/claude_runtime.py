@@ -8,6 +8,7 @@ from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 
 from loguru import logger
 
+from core import cli_manager
 from core.config import AI_WORKDIR, PORT, SHARED_DIR
 from mcps import build_cconnect_server
 
@@ -329,6 +330,7 @@ async def run_prompt(
         include_partial_messages=partial,
         extra_args=extra_args,
         mcp_servers={"cconnect": build_cconnect_server()},
+        cli_path=cli_manager.resolve_cli_path(),
     )
     if ultracode:
         options_kwargs["settings"] = json.dumps({"ultracode": True})
@@ -406,6 +408,7 @@ async def generate_title(transcript: str) -> str:
         model="haiku",
         system_prompt="You write conversation titles. Reply with ONLY the title: 3-6 words, Title Case, no quotes, no trailing punctuation.",
         setting_sources=[],
+        cli_path=cli_manager.resolve_cli_path(),
     )
 
     parts: list[str] = []

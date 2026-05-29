@@ -26,6 +26,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -38,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,6 +66,7 @@ import com.composables.icons.lucide.Server
 import com.composables.icons.lucide.SquareTerminal
 import com.composables.icons.lucide.Shield
 import com.composables.icons.lucide.Sparkles
+import com.composables.icons.lucide.Terminal
 import com.composables.icons.lucide.Trash
 import com.composables.icons.lucide.Wand
 import com.jahirtrap.cconnect.R
@@ -73,6 +76,8 @@ import com.jahirtrap.cconnect.data.QrConnectionPayload
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.remote.Backend
 import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
+import com.jahirtrap.cconnect.data.remote.CliApi
+import kotlinx.coroutines.launch
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.ConfirmSelectDialog
@@ -117,6 +122,7 @@ fun SettingsScreen(
     var effort by remember { mutableStateOf(settings.effort ?: caps.defaults.effort) }
     var permissionMode by remember { mutableStateOf(settings.permissionMode ?: caps.defaults.permissionMode) }
     var streaming by remember { mutableStateOf(settings.streaming) }
+    var cliInfo by remember { mutableStateOf<CliApi.CliInfo?>(null) }
 
     LaunchedEffect(activeId, connections) {
         if (Backend.isConfigured) CapabilitiesApi.capabilities()?.let { c ->
@@ -125,6 +131,7 @@ fun SettingsScreen(
             if (settings.effort == null) effort = c.defaults.effort
             if (settings.permissionMode == null) permissionMode = c.defaults.permissionMode
         }
+        if (Backend.isConfigured) cliInfo = CliApi.status()
     }
 
     var dialog by remember { mutableStateOf<SettingsDialog?>(null) }
@@ -175,6 +182,7 @@ fun SettingsScreen(
                 stringResource(R.string.ssh_hosts_summary),
                 onClick = onOpenSshHosts,
             )
+            PreferenceRow(Lucide.Terminal, stringResource(R.string.cli), cliInfo?.activeVersion ?: "—") { dialog = SettingsDialog.Cli }
             PreferenceRow(Lucide.Sparkles, stringResource(R.string.generation), "${caps.models.firstOrNull { it.id == model }?.label ?: model} • $effort") { dialog = SettingsDialog.Generation }
             PreferenceRow(Lucide.Shield, stringResource(R.string.permissions), permissionLabel(caps, permissionMode)) { dialog = SettingsDialog.Permissions }
             PreferenceRow(Lucide.History, stringResource(R.string.reset_settings), stringResource(R.string.reset_settings_summary)) { dialog = SettingsDialog.Reset }
@@ -219,6 +227,10 @@ fun SettingsScreen(
             onDismiss = { dialog = null },
         )
 
+        SettingsDialog.Cli -> cliInfo?.let { info ->
+            CliDialog(info = info, onChanged = { cliInfo = it }, onDismiss = { dialog = null })
+        } ?: run { dialog = null }
+
         SettingsDialog.Generation -> GenerationDialog(
             caps = caps,
             model = model,
@@ -262,7 +274,7 @@ fun SettingsScreen(
     }
 }
 
-private enum class SettingsDialog { Theme, Language, Accent, Connections, Generation, Permissions, Reset }
+private enum class SettingsDialog { Theme, Language, Accent, Connections, Cli, Generation, Permissions, Reset }
 
 @Composable
 private fun permissionLabel(caps: Capabilities, mode: String): String =
@@ -613,6 +625,79 @@ private fun GenerationDialog(
                 Text(stringResource(R.string.streaming_desc), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Switch(checked = s, onCheckedChange = { s = it })
+        }
+    }
+}
+
+@Composable
+private fun CliDialog(
+    info: CliApi.CliInfo,
+    onChanged: (CliApi.CliInfo) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var source by remember { mutableStateOf(info.source) }
+    var customPath by remember { mutableStateOf(info.customPath ?: "") }
+    var updating by remember { mutableStateOf(false) }
+
+    val sourceOptions = listOf(
+        "system" to (stringResource(R.string.cli_source_system) + (info.systemVersion?.let { " ($it)" } ?: "")),
+        "custom" to stringResource(R.string.cli_source_custom),
+        "bundled" to (stringResource(R.string.cli_source_bundled) + (info.bundledVersion?.let { " ($it)" } ?: "")),
+    )
+    // Update targets the saved/active CLI, not the unsaved dropdown selection.
+    val canUpdate = info.source != "bundled"
+
+    CompactDialog(
+        onDismiss = onDismiss,
+        title = stringResource(R.string.cli),
+        buttons = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            TextButton(onClick = {
+                scope.launch {
+                    CliApi.setSource(source, customPath.trim().ifBlank { null })?.let(onChanged)
+                    onDismiss()
+                }
+            }) { Text(stringResource(R.string.save)) }
+        },
+    ) {
+        SelectField(stringResource(R.string.cli_source), source, sourceOptions) { source = it }
+        if (source == "custom") {
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = customPath,
+                onValueChange = { customPath = it },
+                label = { Text(stringResource(R.string.cli_custom_path)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            info.activeVersion ?: "—",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
+        OutlinedButton(
+            onClick = {
+                scope.launch {
+                    updating = true
+                    CliApi.update()
+                    CliApi.status()?.let(onChanged)
+                    updating = false
+                }
+            },
+            enabled = canUpdate && !updating,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                when {
+                    updating -> stringResource(R.string.cli_updating)
+                    !canUpdate -> stringResource(R.string.cli_bundled_fixed)
+                    else -> stringResource(R.string.cli_update)
+                }
+            )
         }
     }
 }

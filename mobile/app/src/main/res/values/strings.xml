@@ -47,6 +47,15 @@
     <string name="ssh_failed">Failed: %1$s</string>
     <string name="delete_connection_confirm">Delete the connection \"%1$s\"?</string>
     <string name="no_connections">No connections yet</string>
+    <string name="cli">Claude CLI</string>
+    <string name="cli_source">CLI source</string>
+    <string name="cli_source_system">System</string>
+    <string name="cli_source_custom">Custom path</string>
+    <string name="cli_source_bundled">Bundled</string>
+    <string name="cli_custom_path">CLI path</string>
+    <string name="cli_update">Update to latest</string>
+    <string name="cli_updating">Updating…</string>
+    <string name="cli_bundled_fixed">Bundled CLI can\'t be updated</string>
     <string name="generation">Generation</string>
     <string name="model">Model</string>
     <string name="effort">Effort</string>
