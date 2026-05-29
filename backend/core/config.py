@@ -38,8 +38,8 @@ DEFAULT_EFFORT = os.environ.get("DEFAULT_EFFORT", "xhigh")
 # that always resolve to the latest matching model; "default" lets the CLI pick.
 MODELS = [
     {"id": "default", "label": "Default"},
-    {"id": "opus", "label": "Opus 4.7"},
-    {"id": "opus[1m]", "label": "Opus 4.7 (1M)"},
+    {"id": "opus", "label": "Opus 4.8"},
+    {"id": "opus[1m]", "label": "Opus 4.8 (1M)"},
     {"id": "sonnet", "label": "Sonnet 4.6"},
     {"id": "sonnet[1m]", "label": "Sonnet 4.6 (1M)"},
     {"id": "haiku", "label": "Haiku 4.5"},
