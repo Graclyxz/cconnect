@@ -1,7 +1,9 @@
 package com.jahirtrap.cconnect.data.remote
 
+import com.jahirtrap.cconnect.data.DiffLine
 import com.jahirtrap.cconnect.data.InteractionData
 import com.jahirtrap.cconnect.data.InteractionOption
+import com.jahirtrap.cconnect.data.diffKindOf
 import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.SessionMessage
@@ -55,11 +57,19 @@ object SessionsApi {
             val o = el.jsonObject
             val type = o["type"]?.jsonPrimitive?.contentOrNull
             val text = when (type) {
-                "file_change" -> o["diff"]?.jsonPrimitive?.contentOrNull.orEmpty()
-                "interaction" -> ""
+                "file_change", "interaction" -> ""
                 else -> o["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
             }
             val interaction = if (type == "interaction") parseInteraction(o) else null
+            val diffLines = if (type == "file_change") {
+                o["diff_lines"]?.jsonArray?.map { d ->
+                    val od = d.jsonObject
+                    DiffLine(
+                        kind = diffKindOf(od["kind"]?.jsonPrimitive?.contentOrNull),
+                        text = od["text"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    )
+                }
+            } else null
             SessionMessage(
                 type = type,
                 role = o["role"]?.jsonPrimitive?.contentOrNull,
@@ -67,6 +77,7 @@ object SessionsApi {
                 name = o["name"]?.jsonPrimitive?.contentOrNull ?: o["tool_name"]?.jsonPrimitive?.contentOrNull,
                 path = o["path"]?.jsonPrimitive?.contentOrNull,
                 interaction = interaction,
+                diffLines = diffLines,
             )
         } ?: emptyList()
 

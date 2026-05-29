@@ -3,6 +3,8 @@ package com.jahirtrap.cconnect.chat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -21,11 +23,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,6 +56,8 @@ import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.PlayFilled
 import com.jahirtrap.cconnect.data.ChatMessage
+import com.jahirtrap.cconnect.data.DiffKind
+import com.jahirtrap.cconnect.data.DiffLine
 import com.jahirtrap.cconnect.data.InteractionData
 import com.jahirtrap.cconnect.data.InteractionOption
 import com.jahirtrap.cconnect.data.Role
@@ -96,7 +102,7 @@ fun ChatMessageItem(
                 InteractionBlock(data = it, toolName = message.toolName, input = message.text, onAnswer = onAnswer)
             }
 
-            Role.FILE_CHANGE -> FileChangeBlock(path = message.path.orEmpty(), diff = message.text)
+            Role.FILE_CHANGE -> FileChangeBlock(path = message.path.orEmpty(), diffLines = message.diffLines.orEmpty())
 
             Role.ERROR -> Band(MaterialTheme.colorScheme.errorContainer) {
                 SelectionContainer {
@@ -160,7 +166,7 @@ private fun Plain(content: @Composable () -> Unit) {
 
 @Composable
 private fun Collapsible(label: String, text: String, icon: ImageVector? = null) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
@@ -202,7 +208,7 @@ private fun Collapsible(label: String, text: String, icon: ImageVector? = null) 
 
 @Composable
 private fun ToolBlock(name: String?, input: String) {
-    var expanded by remember { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
     val preview = input.replace("\n", " ").trim()
     Column(
         modifier = Modifier
@@ -259,8 +265,8 @@ private fun ToolBlock(name: String?, input: String) {
 }
 
 @Composable
-private fun FileChangeBlock(path: String, diff: String) {
-    var expanded by remember { mutableStateOf(false) }
+private fun FileChangeBlock(path: String, diffLines: List<DiffLine>) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
@@ -287,13 +293,46 @@ private fun FileChangeBlock(path: String, diff: String) {
                 modifier = Modifier.size(18.dp),
             )
         }
-        if (expanded && diff.isNotBlank()) {
-            com.jahirtrap.cconnect.ui.MarkdownText(
-                markdown = "```diff\n$diff\n```",
+        if (expanded && diffLines.isNotEmpty()) {
+            val bg = MaterialTheme.colorScheme.surfaceContainerHigh
+            val defaultFg = MaterialTheme.colorScheme.onSurfaceVariant
+            val scroll = rememberScrollState()
+            Surface(
+                color = bg,
+                shape = RoundedCornerShape(6.dp),
                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .horizontalScroll(scroll)
+                        .padding(vertical = 4.dp),
+                ) {
+                    diffLines.forEach { line ->
+                        val (fg, lineBg, prefix) = diffStyleFor(line.kind, defaultFg)
+                        Text(
+                            text = if (line.text.isEmpty() && prefix.isEmpty()) " " else "$prefix${line.text}",
+                            color = fg,
+                            fontFamily = FontFamily.Monospace,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier
+                                .background(lineBg)
+                                .padding(horizontal = 10.dp, vertical = 1.dp),
+                        )
+                    }
+                }
+            }
         }
     }
+}
+
+private fun diffStyleFor(kind: DiffKind, defaultFg: Color): Triple<Color, Color, String> = when (kind) {
+    DiffKind.HEADER -> Triple(Color(0xFF8B949E), Color.Transparent, "")
+    DiffKind.HUNK -> Triple(Color(0xFF79C0FF), Color(0x1A58A6FF), "")
+    DiffKind.ADD -> Triple(Color(0xFF56D364), Color(0x2628A745), "+")
+    DiffKind.DEL -> Triple(Color(0xFFFF7B72), Color(0x26F85149), "-")
+    DiffKind.CTX -> Triple(defaultFg, Color.Transparent, " ")
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -309,9 +348,19 @@ private fun InteractionBlock(
     val title = data.title ?: toolName ?: stringResource(R.string.permission_title)
     val headerIcon = if (data.kind == "question") Lucide.CircleQuestionMark else Lucide.Shield
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(headerIcon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-            Text("  $title", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
+        Row(verticalAlignment = Alignment.Top) {
+            Icon(
+                headerIcon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp),
+            )
+            Text(
+                text = "  $title",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f),
+            )
         }
         if (input.isNotBlank()) {
             Text(

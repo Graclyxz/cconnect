@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.ChatMessage
 import com.jahirtrap.cconnect.data.ConnectionProfile
+import com.jahirtrap.cconnect.data.DiffLine
 import com.jahirtrap.cconnect.data.InteractionData
 import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.Role
@@ -224,8 +225,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val projectKey = session.projectKey ?: return
         viewModelScope.launch {
             val loaded = SessionsApi.sessionMessages(session.sessionId, projectKey)
-                .filter { it.text.isNotBlank() || it.interaction != null }
-                .mapIndexed { index, m -> ChatMessage(index.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction) }
+                .filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() }
+                .mapIndexed { index, m -> ChatMessage(index.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines) }
             nextId = loaded.size.toLong()
             currentAssistantId = null
             currentThinkingId = null
@@ -325,7 +326,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             is ServerEvent.FileChange -> {
                 currentAssistantId = null
                 currentThinkingId = null
-                addMessage(Role.FILE_CHANGE, event.diff, toolUseId = event.id, path = event.path)
+                addMessage(Role.FILE_CHANGE, text = "", toolUseId = event.id, path = event.path, diffLines = event.diffLines)
             }
             is ServerEvent.Todos -> _state.update { it.copy(todos = event.items) }
             is ServerEvent.Task -> upsertTask(event)
@@ -407,8 +408,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         toolUseId: String? = null,
         interaction: InteractionData? = null,
         path: String? = null,
+        diffLines: List<DiffLine>? = null,
     ) {
-        _state.update { it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path)) }
+        _state.update { it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines)) }
     }
 
     fun answerInteraction(requestId: String, optionId: String, freeText: String?) {

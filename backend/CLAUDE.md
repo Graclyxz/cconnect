@@ -119,9 +119,11 @@ Server → client (JSON):
 - `ready` (sessionId), `assistant_text`, `thinking`, `todos`, `task`
 - `tool_use` (id, name, input as `"key: value"` per line)
 - `tool_result` (tool_use_id, content, is_error)
-- **`file_change`** (id, path, diff) — emitted instead of `tool_use` for
-  Edit/Write/MultiEdit/NotebookEdit. Built via `difflib.unified_diff` from the
-  tool input. The matching `tool_result` is suppressed.
+- **`file_change`** (id, path, diff_lines) — emitted instead of `tool_use` for
+  Edit/Write/MultiEdit/NotebookEdit. `diff_lines` is a list of
+  `{kind, text}` entries with `kind ∈ header | hunk | add | del | ctx`, already
+  classified backend-side so mobile only renders. The matching `tool_result`
+  is suppressed.
 - `interaction_request` (id, kind, options, free_text, title, tool_name, input,
   tool_use_id) — for `AskUserQuestion` and per-tool permission prompts. Paired
   by id with the client's `interaction_response`.
@@ -178,7 +180,7 @@ normalizes blocks so resume == live:
 - `text`, `thinking`, `summary` — passthrough.
 - `tool_use` — emitted with `text = _format_tool_input(input)` (same `"key: value"`
   format as live). Special handling:
-  - `Edit/Write/MultiEdit/NotebookEdit` → `file_change` with unified diff.
+  - `Edit/Write/MultiEdit/NotebookEdit` → `file_change` with `diff_lines`.
     The matching `tool_result` is dropped.
   - `TodoWrite` and any `Task*` tool → dropped entirely (live shows them as
     transient state, no equivalent in history).
@@ -189,11 +191,15 @@ normalizes blocks so resume == live:
 
 ## File-edit diff construction (`_build_file_diff`)
 
-| Tool | Input | Diff |
+`difflib.unified_diff` produces the raw lines and `_classify_diff_lines` maps
+each to `{kind, text}` (kinds: `header`, `hunk`, `add`, `del`, `ctx`). The
+`+`/`-`/` ` prefix is stripped from `text` because `kind` already encodes it.
+
+| Tool | Input | Lines fed to classifier |
 |---|---|---|
 | `Edit` | `old_string`, `new_string` | unified_diff(old, new) |
 | `MultiEdit` | `edits[]` | concatenated unified_diffs |
-| `Write` | `content` | unified_diff("", content) — every line as `+` |
+| `Write` | `content` | unified_diff("", content) — every line as `add` |
 | `NotebookEdit` | `new_source` | unified_diff("", new_source) |
 
 ## Configuration

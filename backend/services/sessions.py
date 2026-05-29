@@ -327,7 +327,7 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
     for entry in entries:
         etype = entry.get("type")
         if etype == "summary":
-            text = entry.get("summary", "")
+            text = entry.get("summary", "").strip()
             if text:
                 messages.append({"type": "summary", "text": text})
             continue
@@ -339,8 +339,9 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
         role = message.get("role", etype)
         content = message.get("content")
         if isinstance(content, str):
-            if content.strip():
-                messages.append({"type": "text", "role": role, "text": content})
+            text = content.strip()
+            if text:
+                messages.append({"type": "text", "role": role, "text": text})
             continue
         if not isinstance(content, list):
             continue
@@ -349,12 +350,12 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                 continue
             btype = block.get("type")
             if btype == "text":
-                text = block.get("text", "")
-                if text.strip():
+                text = block.get("text", "").strip()
+                if text:
                     messages.append({"type": "text", "role": role, "text": text})
             elif btype == "thinking":
-                text = block.get("thinking") or block.get("text", "")
-                if text.strip():
+                text = (block.get("thinking") or block.get("text", "")).strip()
+                if text:
                     messages.append({"type": "thinking", "text": text})
             elif btype == "tool_use":
                 from services.claude_runtime import _FILE_EDIT_TOOLS, _build_file_diff, _format_tool_input
@@ -399,7 +400,7 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                         messages.append({
                             "type": "file_change",
                             "path": path,
-                            "diff": _build_file_diff(name, inp, path),
+                            "diff_lines": _build_file_diff(name, inp, path),
                             "id": bid,
                         })
                         continue
@@ -408,7 +409,7 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                 if block.get("tool_use_id") in hidden_ids:
                     continue
                 from services.claude_runtime import _flatten_result_content
-                text = _flatten_result_content(block.get("content"))
-                if text.strip():
+                text = _flatten_result_content(block.get("content")).strip()
+                if text:
                     messages.append({"type": "tool_result", "text": text})
     return messages

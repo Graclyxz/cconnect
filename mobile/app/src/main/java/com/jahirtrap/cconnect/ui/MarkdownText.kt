@@ -185,11 +185,7 @@ private fun RenderNode(node: Node, codeBg: Color, linkColor: Color, depth: Int) 
             style = MaterialTheme.typography.bodyMedium,
         )
 
-        is FencedCodeBlock -> {
-            val lang = node.info?.trim()?.lowercase().orEmpty()
-            if (lang == "diff" || lang == "patch" || looksLikeDiff(node.literal)) DiffBlock(node.literal, codeBg, lang.ifEmpty { "diff" })
-            else CodeBlock(node.literal, codeBg, lang)
-        }
+        is FencedCodeBlock -> CodeBlock(node.literal, codeBg, node.info?.trim()?.lowercase().orEmpty())
         is IndentedCodeBlock -> CodeBlock(node.literal, codeBg, "")
         is BulletList -> ListBlock(node, ordered = false, start = 1, codeBg = codeBg, linkColor = linkColor, depth = depth)
         is OrderedList -> ListBlock(node, ordered = true, start = node.markerStartNumber ?: 1, codeBg = codeBg, linkColor = linkColor, depth = depth)
@@ -407,53 +403,6 @@ private fun CodeBlockHeader(lang: String, code: String) {
     }
 }
 
-private fun looksLikeDiff(code: String): Boolean {
-    val lines = code.lines()
-    if (lines.size < 2) return false
-    val hasHunk = lines.any { it.startsWith("@@") }
-    val changes = lines.count {
-        (it.startsWith("+") && !it.startsWith("+++")) || (it.startsWith("-") && !it.startsWith("---"))
-    }
-    val hasFileHeaders = lines.any { it.startsWith("--- ") } && lines.any { it.startsWith("+++ ") }
-    return (hasHunk && changes >= 2) || hasFileHeaders
-}
-
-private fun diffLineColors(line: String, defaultFg: Color): Pair<Color, Color> = when {
-    line.startsWith("+++") || line.startsWith("---") || line.startsWith("diff ") || line.startsWith("index ") ->
-        Color(0xFF8B949E) to Color.Transparent
-    line.startsWith("@@") -> Color(0xFF79C0FF) to Color(0x1A58A6FF)
-    line.startsWith("+") -> Color(0xFF56D364) to Color(0x2628A745)
-    line.startsWith("-") -> Color(0xFFFF7B72) to Color(0x26F85149)
-    else -> defaultFg to Color.Transparent
-}
-
-@Composable
-private fun DiffBlock(code: String, bg: Color, lang: String) {
-    val defaultFg = MaterialTheme.colorScheme.onSurfaceVariant
-    val scroll = rememberScrollState()
-    Surface(color = bg, shape = RoundedCornerShape(6.dp), modifier = Modifier.fillMaxWidth()) {
-        Column {
-            CodeBlockHeader(lang, code)
-            Column(modifier = Modifier.horizontalScrollIndicator(scroll).horizontalScroll(scroll).padding(vertical = 4.dp)) {
-                code.trimEnd('\n').lines().forEach { line ->
-                    val (fg, lineBg) = diffLineColors(line, defaultFg)
-                    Text(
-                        text = if (line.isEmpty()) " " else line,
-                        color = fg,
-                        fontFamily = FontFamily.Monospace,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        softWrap = false,
-                        modifier = Modifier
-                            .background(lineBg)
-                            .padding(horizontal = 10.dp, vertical = 1.dp),
-                    )
-                }
-            }
-        }
-    }
-}
-
 private fun inline(node: Node, linkColor: Color, codeBg: Color): AnnotatedString =
     buildAnnotatedString { appendInline(node, linkColor, codeBg) }
 
@@ -530,10 +479,13 @@ private fun MdText(
                 val firstLine = result.getLineForOffset(ann.start)
                 val lastLine = result.getLineForOffset((ann.end - 1).coerceAtLeast(ann.start))
                 for (line in firstLine..lastLine) {
-                    val lineStart = if (line == firstLine) ann.start else result.getLineStart(line)
-                    val lineEnd = if (line == lastLine) ann.end else result.getLineEnd(line, visibleEnd = true)
-                    val left = result.getHorizontalPosition(lineStart, usePrimaryDirection = true) - padX
-                    val right = result.getHorizontalPosition(lineEnd, usePrimaryDirection = false) + padX
+                    val startOffset = if (line == firstLine) ann.start else result.getLineStart(line)
+                    val endOffset = if (line == lastLine) ann.end else result.getLineEnd(line, visibleEnd = true)
+                    if (endOffset <= startOffset) continue
+                    val firstBox = result.getBoundingBox(startOffset)
+                    val lastBox = result.getBoundingBox((endOffset - 1).coerceAtLeast(startOffset))
+                    val left = minOf(firstBox.left, lastBox.left) - padX
+                    val right = maxOf(firstBox.right, lastBox.right) + padX
                     val top = result.getLineTop(line) + padY
                     val bottom = result.getLineBottom(line) - padY
                     drawRoundRect(

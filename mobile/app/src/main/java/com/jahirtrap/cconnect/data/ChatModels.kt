@@ -10,7 +10,20 @@ data class ChatMessage(
     val toolUseId: String? = null,
     val interaction: InteractionData? = null,
     val path: String? = null,
+    val diffLines: List<DiffLine>? = null,
 )
+
+enum class DiffKind { HEADER, HUNK, ADD, DEL, CTX }
+
+data class DiffLine(val kind: DiffKind, val text: String)
+
+fun diffKindOf(value: String?): DiffKind = when (value) {
+    "header" -> DiffKind.HEADER
+    "hunk" -> DiffKind.HUNK
+    "add" -> DiffKind.ADD
+    "del" -> DiffKind.DEL
+    else -> DiffKind.CTX
+}
 
 data class InteractionOption(
     val id: String,
@@ -55,7 +68,7 @@ sealed interface ServerEvent {
     data class Thinking(val text: String) : ServerEvent
     data class ToolUse(val id: String?, val name: String?, val input: String?) : ServerEvent
     data class ToolResult(val content: String?) : ServerEvent
-    data class FileChange(val id: String?, val path: String, val diff: String) : ServerEvent
+    data class FileChange(val id: String?, val path: String, val diffLines: List<DiffLine>) : ServerEvent
     data class Todos(val items: List<TodoItem>) : ServerEvent
     data class Task(val id: String, val content: String?, val status: String?) : ServerEvent
     data class Result(val sessionId: String?) : ServerEvent

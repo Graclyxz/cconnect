@@ -104,7 +104,7 @@ the settings list, the chat topbar, and the active-connection summary.
 | `thinking` | streamed into the current `Role.THINKING` message |
 | `tool_use` | `Role.TOOL` with name + input preview |
 | `tool_result` | `Role.TOOL_RESULT` collapsible |
-| **`file_change`** | `Role.FILE_CHANGE` block — path header + diff body rendered via `MarkdownText("```diff\n$diff\n```")` |
+| **`file_change`** | `Role.FILE_CHANGE` block — path header + `List<DiffLine>` painted line-by-line in `FileChangeBlock`. The backend already classifies each line as `header`/`hunk`/`add`/`del`/`ctx`, so mobile only picks colors and the `+`/`-` prefix. |
 | `interaction_request` | `Role.INTERACTION` with buttons; on answer the WS receives `interaction_response` and the same message flips to resolved state |
 | `todos` | updates top-bar todo list |
 | `task` | updates the task progress UI |
@@ -122,9 +122,6 @@ the settings list, the chat topbar, and the active-connection summary.
 - Fenced code blocks share `surfaceContainerHigh` with inline code. The header
   shows the language + a copy button that briefly switches to `Lucide.Check`
   tinted with the primary color for ~1s.
-- Diff blocks parse `+`/`-`/`@@`/`+++`/`---` lines and color them in
-  GitHub-like greens/reds/blues; rendered via the same fenced-code path when
-  the language is `diff`/`patch` or the content looks like a diff.
 - `/api/shared/...` links are intercepted: `LocalUriHandler` is overridden so a
   click opens `SharedLinkActionsDialog` (Save / Save as / Share) instead of the
   browser. The download/save/share paths all carry the active Bearer header.
@@ -132,11 +129,13 @@ the settings list, the chat topbar, and the active-connection summary.
 ## Code edits as diffs
 
 The backend converts `Edit/Write/MultiEdit/NotebookEdit` tools into
-`file_change` events. The app renders these as `FileChangeBlock` — a collapsible
-header with the file path + `Lucide.FilePen` icon; the expanded body reuses the
-diff renderer via `MarkdownText("```diff\n$diff\n```")`. The same shape is
-re-emitted from the resume endpoint so live and resumed sessions render
-identically.
+`file_change` events carrying `diff_lines: [{kind, text}]` (already classified
+backend-side — mobile doesn't re-detect `looksLikeDiff` or split lines). The
+app renders these as `FileChangeBlock` — a collapsible header with the file
+path + `Lucide.FilePen` icon; the expanded body paints each `DiffLine` with a
+color per `DiffKind` (GitHub-like greens/reds/blues) and a `+`/`-` prefix on
+`ADD`/`DEL`. The same shape is re-emitted from the resume endpoint so live
+and resumed sessions render identically.
 
 ## Selection icons & visual conventions
 

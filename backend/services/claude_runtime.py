@@ -96,8 +96,8 @@ def _flatten_result_content(content: Any) -> str:
     return "" if content is None else str(content)
 
 
-def _unified_diff(old: str, new: str, path: str) -> str:
-    return "\n".join(
+def _unified_diff(old: str, new: str, path: str) -> list[str]:
+    return list(
         difflib.unified_diff(
             (old or "").splitlines(),
             (new or "").splitlines(),
@@ -108,23 +108,42 @@ def _unified_diff(old: str, new: str, path: str) -> str:
     )
 
 
-def _build_file_diff(name: str, raw_input: dict, path: str) -> str:
+# +/- is stripped from text because kind already encodes it.
+def _classify_diff_lines(lines: list[str]) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    for line in lines:
+        if line.startswith("---") or line.startswith("+++"):
+            out.append({"kind": "header", "text": line})
+        elif line.startswith("@@"):
+            out.append({"kind": "hunk", "text": line})
+        elif line.startswith("+"):
+            out.append({"kind": "add", "text": line[1:]})
+        elif line.startswith("-"):
+            out.append({"kind": "del", "text": line[1:]})
+        else:
+            out.append({"kind": "ctx", "text": line[1:] if line.startswith(" ") else line})
+    return out
+
+
+def _build_file_diff(name: str, raw_input: dict, path: str) -> list[dict[str, str]]:
     if name == "Edit":
-        return _unified_diff(raw_input.get("old_string") or "", raw_input.get("new_string") or "", path)
+        return _classify_diff_lines(
+            _unified_diff(raw_input.get("old_string") or "", raw_input.get("new_string") or "", path)
+        )
     if name == "MultiEdit":
-        parts = []
+        merged: list[str] = []
         for edit in raw_input.get("edits") or []:
             if not isinstance(edit, dict):
                 continue
             chunk = _unified_diff(edit.get("old_string") or "", edit.get("new_string") or "", path)
             if chunk:
-                parts.append(chunk)
-        return "\n".join(parts)
+                merged.extend(chunk)
+        return _classify_diff_lines(merged)
     if name == "Write":
-        return _unified_diff("", raw_input.get("content") or "", path)
+        return _classify_diff_lines(_unified_diff("", raw_input.get("content") or "", path))
     if name == "NotebookEdit":
-        return _unified_diff("", raw_input.get("new_source") or "", path)
-    return ""
+        return _classify_diff_lines(_unified_diff("", raw_input.get("new_source") or "", path))
+    return []
 
 
 def _file_change_event(block: Any, raw_input: Any, hidden: set[str]) -> dict | None:
@@ -134,11 +153,11 @@ def _file_change_event(block: Any, raw_input: Any, hidden: set[str]) -> dict | N
     if not isinstance(path, str) or not path:
         return None
     name = (getattr(block, "name", None) or "").strip()
-    diff = _build_file_diff(name, raw_input, path)
+    diff_lines = _build_file_diff(name, raw_input, path)
     bid = getattr(block, "id", None)
     if bid:
         hidden.add(bid)
-    return {"type": "file_change", "id": bid, "path": path, "diff": diff}
+    return {"type": "file_change", "id": bid, "path": path, "diff_lines": diff_lines}
 
 
 def _blocks_to_events(content: Any, skip_streamed: bool = False, hidden_tool_ids: set[str] | None = None) -> list[dict]:
@@ -153,11 +172,11 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False, hidden_tool_ids
         if kind == "TextBlock":
             if skip_streamed:
                 continue
-            events.append({"type": "assistant_text", "text": getattr(block, "text", "")})
+            events.append({"type": "assistant_text", "text": getattr(block, "text", "").strip()})
         elif kind == "ThinkingBlock":
             if skip_streamed:
                 continue
-            events.append({"type": "thinking", "text": getattr(block, "thinking", "") or getattr(block, "text", "")})
+            events.append({"type": "thinking", "text": (getattr(block, "thinking", "") or getattr(block, "text", "")).strip()})
         elif kind == "ToolUseBlock":
             name = (getattr(block, "name", None) or "").strip() or "tool"
             raw_input = getattr(block, "input", None)
@@ -194,7 +213,7 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False, hidden_tool_ids
             events.append({
                 "type": "tool_result",
                 "tool_use_id": tuid,
-                "content": _flatten_result_content(getattr(block, "content", None)),
+                "content": _flatten_result_content(getattr(block, "content", None)).strip(),
                 "is_error": getattr(block, "is_error", None),
             })
     return events

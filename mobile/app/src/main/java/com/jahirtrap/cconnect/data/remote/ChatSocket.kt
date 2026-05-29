@@ -1,8 +1,10 @@
 package com.jahirtrap.cconnect.data.remote
 
+import com.jahirtrap.cconnect.data.DiffLine
 import com.jahirtrap.cconnect.data.InteractionOption
 import com.jahirtrap.cconnect.data.ServerEvent
 import com.jahirtrap.cconnect.data.TodoItem
+import com.jahirtrap.cconnect.data.diffKindOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -164,7 +166,17 @@ class ChatSocket(private val scope: CoroutineScope) {
             "thinking" -> ServerEvent.Thinking(str("text").orEmpty())
             "tool_use" -> ServerEvent.ToolUse(str("id"), str("name"), str("input"))
             "tool_result" -> ServerEvent.ToolResult(str("content"))
-            "file_change" -> ServerEvent.FileChange(str("id"), str("path").orEmpty(), str("diff").orEmpty())
+            "file_change" -> ServerEvent.FileChange(
+                str("id"),
+                str("path").orEmpty(),
+                obj["diff_lines"]?.jsonArray?.map { el ->
+                    val o = el.jsonObject
+                    DiffLine(
+                        kind = diffKindOf(o["kind"]?.jsonPrimitive?.contentOrNull),
+                        text = o["text"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    )
+                } ?: emptyList(),
+            )
             "todos" -> ServerEvent.Todos(
                 obj["items"]?.jsonArray?.map { el ->
                     val o = el.jsonObject
