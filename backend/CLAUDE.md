@@ -96,7 +96,7 @@ Every REST endpoint returns `core.responses.api_response()` —
 | GET | `/api/capabilities` | Permission modes, effort levels, models, colors |
 | GET | `/api/projects` | Claude Code projects under `~/.claude/projects` |
 | GET | `/api/sessions?project=<key>` | Sessions in a project (or all when omitted) |
-| GET | `/api/sessions/{id}/messages?project=<key>&page=N&per_page=100` | Paginated transcript via `paginated_response`. `page=1` = most recent slice so the client can render before knowing `total_pages`. |
+| GET | `/api/sessions/{id}/messages?project=<key>&limit=200&before_index=N` | Cursor-based transcript slice. Without `before_index` returns the most recent `limit` items. Each item carries its `index`; clients pass the smallest index they have to pull the slice before it. Response: `{items, total, start_index, has_more}`. |
 | POST | `/api/sessions/{id}/rename` | Set a custom title |
 | POST | `/api/sessions/{id}/color` | Set the session color |
 | POST | `/api/sessions/{id}/auto-rename` | Ask the SDK to generate a title |
@@ -113,7 +113,7 @@ Client → server (JSON):
 - `{"type":"set_permission_mode","mode":"..."}`
 - `{"type":"interrupt"}`
 - `{"type":"interaction_response","id":"...","option_id":"...","free_text":"..."}`
-- `{"type":"load_history","session_id":"...","project":"...","page":N,"per_page":100}` — pull older transcript slices in background. `page=2` follows the initial HTTP `page=1` fetch.
+- `{"type":"load_history","session_id":"...","project":"...","before_index":N,"limit":100}` — pull the slice immediately before `before_index`. Used after the initial HTTP fetch when the user scrolls towards the top.
 
 Server → client (JSON):
 
@@ -129,7 +129,7 @@ Server → client (JSON):
   tool_use_id) — for `AskUserQuestion` and per-tool permission prompts. Paired
   by id with the client's `interaction_response`.
 - `system`, `result` (carries `session_id`), `done`, `interrupted`, `error`.
-- `history_chunk` (session_id, page, items, has_more) — push response to `load_history`. Each `item` matches the resume transcript shape. When `has_more=false` the client stops requesting.
+- `history_chunk` (session_id, start_index, items, has_more) — push response to `load_history`. Each `item` matches the resume transcript shape and carries its `index`. When `has_more=false` the client stops requesting.
 
 `permission_mode` ∈
 `default | acceptEdits | plan | dontAsk | bypassPermissions | auto`.
@@ -179,7 +179,9 @@ The file is appended verbatim to every session's system prompt by
 `services/sessions.get_session_messages` reads the JSONL transcript and
 normalizes blocks so resume == live:
 
-- `text`, `thinking`, `summary` — passthrough.
+- `text`, `thinking`, `summary` — `.strip()`-ed (the SDK leaves a leading space
+  in the first block chunk; live streaming strips the same way inside
+  `claude_runtime.run_prompt` using a per-block-index flag).
 - `tool_use` — emitted with `text = _format_tool_input(input)` (same `"key: value"`
   format as live). Special handling:
   - `Edit/Write/MultiEdit/NotebookEdit` → `file_change` with `diff_lines`.

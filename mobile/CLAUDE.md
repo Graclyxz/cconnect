@@ -31,7 +31,8 @@ mobile/app/src/main/java/com/jahirtrap/cconnect/
 ├── chat/
 │   ├── ChatScreen.kt            # Top-level screen + drawer + scroll logic
 │   ├── ChatBlocks.kt            # ChatMessageItem and per-role renderers
-│   └── ChatViewModel.kt         # State + event handlers + history loading
+│   ├── ChatViewModel.kt         # State + event handlers + transcript window
+│   └── PermissionUi.kt          # permissionStyle() → icon + Palette color per mode
 ├── data/
 │   ├── ChatModels.kt            # Role, ChatMessage, InteractionData, ServerEvent
 │   ├── SessionModels.kt
@@ -61,7 +62,12 @@ mobile/app/src/main/java/com/jahirtrap/cconnect/
     ├── ScrollIndicator.kt       # Thin custom scrollbars for horizontalScroll
     ├── CustomIcons.kt           # PlayFilled, Stop — filled icons matching Lucide shapes
     ├── SecretTextField.kt       # OutlinedTextField with show/hide toggle for tokens/passwords
-    └── theme/                   # Accents + sessionColor + dynamic color
+    ├── TooltipIconButton.kt     # IconButton wrapped with M3 PlainTooltip + custom anchor provider
+    └── theme/
+        ├── Theme.kt             # CConnectTheme: MaterialExpressiveTheme + ExpressiveShapes + Palette provider
+        ├── Palette.kt           # data class Palette + Light/Dark sets + LocalPalette + palette getter
+        ├── Accents.kt           # User-selectable accent presets
+        └── SessionColors.kt     # Per-conversation color picker
 ```
 
 ## Connection model
@@ -110,26 +116,40 @@ the settings list, the chat topbar, and the active-connection summary.
 | `task` | updates the task progress UI |
 | `result` | stores the new `sessionId` |
 | `done` / `interrupted` / `error` | UI transitions |
-| `history_chunk` | older messages from the WS backfill — prepended to `state.messages`. Chunks for a non-active `sessionId` are dropped. Next page is requested while `has_more=true`. |
+| `history_chunk` | older messages from the WS backfill — prepended to `state.messages`. Chunks for a non-active `sessionId` are dropped. Updates `oldestLoadedIndex = chunk.startIndex` and `transcriptExhausted = !chunk.hasMore`. |
 
-## Resume with progressive backfill
+## Transcript window (cursor-based sliding pagination)
 
-Opening a session pulls the latest 100 messages via REST
-(`SessionsApi.sessionMessages(page=1, perPage=100)` — paginated envelope from
-the backend). Render starts immediately; the rest of the transcript is then
-pushed in background by the WS: the client emits `load_history page=N`, the
-server replies with `history_chunk` items that `onHistoryChunk` prepends to the
-list while keeping `LazyColumn` scroll position. There is no explicit cancel —
-chunks whose `session_id` no longer matches `state.sessionId` are ignored, which
-makes "user switched session" handling free.
+Long sessions never live in memory in full. The active window is bounded and
+filled on demand:
+
+- **Initial open**: `SessionsApi.sessionMessages(limit=100)` over HTTP returns
+  the latest 100 messages plus `start_index` and `has_more`. `ChatViewModel`
+  seeds `oldestLoadedIndex = start_index` and `transcriptExhausted = !has_more`.
+- **Scroll up to backfill**: `ChatScreen` watches `listState.firstVisibleItemIndex`;
+  while it sits under 10, `vm.loadMoreHistory()` fires. The VM guards with
+  `transcriptLoading` and `transcriptExhausted`, then sends
+  `load_history before_index=<oldestLoadedIndex>` over the WS. `onHistoryChunk`
+  prepends and advances the cursor. `LazyColumn` preserves visual position
+  because keys (`message.id`) stay stable.
+- **Tail cap (`MESSAGE_TAIL_CAP = 500`)**: `applyTailCap` runs after every
+  append/addMessage. While `followBottom` is true and the list exceeds the cap,
+  the oldest items are dropped. The new top's `sourceIndex` becomes the cursor,
+  and `transcriptExhausted = false` is reset so scrolling up can pull them again.
+- **Initial reset (`MESSAGE_INITIAL_CAP = 100`)**: `sendPrompt` calls
+  `resetToInitialWindow` so a brand-new prompt at the bottom collapses the
+  window back to 100. While scrolled up (`followBottom = false`) neither cap
+  drops anything — yanking context would be jarring.
+- **Cancellation**: implicit. Chunks whose `session_id` doesn't match the
+  active one are dropped on arrival.
 
 ## Markdown rendering (`ui/MarkdownText.kt`)
 
 - CommonMark + GFM (tables, strikethrough, task lists, footnotes, autolink, ins).
-- `parser.parse()` runs on `Dispatchers.Default` via `produceState`, gated by a
-  process-wide `LruCache<String, Node>` bound to 300 entries. The cache hit path
-  is sync (no recomposition flicker); the first sighting of a markdown payload
-  suspends the parse so big resumes don't ANR the main thread.
+- `val root = remember(markdown) { parser.parse(markdown) }` — sync on the
+  composition thread. The transcript window cap (100/500) keeps the number of
+  composed `MarkdownText` instances small enough that off-main parsing isn't
+  worth the recomposition flicker it would introduce.
 - `SelectionContainer` wraps the column so any block is selectable via long-press.
 - Inline code uses `addStringAnnotation(INLINE_CODE_TAG, ...)` instead of
   `SpanStyle.background`; `MdText` then reads the `TextLayoutResult` in
@@ -146,12 +166,28 @@ makes "user switched session" handling free.
 
 The backend converts `Edit/Write/MultiEdit/NotebookEdit` tools into
 `file_change` events carrying `diff_lines: [{kind, text}]` (already classified
-backend-side — mobile doesn't re-detect `looksLikeDiff` or split lines). The
-app renders these as `FileChangeBlock` — a collapsible header with the file
-path + `Lucide.FilePen` icon; the expanded body paints each `DiffLine` with a
-color per `DiffKind` (GitHub-like greens/reds/blues) and a `+`/`-` prefix on
-`ADD`/`DEL`. The same shape is re-emitted from the resume endpoint so live
-and resumed sessions render identically.
+backend-side — mobile doesn't re-detect or split). The app renders these as
+`FileChangeBlock` — a collapsible header with the file path + `Lucide.FilePen`
+icon; the expanded body paints each `DiffLine` using `Palette.green/red/blue/
+gray` and their `*Bg` containers (light/dark adapted), plus a `+`/`-` prefix on
+`ADD`/`DEL`. The same shape is re-emitted from the resume endpoint so live and
+resumed sessions render identically.
+
+## Theme and colors (`ui/theme/`)
+
+- `CConnectTheme` wraps `MaterialExpressiveTheme` with `ExpressiveShapes`,
+  `ExpressiveTypography` (bolder weights), `MotionScheme.expressive`, and a
+  custom `ColorScheme` that flattens surfaces to pure black/white while keeping
+  the user-chosen accent as `primary`/`secondary`/`tertiary`.
+- `Palette` is the semantic-but-named-by-color set:
+  `red/green/blue/yellow/orange/cyan/purple/gray` plus `redBg/greenBg/blueBg`
+  for translucent backgrounds. Two snapshots — `LightPalette` and `DarkPalette`
+  — selected via `LocalPalette`. Use `palette.green` (etc.) inside any
+  composable.
+- Consumers: `diffStyleFor` (diff colors), `permissionStyle` (chip per
+  permission mode), the SSH connected dot, anywhere else that needs a semantic
+  hue. Brand colors (FA distro tints, accent presets) stay outside the palette
+  because they don't have a light/dark counterpart.
 
 ## Selection icons & visual conventions
 
