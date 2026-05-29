@@ -10,6 +10,7 @@ import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.SessionMessage
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
@@ -110,6 +111,7 @@ object SessionsApi {
             diffLines = diffLines,
             compact = compact,
             index = o["index"]?.jsonPrimitive?.intOrNull ?: -1,
+            labelOnly = o["label"]?.jsonPrimitive?.booleanOrNull == true,
         )
     }
 

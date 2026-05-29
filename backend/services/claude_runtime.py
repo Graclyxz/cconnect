@@ -11,6 +11,7 @@ from loguru import logger
 from core import cli_manager
 from core.config import AI_WORKDIR, PORT, SHARED_DIR
 from mcps import build_cconnect_server
+from services import settings_store
 
 _AGENT_PROMPT_FILE = Path(__file__).resolve().parent.parent / "prompts" / "agent.md"
 _FILE_EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
@@ -175,6 +176,12 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False, hidden_tool_ids
                 continue
             events.append({"type": "assistant_text", "text": getattr(block, "text", "").strip()})
         elif kind == "ThinkingBlock":
+            mode = settings_store.visibility_mode("thinking")
+            if mode == "off":
+                continue
+            if mode == "label":
+                events.append({"type": "thinking", "label": True})
+                continue
             if skip_streamed:
                 continue
             events.append({"type": "thinking", "text": (getattr(block, "thinking", "") or getattr(block, "text", "")).strip()})
@@ -197,30 +204,41 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False, hidden_tool_ids
                     "status": raw_input.get("status"),
                 })
             elif name in _FILE_EDIT_TOOLS:
-                event = _file_change_event(block, raw_input, hidden)
-                if event is not None:
+                event = _file_change_event(block, raw_input, hidden)  # also marks the edit's result hidden
+                mode = settings_store.visibility_mode("file_change")
+                if event is not None and mode != "off":
+                    if mode == "label":
+                        event = {"type": "file_change", "id": event.get("id"), "path": event.get("path"), "label": True}
                     events.append(event)
             elif not name.startswith("Task"):
-                events.append({
-                    "type": "tool_use",
-                    "id": getattr(block, "id", None),
-                    "name": name,
-                    "input": _format_tool_input(raw_input),
-                })
+                mode = settings_store.visibility_mode("tool_use")
+                if mode == "off":
+                    continue
+                if mode == "label":
+                    events.append({"type": "tool_use", "id": getattr(block, "id", None), "name": name, "label": True})
+                else:
+                    events.append({
+                        "type": "tool_use",
+                        "id": getattr(block, "id", None),
+                        "name": name,
+                        "input": _format_tool_input(raw_input),
+                    })
         elif kind == "ToolResultBlock":
-            # TEMP: tool results disabled — not emitted to the client for now.
-            # Reachable: the SDK parser builds AssistantMessage with ToolResultBlock when
-            # the CLI sends an assistant message carrying a tool_result block.
-            continue
-            # tuid = getattr(block, "tool_use_id", None)
-            # if tuid and tuid in hidden:
-            #     continue
-            # events.append({
-            #     "type": "tool_result",
-            #     "tool_use_id": tuid,
-            #     "content": _flatten_result_content(getattr(block, "content", None)).strip(),
-            #     "is_error": getattr(block, "is_error", None),
-            # })
+            tuid = getattr(block, "tool_use_id", None)
+            if tuid and tuid in hidden:
+                continue
+            mode = settings_store.visibility_mode("tool_result")
+            if mode == "off":
+                continue
+            if mode == "label":
+                events.append({"type": "tool_result", "tool_use_id": tuid, "label": True})
+                continue
+            events.append({
+                "type": "tool_result",
+                "tool_use_id": tuid,
+                "content": _flatten_result_content(getattr(block, "content", None)).strip(),
+                "is_error": getattr(block, "is_error", None),
+            })
     return events
 
 
@@ -357,7 +375,10 @@ async def run_prompt(
                 idx = raw.get("index") if isinstance(raw, dict) else None
                 if isinstance(raw, dict) and raw.get("type") == "content_block_start" and isinstance(idx, int):
                     first_chunk_pending.add(idx)
+                stream_thinking = settings_store.visibility_mode("thinking") == "full"
                 for event in _stream_event_to_events(raw):
+                    if event.get("type") == "thinking" and not stream_thinking:
+                        continue
                     if isinstance(idx, int) and idx in first_chunk_pending and event.get("text"):
                         event["text"] = event["text"].lstrip()
                         first_chunk_pending.discard(idx)
@@ -366,19 +387,23 @@ async def run_prompt(
                 for event in _blocks_to_events(message.content, skip_streamed=partial, hidden_tool_ids=hidden_tool_ids):
                     yield event
             elif isinstance(message, UserMessage):
-                # TEMP: tool results disabled — not emitted to the client for now.
-                # for block in getattr(message, "content", None) or []:
-                #     if type(block).__name__ != "ToolResultBlock":
-                #         continue
-                #     tuid = getattr(block, "tool_use_id", None)
-                #     if tuid and tuid in hidden_tool_ids:
-                #         continue
-                #     yield {
-                #         "type": "tool_result",
-                #         "tool_use_id": tuid,
-                #         "content": _flatten_result_content(getattr(block, "content", None)),
-                #         "is_error": getattr(block, "is_error", None),
-                #     }
+                tr_mode = settings_store.visibility_mode("tool_result")
+                if tr_mode != "off":
+                    for block in getattr(message, "content", None) or []:
+                        if type(block).__name__ != "ToolResultBlock":
+                            continue
+                        tuid = getattr(block, "tool_use_id", None)
+                        if tuid and tuid in hidden_tool_ids:
+                            continue
+                        if tr_mode == "label":
+                            yield {"type": "tool_result", "tool_use_id": tuid, "label": True}
+                        else:
+                            yield {
+                                "type": "tool_result",
+                                "tool_use_id": tuid,
+                                "content": _flatten_result_content(getattr(block, "content", None)),
+                                "is_error": getattr(block, "is_error", None),
+                            }
                 for event in _task_events_from_result(getattr(message, "tool_use_result", None)):
                     yield event
             elif isinstance(message, SystemMessage):

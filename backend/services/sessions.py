@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from core.config import AI_WORKDIR, CLAUDE_PROJECTS_DIR
+from services import settings_store
 
 _KEY_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 _SESSION_RE = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -355,6 +356,9 @@ def session_tasks(session_id: str) -> list[dict]:
                 "content": data.get("subject", ""),
                 "status": data.get("status", "pending"),
             })
+    # All completed means nothing pending to resume.
+    if tasks and all(t["status"] == "completed" for t in tasks):
+        return []
     return tasks
 
 
@@ -408,6 +412,8 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
          if e.get("type") == "system" and e.get("subtype") == "compact_boundary"),
         default=-1,
     )
+    # Per-type visibility (full / label / off).
+    vis = {t: settings_store.visibility_mode(t) for t in ("thinking", "tool_use", "tool_result", "file_change", "compact")}
     messages: list[dict] = []
     hidden_ids: set[str] = set()
     compact_block: dict | None = None
@@ -427,7 +433,7 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
             messages.append(compact_block)
             continue
         if entry.get("isCompactSummary"):
-            if compact_block is not None and i > last_boundary:
+            if compact_block is not None and i > last_boundary and vis["compact"] != "label":
                 compact_block["summary"] = _compact_summary_text(entry)
             continue
         if etype == "summary":
@@ -460,6 +466,11 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                 if text and not _COMMAND_META_RE.search(text):
                     messages.append({"type": "text", "role": role, "text": text})
             elif btype == "thinking":
+                if vis["thinking"] == "off":
+                    continue
+                if vis["thinking"] == "label":
+                    messages.append({"type": "thinking", "label": True})
+                    continue
                 text = (block.get("thinking") or block.get("text", "")).strip()
                 if text:
                     messages.append({"type": "thinking", "text": text})
@@ -503,6 +514,11 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                     if isinstance(path, str) and path:
                         if isinstance(bid, str):
                             hidden_ids.add(bid)
+                        if vis["file_change"] == "off":
+                            continue
+                        if vis["file_change"] == "label":
+                            messages.append({"type": "file_change", "path": path, "id": bid, "label": True})
+                            continue
                         messages.append({
                             "type": "file_change",
                             "path": path,
@@ -510,14 +526,22 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                             "id": bid,
                         })
                         continue
+                if vis["tool_use"] == "off":
+                    continue
+                if vis["tool_use"] == "label":
+                    messages.append({"type": "tool_use", "name": name, "label": True})
+                    continue
                 messages.append({"type": "tool_use", "name": name, "text": _format_tool_input(inp)})
             elif btype == "tool_result":
-                # TEMP: tool results disabled — not emitted on resume for now.
-                continue
-                # if block.get("tool_use_id") in hidden_ids:
-                #     continue
-                # from services.claude_runtime import _flatten_result_content
-                # text = _flatten_result_content(block.get("content")).strip()
-                # if text:
-                #     messages.append({"type": "tool_result", "text": text})
+                if block.get("tool_use_id") in hidden_ids:
+                    continue
+                if vis["tool_result"] == "off":
+                    continue
+                if vis["tool_result"] == "label":
+                    messages.append({"type": "tool_result", "label": True})
+                    continue
+                from services.claude_runtime import _flatten_result_content
+                text = _flatten_result_content(block.get("content")).strip()
+                if text:
+                    messages.append({"type": "tool_result", "text": text})
     return messages

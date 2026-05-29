@@ -275,9 +275,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val projectKey = session.projectKey ?: return
         viewModelScope.launch {
             val page = SessionsApi.sessionMessages(session.sessionId, projectKey, limit = 100)
-            val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null }
+            val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly }
             val loaded = visible.mapIndexed { i, m ->
-                ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index)
+                ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly)
             }
             nextId = loaded.size.toLong()
             currentAssistantId = null
@@ -388,25 +388,31 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 currentThinkingId = null
                 currentAssistantId = append(currentAssistantId, Role.ASSISTANT, event.text)
             }
-            is ServerEvent.Thinking -> if (event.text.isNotEmpty()) {
-                currentAssistantId = null
-                currentThinkingId = append(currentThinkingId, Role.THINKING, event.text)
+            is ServerEvent.Thinking -> {
+                if (event.labelOnly) {
+                    currentAssistantId = null
+                    currentThinkingId = null
+                    addMessage(Role.THINKING, "", labelOnly = true)
+                } else if (event.text.isNotEmpty()) {
+                    currentAssistantId = null
+                    currentThinkingId = append(currentThinkingId, Role.THINKING, event.text)
+                }
             }
             is ServerEvent.ToolUse -> {
                 currentAssistantId = null
                 currentThinkingId = null
-                addMessage(Role.TOOL, event.input.orEmpty(), toolName = event.name, toolUseId = event.id)
+                addMessage(Role.TOOL, event.input.orEmpty(), toolName = event.name, toolUseId = event.id, labelOnly = event.labelOnly)
             }
             is ServerEvent.ToolResult -> {
                 currentAssistantId = null
                 currentThinkingId = null
-                val text = event.content.orEmpty()
-                if (text.isNotBlank()) addMessage(Role.TOOL_RESULT, text)
+                if (event.labelOnly) addMessage(Role.TOOL_RESULT, "", labelOnly = true)
+                else event.content.orEmpty().takeIf { it.isNotBlank() }?.let { addMessage(Role.TOOL_RESULT, it) }
             }
             is ServerEvent.FileChange -> {
                 currentAssistantId = null
                 currentThinkingId = null
-                addMessage(Role.FILE_CHANGE, text = "", toolUseId = event.id, path = event.path, diffLines = event.diffLines)
+                addMessage(Role.FILE_CHANGE, text = "", toolUseId = event.id, path = event.path, diffLines = event.diffLines, labelOnly = event.labelOnly)
             }
             is ServerEvent.Compact -> {
                 currentAssistantId = null
@@ -486,10 +492,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val older = event.items
-            .filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null }
+            .filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly }
         _state.update { st ->
             val prepended = older.mapIndexed { i, m ->
-                ChatMessage(nextId + i, m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index)
+                ChatMessage(nextId + i, m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly)
             }
             nextId += prepended.size
             st.copy(
@@ -552,9 +558,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         path: String? = null,
         diffLines: List<DiffLine>? = null,
         compact: CompactData? = null,
+        labelOnly: Boolean = false,
     ) {
         _state.update {
-            applyTailCap(it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines, compact)))
+            applyTailCap(it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines, compact, labelOnly = labelOnly)))
         }
     }
 

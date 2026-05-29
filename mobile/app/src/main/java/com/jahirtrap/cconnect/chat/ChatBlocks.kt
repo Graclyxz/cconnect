@@ -93,11 +93,11 @@ fun ChatMessageItem(
                 MarkdownText(message.text, modifier = Modifier.fillMaxWidth(), onSharedLink = onSharedLink)
             }
 
-            Role.THINKING -> Collapsible(label = stringResource(R.string.thinking), text = message.text, icon = Lucide.Lightbulb)
+            Role.THINKING -> Collapsible(label = stringResource(R.string.thinking), text = message.text, icon = Lucide.Lightbulb, labelOnly = message.labelOnly)
 
-            Role.TOOL -> ToolBlock(name = message.toolName, input = message.text)
+            Role.TOOL -> ToolBlock(name = message.toolName, input = message.text, labelOnly = message.labelOnly)
 
-            Role.TOOL_RESULT -> Collapsible(label = stringResource(R.string.result), text = message.text)
+            Role.TOOL_RESULT -> Collapsible(label = stringResource(R.string.result), text = message.text, labelOnly = message.labelOnly)
 
             Role.SUMMARY -> Collapsible(label = stringResource(R.string.summary), text = message.text)
 
@@ -105,7 +105,7 @@ fun ChatMessageItem(
                 InteractionBlock(data = it, toolName = message.toolName, input = message.text, onAnswer = onAnswer)
             }
 
-            Role.FILE_CHANGE -> FileChangeBlock(path = message.path.orEmpty(), diffLines = message.diffLines.orEmpty())
+            Role.FILE_CHANGE -> FileChangeBlock(path = message.path.orEmpty(), diffLines = message.diffLines.orEmpty(), labelOnly = message.labelOnly)
 
             Role.COMPACT -> message.compact?.let { CompactBlock(it) }
 
@@ -170,11 +170,11 @@ private fun Plain(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun Collapsible(label: String, text: String, icon: ImageVector? = null) {
+private fun Collapsible(label: String, text: String, icon: ImageVector? = null, labelOnly: Boolean = false) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth().then(if (labelOnly) Modifier else Modifier.clickable { expanded = !expanded }),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (icon != null) {
@@ -192,14 +192,16 @@ private fun Collapsible(label: String, text: String, icon: ImageVector? = null) 
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            Icon(
-                imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
-            )
+            if (!labelOnly) {
+                Icon(
+                    imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
-        if (expanded) {
+        if (expanded && !labelOnly) {
             SelectionContainer(modifier = Modifier.padding(top = 4.dp)) {
                 Text(
                     text = text,
@@ -212,14 +214,14 @@ private fun Collapsible(label: String, text: String, icon: ImageVector? = null) 
 }
 
 @Composable
-private fun ToolBlock(name: String?, input: String) {
+private fun ToolBlock(name: String?, input: String, labelOnly: Boolean = false) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val preview = input.replace("\n", " ").trim()
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .clickable { expanded = !expanded },
+            .then(if (labelOnly) Modifier else Modifier.clickable { expanded = !expanded }),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -237,7 +239,7 @@ private fun ToolBlock(name: String?, input: String) {
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
             )
-            if (!expanded && preview.isNotEmpty()) {
+            if (!labelOnly && !expanded && preview.isNotEmpty()) {
                 Text(
                     text = "  $preview",
                     style = MaterialTheme.typography.labelLarge,
@@ -249,14 +251,16 @@ private fun ToolBlock(name: String?, input: String) {
             } else {
                 Spacer(Modifier.weight(1f))
             }
-            Icon(
-                imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
-            )
+            if (!labelOnly) {
+                Icon(
+                    imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
-        if (expanded && input.isNotBlank()) {
+        if (expanded && !labelOnly && input.isNotBlank()) {
             SelectionContainer(modifier = Modifier.padding(top = 4.dp)) {
                 Text(
                     text = input,
@@ -270,11 +274,11 @@ private fun ToolBlock(name: String?, input: String) {
 }
 
 @Composable
-private fun FileChangeBlock(path: String, diffLines: List<DiffLine>) {
+private fun FileChangeBlock(path: String, diffLines: List<DiffLine>, labelOnly: Boolean = false) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth().then(if (labelOnly) Modifier else Modifier.clickable { expanded = !expanded }),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -291,14 +295,16 @@ private fun FileChangeBlock(path: String, diffLines: List<DiffLine>) {
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            Icon(
-                imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp),
-            )
+            if (!labelOnly) {
+                Icon(
+                    imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
-        if (expanded && diffLines.isNotEmpty()) {
+        if (expanded && !labelOnly && diffLines.isNotEmpty()) {
             val bg = MaterialTheme.colorScheme.surfaceContainerHigh
             val defaultFg = MaterialTheme.colorScheme.onSurfaceVariant
             val scroll = rememberScrollState()

@@ -28,6 +28,7 @@ data class SessionMessage(
     val diffLines: List<DiffLine>? = null,
     val compact: CompactData? = null,
     val index: Int = -1,
+    val labelOnly: Boolean = false,
 )
 
 data class SharedEntry(

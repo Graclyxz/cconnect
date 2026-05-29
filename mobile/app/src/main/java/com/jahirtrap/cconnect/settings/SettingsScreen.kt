@@ -58,6 +58,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Check
+import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.History
 import com.composables.icons.lucide.Languages
 import com.composables.icons.lucide.Lucide
@@ -126,6 +127,11 @@ fun SettingsScreen(
     var effort by remember { mutableStateOf(caps.defaults.effort) }
     var permissionMode by remember { mutableStateOf(caps.defaults.permissionMode) }
     var streaming by remember { mutableStateOf(true) }
+    var showThinking by remember { mutableStateOf("full") }
+    var showToolUse by remember { mutableStateOf("full") }
+    var showToolResult by remember { mutableStateOf("off") }
+    var showFileChange by remember { mutableStateOf("full") }
+    var showCompact by remember { mutableStateOf("full") }
     var cliInfo by remember { mutableStateOf<CliApi.CliInfo?>(null) }
     // The generation/permission/CLI rows are server-owned: dimmed/disabled until a fetch
     // succeeds, with a loading indicator while fetching.
@@ -141,6 +147,8 @@ fun SettingsScreen(
         val s = SettingsApi.get()
         if (s != null) {
             model = s.model; effort = s.effort; permissionMode = s.permissionMode; streaming = s.streaming
+            showThinking = s.showThinking; showToolUse = s.showToolUse; showToolResult = s.showToolResult
+            showFileChange = s.showFileChange; showCompact = s.showCompact
         }
         cliInfo = CliApi.status()
         serverReady = s != null
@@ -209,6 +217,7 @@ fun SettingsScreen(
                 PreferenceRow(Lucide.Terminal, stringResource(R.string.cli), serverSummary(cliInfo?.activeVersion ?: "—"), trailing = spinner, enabled = serverReady) { dialog = SettingsDialog.Cli }
                 PreferenceRow(Lucide.Sparkles, stringResource(R.string.generation), serverSummary("${caps.models.firstOrNull { it.id == model }?.label ?: model} • $effort"), trailing = spinner, enabled = serverReady) { dialog = SettingsDialog.Generation }
                 PreferenceRow(Lucide.Shield, stringResource(R.string.permissions), serverSummary(permissionLabel(caps, permissionMode)), trailing = spinner, enabled = serverReady) { dialog = SettingsDialog.Permissions }
+                PreferenceRow(Lucide.Eye, stringResource(R.string.visibility), serverSummary(stringResource(R.string.visibility_summary)), trailing = spinner, enabled = serverReady) { dialog = SettingsDialog.Visibility }
                 PreferenceRow(Lucide.History, stringResource(R.string.reset_settings), stringResource(R.string.reset_settings_summary)) { dialog = SettingsDialog.Reset }
             }
         }
@@ -277,6 +286,20 @@ fun SettingsScreen(
             onDismiss = { dialog = null },
         )
 
+        SettingsDialog.Visibility -> VisibilityDialog(
+            thinking = showThinking,
+            toolUse = showToolUse,
+            toolResult = showToolResult,
+            fileChange = showFileChange,
+            compact = showCompact,
+            onConfirm = { th, tu, tr, fc, cp ->
+                showThinking = th; showToolUse = tu; showToolResult = tr; showFileChange = fc; showCompact = cp
+                scope.launch { SettingsApi.update(showThinking = th, showToolUse = tu, showToolResult = tr, showFileChange = fc, showCompact = cp) }
+                dialog = null
+            },
+            onDismiss = { dialog = null },
+        )
+
         SettingsDialog.Reset -> ConfirmDialog(
             title = stringResource(R.string.reset_settings),
             text = stringResource(R.string.reset_settings_confirm),
@@ -288,6 +311,8 @@ fun SettingsScreen(
                 scope.launch {
                     SettingsApi.reset()?.let {
                         model = it.model; effort = it.effort; permissionMode = it.permissionMode; streaming = it.streaming
+                        showThinking = it.showThinking; showToolUse = it.showToolUse; showToolResult = it.showToolResult
+                        showFileChange = it.showFileChange; showCompact = it.showCompact
                     }
                 }
                 dialog = null
@@ -299,7 +324,7 @@ fun SettingsScreen(
     }
 }
 
-private enum class SettingsDialog { Theme, Language, Accent, Connections, Cli, Generation, Permissions, Reset }
+private enum class SettingsDialog { Theme, Language, Accent, Connections, Cli, Generation, Permissions, Visibility, Reset }
 
 @Composable
 private fun permissionLabel(caps: Capabilities, mode: String): String =
@@ -653,6 +678,50 @@ private fun GenerationDialog(
             }
             Switch(checked = s, onCheckedChange = { s = it })
         }
+    }
+}
+
+@Composable
+private fun VisibilityDialog(
+    thinking: String,
+    toolUse: String,
+    toolResult: String,
+    fileChange: String,
+    compact: String,
+    onConfirm: (String, String, String, String, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var th by remember { mutableStateOf(thinking) }
+    var tu by remember { mutableStateOf(toolUse) }
+    var tr by remember { mutableStateOf(toolResult) }
+    var fc by remember { mutableStateOf(fileChange) }
+    var cp by remember { mutableStateOf(compact) }
+    val three = listOf(
+        "full" to stringResource(R.string.show_full),
+        "label" to stringResource(R.string.show_label),
+        "off" to stringResource(R.string.show_off),
+    )
+    val two = listOf(
+        "full" to stringResource(R.string.show_full),
+        "label" to stringResource(R.string.show_label),
+    )
+    CompactDialog(
+        onDismiss = onDismiss,
+        title = stringResource(R.string.visibility),
+        buttons = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            TextButton(onClick = { onConfirm(th, tu, tr, fc, cp) }) { Text(stringResource(R.string.save)) }
+        },
+    ) {
+        SelectField(stringResource(R.string.thinking), th, three) { th = it }
+        Spacer(Modifier.height(14.dp))
+        SelectField(stringResource(R.string.tools), tu, three) { tu = it }
+        Spacer(Modifier.height(14.dp))
+        SelectField(stringResource(R.string.result), tr, three) { tr = it }
+        Spacer(Modifier.height(14.dp))
+        SelectField(stringResource(R.string.file_changes), fc, three) { fc = it }
+        Spacer(Modifier.height(14.dp))
+        SelectField(stringResource(R.string.compacted), cp, two) { cp = it }
     }
 }
 

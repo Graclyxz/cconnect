@@ -53,6 +53,21 @@ def get(key: str) -> Any:
     return _overrides[key] if key in _overrides else SETTINGS[key].default
 
 
+# Chat item type -> its visibility setting key. Types not listed are always shown.
+_VISIBILITY = {
+    "thinking": "show_thinking",
+    "tool_use": "show_tool_use",
+    "tool_result": "show_tool_result",
+    "file_change": "show_file_change",
+    "compact": "show_compact",
+}
+
+
+def visibility_mode(item_type: str) -> str:
+    key = _VISIBILITY.get(item_type)
+    return get(key) if key else "full"
+
+
 def all_effective() -> dict[str, Any]:
     return {key: get(key) for key in SETTINGS}
 

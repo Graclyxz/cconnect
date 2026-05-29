@@ -18,6 +18,8 @@ class SettingDef:
     allowed: Optional[tuple] = None
 
 
+_SHOW_MODES = ("full", "label", "off")
+
 SETTINGS: dict[str, SettingDef] = {
     "model": SettingDef(DEFAULT_MODEL, str, "Claude model alias used for chat generation"),
     "effort": SettingDef(DEFAULT_EFFORT, str, "Reasoning effort: low..max, or ultracode (xhigh + workflow orchestration)"),
@@ -25,4 +27,9 @@ SETTINGS: dict[str, SettingDef] = {
     "streaming": SettingDef(True, bool, "Stream tokens (partial messages) as they are generated"),
     "cli_source": SettingDef("system", str, "Which Claude CLI the backend drives: system, custom, or bundled", allowed=("system", "custom", "bundled")),
     "cli_custom_path": SettingDef(None, str, "Filesystem path to the CLI when cli_source is custom"),
+    "show_thinking": SettingDef("full", str, "How to show thinking blocks: full, label, or off", allowed=_SHOW_MODES),
+    "show_tool_use": SettingDef("full", str, "How to show tool calls: full, label, or off", allowed=_SHOW_MODES),
+    "show_tool_result": SettingDef("off", str, "How to show tool results: full, label, or off", allowed=_SHOW_MODES),
+    "show_file_change": SettingDef("full", str, "How to show file diffs: full, label, or off", allowed=_SHOW_MODES),
+    "show_compact": SettingDef("full", str, "How to show compaction blocks: full summary or just a label", allowed=("full", "label")),
 }

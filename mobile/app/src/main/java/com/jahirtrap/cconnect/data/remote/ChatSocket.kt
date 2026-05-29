@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
@@ -171,12 +172,13 @@ class ChatSocket(private val scope: CoroutineScope) {
     private fun parse(text: String): ServerEvent? {
         val obj = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return null
         fun str(key: String): String? = obj[key]?.jsonPrimitive?.contentOrNull
+        fun flag(key: String): Boolean = obj[key]?.jsonPrimitive?.booleanOrNull == true
         return when (str("type")) {
             "ready" -> ServerEvent.Ready(str("session_id"), str("project"))
             "assistant_text" -> ServerEvent.AssistantText(str("text").orEmpty())
-            "thinking" -> ServerEvent.Thinking(str("text").orEmpty())
-            "tool_use" -> ServerEvent.ToolUse(str("id"), str("name"), str("input"))
-            "tool_result" -> ServerEvent.ToolResult(str("content"))
+            "thinking" -> ServerEvent.Thinking(str("text").orEmpty(), labelOnly = flag("label"))
+            "tool_use" -> ServerEvent.ToolUse(str("id"), str("name"), str("input"), labelOnly = flag("label"))
+            "tool_result" -> ServerEvent.ToolResult(str("content"), labelOnly = flag("label"))
             "file_change" -> ServerEvent.FileChange(
                 str("id"),
                 str("path").orEmpty(),
@@ -187,6 +189,7 @@ class ChatSocket(private val scope: CoroutineScope) {
                         text = o["text"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                     )
                 } ?: emptyList(),
+                labelOnly = flag("label"),
             )
             "compact" -> ServerEvent.Compact(
                 trigger = str("trigger"),

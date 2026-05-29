@@ -54,6 +54,13 @@ def _resolve_model(model: str | None) -> str | None:
     return None if model in (None, "", "default") else model
 
 
+def _compact_visibility(data: dict) -> dict:
+    """Drop the summary when compact visibility is 'label' (block shows stats only)."""
+    if settings_store.visibility_mode("compact") == "label":
+        return {**data, "summary": ""}
+    return data
+
+
 class _Session:
     def __init__(self):
         self.cwd: str = DEFAULT_CWD
@@ -104,11 +111,11 @@ async def _stream_prompt(ws: WebSocket, send_lock: asyncio.Lock, state: _Session
             if after > boundaries_before:
                 data = sessions_service.latest_compact(state.cwd, state.session_id)
                 if data:
-                    await send({"type": "compact", **data})
+                    await send({"type": "compact", **_compact_visibility(data)})
         elif compacted:
             data = sessions_service.latest_compact(state.cwd, state.session_id)
             if data:
-                await send({"type": "compact_summary", **data})
+                await send({"type": "compact_summary", **_compact_visibility(data)})
     await send({"type": "done"})
 
 

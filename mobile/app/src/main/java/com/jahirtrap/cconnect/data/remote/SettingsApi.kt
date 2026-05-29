@@ -17,6 +17,11 @@ object SettingsApi {
         val effort: String,
         val permissionMode: String,
         val streaming: Boolean,
+        val showThinking: String,
+        val showToolUse: String,
+        val showToolResult: String,
+        val showFileChange: String,
+        val showCompact: String,
     )
 
     private fun effectiveStr(o: JsonObject, key: String, fallback: String): String =
@@ -30,6 +35,11 @@ object SettingsApi {
         effort = effectiveStr(o, "effort", "xhigh"),
         permissionMode = effectiveStr(o, "permission_mode", "bypassPermissions"),
         streaming = effectiveBool(o, "streaming", true),
+        showThinking = effectiveStr(o, "show_thinking", "full"),
+        showToolUse = effectiveStr(o, "show_tool_use", "full"),
+        showToolResult = effectiveStr(o, "show_tool_result", "off"),
+        showFileChange = effectiveStr(o, "show_file_change", "full"),
+        showCompact = effectiveStr(o, "show_compact", "full"),
     )
 
     suspend fun get(): Snapshot? = Http.get("/settings")?.jsonObject?.let(::parse)
@@ -39,11 +49,21 @@ object SettingsApi {
         effort: String? = null,
         permissionMode: String? = null,
         streaming: Boolean? = null,
+        showThinking: String? = null,
+        showToolUse: String? = null,
+        showToolResult: String? = null,
+        showFileChange: String? = null,
+        showCompact: String? = null,
     ): Snapshot? = Http.post("/settings", buildJsonObject {
         if (model != null) put("model", model)
         if (effort != null) put("effort", effort)
         if (permissionMode != null) put("permission_mode", permissionMode)
         if (streaming != null) put("streaming", streaming)
+        if (showThinking != null) put("show_thinking", showThinking)
+        if (showToolUse != null) put("show_tool_use", showToolUse)
+        if (showToolResult != null) put("show_tool_result", showToolResult)
+        if (showFileChange != null) put("show_file_change", showFileChange)
+        if (showCompact != null) put("show_compact", showCompact)
     })?.jsonObject?.let(::parse)
 
     suspend fun reset(): Snapshot? = Http.post("/settings/reset")?.jsonObject?.let(::parse)
