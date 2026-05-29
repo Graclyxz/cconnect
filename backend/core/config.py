@@ -63,6 +63,14 @@ PERMISSION_LABELS = {
 # The named set Claude uses for agent colors; the app maps each to a swatch.
 COLORS = ["red", "orange", "yellow", "green", "cyan", "blue", "purple", "pink"]
 
+# Slash commands offered in the composer menu. kind="client" is handled in-app
+COMMANDS = [
+    {"name": "clear", "description": "Start a new conversation", "kind": "client"},
+    {"name": "compact", "description": "Compact the conversation, keeping a summary", "kind": "prompt"},
+    {"name": "context", "description": "Show context window usage", "kind": "prompt"},
+    {"name": "cost", "description": "Show token cost for this session", "kind": "prompt"},
+]
+
 
 def permission_modes() -> tuple[str, ...]:
     """Permission modes from the installed SDK, falling back to a static list."""

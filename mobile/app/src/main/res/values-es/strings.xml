@@ -90,13 +90,15 @@
     <string name="session_active">Sesión activa</string>
     <string name="delete_conversation">¿Borrar conversación?</string>
     <string name="type_message">Escribe un mensaje…</string>
+    <string name="commands">Comandos</string>
+    <string name="compacting">Compactando…</string>
     <string name="send">Enviar</string>
     <string name="stop">Detener</string>
     <string name="thinking">Pensando</string>
     <string name="result">Resultado</string>
     <string name="summary">Resumen</string>
-    <string name="compact_title">Conversación compactada</string>
-    <string name="compact_auto">Automático</string>
+    <string name="compacted">Compactado</string>
+    <string name="compact_auto">Auto</string>
     <string name="compact_manual">Manual</string>
     <string name="permission_title">Permiso</string>
     <string name="permission_allow">Permitir</string>

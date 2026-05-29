@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.ChatMessage
 import com.jahirtrap.cconnect.data.ConnectionProfile
+import com.jahirtrap.cconnect.data.CommandOption
 import com.jahirtrap.cconnect.data.CompactData
 import com.jahirtrap.cconnect.data.DiffLine
 import com.jahirtrap.cconnect.data.InteractionData
@@ -60,6 +61,7 @@ data class ChatUiState(
     val transcriptLoading: Boolean = false,
     val transcriptExhausted: Boolean = false,
     val followBottom: Boolean = true,
+    val compacting: Boolean = false,
 )
 
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
@@ -130,16 +132,23 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun sendPrompt(text: String) {
         val trimmed = text.trim()
         if (trimmed.isEmpty() || _state.value.streaming) return
-        addMessage(Role.USER, trimmed)
+        // /compact shows a progress block.
+        val compacting = trimmed == "/compact" || trimmed.startsWith("/compact ")
+        if (!compacting) addMessage(Role.USER, trimmed)
         currentAssistantId = null
         currentThinkingId = null
-        _state.update { resetToInitialWindow(it).copy(streaming = true, error = null, todos = emptyList()) }
+        _state.update { resetToInitialWindow(it).copy(streaming = true, compacting = compacting, error = null, todos = emptyList()) }
         ConnectionService.start(appContext)
         client.sendPrompt(trimmed)
     }
 
     fun stop() {
         if (_state.value.streaming) client.sendInterrupt()
+    }
+
+    fun runCommand(cmd: CommandOption) {
+        if (cmd.kind == "client" && cmd.name == "clear") newSession()
+        else sendPrompt("/${cmd.name}")
     }
 
     fun setPermissionMode(mode: String) {
@@ -375,7 +384,20 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             is ServerEvent.Compact -> {
                 currentAssistantId = null
                 currentThinkingId = null
-                addMessage(Role.COMPACT, text = "", compact = CompactData(event.trigger, event.preTokens, event.postTokens, event.summary))
+                _state.update {
+                    it.copy(
+                        messages = listOf(ChatMessage(nextId++, Role.COMPACT, compact = CompactData(event.trigger, event.preTokens, event.postTokens, event.summary))),
+                        oldestLoadedIndex = null,
+                        transcriptExhausted = true,
+                    )
+                }
+            }
+            is ServerEvent.CompactSummary -> _state.update { st ->
+                st.copy(messages = st.messages.map { m ->
+                    if (m.role == Role.COMPACT && m.compact != null) {
+                        m.copy(compact = m.compact.copy(summary = event.summary))
+                    } else m
+                })
             }
             is ServerEvent.Todos -> _state.update { it.copy(todos = event.items) }
             is ServerEvent.Task -> upsertTask(event)
@@ -457,7 +479,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         currentAssistantId = null
         currentThinkingId = null
         ConnectionService.stop(appContext)
-        _state.update { it.copy(streaming = false) }
+        _state.update { it.copy(streaming = false, compacting = false) }
     }
 
     private fun append(currentId: Long?, role: Role, delta: String): Long {

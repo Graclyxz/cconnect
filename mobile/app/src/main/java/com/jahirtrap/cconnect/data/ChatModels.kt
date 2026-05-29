@@ -54,6 +54,8 @@ data class ModelOption(val id: String, val label: String)
 
 data class PermissionMode(val id: String, val label: String)
 
+data class CommandOption(val name: String, val description: String, val kind: String)
+
 data class TodoItem(val id: String? = null, val content: String, val status: String, val activeForm: String = "")
 
 data class Capabilities(
@@ -61,6 +63,7 @@ data class Capabilities(
     val effortLevels: List<String> = listOf("low", "medium", "high", "xhigh", "max"),
     val models: List<ModelOption> = listOf(ModelOption("opus", "Opus 4.7")),
     val colors: List<String> = listOf("red", "orange", "yellow", "green", "cyan", "blue", "purple", "pink"),
+    val commands: List<CommandOption> = emptyList(),
     val defaults: CapabilitiesDefaults = CapabilitiesDefaults(),
 )
 
@@ -79,6 +82,7 @@ sealed interface ServerEvent {
     data class ToolResult(val content: String?) : ServerEvent
     data class FileChange(val id: String?, val path: String, val diffLines: List<DiffLine>) : ServerEvent
     data class Compact(val trigger: String?, val preTokens: Int?, val postTokens: Int?, val summary: String) : ServerEvent
+    data class CompactSummary(val summary: String) : ServerEvent
     data class Todos(val items: List<TodoItem>) : ServerEvent
     data class Task(val id: String, val content: String?, val status: String?) : ServerEvent
     data class Result(val sessionId: String?) : ServerEvent

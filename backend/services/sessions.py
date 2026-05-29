@@ -16,6 +16,9 @@ _AI_PROJECT_KEY = re.sub(r"[^A-Za-z0-9]", "-", AI_WORKDIR)
 
 _ASK_ANSWERS_RE = re.compile(r'"([^"]+)"="([^"]*)"')
 
+# Slash-command invocations and their output are stored as user messages.
+_COMMAND_META_RE = re.compile(r"<command-(name|message|args)>|<local-command-stdout>")
+
 
 def _base() -> Path:
     return Path(CLAUDE_PROJECTS_DIR)
@@ -316,6 +319,23 @@ def _compact_summary_text(entry: dict) -> str:
     return ""
 
 
+def latest_compact_summary(cwd: str, session_id: str) -> str:
+    """The most recent compaction summary text. Live compaction emits only the boundary
+    (the summary is transcript-only), so the client fills the block in after the turn."""
+    encoded = re.sub(r"[^A-Za-z0-9]", "-", cwd)
+    try:
+        file = _session_file(encoded, session_id)
+    except ValueError:
+        return ""
+    if not file.is_file():
+        return ""
+    summary = ""
+    for entry in _iter_lines(file):
+        if entry.get("isCompactSummary"):
+            summary = _compact_summary_text(entry)
+    return summary
+
+
 def get_session_messages(project_key: str, session_id: str) -> list[dict]:
     file = _session_file(project_key, session_id)
     if not file.is_file():
@@ -377,7 +397,7 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
         content = message.get("content")
         if isinstance(content, str):
             text = content.strip()
-            if text:
+            if text and not _COMMAND_META_RE.search(text):
                 messages.append({"type": "text", "role": role, "text": text})
             continue
         if not isinstance(content, list):
@@ -388,7 +408,7 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
             btype = block.get("type")
             if btype == "text":
                 text = block.get("text", "").strip()
-                if text:
+                if text and not _COMMAND_META_RE.search(text):
                     messages.append({"type": "text", "role": role, "text": text})
             elif btype == "thinking":
                 text = (block.get("thinking") or block.get("text", "")).strip()

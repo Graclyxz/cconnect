@@ -38,6 +38,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import com.composables.icons.lucide.Archive
 import com.composables.icons.lucide.ArrowUp
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.ChevronDown
@@ -51,6 +52,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Menu
 import com.composables.icons.lucide.Server
 import com.composables.icons.lucide.Settings
+import com.composables.icons.lucide.Slash
 import com.composables.icons.lucide.Sparkles
 import com.composables.icons.lucide.Square
 import com.composables.icons.lucide.SquareCheckBig
@@ -64,6 +66,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearWavyProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
@@ -109,6 +112,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.R
+import com.jahirtrap.cconnect.data.CommandOption
 import com.jahirtrap.cconnect.data.ConnectionProfile
 import com.jahirtrap.cconnect.data.PermissionMode
 import com.jahirtrap.cconnect.data.ProjectInfo
@@ -388,6 +392,7 @@ fun ChatScreen(
                                 }
                             }
                         }
+                        if (state.compacting) CompactProgress()
                         ChatToolbar(
                             model = state.model,
                             models = state.capabilities.models,
@@ -402,6 +407,8 @@ fun ChatScreen(
                         Composer(
                             streaming = state.streaming,
                             sessionColor = state.sessionColor,
+                            commands = state.capabilities.commands,
+                            onCommand = vm::runCommand,
                             onSend = vm::sendPrompt,
                             onStop = vm::stop,
                         )
@@ -650,11 +657,73 @@ private fun SelectorChip(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun CompactProgress() {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Lucide.Archive, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.compacting), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+        }
+        Spacer(Modifier.size(6.dp))
+        LinearWavyProgressIndicator(modifier = Modifier.fillMaxWidth())
+    }
+}
+
+@Composable
+private fun CommandMenuButton(
+    commands: List<CommandOption>,
+    enabled: Boolean,
+    onCommand: (CommandOption) -> Unit,
+) {
+    if (commands.isEmpty()) return
+    var open by remember { mutableStateOf(false) }
+    var lastChange by remember { mutableStateOf(0L) }
+    fun setOpen(value: Boolean) {
+        open = value
+        lastChange = System.currentTimeMillis()
+    }
+    BackHandler(enabled = open) { setOpen(false) }
+    Box {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .pointerInput(enabled) {
+                    detectTapGestures {
+                        if (enabled && System.currentTimeMillis() - lastChange > 200) setOpen(!open)
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Lucide.Slash,
+                contentDescription = stringResource(R.string.commands),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { setOpen(false) },
+            properties = PopupProperties(focusable = false),
+        ) {
+            commands.forEach { cmd ->
+                CompactDropdownItem(text = "/${cmd.name}") { setOpen(false); onCommand(cmd) }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Composer(
     streaming: Boolean,
     sessionColor: String?,
+    commands: List<CommandOption>,
+    onCommand: (CommandOption) -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
 ) {
@@ -666,6 +735,8 @@ private fun Composer(
         modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
+        CommandMenuButton(commands = commands, enabled = !streaming, onCommand = onCommand)
+        Spacer(Modifier.width(6.dp))
         BasicTextField(
             value = input,
             onValueChange = { input = it },

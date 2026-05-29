@@ -90,12 +90,14 @@
     <string name="session_active">Session active</string>
     <string name="delete_conversation">Delete conversation?</string>
     <string name="type_message">Type a message…</string>
+    <string name="commands">Commands</string>
+    <string name="compacting">Compacting…</string>
     <string name="send">Send</string>
     <string name="stop">Stop</string>
     <string name="thinking">Thinking</string>
     <string name="result">Result</string>
     <string name="summary">Summary</string>
-    <string name="compact_title">Conversation compacted</string>
+    <string name="compacted">Compacted</string>
     <string name="compact_auto">Auto</string>
     <string name="compact_manual">Manual</string>
     <string name="permission_title">Permission</string>

@@ -194,6 +194,7 @@ class ChatSocket(private val scope: CoroutineScope) {
                 postTokens = obj["post_tokens"]?.jsonPrimitive?.intOrNull,
                 summary = str("summary").orEmpty(),
             )
+            "compact_summary" -> ServerEvent.CompactSummary(str("summary").orEmpty())
             "todos" -> ServerEvent.Todos(
                 obj["items"]?.jsonArray?.map { el ->
                     val o = el.jsonObject

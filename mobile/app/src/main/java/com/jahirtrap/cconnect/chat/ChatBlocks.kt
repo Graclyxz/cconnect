@@ -336,20 +336,34 @@ private fun FileChangeBlock(path: String, diffLines: List<DiffLine>) {
 private fun CompactBlock(data: CompactData) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val hasSummary = data.summary.isNotBlank()
+    val triggerLabel = when (data.trigger) {
+        "manual" -> stringResource(R.string.compact_manual)
+        "auto" -> stringResource(R.string.compact_auto)
+        else -> null
+    }
+    val stats = buildString {
+        if (triggerLabel != null) append(triggerLabel)
+        val pre = data.preTokens
+        val post = data.postTokens
+        if (pre != null && post != null) {
+            if (isNotEmpty()) append(" • ")
+            append("${fmtTokens(pre)} → ${fmtTokens(post)}")
+        }
+    }.ifBlank { null }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().clickable(enabled = hasSummary) { expanded = !expanded },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Lucide.Archive, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.size(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.compact_title), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary, maxLines = 1)
-                compactSubtitle(data)?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
+            Spacer(Modifier.size(6.dp))
+            Text(stringResource(R.string.compacted), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.weight(1f))
+            if (stats != null) {
+                Text(stats, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (hasSummary) {
+                Spacer(Modifier.size(6.dp))
                 Icon(if (expanded) Lucide.ChevronDown else Lucide.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
             }
         }
@@ -357,18 +371,6 @@ private fun CompactBlock(data: CompactData) {
             MarkdownText(data.summary, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
         }
     }
-}
-
-@Composable
-private fun compactSubtitle(data: CompactData): String? {
-    val trigger = when (data.trigger) {
-        "manual" -> stringResource(R.string.compact_manual)
-        "auto" -> stringResource(R.string.compact_auto)
-        else -> null
-    }
-    val tokens = if (data.preTokens != null && data.postTokens != null)
-        "${fmtTokens(data.preTokens)} → ${fmtTokens(data.postTokens)}" else null
-    return listOfNotNull(trigger, tokens).joinToString(" • ").ifBlank { null }
 }
 
 private fun fmtTokens(n: Int): String = when {

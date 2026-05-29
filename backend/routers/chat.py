@@ -69,6 +69,7 @@ async def _stream_prompt(ws: WebSocket, send_lock: asyncio.Lock, state: _Session
             await ws.send_json(payload)
 
     name = text.strip()[:80] if state.session_id is None else None
+    compacted = False
     async for event in run_prompt(
         prompt=text,
         cwd=state.cwd,
@@ -82,6 +83,8 @@ async def _stream_prompt(ws: WebSocket, send_lock: asyncio.Lock, state: _Session
         ask_user=lambda payload: broker.ask(send, payload),
         base_url=state.base_url,
     ):
+        if event.get("type") == "compact":
+            compacted = True
         if event.get("type") == "result" and event.get("session_id"):
             state.session_id = event["session_id"]
             state.fork = False
@@ -90,6 +93,12 @@ async def _stream_prompt(ws: WebSocket, send_lock: asyncio.Lock, state: _Session
         await send(event)
     if state.cwd and state.session_id:
         sessions_service.normalize_session_entrypoint(state.cwd, state.session_id)
+        # The compaction summary is written to the transcript only after the turn, so
+        # fill the block now instead of leaving it empty until the next resume.
+        if compacted:
+            summary = sessions_service.latest_compact_summary(state.cwd, state.session_id)
+            if summary:
+                await send({"type": "compact_summary", "summary": summary})
     await send({"type": "done"})
 
 
