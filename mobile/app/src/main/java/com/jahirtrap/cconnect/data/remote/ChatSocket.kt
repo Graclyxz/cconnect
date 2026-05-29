@@ -172,7 +172,7 @@ class ChatSocket(private val scope: CoroutineScope) {
         val obj = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return null
         fun str(key: String): String? = obj[key]?.jsonPrimitive?.contentOrNull
         return when (str("type")) {
-            "ready" -> ServerEvent.Ready(str("session_id"))
+            "ready" -> ServerEvent.Ready(str("session_id"), str("project"))
             "assistant_text" -> ServerEvent.AssistantText(str("text").orEmpty())
             "thinking" -> ServerEvent.Thinking(str("text").orEmpty())
             "tool_use" -> ServerEvent.ToolUse(str("id"), str("name"), str("input"))
@@ -194,7 +194,12 @@ class ChatSocket(private val scope: CoroutineScope) {
                 postTokens = obj["post_tokens"]?.jsonPrimitive?.intOrNull,
                 summary = str("summary").orEmpty(),
             )
-            "compact_summary" -> ServerEvent.CompactSummary(str("summary").orEmpty())
+            "compact_summary" -> ServerEvent.CompactSummary(
+                trigger = str("trigger"),
+                preTokens = obj["pre_tokens"]?.jsonPrimitive?.intOrNull,
+                postTokens = obj["post_tokens"]?.jsonPrimitive?.intOrNull,
+                summary = str("summary").orEmpty(),
+            )
             "todos" -> ServerEvent.Todos(
                 obj["items"]?.jsonArray?.map { el ->
                     val o = el.jsonObject

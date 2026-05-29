@@ -47,7 +47,9 @@ data class ChatUiState(
     val effort: String = "xhigh",
     val streamTokens: Boolean = true,
     val capabilities: Capabilities = Capabilities(),
+    val capabilitiesReady: Boolean = false,
     val sessionId: String? = null,
+    val activeProjectKey: String? = null,
     val sessionColor: String? = null,
     val todos: List<TodoItem> = emptyList(),
     val error: String? = null,
@@ -120,6 +122,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     it.copy(model = s.model, effort = s.effort, permissionMode = s.permissionMode, streamTokens = s.streaming)
                 }
             }
+            _state.update { it.copy(capabilitiesReady = true) }
             client.connect()
         }
     }
@@ -147,8 +150,21 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun runCommand(cmd: CommandOption) {
-        if (cmd.kind == "client" && cmd.name == "clear") newSession()
+        if (cmd.kind == "client" && cmd.name == "clear") clearConversation()
         else sendPrompt("/${cmd.name}")
+    }
+
+    fun clearConversation() {
+        if (_state.value.streaming) return
+        deleteActiveSession()
+        newSession()
+    }
+
+    private fun deleteActiveSession() {
+        val sid = _state.value.sessionId ?: return
+        val proj = _state.value.activeProjectKey ?: return
+        viewModelScope.launch { SessionsApi.deleteSession(sid, proj) }
+        _state.update { it.copy(historySessions = it.historySessions.filterNot { s -> s.sessionId == sid }) }
     }
 
     fun setPermissionMode(mode: String) {
@@ -209,8 +225,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             it.copy(
                 activeConnectionId = id,
                 connection = ConnectionState.Disconnected,
+                capabilitiesReady = false,
                 messages = emptyList(),
                 sessionId = null,
+                activeProjectKey = null,
                 sessionColor = null,
                 todos = emptyList(),
                 streaming = false,
@@ -266,6 +284,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 it.copy(
                     messages = loaded,
                     sessionId = session.sessionId,
+                    activeProjectKey = projectKey,
                     sessionColor = session.color,
                     todos = emptyList(),
                     streaming = false,
@@ -283,7 +302,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val sid = s.sessionId ?: return
         val before = s.oldestLoadedIndex ?: return
         if (s.transcriptLoading || s.transcriptExhausted) return
-        val proj = s.historySessions.firstOrNull { it.sessionId == sid }?.projectKey ?: return
+        val proj = s.activeProjectKey ?: return
         _state.update { it.copy(transcriptLoading = true) }
         client.sendLoadHistory(sid, proj, beforeIndex = before)
     }
@@ -295,6 +314,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update {
                     it.copy(historySessions = it.historySessions.filterNot { s -> s.sessionId == session.sessionId })
                 }
+                if (session.sessionId == _state.value.sessionId) newSession()
             }
         }
     }
@@ -355,7 +375,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         when (event) {
             is ServerEvent.Open -> startSession(_state.value.sessionId)
             is ServerEvent.Ready -> _state.update {
-                it.copy(connection = ConnectionState.Connected, sessionId = event.sessionId ?: it.sessionId)
+                it.copy(
+                    connection = ConnectionState.Connected,
+                    sessionId = event.sessionId ?: it.sessionId,
+                    activeProjectKey = event.project ?: it.activeProjectKey,
+                )
             }
             is ServerEvent.AssistantText -> {
                 currentThinkingId = null
@@ -395,7 +419,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             is ServerEvent.CompactSummary -> _state.update { st ->
                 st.copy(messages = st.messages.map { m ->
                     if (m.role == Role.COMPACT && m.compact != null) {
-                        m.copy(compact = m.compact.copy(summary = event.summary))
+                        m.copy(compact = CompactData(event.trigger, event.preTokens, event.postTokens, event.summary))
                     } else m
                 })
             }

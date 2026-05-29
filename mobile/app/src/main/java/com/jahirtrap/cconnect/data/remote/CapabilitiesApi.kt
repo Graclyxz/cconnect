@@ -5,6 +5,7 @@ import com.jahirtrap.cconnect.data.CapabilitiesDefaults
 import com.jahirtrap.cconnect.data.CommandOption
 import com.jahirtrap.cconnect.data.ModelOption
 import com.jahirtrap.cconnect.data.PermissionMode
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -37,6 +38,7 @@ object CapabilitiesApi {
                     name = name,
                     description = o["description"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                     kind = o["kind"]?.jsonPrimitive?.contentOrNull ?: "prompt",
+                    requireConfirmation = o["require_confirmation"]?.jsonPrimitive?.booleanOrNull ?: false,
                 )
             } ?: fallback.commands,
             defaults = data["defaults"]?.jsonObject?.let { o ->

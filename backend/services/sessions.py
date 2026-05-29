@@ -39,11 +39,15 @@ def record_prompt_history(cwd: str, session_id: str, text: str):
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
+def project_key_for(cwd: str) -> str:
+    return re.sub(r"[^A-Za-z0-9]", "-", cwd or "")
+
+
 def normalize_session_entrypoint(cwd: str, session_id: str):
     """Rewrite the SDK's "sdk-*" entrypoint to "cli"; `claude --resume` hides sdk sessions."""
     if not _SESSION_RE.match(session_id or ""):
         return
-    encoded = re.sub(r"[^A-Za-z0-9]", "-", cwd)
+    encoded = project_key_for(cwd)
     path = _base() / encoded / f"{session_id}.jsonl"
     if not path.is_file():
         return
@@ -110,20 +114,14 @@ def _read_cwd(path: Path) -> Optional[str]:
     return None
 
 
-def _preview(path: Path, limit: int = 120) -> Optional[str]:
-    for entry in _iter_lines(path):
-        if entry.get("type") == "user":
-            text = _text_from_content(entry.get("message", {}).get("content"))
-            if text:
-                return text[:limit]
-    return None
-
-
-def _session_meta(path: Path) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]]:
-    """Single pass over a transcript: (cwd, first-user preview, title, color, entrypoint).
-    Title prefers the user's `custom-title`, falling back to the CLI's `ai-title`. Color
-    is the CLI's `agent-color`."""
+def _session_meta(path: Path) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], bool]:
+    """Single pass over a transcript: (cwd, first-user preview, title, color, entrypoint,
+    has_content). Title prefers the user's `custom-title`, falling back to the CLI's
+    `ai-title`. Color is the CLI's `agent-color`. has_content is False when the only user
+    entries are local-command invocations (e.g. running `/effort` alone), which would
+    otherwise list with a `<command-...>` preview and open empty."""
     cwd = preview = title = ai_title = color = entrypoint = None
+    has_content = False
     for entry in _iter_lines(path):
         etype = entry.get("type")
         if cwd is None and entry.get("cwd"):
@@ -136,11 +134,13 @@ def _session_meta(path: Path) -> tuple[Optional[str], Optional[str], Optional[st
             ai_title = entry.get("aiTitle")
         elif etype == "agent-color" and entry.get("agentColor"):
             color = entry.get("agentColor")
-        elif preview is None and etype == "user":
+        elif etype == "user" and not entry.get("isMeta") and not entry.get("isSidechain"):
             text = _text_from_content(entry.get("message", {}).get("content"))
-            if text:
-                preview = text[:120]
-    return cwd, preview, title or ai_title, color, entrypoint
+            if not _COMMAND_META_RE.search(text):
+                has_content = True
+                if preview is None and text:
+                    preview = text[:120]
+    return cwd, preview, title or ai_title, color, entrypoint, has_content
 
 
 def list_projects() -> list[dict]:
@@ -167,8 +167,8 @@ def _sessions_from_files(files: list[tuple[Path, str]]) -> list[dict]:
     items: list[dict] = []
     for file, project_key in files:
         stat = file.stat()
-        cwd, preview, title, color, entrypoint = _session_meta(file)
-        if entrypoint != "cli":
+        cwd, preview, title, color, entrypoint, has_content = _session_meta(file)
+        if entrypoint != "cli" or (not has_content and not title):
             continue
         items.append({
             "session_id": file.stem,
@@ -319,21 +319,46 @@ def _compact_summary_text(entry: dict) -> str:
     return ""
 
 
-def latest_compact_summary(cwd: str, session_id: str) -> str:
-    """The most recent compaction summary text. Live compaction emits only the boundary
-    (the summary is transcript-only), so the client fills the block in after the turn."""
-    encoded = re.sub(r"[^A-Za-z0-9]", "-", cwd)
+def compact_boundary_count(cwd: str, session_id: str) -> int:
+    """How many compaction boundaries the transcript holds; comparing before/after a turn
+    tells whether a manual /compact actually compacted (it emits no live boundary event)."""
     try:
-        file = _session_file(encoded, session_id)
+        file = _session_file(project_key_for(cwd), session_id)
     except ValueError:
-        return ""
+        return 0
     if not file.is_file():
-        return ""
+        return 0
+    return sum(
+        1 for e in _iter_lines(file)
+        if e.get("type") == "system" and e.get("subtype") == "compact_boundary"
+    )
+
+
+def latest_compact(cwd: str, session_id: str) -> Optional[dict]:
+    """The most recent compaction's metadata + summary from the transcript. Live compaction
+    omits the token counts and summary, so the client finalizes the block after the turn to
+    match the resumed view."""
+    try:
+        file = _session_file(project_key_for(cwd), session_id)
+    except ValueError:
+        return None
+    if not file.is_file():
+        return None
+    meta: dict = {}
     summary = ""
     for entry in _iter_lines(file):
-        if entry.get("isCompactSummary"):
+        if entry.get("type") == "system" and entry.get("subtype") == "compact_boundary":
+            meta = entry.get("compactMetadata") or {}
+        elif entry.get("isCompactSummary"):
             summary = _compact_summary_text(entry)
-    return summary
+    if not meta and not summary:
+        return None
+    return {
+        "trigger": meta.get("trigger"),
+        "pre_tokens": meta.get("preTokens"),
+        "post_tokens": meta.get("postTokens"),
+        "summary": summary,
+    }
 
 
 def get_session_messages(project_key: str, session_id: str) -> list[dict]:

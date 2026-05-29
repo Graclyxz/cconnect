@@ -54,7 +54,12 @@ data class ModelOption(val id: String, val label: String)
 
 data class PermissionMode(val id: String, val label: String)
 
-data class CommandOption(val name: String, val description: String, val kind: String)
+data class CommandOption(
+    val name: String,
+    val description: String,
+    val kind: String,
+    val requireConfirmation: Boolean = false,
+)
 
 data class TodoItem(val id: String? = null, val content: String, val status: String, val activeForm: String = "")
 
@@ -75,14 +80,14 @@ data class CapabilitiesDefaults(
 
 sealed interface ServerEvent {
     data object Open : ServerEvent
-    data class Ready(val sessionId: String?) : ServerEvent
+    data class Ready(val sessionId: String?, val project: String? = null) : ServerEvent
     data class AssistantText(val text: String) : ServerEvent
     data class Thinking(val text: String) : ServerEvent
     data class ToolUse(val id: String?, val name: String?, val input: String?) : ServerEvent
     data class ToolResult(val content: String?) : ServerEvent
     data class FileChange(val id: String?, val path: String, val diffLines: List<DiffLine>) : ServerEvent
     data class Compact(val trigger: String?, val preTokens: Int?, val postTokens: Int?, val summary: String) : ServerEvent
-    data class CompactSummary(val summary: String) : ServerEvent
+    data class CompactSummary(val trigger: String?, val preTokens: Int?, val postTokens: Int?, val summary: String) : ServerEvent
     data class Todos(val items: List<TodoItem>) : ServerEvent
     data class Task(val id: String, val content: String?, val status: String?) : ServerEvent
     data class Result(val sessionId: String?) : ServerEvent

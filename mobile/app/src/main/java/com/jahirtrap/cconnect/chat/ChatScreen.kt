@@ -3,6 +3,13 @@ package com.jahirtrap.cconnect.chat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,6 +23,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -66,9 +74,10 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -97,6 +106,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -108,7 +118,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.R
@@ -159,6 +175,7 @@ fun ChatScreen(
     var renameTarget by remember { mutableStateOf<SessionInfo?>(null) }
     var deleteTarget by remember { mutableStateOf<SessionInfo?>(null) }
     var colorTarget by remember { mutableStateOf<SessionInfo?>(null) }
+    var confirmCommand by remember { mutableStateOf<CommandOption?>(null) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var sharedLinkAction by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -394,6 +411,7 @@ fun ChatScreen(
                         }
                         if (state.compacting) CompactProgress()
                         ChatToolbar(
+                            ready = state.capabilitiesReady,
                             model = state.model,
                             models = state.capabilities.models,
                             onModel = vm::setModel,
@@ -408,7 +426,7 @@ fun ChatScreen(
                             streaming = state.streaming,
                             sessionColor = state.sessionColor,
                             commands = state.capabilities.commands,
-                            onCommand = vm::runCommand,
+                            onCommand = { cmd -> if (cmd.requireConfirmation) confirmCommand = cmd else vm.runCommand(cmd) },
                             onSend = vm::sendPrompt,
                             onStop = vm::stop,
                         )
@@ -440,6 +458,15 @@ fun ChatScreen(
             selected = s.color,
             onSelect = { vm.setSessionColor(s, it) },
             onDismiss = { colorTarget = null },
+        )
+    }
+    confirmCommand?.let { cmd ->
+        ConfirmDialog(
+            title = "/${cmd.name}",
+            text = cmd.description,
+            confirmLabel = stringResource(R.string.confirm),
+            onConfirm = { vm.runCommand(cmd); confirmCommand = null },
+            onDismiss = { confirmCommand = null },
         )
     }
     if (showThemeDialog) {
@@ -555,6 +582,7 @@ private fun TaskRow(todo: TodoItem) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatToolbar(
+    ready: Boolean,
     model: String,
     models: List<com.jahirtrap.cconnect.data.ModelOption>,
     onModel: (String) -> Unit,
@@ -574,6 +602,10 @@ private fun ChatToolbar(
             .padding(start = 8.dp, end = 8.dp, top = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        if (!ready) {
+            ToolbarLoadingChip()
+            return@Row
+        }
         SelectorChip(
             label = models.firstOrNull { it.id == model }?.label ?: model,
             icon = Lucide.Sparkles,
@@ -600,6 +632,22 @@ private fun ChatToolbar(
             optionStyle = { styles[it] ?: (pstyle.icon to pstyle.color) },
             onSelect = onPermissionMode,
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ToolbarLoadingChip() {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        LoadingIndicator(modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(stringResource(R.string.loading), style = MaterialTheme.typography.labelMedium, maxLines = 1)
     }
 }
 
@@ -657,7 +705,6 @@ private fun SelectorChip(
     }
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun CompactProgress() {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -667,17 +714,18 @@ private fun CompactProgress() {
             Text(stringResource(R.string.compacting), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
         }
         Spacer(Modifier.size(6.dp))
-        LinearWavyProgressIndicator(modifier = Modifier.fillMaxWidth())
+        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CommandMenuButton(
     commands: List<CommandOption>,
     enabled: Boolean,
     onCommand: (CommandOption) -> Unit,
 ) {
-    if (commands.isEmpty()) return
+    val ready = enabled && commands.isNotEmpty()
     var open by remember { mutableStateOf(false) }
     var lastChange by remember { mutableStateOf(0L) }
     fun setOpen(value: Boolean) {
@@ -691,9 +739,9 @@ private fun CommandMenuButton(
                 .size(42.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                .pointerInput(enabled) {
+                .pointerInput(ready) {
                     detectTapGestures {
-                        if (enabled && System.currentTimeMillis() - lastChange > 200) setOpen(!open)
+                        if (ready && System.currentTimeMillis() - lastChange > 200) setOpen(!open)
                     }
                 },
             contentAlignment = Alignment.Center,
@@ -701,19 +749,74 @@ private fun CommandMenuButton(
             Icon(
                 Lucide.Slash,
                 contentDescription = stringResource(R.string.commands),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = if (ready) MaterialTheme.colorScheme.onSurfaceVariant
+                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
                 modifier = Modifier.size(20.dp),
             )
         }
-        DropdownMenu(
-            expanded = open,
-            onDismissRequest = { setOpen(false) },
-            properties = PopupProperties(focusable = false),
-        ) {
-            commands.forEach { cmd ->
-                CompactDropdownItem(text = "/${cmd.name}") { setOpen(false); onCommand(cmd) }
+        val expanded = remember { MutableTransitionState(false) }
+        expanded.targetState = open
+        if (expanded.currentState || expanded.targetState) {
+            val gap = with(LocalDensity.current) { 4.dp.roundToPx() }
+            Popup(
+                popupPositionProvider = remember(gap) { AboveAnchorPositionProvider(gap) },
+                onDismissRequest = { setOpen(false) },
+                properties = PopupProperties(focusable = false),
+            ) {
+                val origin = TransformOrigin(0f, 1f)
+                AnimatedVisibility(
+                    visibleState = expanded,
+                    enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.85f, transformOrigin = origin),
+                    exit = fadeOut(tween(80)) + scaleOut(tween(80), targetScale = 0.85f, transformOrigin = origin),
+                ) {
+                    Surface(
+                        shape = MenuDefaults.shape,
+                        color = MenuDefaults.containerColor,
+                        tonalElevation = MenuDefaults.TonalElevation,
+                        shadowElevation = MenuDefaults.ShadowElevation,
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(vertical = 8.dp)  // DropdownMenuVerticalPadding
+                                .width(IntrinsicSize.Max),
+                        ) {
+                            commands.forEach { cmd ->
+                                CommandMenuItem(cmd) { setOpen(false); onCommand(cmd) }
+                            }
+                        }
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun CommandMenuItem(cmd: CommandOption, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .widthIn(min = 112.dp, max = 280.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    ) {
+        Text("/${cmd.name}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+        if (cmd.description.isNotBlank()) {
+            Text(cmd.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+private class AboveAnchorPositionProvider(private val gapPx: Int) : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize,
+    ): IntOffset {
+        val y = (anchorBounds.top - popupContentSize.height - gapPx).coerceAtLeast(0)
+        val maxX = (windowSize.width - popupContentSize.width).coerceAtLeast(0)
+        return IntOffset(anchorBounds.left.coerceIn(0, maxX), y)
     }
 }
 

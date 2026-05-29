@@ -92,6 +92,8 @@
     <string name="type_message">Escribe un mensaje…</string>
     <string name="commands">Comandos</string>
     <string name="compacting">Compactando…</string>
+    <string name="loading">Cargando…</string>
+    <string name="confirm">Confirmar</string>
     <string name="send">Enviar</string>
     <string name="stop">Detener</string>
     <string name="thinking">Pensando</string>

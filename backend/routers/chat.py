@@ -56,7 +56,7 @@ def _resolve_model(model: str | None) -> str | None:
 
 class _Session:
     def __init__(self):
-        self.cwd: str | None = None
+        self.cwd: str = DEFAULT_CWD
         self.permission_mode: str = "default"
         self.session_id: str | None = None
         self.fork: bool = False
@@ -70,6 +70,11 @@ async def _stream_prompt(ws: WebSocket, send_lock: asyncio.Lock, state: _Session
 
     name = text.strip()[:80] if state.session_id is None else None
     compacted = False
+    is_compact_cmd = text.strip() == "/compact" or text.strip().startswith("/compact ")
+    boundaries_before = (
+        sessions_service.compact_boundary_count(state.cwd, state.session_id)
+        if is_compact_cmd and state.cwd and state.session_id else 0
+    )
     async for event in run_prompt(
         prompt=text,
         cwd=state.cwd,
@@ -93,12 +98,17 @@ async def _stream_prompt(ws: WebSocket, send_lock: asyncio.Lock, state: _Session
         await send(event)
     if state.cwd and state.session_id:
         sessions_service.normalize_session_entrypoint(state.cwd, state.session_id)
-        # The compaction summary is written to the transcript only after the turn, so
-        # fill the block now instead of leaving it empty until the next resume.
-        if compacted:
-            summary = sessions_service.latest_compact_summary(state.cwd, state.session_id)
-            if summary:
-                await send({"type": "compact_summary", "summary": summary})
+        # The token counts and summary are written to the transcript only after the turn.
+        if is_compact_cmd:
+            after = sessions_service.compact_boundary_count(state.cwd, state.session_id)
+            if after > boundaries_before:
+                data = sessions_service.latest_compact(state.cwd, state.session_id)
+                if data:
+                    await send({"type": "compact", **data})
+        elif compacted:
+            data = sessions_service.latest_compact(state.cwd, state.session_id)
+            if data:
+                await send({"type": "compact_summary", **data})
     await send({"type": "done"})
 
 
@@ -146,12 +156,13 @@ async def chat_ws(ws: WebSocket):
                 state.session_id = msg.resume
                 state.fork = msg.fork
                 state.base_url = msg.base_url
-                await send({"type": "ready", "session_id": state.session_id})
+                await send({
+                    "type": "ready",
+                    "session_id": state.session_id,
+                    "project": sessions_service.project_key_for(state.cwd or ""),
+                })
 
             elif mtype == "prompt":
-                if state.cwd is None:
-                    await send({"type": "error", "message": "send a 'start' message first"})
-                    continue
                 if task and not task.done():
                     await send({"type": "error", "message": "busy: a prompt is already running"})
                     continue

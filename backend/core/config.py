@@ -63,9 +63,10 @@ PERMISSION_LABELS = {
 # The named set Claude uses for agent colors; the app maps each to a swatch.
 COLORS = ["red", "orange", "yellow", "green", "cyan", "blue", "purple", "pink"]
 
-# Slash commands offered in the composer menu. kind="client" is handled in-app
+# Slash commands offered in the composer menu. kind="client" is handled in-app;
+# kind="prompt" is forwarded to the CLI. require_confirmation prompts before running.
 COMMANDS = [
-    {"name": "clear", "description": "Start a new conversation", "kind": "client"},
+    {"name": "clear", "description": "Clear this conversation", "kind": "client", "require_confirmation": True},
     {"name": "compact", "description": "Compact the conversation, keeping a summary", "kind": "prompt"},
     {"name": "context", "description": "Show context window usage", "kind": "prompt"},
     {"name": "cost", "description": "Show token cost for this session", "kind": "prompt"},
