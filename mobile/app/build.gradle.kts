@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.jahirtrap.cconnect"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.jahirtrap.cconnect"

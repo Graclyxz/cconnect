@@ -62,7 +62,10 @@ import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -128,7 +131,7 @@ import com.jahirtrap.cconnect.ui.theme.sessionColorOf
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ChatScreen(
     onOpenSettings: () -> Unit,
@@ -227,6 +230,8 @@ fun ChatScreen(
         }
     }
 
+    // Expressive motion overshoots the drawer slide and exposes the background; standard avoids it.
+    MaterialExpressiveTheme(motionScheme = MotionScheme.standard()) {
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -298,6 +303,7 @@ fun ChatScreen(
             }
         },
     ) {
+        MaterialExpressiveTheme(motionScheme = MotionScheme.expressive()) {
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -381,6 +387,8 @@ fun ChatScreen(
                 )
             }
         }
+        }
+    }
     }
 
     renameTarget?.let { s ->
