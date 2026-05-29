@@ -208,15 +208,19 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False, hidden_tool_ids
                     "input": _format_tool_input(raw_input),
                 })
         elif kind == "ToolResultBlock":
-            tuid = getattr(block, "tool_use_id", None)
-            if tuid and tuid in hidden:
-                continue
-            events.append({
-                "type": "tool_result",
-                "tool_use_id": tuid,
-                "content": _flatten_result_content(getattr(block, "content", None)).strip(),
-                "is_error": getattr(block, "is_error", None),
-            })
+            # TEMP: tool results disabled — not emitted to the client for now.
+            # Reachable: the SDK parser builds AssistantMessage with ToolResultBlock when
+            # the CLI sends an assistant message carrying a tool_result block.
+            continue
+            # tuid = getattr(block, "tool_use_id", None)
+            # if tuid and tuid in hidden:
+            #     continue
+            # events.append({
+            #     "type": "tool_result",
+            #     "tool_use_id": tuid,
+            #     "content": _flatten_result_content(getattr(block, "content", None)).strip(),
+            #     "is_error": getattr(block, "is_error", None),
+            # })
     return events
 
 
@@ -362,18 +366,19 @@ async def run_prompt(
                 for event in _blocks_to_events(message.content, skip_streamed=partial, hidden_tool_ids=hidden_tool_ids):
                     yield event
             elif isinstance(message, UserMessage):
-                for block in getattr(message, "content", None) or []:
-                    if type(block).__name__ != "ToolResultBlock":
-                        continue
-                    tuid = getattr(block, "tool_use_id", None)
-                    if tuid and tuid in hidden_tool_ids:
-                        continue
-                    yield {
-                        "type": "tool_result",
-                        "tool_use_id": tuid,
-                        "content": _flatten_result_content(getattr(block, "content", None)),
-                        "is_error": getattr(block, "is_error", None),
-                    }
+                # TEMP: tool results disabled — not emitted to the client for now.
+                # for block in getattr(message, "content", None) or []:
+                #     if type(block).__name__ != "ToolResultBlock":
+                #         continue
+                #     tuid = getattr(block, "tool_use_id", None)
+                #     if tuid and tuid in hidden_tool_ids:
+                #         continue
+                #     yield {
+                #         "type": "tool_result",
+                #         "tool_use_id": tuid,
+                #         "content": _flatten_result_content(getattr(block, "content", None)),
+                #         "is_error": getattr(block, "is_error", None),
+                #     }
                 for event in _task_events_from_result(getattr(message, "tool_use_result", None)):
                     yield event
             elif isinstance(message, SystemMessage):

@@ -404,15 +404,16 @@ private fun InteractionBlock(
     val title = data.title ?: toolName ?: stringResource(R.string.permission_title)
     val headerIcon = if (data.kind == "question") Lucide.CircleQuestionMark else Lucide.Shield
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Row(verticalAlignment = Alignment.Top) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 headerIcon,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(16.dp),
             )
+            Spacer(Modifier.size(8.dp))
             Text(
-                text = "  $title",
+                text = title,
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.weight(1f),

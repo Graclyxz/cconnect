@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -298,10 +299,15 @@ fun ChatScreen(
                         onRefresh = { vm.loadHistory() },
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                     ) {
-                        LazyColumn(state = drawerListState, modifier = Modifier.fillMaxSize()) {
+                        LazyColumn(
+                            state = drawerListState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(vertical = 6.dp),
+                        ) {
                             items(state.historySessions, key = { it.sessionId }) { s ->
                                 ConversationRow(
                                     title = s.title ?: s.preview ?: s.sessionId.take(8),
+                                    selected = s.sessionId == state.sessionId,
                                     onOpen = { vm.openSession(s); scope.launch { drawerState.close() } },
                                     onRename = { renameTarget = s },
                                     onAutoRename = { vm.autoRenameSession(s) },
@@ -982,11 +988,15 @@ private fun ConversationRow(
     onAutoRename: () -> Unit,
     onColor: () -> Unit,
     onDelete: () -> Unit,
+    selected: Boolean = false,
 ) {
     var menu by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 1.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .then(if (selected) Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)) else Modifier)
             .combinedClickable(onClick = onOpen, onLongClick = { menu = true })
             .padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -994,6 +1004,8 @@ private fun ConversationRow(
         Text(
             title,
             style = MaterialTheme.typography.bodyMedium,
+            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            fontWeight = if (selected) FontWeight.SemiBold else null,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(vertical = 12.dp),

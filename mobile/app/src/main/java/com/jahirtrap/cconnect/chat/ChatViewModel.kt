@@ -140,7 +140,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (!compacting) addMessage(Role.USER, trimmed)
         currentAssistantId = null
         currentThinkingId = null
-        _state.update { resetToInitialWindow(it).copy(streaming = true, compacting = compacting, error = null, todos = emptyList()) }
+        _state.update {
+            val todos = if (it.todos.all { t -> t.status == "completed" }) emptyList() else it.todos
+            resetToInitialWindow(it).copy(streaming = true, compacting = compacting, error = null, todos = todos)
+        }
         ConnectionService.start(appContext)
         client.sendPrompt(trimmed)
     }
@@ -425,7 +428,24 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             }
             is ServerEvent.Todos -> _state.update { it.copy(todos = event.items) }
             is ServerEvent.Task -> upsertTask(event)
-            is ServerEvent.Result -> _state.update { it.copy(sessionId = event.sessionId ?: it.sessionId) }
+            is ServerEvent.Result -> _state.update { st ->
+                val sid = event.sessionId ?: st.sessionId
+                if (sid != null && st.historySessions.none { it.sessionId == sid }) {
+                    val row = SessionInfo(
+                        sessionId = sid,
+                        projectKey = st.activeProjectKey,
+                        path = settings.cwd,
+                        lastActive = System.currentTimeMillis() / 1000.0,
+                        size = 0L,
+                        preview = st.messages.firstOrNull { it.role == Role.USER }?.text?.take(120),
+                        title = null,
+                        color = st.sessionColor,
+                    )
+                    st.copy(sessionId = sid, historySessions = listOf(row) + st.historySessions)
+                } else {
+                    st.copy(sessionId = sid)
+                }
+            }
             is ServerEvent.Done -> resetStreaming()
             is ServerEvent.Interrupted -> resetStreaming()
             is ServerEvent.Err -> {

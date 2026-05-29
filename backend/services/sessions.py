@@ -488,10 +488,12 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                         continue
                 messages.append({"type": "tool_use", "name": name, "text": _format_tool_input(inp)})
             elif btype == "tool_result":
-                if block.get("tool_use_id") in hidden_ids:
-                    continue
-                from services.claude_runtime import _flatten_result_content
-                text = _flatten_result_content(block.get("content")).strip()
-                if text:
-                    messages.append({"type": "tool_result", "text": text})
+                # TEMP: tool results disabled — not emitted on resume for now.
+                continue
+                # if block.get("tool_use_id") in hidden_ids:
+                #     continue
+                # from services.claude_runtime import _flatten_result_content
+                # text = _flatten_result_content(block.get("content")).strip()
+                # if text:
+                #     messages.append({"type": "tool_result", "text": text})
     return messages
