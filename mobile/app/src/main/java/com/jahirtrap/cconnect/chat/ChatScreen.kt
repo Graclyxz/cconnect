@@ -513,8 +513,8 @@ fun ChatScreen(
                                 permissionMode = state.permissionMode,
                                 permissionModes = state.capabilities.permissionModes,
                                 onPermissionMode = vm::setPermissionMode,
-                                showReturn = sc != null && sc.messages.isNotEmpty(),
-                                onReturn = vm::openSideChat,
+                                onQuickChat = vm::openSideChat,
+                                quickChatActive = sc != null && sc.messages.isNotEmpty(),
                             )
                         }
                         Composer(
@@ -823,8 +823,8 @@ private fun ChatToolbar(
     permissionMode: String,
     permissionModes: List<PermissionMode>,
     onPermissionMode: (String) -> Unit,
-    showReturn: Boolean = false,
-    onReturn: () -> Unit = {},
+    onQuickChat: () -> Unit = {},
+    quickChatActive: Boolean = false,
 ) {
     val accent = MaterialTheme.colorScheme.primary
     val pstyle = permissionStyle(permissionMode)
@@ -832,25 +832,33 @@ private fun ChatToolbar(
         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (showReturn) {
+        Box(modifier = Modifier.padding(start = 8.dp)) {
             Row(
                 modifier = Modifier
-                    .padding(start = 8.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-                    .clickable(onClick = onReturn)
+                    .clickable(onClick = onQuickChat)
                     .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(Lucide.MessagesSquare, contentDescription = stringResource(R.string.quick_chat), tint = accent, modifier = Modifier.size(18.dp))
             }
-            Spacer(Modifier.width(6.dp))
+            if (quickChatActive) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(accent),
+                )
+            }
         }
+        Spacer(Modifier.width(6.dp))
         Row(
             modifier = Modifier
                 .weight(1f)
                 .horizontalScroll(rememberScrollState())
-                .padding(start = if (showReturn) 0.dp else 8.dp, end = 8.dp),
+                .padding(end = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (!ready) {
@@ -1030,8 +1038,7 @@ private fun CommandMenuButton(
                                 .width(IntrinsicSize.Max),
                         ) {
                             commands.forEach { cmd ->
-                                val itemEnabled = !streaming || cmd.kind == "side"
-                                CommandMenuItem(cmd, enabled = itemEnabled) { setOpen(false); onCommand(cmd) }
+                                CommandMenuItem(cmd, enabled = !streaming) { setOpen(false); onCommand(cmd) }
                             }
                         }
                     }

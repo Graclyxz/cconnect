@@ -64,15 +64,14 @@ PERMISSION_LABELS = {
 COLORS = ["red", "orange", "yellow", "green", "cyan", "blue", "purple", "pink"]
 
 # Slash commands offered in the composer menu. kind="client" is handled in-app;
-# kind="prompt" is forwarded to the CLI; kind="side" opens the side-question chat (runs
-# concurrently, so it stays usable while the main turn streams). require_confirmation prompts first.
+# kind="prompt" is forwarded to the CLI; kind="usage" fetches plan usage out-of-band.
+# require_confirmation prompts first.
 COMMANDS = [
     {"name": "clear", "description": "Clear this conversation", "kind": "client", "require_confirmation": True},
     {"name": "compact", "description": "Compact the conversation", "kind": "prompt"},
     {"name": "context", "description": "Show context window usage", "kind": "prompt"},
     {"name": "cost", "description": "Show token cost for this session", "kind": "prompt"},
     {"name": "usage", "description": "Show plan token usage", "kind": "usage"},
-    {"name": "btw", "description": "Open a quick chat without interrupting", "kind": "side"},
 ]
 
 

@@ -164,7 +164,6 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     fun runCommand(cmd: CommandOption) {
         when {
-            cmd.kind == "side" -> openSideChat()
             cmd.kind == "usage" -> {
                 addMessage(Role.USER, "/${cmd.name}")
                 client.sendUsage()
