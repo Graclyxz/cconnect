@@ -119,6 +119,23 @@ async def _stream_prompt(ws: WebSocket, send_lock: asyncio.Lock, state: _Session
     await send({"type": "done"})
 
 
+async def _run_side_question(ws: WebSocket, send_lock: asyncio.Lock, state: _Session, question: str):
+    """Side question answered by an isolated lightweight session — runs concurrently and
+    streams ask_text/ask_done without touching the main turn."""
+    async def send(payload: dict):
+        async with send_lock:
+            await ws.send_json(payload)
+
+    from services.claude_runtime import ask_side_question
+    context = sessions_service.session_context(state.cwd, state.session_id or "")
+    try:
+        async for ev in ask_side_question(question, context, partial=settings_store.get("streaming")):
+            await send(ev)
+        await send({"type": "ask_done"})
+    except Exception as exc:
+        logger.debug(f"side question ended: {type(exc).__name__}: {exc}")
+
+
 def _ws_bearer_ok(ws: WebSocket) -> bool:
     """Validate the WS handshake's Authorization header. No-op when no token is set."""
     if PUBLIC_ACCESS_TOKEN is None:
@@ -195,6 +212,12 @@ async def chat_ws(ws: WebSocket):
                     continue
                 state.permission_mode = msg.mode
                 await send({"type": "permission_mode", "mode": msg.mode})
+
+            elif mtype == "ask":
+                # Side question: a concurrent, independent task — never touches the main turn.
+                question = (raw.get("text") or "").strip()
+                if question:
+                    asyncio.create_task(_run_side_question(ws, send_lock, state, question))
 
             elif mtype == "interrupt":
                 if task and not task.done():

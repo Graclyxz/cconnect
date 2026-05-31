@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -63,6 +65,7 @@ import com.jahirtrap.cconnect.data.DiffLine
 import com.jahirtrap.cconnect.data.InteractionData
 import com.jahirtrap.cconnect.data.InteractionOption
 import com.jahirtrap.cconnect.data.Role
+import com.jahirtrap.cconnect.ui.CodeBlock
 import com.jahirtrap.cconnect.ui.MarkdownText
 import com.jahirtrap.cconnect.ui.theme.palette
 
@@ -74,6 +77,7 @@ fun ChatMessageItem(
     message: ChatMessage,
     prevRole: Role? = null,
     nextRole: Role? = null,
+    running: Boolean = false,
     onAnswer: ((String, String, String?) -> Unit)? = null,
     onSharedLink: ((String, String) -> Unit)? = null,
 ) {
@@ -93,9 +97,9 @@ fun ChatMessageItem(
                 MarkdownText(message.text, modifier = Modifier.fillMaxWidth(), onSharedLink = onSharedLink)
             }
 
-            Role.THINKING -> Collapsible(label = stringResource(R.string.thinking), text = message.text, icon = Lucide.Lightbulb, labelOnly = message.labelOnly)
+            Role.THINKING -> Collapsible(label = stringResource(R.string.thinking), text = message.text, icon = Lucide.Lightbulb, labelOnly = message.labelOnly, running = running)
 
-            Role.TOOL -> ToolBlock(name = message.toolName, input = message.text, labelOnly = message.labelOnly)
+            Role.TOOL -> ToolBlock(name = message.toolName, input = message.text, result = message.result, running = running)
 
             Role.TOOL_RESULT -> Collapsible(label = stringResource(R.string.result), text = message.text, labelOnly = message.labelOnly)
 
@@ -169,8 +173,9 @@ private fun Plain(content: @Composable () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun Collapsible(label: String, text: String, icon: ImageVector? = null, labelOnly: Boolean = false) {
+private fun Collapsible(label: String, text: String, icon: ImageVector? = null, labelOnly: Boolean = false, running: Boolean = false) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Row(
@@ -192,6 +197,10 @@ private fun Collapsible(label: String, text: String, icon: ImageVector? = null, 
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
+            if (running) {
+                LoadingIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.primary)
+                if (!labelOnly) Spacer(Modifier.size(2.dp))
+            }
             if (!labelOnly) {
                 Icon(
                     imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
@@ -213,18 +222,18 @@ private fun Collapsible(label: String, text: String, icon: ImageVector? = null, 
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ToolBlock(name: String?, input: String, labelOnly: Boolean = false) {
+private fun ToolBlock(name: String?, input: String, result: String? = null, running: Boolean = false) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val preview = input.replace("\n", " ").trim()
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .then(if (labelOnly) Modifier else Modifier.clickable { expanded = !expanded }),
+            .padding(horizontal = 16.dp),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -239,7 +248,7 @@ private fun ToolBlock(name: String?, input: String, labelOnly: Boolean = false) 
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
             )
-            if (!labelOnly && !expanded && preview.isNotEmpty()) {
+            if (!expanded && preview.isNotEmpty()) {
                 Text(
                     text = "  $preview",
                     style = MaterialTheme.typography.labelLarge,
@@ -251,23 +260,31 @@ private fun ToolBlock(name: String?, input: String, labelOnly: Boolean = false) 
             } else {
                 Spacer(Modifier.weight(1f))
             }
-            if (!labelOnly) {
-                Icon(
-                    imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp),
-                )
+            if (running) {
+                LoadingIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.size(2.dp))
             }
+            Icon(
+                imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
         }
-        if (expanded && !labelOnly && input.isNotBlank()) {
-            SelectionContainer(modifier = Modifier.padding(top = 4.dp)) {
-                Text(
-                    text = input,
-                    fontFamily = FontFamily.Monospace,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        if (expanded) {
+            if (input.isNotBlank()) {
+                SelectionContainer(modifier = Modifier.padding(top = 4.dp)) {
+                    Text(
+                        text = input,
+                        fontFamily = FontFamily.Monospace,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            if (!result.isNullOrBlank()) {
+                Spacer(Modifier.size(6.dp))
+                CodeBlock(result, MaterialTheme.colorScheme.surfaceContainerHigh, stringResource(R.string.result))
             }
         }
     }

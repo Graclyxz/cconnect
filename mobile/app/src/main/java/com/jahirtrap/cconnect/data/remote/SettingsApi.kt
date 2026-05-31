@@ -19,7 +19,6 @@ object SettingsApi {
         val streaming: Boolean,
         val showThinking: String,
         val showToolUse: String,
-        val showToolResult: String,
         val showFileChange: String,
         val showCompact: String,
     )
@@ -36,8 +35,7 @@ object SettingsApi {
         permissionMode = effectiveStr(o, "permission_mode", "bypassPermissions"),
         streaming = effectiveBool(o, "streaming", true),
         showThinking = effectiveStr(o, "show_thinking", "full"),
-        showToolUse = effectiveStr(o, "show_tool_use", "full"),
-        showToolResult = effectiveStr(o, "show_tool_result", "off"),
+        showToolUse = effectiveStr(o, "show_tool_use", "label"),
         showFileChange = effectiveStr(o, "show_file_change", "full"),
         showCompact = effectiveStr(o, "show_compact", "full"),
     )
@@ -51,7 +49,6 @@ object SettingsApi {
         streaming: Boolean? = null,
         showThinking: String? = null,
         showToolUse: String? = null,
-        showToolResult: String? = null,
         showFileChange: String? = null,
         showCompact: String? = null,
     ): Snapshot? = Http.post("/settings", buildJsonObject {
@@ -61,7 +58,6 @@ object SettingsApi {
         if (streaming != null) put("streaming", streaming)
         if (showThinking != null) put("show_thinking", showThinking)
         if (showToolUse != null) put("show_tool_use", showToolUse)
-        if (showToolResult != null) put("show_tool_result", showToolResult)
         if (showFileChange != null) put("show_file_change", showFileChange)
         if (showCompact != null) put("show_compact", showCompact)
     })?.jsonObject?.let(::parse)

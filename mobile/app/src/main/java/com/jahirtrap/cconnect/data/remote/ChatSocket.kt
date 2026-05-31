@@ -138,6 +138,13 @@ class ChatSocket(private val scope: CoroutineScope) {
         send(buildJsonObject { put("type", "interrupt") })
     }
 
+    fun sendAsk(text: String) {
+        send(buildJsonObject {
+            put("type", "ask")
+            put("text", text)
+        })
+    }
+
     fun sendLoadHistory(sessionId: String, project: String, beforeIndex: Int, limit: Int = 100) {
         send(buildJsonObject {
             put("type", "load_history")
@@ -177,8 +184,8 @@ class ChatSocket(private val scope: CoroutineScope) {
             "ready" -> ServerEvent.Ready(str("session_id"), str("project"))
             "assistant_text" -> ServerEvent.AssistantText(str("text").orEmpty())
             "thinking" -> ServerEvent.Thinking(str("text").orEmpty(), labelOnly = flag("label"))
-            "tool_use" -> ServerEvent.ToolUse(str("id"), str("name"), str("input"), labelOnly = flag("label"))
-            "tool_result" -> ServerEvent.ToolResult(str("content"), labelOnly = flag("label"))
+            "tool_use" -> ServerEvent.ToolUse(str("id"), str("name"), str("input"), result = str("result"))
+            "tool_result" -> ServerEvent.ToolResult(str("tool_use_id"), str("content"))
             "file_change" -> ServerEvent.FileChange(
                 str("id"),
                 str("path").orEmpty(),
@@ -197,6 +204,8 @@ class ChatSocket(private val scope: CoroutineScope) {
                 postTokens = obj["post_tokens"]?.jsonPrimitive?.intOrNull,
                 summary = str("summary").orEmpty(),
             )
+            "ask_text" -> ServerEvent.AskText(str("text").orEmpty())
+            "ask_done" -> ServerEvent.AskDone
             "compact_summary" -> ServerEvent.CompactSummary(
                 trigger = str("trigger"),
                 preTokens = obj["pre_tokens"]?.jsonPrimitive?.intOrNull,

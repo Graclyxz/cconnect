@@ -57,7 +57,6 @@ def get(key: str) -> Any:
 _VISIBILITY = {
     "thinking": "show_thinking",
     "tool_use": "show_tool_use",
-    "tool_result": "show_tool_result",
     "file_change": "show_file_change",
     "compact": "show_compact",
 }

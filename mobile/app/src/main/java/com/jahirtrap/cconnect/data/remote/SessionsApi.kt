@@ -112,6 +112,7 @@ object SessionsApi {
             compact = compact,
             index = o["index"]?.jsonPrimitive?.intOrNull ?: -1,
             labelOnly = o["label"]?.jsonPrimitive?.booleanOrNull == true,
+            result = o["result"]?.jsonPrimitive?.contentOrNull,
         )
     }
 

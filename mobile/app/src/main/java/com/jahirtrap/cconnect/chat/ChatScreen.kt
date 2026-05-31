@@ -4,7 +4,10 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -17,10 +20,12 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -29,8 +34,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
@@ -53,12 +60,14 @@ import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.CircleDot
 import com.composables.icons.lucide.EllipsisVertical
+import com.composables.icons.lucide.Eraser
 import com.composables.icons.lucide.Folder
 import com.composables.icons.lucide.FolderOpen
 import com.composables.icons.lucide.Gauge
 import com.composables.icons.lucide.Languages
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Menu
+import com.composables.icons.lucide.MessagesSquare
 import com.composables.icons.lucide.Server
 import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Slash
@@ -67,6 +76,7 @@ import com.composables.icons.lucide.Square
 import com.composables.icons.lucide.SquareCheckBig
 import com.composables.icons.lucide.SquareTerminal
 import com.composables.icons.lucide.SquarePen
+import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.Stop
 import androidx.compose.material3.DrawerState
@@ -79,6 +89,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -87,6 +98,7 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -100,11 +112,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
@@ -378,63 +393,135 @@ fun ChatScreen(
                         )
                     },
                 ) { padding ->
+                    val sc = state.sideChat?.takeIf { it.boundSessionId == state.sessionId }
+                    val sideActive = state.sideChatOpen && sc != null
+                    var mainDraft by rememberSaveable { mutableStateOf("") }
+                    var sideDraft by rememberSaveable { mutableStateOf("") }
+                    val composerFocus = remember { FocusRequester() }
+                    val expansion = remember { Animatable(0f) }
+                    val peek = 0.58f
+                    LaunchedEffect(sideActive) {
+                        if (sideActive) {
+                            expansion.snapTo(0f)
+                            if (imeVisible) composerFocus.requestFocus()
+                            expansion.animateTo(peek, spring(stiffness = Spring.StiffnessMediumLow))
+                        }
+                    }
+                    val dismissSide: () -> Unit = {
+                        scope.launch {
+                            expansion.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
+                            vm.closeSideChat()
+                        }
+                        Unit
+                    }
+                    BackHandler(enabled = sideActive) {
+                        if (imeVisible) focusManager.clearFocus() else dismissSide()
+                    }
                     Column(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
-                        Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier.fillMaxSize(),
-                            ) {
-                                itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
-                                    ChatMessageItem(
-                                        message,
-                                        prevRole = state.messages.getOrNull(index - 1)?.role,
-                                        nextRole = state.messages.getOrNull(index + 1)?.role,
-                                        onAnswer = vm::answerInteraction,
-                                        onSharedLink = { url, filename -> sharedLinkAction = url to filename },
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                            val boxHeightPx = constraints.maxHeight.toFloat()
+                            Column(modifier = Modifier.fillMaxSize()) {
+                                Box(modifier = Modifier.fillMaxWidth().weight((1f - expansion.value).coerceAtLeast(0.001f))) {
+                                    LazyColumn(
+                                        state = listState,
+                                        modifier = Modifier.fillMaxSize(),
+                                    ) {
+                                        itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
+                                            val running = when (message.role) {
+                                                Role.TOOL -> message.toolUseId != null && message.toolUseId in state.pendingToolIds
+                                                Role.THINKING -> index == state.messages.lastIndex && state.streaming
+                                                else -> false
+                                            }
+                                            ChatMessageItem(
+                                                message,
+                                                prevRole = state.messages.getOrNull(index - 1)?.role,
+                                                nextRole = state.messages.getOrNull(index + 1)?.role,
+                                                running = running,
+                                                onAnswer = vm::answerInteraction,
+                                                onSharedLink = { url, filename -> sharedLinkAction = url to filename },
+                                            )
+                                        }
+                                    }
+                                    if (showScrollButton && state.messages.isNotEmpty()) {
+                                        Surface(
+                                            onClick = {
+                                                followBottom = true
+                                                scope.launch { listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE) }
+                                            },
+                                            shape = CircleShape,
+                                            color = MaterialTheme.colorScheme.onBackground,
+                                            shadowElevation = 4.dp,
+                                            modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).size(40.dp),
+                                        ) {
+                                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    Lucide.ChevronDown,
+                                                    contentDescription = stringResource(R.string.scroll_to_bottom),
+                                                    tint = MaterialTheme.colorScheme.background,
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                if (sideActive && sc != null) {
+                                    val dragModifier = Modifier.pointerInput(boxHeightPx) {
+                                        detectVerticalDragGestures(
+                                            onDragEnd = {
+                                                scope.launch {
+                                                    val v = expansion.value
+                                                    when {
+                                                        v < 0.32f -> { expansion.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)); vm.closeSideChat() }
+                                                        v < (peek + 1f) / 2f -> expansion.animateTo(peek, spring(stiffness = Spring.StiffnessMediumLow))
+                                                        else -> expansion.animateTo(1f, spring(stiffness = Spring.StiffnessMediumLow))
+                                                    }
+                                                }
+                                            },
+                                        ) { change, dy ->
+                                            change.consume()
+                                            if (boxHeightPx > 0f) {
+                                                val target = (expansion.value - dy / boxHeightPx).coerceIn(0f, 1f)
+                                                scope.launch { expansion.snapTo(target) }
+                                            }
+                                        }
+                                    }
+                                    SidePanel(
+                                        sideChat = sc,
+                                        headerModifier = dragModifier,
+                                        onClear = vm::clearSideChat,
+                                        modifier = Modifier.fillMaxWidth().weight(expansion.value.coerceAtLeast(0.001f)),
                                     )
                                 }
                             }
-                            if (showScrollButton && state.messages.isNotEmpty()) {
-                                Surface(
-                                    onClick = {
-                                        followBottom = true
-                                        scope.launch { listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE) }
-                                    },
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.onBackground,
-                                    shadowElevation = 4.dp,
-                                    modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).size(40.dp),
-                                ) {
-                                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                        Icon(
-                                            Lucide.ChevronDown,
-                                            contentDescription = stringResource(R.string.scroll_to_bottom),
-                                            tint = MaterialTheme.colorScheme.background,
-                                        )
-                                    }
-                                }
-                            }
                         }
-                        if (state.compacting) CompactProgress()
-                        ChatToolbar(
-                            ready = state.capabilitiesReady,
-                            model = state.model,
-                            models = state.capabilities.models,
-                            onModel = vm::setModel,
-                            effort = state.effort,
-                            effortLevels = state.capabilities.effortLevels,
-                            onEffort = vm::setEffort,
-                            permissionMode = state.permissionMode,
-                            permissionModes = state.capabilities.permissionModes,
-                            onPermissionMode = vm::setPermissionMode,
-                        )
+                        if (!sideActive) {
+                            if (state.compacting) CompactProgress()
+                            ChatToolbar(
+                                ready = state.capabilitiesReady,
+                                model = state.model,
+                                models = state.capabilities.models,
+                                onModel = vm::setModel,
+                                effort = state.effort,
+                                effortLevels = state.capabilities.effortLevels,
+                                onEffort = vm::setEffort,
+                                permissionMode = state.permissionMode,
+                                permissionModes = state.capabilities.permissionModes,
+                                onPermissionMode = vm::setPermissionMode,
+                                showReturn = sc != null && sc.messages.isNotEmpty(),
+                                onReturn = vm::openSideChat,
+                            )
+                        }
                         Composer(
-                            streaming = state.streaming,
+                            value = if (sideActive) sideDraft else mainDraft,
+                            onValueChange = { if (sideActive) sideDraft = it else mainDraft = it },
+                            streaming = if (sideActive) (sc?.streaming ?: false) else state.streaming,
                             sessionColor = state.sessionColor,
                             commands = state.capabilities.commands,
                             onCommand = { cmd -> if (cmd.requireConfirmation) confirmCommand = cmd else vm.runCommand(cmd) },
-                            onSend = vm::sendPrompt,
+                            onSend = { if (sideActive) vm.sendSideQuestion(it) else vm.sendPrompt(it) },
                             onStop = vm::stop,
+                            commandsEnabled = state.sessionId != null,
+                            focusRequester = composerFocus,
+                            onCloseSide = if (sideActive) dismissSide else null,
                         )
                     }
                 }
@@ -507,6 +594,134 @@ fun ChatScreen(
             },
             onDismiss = { sharedLinkAction = null },
         )
+    }
+}
+
+@Composable
+private fun SidePanel(
+    sideChat: SideChatState,
+    headerModifier: Modifier = Modifier,
+    onClear: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        tonalElevation = 2.dp,
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxWidth().then(headerModifier)) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 32.dp, height = 4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)),
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        Lucide.MessagesSquare,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        stringResource(R.string.quick_chat),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        Lucide.Eraser,
+                        contentDescription = stringResource(R.string.clear),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(
+                            alpha = if (sideChat.messages.isNotEmpty()) 1f else 0.38f,
+                        ),
+                        modifier = Modifier
+                            .size(18.dp)
+                            .clip(CircleShape)
+                            .clickable(enabled = sideChat.messages.isNotEmpty(), onClick = onClear),
+                    )
+                }
+            }
+            HorizontalDivider()
+            val listState = rememberLazyListState()
+            val scope = rememberCoroutineScope()
+            val isAtBottom by remember {
+                derivedStateOf {
+                    val info = listState.layoutInfo
+                    val last = info.visibleItemsInfo.lastOrNull() ?: return@derivedStateOf true
+                    last.index == info.totalItemsCount - 1 && last.offset + last.size <= info.viewportEndOffset + 4
+                }
+            }
+            var followBottom by remember { mutableStateOf(true) }
+            val showScrollButton by remember {
+                derivedStateOf {
+                    if (followBottom) return@derivedStateOf false
+                    val info = listState.layoutInfo
+                    val last = info.visibleItemsInfo.lastOrNull() ?: return@derivedStateOf false
+                    val viewportHeight = info.viewportEndOffset - info.viewportStartOffset
+                    val itemsBelow = info.totalItemsCount - 1 - last.index
+                    itemsBelow >= 2 || (last.offset + last.size) - info.viewportEndOffset > viewportHeight
+                }
+            }
+            LaunchedEffect(listState) {
+                listState.interactionSource.interactions.collect { interaction ->
+                    if (interaction is DragInteraction.Start) followBottom = false
+                }
+            }
+            LaunchedEffect(listState) {
+                snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
+                    if (!scrolling) followBottom = isAtBottom
+                }
+            }
+            val lastMsg = sideChat.messages.lastOrNull()
+            LaunchedEffect(lastMsg?.id, lastMsg?.text) {
+                if (sideChat.messages.isNotEmpty() && followBottom) {
+                    listState.animateScrollToItem(sideChat.messages.lastIndex, Int.MAX_VALUE)
+                }
+            }
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                    itemsIndexed(sideChat.messages, key = { _, it -> it.id }) { index, message ->
+                        ChatMessageItem(
+                            message,
+                            prevRole = sideChat.messages.getOrNull(index - 1)?.role,
+                            nextRole = sideChat.messages.getOrNull(index + 1)?.role,
+                        )
+                    }
+                }
+                if (showScrollButton && sideChat.messages.isNotEmpty()) {
+                    Surface(
+                        onClick = {
+                            followBottom = true
+                            scope.launch { listState.scrollToItem(sideChat.messages.lastIndex, Int.MAX_VALUE) }
+                        },
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        shadowElevation = 4.dp,
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).size(40.dp),
+                    ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(
+                                Lucide.ChevronDown,
+                                contentDescription = stringResource(R.string.scroll_to_bottom),
+                                tint = MaterialTheme.colorScheme.background,
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -598,46 +813,67 @@ private fun ChatToolbar(
     permissionMode: String,
     permissionModes: List<PermissionMode>,
     onPermissionMode: (String) -> Unit,
+    showReturn: Boolean = false,
+    onReturn: () -> Unit = {},
 ) {
     val accent = MaterialTheme.colorScheme.primary
     val pstyle = permissionStyle(permissionMode)
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(start = 8.dp, end = 8.dp, top = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (!ready) {
-            ToolbarLoadingChip()
-            return@Row
+        if (showReturn) {
+            Row(
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                    .clickable(onClick = onReturn)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Lucide.MessagesSquare, contentDescription = stringResource(R.string.quick_chat), tint = accent, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(6.dp))
         }
-        SelectorChip(
-            label = models.firstOrNull { it.id == model }?.label ?: model,
-            icon = Lucide.Sparkles,
-            tint = accent,
-            options = models.map { it.id to it.label },
-            selected = model,
-            onSelect = onModel,
-        )
-        SelectorChip(
-            label = effort,
-            icon = Lucide.Gauge,
-            tint = accent,
-            options = effortLevels.map { it to it },
-            selected = effort,
-            onSelect = onEffort,
-        )
-        val styles = permissionModes.associate { it.id to permissionStyle(it.id).let { s -> s.icon to s.color } }
-        SelectorChip(
-            label = permissionModes.firstOrNull { it.id == permissionMode }?.label ?: permissionMode,
-            icon = pstyle.icon,
-            tint = pstyle.color,
-            options = permissionModes.map { it.id to it.label },
-            selected = permissionMode,
-            optionStyle = { styles[it] ?: (pstyle.icon to pstyle.color) },
-            onSelect = onPermissionMode,
-        )
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(rememberScrollState())
+                .padding(start = if (showReturn) 0.dp else 8.dp, end = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (!ready) {
+                ToolbarLoadingChip()
+                return@Row
+            }
+            SelectorChip(
+                label = models.firstOrNull { it.id == model }?.label ?: model,
+                icon = Lucide.Sparkles,
+                tint = accent,
+                options = models.map { it.id to it.label },
+                selected = model,
+                onSelect = onModel,
+            )
+            SelectorChip(
+                label = effort,
+                icon = Lucide.Gauge,
+                tint = accent,
+                options = effortLevels.map { it to it },
+                selected = effort,
+                onSelect = onEffort,
+            )
+            val styles = permissionModes.associate { it.id to permissionStyle(it.id).let { s -> s.icon to s.color } }
+            SelectorChip(
+                label = permissionModes.firstOrNull { it.id == permissionMode }?.label ?: permissionMode,
+                icon = pstyle.icon,
+                tint = pstyle.color,
+                options = permissionModes.map { it.id to it.label },
+                selected = permissionMode,
+                optionStyle = { styles[it] ?: (pstyle.icon to pstyle.color) },
+                onSelect = onPermissionMode,
+            )
+        }
     }
 }
 
@@ -681,11 +917,7 @@ private fun SelectorChip(
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-                .pointerInput(Unit) {
-                    detectTapGestures {
-                        if (System.currentTimeMillis() - lastChange > 200) setOpen(!open)
-                    }
-                }
+                .clickable { if (System.currentTimeMillis() - lastChange > 200) setOpen(!open) }
                 .padding(horizontal = 10.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -728,10 +960,11 @@ private fun CompactProgress() {
 @Composable
 private fun CommandMenuButton(
     commands: List<CommandOption>,
-    enabled: Boolean,
+    streaming: Boolean,
+    enabled: Boolean = true,
     onCommand: (CommandOption) -> Unit,
 ) {
-    val ready = enabled && commands.isNotEmpty()
+    val ready = commands.isNotEmpty() && enabled
     var open by remember { mutableStateOf(false) }
     var lastChange by remember { mutableStateOf(0L) }
     fun setOpen(value: Boolean) {
@@ -787,7 +1020,8 @@ private fun CommandMenuButton(
                                 .width(IntrinsicSize.Max),
                         ) {
                             commands.forEach { cmd ->
-                                CommandMenuItem(cmd) { setOpen(false); onCommand(cmd) }
+                                val itemEnabled = !streaming || cmd.kind == "side"
+                                CommandMenuItem(cmd, enabled = itemEnabled) { setOpen(false); onCommand(cmd) }
                             }
                         }
                     }
@@ -798,17 +1032,18 @@ private fun CommandMenuButton(
 }
 
 @Composable
-private fun CommandMenuItem(cmd: CommandOption, onClick: () -> Unit) {
+private fun CommandMenuItem(cmd: CommandOption, enabled: Boolean = true, onClick: () -> Unit) {
+    val alpha = if (enabled) 1f else 0.38f
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .widthIn(min = 112.dp, max = 280.dp)
-            .clickable(onClick = onClick)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 14.dp, vertical = 8.dp),
     ) {
-        Text("/${cmd.name}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text("/${cmd.name}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha))
         if (cmd.description.isNotBlank()) {
-            Text(cmd.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(cmd.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha))
         }
     }
 }
@@ -829,14 +1064,19 @@ private class AboveAnchorPositionProvider(private val gapPx: Int) : PopupPositio
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Composer(
+    value: String,
+    onValueChange: (String) -> Unit,
     streaming: Boolean,
     sessionColor: String?,
     commands: List<CommandOption>,
     onCommand: (CommandOption) -> Unit,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
+    showCommands: Boolean = true,
+    commandsEnabled: Boolean = true,
+    focusRequester: FocusRequester? = null,
+    onCloseSide: (() -> Unit)? = null,
 ) {
-    var input by remember { mutableStateOf("") }
     val shape = RoundedCornerShape(22.dp)
     val accent = sessionColorOf(sessionColor)
 
@@ -844,12 +1084,31 @@ private fun Composer(
         modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
-        CommandMenuButton(commands = commands, enabled = !streaming, onCommand = onCommand)
-        Spacer(Modifier.width(6.dp))
+        if (onCloseSide != null) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable(onClick = onCloseSide),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Lucide.X,
+                    contentDescription = stringResource(R.string.close),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            Spacer(Modifier.width(6.dp))
+        } else if (showCommands) {
+            CommandMenuButton(commands = commands, streaming = streaming, enabled = commandsEnabled, onCommand = onCommand)
+            Spacer(Modifier.width(6.dp))
+        }
         BasicTextField(
-            value = input,
-            onValueChange = { input = it },
-            modifier = Modifier.weight(1f),
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.weight(1f).then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
             textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             maxLines = 6,
@@ -860,7 +1119,7 @@ private fun Composer(
                         .border(if (accent != null) 2.dp else 1.dp, accent ?: MaterialTheme.colorScheme.outlineVariant, shape)
                         .padding(horizontal = 14.dp, vertical = 9.dp),
                 ) {
-                    if (input.isEmpty()) {
+                    if (value.isEmpty()) {
                         Text(
                             stringResource(R.string.type_message),
                             style = MaterialTheme.typography.bodyLarge,
@@ -883,8 +1142,8 @@ private fun Composer(
             CircleActionButton(
                 icon = Lucide.ArrowUp,
                 contentDescription = stringResource(R.string.send),
-                enabled = input.isNotBlank(),
-                onClick = { onSend(input); input = "" },
+                enabled = value.isNotBlank(),
+                onClick = { onSend(value); onValueChange("") },
             )
         }
     }

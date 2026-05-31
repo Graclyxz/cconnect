@@ -335,6 +335,27 @@ def compact_boundary_count(cwd: str, session_id: str) -> int:
     )
 
 
+def session_context(cwd: str, session_id: str, max_chars: int = 4000) -> str:
+    """Recent user/assistant text from the live session, as reference context for a side
+    question. Returns the tail (most recent), command-meta and sidechain entries excluded."""
+    if not session_id:
+        return ""
+    try:
+        file = _session_file(project_key_for(cwd), session_id)
+    except ValueError:
+        return ""
+    if not file.is_file():
+        return ""
+    parts: list[str] = []
+    for entry in _iter_lines(file):
+        if entry.get("type") not in ("user", "assistant") or entry.get("isMeta") or entry.get("isSidechain"):
+            continue
+        text = _text_from_content(entry.get("message", {}).get("content"))
+        if text and not _COMMAND_META_RE.search(text):
+            parts.append(f"{entry.get('type')}: {text}")
+    return "\n".join(parts)[-max_chars:]
+
+
 def session_tasks(session_id: str) -> list[dict]:
     """Current task state Claude persists per session at ~/.claude/tasks/<id>/<n>.json.
     A resumed chat reads this to restore the task indicator (the SDK doesn't re-stream it)."""
@@ -413,7 +434,7 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
         default=-1,
     )
     # Per-type visibility (full / label / off).
-    vis = {t: settings_store.visibility_mode(t) for t in ("thinking", "tool_use", "tool_result", "file_change", "compact")}
+    vis = {t: settings_store.visibility_mode(t) for t in ("thinking", "tool_use", "file_change", "compact")}
     messages: list[dict] = []
     hidden_ids: set[str] = set()
     compact_block: dict | None = None
@@ -528,20 +549,11 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                         continue
                 if vis["tool_use"] == "off":
                     continue
-                if vis["tool_use"] == "label":
-                    messages.append({"type": "tool_use", "name": name, "label": True})
-                    continue
-                messages.append({"type": "tool_use", "name": name, "text": _format_tool_input(inp)})
-            elif btype == "tool_result":
-                if block.get("tool_use_id") in hidden_ids:
-                    continue
-                if vis["tool_result"] == "off":
-                    continue
-                if vis["tool_result"] == "label":
-                    messages.append({"type": "tool_result", "label": True})
-                    continue
-                from services.claude_runtime import _flatten_result_content
-                text = _flatten_result_content(block.get("content")).strip()
-                if text:
-                    messages.append({"type": "tool_result", "text": text})
+                ev = {"type": "tool_use", "name": name, "text": _format_tool_input(inp), "id": bid}
+                if vis["tool_use"] == "full":
+                    from services.claude_runtime import _flatten_result_content
+                    result = _flatten_result_content(tool_result_by_id.get(bid or "")).strip()
+                    if result:
+                        ev["result"] = result
+                messages.append(ev)
     return messages

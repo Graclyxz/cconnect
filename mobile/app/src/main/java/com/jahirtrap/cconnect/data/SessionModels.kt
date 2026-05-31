@@ -29,6 +29,7 @@ data class SessionMessage(
     val compact: CompactData? = null,
     val index: Int = -1,
     val labelOnly: Boolean = false,
+    val result: String? = null,
 )
 
 data class SharedEntry(

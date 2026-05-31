@@ -38,6 +38,12 @@ enum class ConnectionState { Disconnected, Connecting, Connected }
 private const val MESSAGE_TAIL_CAP = 500
 private const val MESSAGE_INITIAL_CAP = 100
 
+data class SideChatState(
+    val boundSessionId: String? = null,    // the main conversation this side chat belongs to
+    val messages: List<ChatMessage> = emptyList(),
+    val streaming: Boolean = false,
+)
+
 data class ChatUiState(
     val connection: ConnectionState = ConnectionState.Disconnected,
     val messages: List<ChatMessage> = emptyList(),
@@ -64,6 +70,9 @@ data class ChatUiState(
     val transcriptExhausted: Boolean = false,
     val followBottom: Boolean = true,
     val compacting: Boolean = false,
+    val sideChat: SideChatState? = null,             // persisted side conversation (kept while the session lives)
+    val sideChatOpen: Boolean = false,               // whether the side panel is currently shown
+    val pendingToolIds: Set<String> = emptySet(),    // tools still running (tool_use seen, no result yet)
 )
 
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
@@ -89,6 +98,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private var nextId = 0L
     private var currentAssistantId: Long? = null
     private var currentThinkingId: Long? = null
+    private var currentSideAssistantId: Long? = null
     private var historyJob: Job? = null
     private var historyLoaded = false
 
@@ -153,8 +163,41 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun runCommand(cmd: CommandOption) {
-        if (cmd.kind == "client" && cmd.name == "clear") clearConversation()
-        else sendPrompt("/${cmd.name}")
+        when {
+            cmd.kind == "side" -> openSideChat()
+            cmd.kind == "client" && cmd.name == "clear" -> clearConversation()
+            else -> sendPrompt("/${cmd.name}")
+        }
+    }
+
+    private fun ChatUiState.boundSide(): SideChatState? = sideChat?.takeIf { it.boundSessionId == sessionId }
+
+    private fun SideChatState?.promote(sid: String?): SideChatState? =
+        if (this != null && boundSessionId == null && sid != null) copy(boundSessionId = sid) else this
+
+    fun openSideChat() {
+        _state.update { it.copy(sideChat = it.boundSide() ?: SideChatState(boundSessionId = it.sessionId), sideChatOpen = true) }
+    }
+
+    fun closeSideChat() {
+        _state.update { it.copy(sideChatOpen = false) }
+    }
+
+    fun clearSideChat() {
+        currentSideAssistantId = null
+        _state.update { it.copy(sideChat = SideChatState(boundSessionId = it.sessionId), sideChatOpen = true) }
+    }
+
+    fun sendSideQuestion(text: String) {
+        val trimmed = text.trim()
+        val sc = _state.value.boundSide() ?: return
+        if (trimmed.isEmpty() || sc.streaming) return
+        currentSideAssistantId = null
+        _state.update {
+            val cur = it.boundSide() ?: SideChatState(boundSessionId = it.sessionId)
+            it.copy(sideChat = cur.copy(messages = cur.messages + ChatMessage(nextId++, Role.USER, trimmed), streaming = true))
+        }
+        client.sendAsk(trimmed)
     }
 
     fun clearConversation() {
@@ -277,7 +320,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             val page = SessionsApi.sessionMessages(session.sessionId, projectKey, limit = 100)
             val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly }
             val loaded = visible.mapIndexed { i, m ->
-                ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly)
+                ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result)
             }
             nextId = loaded.size.toLong()
             currentAssistantId = null
@@ -378,10 +421,12 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         when (event) {
             is ServerEvent.Open -> startSession(_state.value.sessionId)
             is ServerEvent.Ready -> _state.update {
+                val sid = event.sessionId ?: it.sessionId
                 it.copy(
                     connection = ConnectionState.Connected,
-                    sessionId = event.sessionId ?: it.sessionId,
+                    sessionId = sid,
                     activeProjectKey = event.project ?: it.activeProjectKey,
+                    sideChat = it.sideChat.promote(sid),
                 )
             }
             is ServerEvent.AssistantText -> {
@@ -401,13 +446,18 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             is ServerEvent.ToolUse -> {
                 currentAssistantId = null
                 currentThinkingId = null
-                addMessage(Role.TOOL, event.input.orEmpty(), toolName = event.name, toolUseId = event.id, labelOnly = event.labelOnly)
+                addMessage(Role.TOOL, event.input.orEmpty(), toolName = event.name, toolUseId = event.id, result = event.result)
+                event.id?.let { id -> _state.update { it.copy(pendingToolIds = it.pendingToolIds + id) } }
             }
             is ServerEvent.ToolResult -> {
-                currentAssistantId = null
-                currentThinkingId = null
-                if (event.labelOnly) addMessage(Role.TOOL_RESULT, "", labelOnly = true)
-                else event.content.orEmpty().takeIf { it.isNotBlank() }?.let { addMessage(Role.TOOL_RESULT, it) }
+                val tid = event.toolUseId
+                _state.update { st ->
+                    val pending = if (tid != null) st.pendingToolIds - tid else st.pendingToolIds
+                    val msgs = if (tid != null && event.content != null)
+                        st.messages.map { if (it.toolUseId == tid) it.copy(result = event.content) else it }
+                    else st.messages
+                    st.copy(pendingToolIds = pending, messages = msgs)
+                }
             }
             is ServerEvent.FileChange -> {
                 currentAssistantId = null
@@ -432,6 +482,21 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     } else m
                 })
             }
+            is ServerEvent.AskText -> _state.update { st ->
+                val sc = st.sideChat ?: return@update st
+                val id = currentSideAssistantId
+                if (id == null) {
+                    val newId = nextId++
+                    currentSideAssistantId = newId
+                    st.copy(sideChat = sc.copy(messages = sc.messages + ChatMessage(newId, Role.ASSISTANT, event.text)))
+                } else {
+                    st.copy(sideChat = sc.copy(messages = sc.messages.map { if (it.id == id) it.copy(text = it.text + event.text) else it }))
+                }
+            }
+            is ServerEvent.AskDone -> {
+                currentSideAssistantId = null
+                _state.update { it.copy(sideChat = it.sideChat?.copy(streaming = false)) }
+            }
             is ServerEvent.Todos -> _state.update { it.copy(todos = event.items) }
             is ServerEvent.Task -> upsertTask(event)
             is ServerEvent.Result -> _state.update { st ->
@@ -447,9 +512,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         title = null,
                         color = st.sessionColor,
                     )
-                    st.copy(sessionId = sid, historySessions = listOf(row) + st.historySessions)
+                    st.copy(sessionId = sid, historySessions = listOf(row) + st.historySessions, sideChat = st.sideChat.promote(sid))
                 } else {
-                    st.copy(sessionId = sid)
+                    st.copy(sessionId = sid, sideChat = st.sideChat.promote(sid))
                 }
             }
             is ServerEvent.Done -> resetStreaming()
@@ -495,7 +560,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             .filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly }
         _state.update { st ->
             val prepended = older.mapIndexed { i, m ->
-                ChatMessage(nextId + i, m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly)
+                ChatMessage(nextId + i, m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result)
             }
             nextId += prepended.size
             st.copy(
@@ -529,7 +594,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         currentAssistantId = null
         currentThinkingId = null
         ConnectionService.stop(appContext)
-        _state.update { it.copy(streaming = false, compacting = false) }
+        _state.update { it.copy(streaming = false, compacting = false, pendingToolIds = emptySet()) }
     }
 
     private fun append(currentId: Long?, role: Role, delta: String): Long {
@@ -559,9 +624,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         diffLines: List<DiffLine>? = null,
         compact: CompactData? = null,
         labelOnly: Boolean = false,
+        result: String? = null,
     ) {
         _state.update {
-            applyTailCap(it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines, compact, labelOnly = labelOnly)))
+            applyTailCap(it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines, compact, labelOnly = labelOnly, result = result)))
         }
     }
 

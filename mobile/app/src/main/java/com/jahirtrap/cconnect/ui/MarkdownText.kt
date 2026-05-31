@@ -346,7 +346,7 @@ private fun taskMarker(item: Node): Boolean? {
 }
 
 @Composable
-private fun CodeBlock(code: String, bg: Color, lang: String) {
+internal fun CodeBlock(code: String, bg: Color, lang: String) {
     val scroll = rememberScrollState()
     Surface(color = bg, shape = RoundedCornerShape(6.dp), modifier = Modifier.fillMaxWidth()) {
         Column {

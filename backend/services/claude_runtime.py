@@ -211,34 +211,25 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False, hidden_tool_ids
                         event = {"type": "file_change", "id": event.get("id"), "path": event.get("path"), "label": True}
                     events.append(event)
             elif not name.startswith("Task"):
-                mode = settings_store.visibility_mode("tool_use")
-                if mode == "off":
+                if settings_store.visibility_mode("tool_use") == "off":
                     continue
-                if mode == "label":
-                    events.append({"type": "tool_use", "id": getattr(block, "id", None), "name": name, "label": True})
-                else:
-                    events.append({
-                        "type": "tool_use",
-                        "id": getattr(block, "id", None),
-                        "name": name,
-                        "input": _format_tool_input(raw_input),
-                    })
+                events.append({
+                    "type": "tool_use",
+                    "id": getattr(block, "id", None),
+                    "name": name,
+                    "input": _format_tool_input(raw_input),
+                })
         elif kind == "ToolResultBlock":
             tuid = getattr(block, "tool_use_id", None)
             if tuid and tuid in hidden:
                 continue
-            mode = settings_store.visibility_mode("tool_result")
+            mode = settings_store.visibility_mode("tool_use")
             if mode == "off":
                 continue
-            if mode == "label":
-                events.append({"type": "tool_result", "tool_use_id": tuid, "label": True})
-                continue
-            events.append({
-                "type": "tool_result",
-                "tool_use_id": tuid,
-                "content": _flatten_result_content(getattr(block, "content", None)).strip(),
-                "is_error": getattr(block, "is_error", None),
-            })
+            ev = {"type": "tool_result", "tool_use_id": tuid}
+            if mode == "full":
+                ev["content"] = _flatten_result_content(getattr(block, "content", None)).strip()
+            events.append(ev)
     return events
 
 
@@ -387,23 +378,18 @@ async def run_prompt(
                 for event in _blocks_to_events(message.content, skip_streamed=partial, hidden_tool_ids=hidden_tool_ids):
                     yield event
             elif isinstance(message, UserMessage):
-                tr_mode = settings_store.visibility_mode("tool_result")
-                if tr_mode != "off":
+                tu_mode = settings_store.visibility_mode("tool_use")
+                if tu_mode != "off":
                     for block in getattr(message, "content", None) or []:
                         if type(block).__name__ != "ToolResultBlock":
                             continue
                         tuid = getattr(block, "tool_use_id", None)
                         if tuid and tuid in hidden_tool_ids:
                             continue
-                        if tr_mode == "label":
-                            yield {"type": "tool_result", "tool_use_id": tuid, "label": True}
-                        else:
-                            yield {
-                                "type": "tool_result",
-                                "tool_use_id": tuid,
-                                "content": _flatten_result_content(getattr(block, "content", None)),
-                                "is_error": getattr(block, "is_error", None),
-                            }
+                        ev = {"type": "tool_result", "tool_use_id": tuid}
+                        if tu_mode == "full":
+                            ev["content"] = _flatten_result_content(getattr(block, "content", None))
+                        yield ev
                 for event in _task_events_from_result(getattr(message, "tool_use_result", None)):
                     yield event
             elif isinstance(message, SystemMessage):
@@ -459,5 +445,41 @@ async def generate_title(transcript: str) -> str:
     except Exception as exc:
         logger.error(f"generate_title failed: {type(exc).__name__}: {exc}")
     return "".join(parts).strip()
+
+
+async def ask_side_question(question: str, context: str, partial: bool = False) -> AsyncIterator[dict]:
+    """Answer a quick side question in an isolated lightweight session (haiku, AI_WORKDIR),
+    streaming text deltas. Runs concurrently with the main turn and never touches the user's
+    session or history. ``context`` is recent transcript text for reference."""
+    from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, StreamEvent
+
+    os.makedirs(AI_WORKDIR, exist_ok=True)
+    system = (
+        "You answer quick side questions concisely. You're given context from the user's current "
+        "Claude Code session for reference; it may be unrelated to the question — ignore it if so."
+    )
+    prompt = f"<session_context>\n{context}\n</session_context>\n\n{question}" if context else question
+    options = ClaudeAgentOptions(
+        cwd=AI_WORKDIR,
+        permission_mode="default",
+        model="haiku",
+        system_prompt=system,
+        setting_sources=[],
+        include_partial_messages=partial,
+        cli_path=cli_manager.resolve_cli_path(),
+    )
+    try:
+        async for message in query(prompt=prompt, options=options):
+            if partial and isinstance(message, StreamEvent):
+                for ev in _stream_event_to_events(message.event):
+                    if ev.get("type") == "assistant_text" and ev.get("text"):
+                        yield {"type": "ask_text", "text": ev["text"]}
+            elif not partial and isinstance(message, AssistantMessage):
+                for block in message.content:
+                    if type(block).__name__ == "TextBlock":
+                        yield {"type": "ask_text", "text": getattr(block, "text", "")}
+    except Exception as exc:
+        logger.error(f"ask_side_question failed: {type(exc).__name__}: {exc}")
+        yield {"type": "ask_text", "text": f"(error: {type(exc).__name__})"}
 
 
