@@ -145,6 +145,10 @@ class ChatSocket(private val scope: CoroutineScope) {
         })
     }
 
+    fun sendUsage() {
+        send(buildJsonObject { put("type", "usage") })
+    }
+
     fun sendLoadHistory(sessionId: String, project: String, beforeIndex: Int, limit: Int = 100) {
         send(buildJsonObject {
             put("type", "load_history")
@@ -206,6 +210,7 @@ class ChatSocket(private val scope: CoroutineScope) {
             )
             "ask_text" -> ServerEvent.AskText(str("text").orEmpty())
             "ask_done" -> ServerEvent.AskDone
+            "usage" -> ServerEvent.Usage(str("markdown").orEmpty())
             "compact_summary" -> ServerEvent.CompactSummary(
                 trigger = str("trigger"),
                 preTokens = obj["pre_tokens"]?.jsonPrimitive?.intOrNull,

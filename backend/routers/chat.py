@@ -136,6 +136,14 @@ async def _run_side_question(ws: WebSocket, send_lock: asyncio.Lock, state: _Ses
         logger.debug(f"side question ended: {type(exc).__name__}: {exc}")
 
 
+async def _run_usage(ws: WebSocket, send_lock: asyncio.Lock, state: _Session):
+    """Send the plan-usage report as a one-off markdown message."""
+    from services.usage import usage_markdown
+    md = await usage_markdown()
+    async with send_lock:
+        await ws.send_json({"type": "usage", "markdown": md})
+
+
 def _ws_bearer_ok(ws: WebSocket) -> bool:
     """Validate the WS handshake's Authorization header. No-op when no token is set."""
     if PUBLIC_ACCESS_TOKEN is None:
@@ -214,10 +222,12 @@ async def chat_ws(ws: WebSocket):
                 await send({"type": "permission_mode", "mode": msg.mode})
 
             elif mtype == "ask":
-                # Side question: a concurrent, independent task — never touches the main turn.
                 question = (raw.get("text") or "").strip()
                 if question:
                     asyncio.create_task(_run_side_question(ws, send_lock, state, question))
+
+            elif mtype == "usage":
+                asyncio.create_task(_run_usage(ws, send_lock, state))
 
             elif mtype == "interrupt":
                 if task and not task.done():

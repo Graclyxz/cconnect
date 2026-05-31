@@ -68,9 +68,10 @@ COLORS = ["red", "orange", "yellow", "green", "cyan", "blue", "purple", "pink"]
 # concurrently, so it stays usable while the main turn streams). require_confirmation prompts first.
 COMMANDS = [
     {"name": "clear", "description": "Clear this conversation", "kind": "client", "require_confirmation": True},
-    {"name": "compact", "description": "Compact the conversation, keeping a summary", "kind": "prompt"},
+    {"name": "compact", "description": "Compact the conversation", "kind": "prompt"},
     {"name": "context", "description": "Show context window usage", "kind": "prompt"},
     {"name": "cost", "description": "Show token cost for this session", "kind": "prompt"},
+    {"name": "usage", "description": "Show plan token usage", "kind": "usage"},
     {"name": "btw", "description": "Open a quick chat without interrupting", "kind": "side"},
 ]
 

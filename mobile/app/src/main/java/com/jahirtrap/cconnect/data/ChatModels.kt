@@ -92,6 +92,7 @@ sealed interface ServerEvent {
     data class CompactSummary(val trigger: String?, val preTokens: Int?, val postTokens: Int?, val summary: String) : ServerEvent
     data class AskText(val text: String) : ServerEvent
     data object AskDone : ServerEvent
+    data class Usage(val markdown: String) : ServerEvent
     data class Todos(val items: List<TodoItem>) : ServerEvent
     data class Task(val id: String, val content: String?, val status: String?) : ServerEvent
     data class Result(val sessionId: String?) : ServerEvent

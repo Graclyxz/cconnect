@@ -165,6 +165,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun runCommand(cmd: CommandOption) {
         when {
             cmd.kind == "side" -> openSideChat()
+            cmd.kind == "usage" -> {
+                addMessage(Role.USER, "/${cmd.name}")
+                client.sendUsage()
+            }
             cmd.kind == "client" && cmd.name == "clear" -> clearConversation()
             else -> sendPrompt("/${cmd.name}")
         }
@@ -496,6 +500,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             is ServerEvent.AskDone -> {
                 currentSideAssistantId = null
                 _state.update { it.copy(sideChat = it.sideChat?.copy(streaming = false)) }
+            }
+            is ServerEvent.Usage -> {
+                currentAssistantId = null
+                currentThinkingId = null
+                addMessage(Role.ASSISTANT, event.markdown)
             }
             is ServerEvent.Todos -> _state.update { it.copy(todos = event.items) }
             is ServerEvent.Task -> upsertTask(event)

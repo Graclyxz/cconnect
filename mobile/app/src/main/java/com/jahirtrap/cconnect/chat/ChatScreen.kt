@@ -421,79 +421,83 @@ fun ChatScreen(
                     Column(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
                         BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
                             val boxHeightPx = constraints.maxHeight.toFloat()
-                            Column(modifier = Modifier.fillMaxSize()) {
-                                Box(modifier = Modifier.fillMaxWidth().weight((1f - expansion.value).coerceAtLeast(0.001f))) {
-                                    SelectionContainer(modifier = Modifier.fillMaxSize()) {
-                                        LazyColumn(
-                                            state = listState,
-                                            modifier = Modifier.fillMaxSize(),
-                                        ) {
-                                            itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
-                                                val running = when (message.role) {
-                                                    Role.TOOL -> message.toolUseId != null && message.toolUseId in state.pendingToolIds
-                                                    Role.THINKING -> index == state.messages.lastIndex && state.streaming
-                                                    else -> false
-                                                }
-                                                ChatMessageItem(
-                                                    message,
-                                                    prevRole = state.messages.getOrNull(index - 1)?.role,
-                                                    nextRole = state.messages.getOrNull(index + 1)?.role,
-                                                    running = running,
-                                                    onAnswer = vm::answerInteraction,
-                                                    onSharedLink = { url, filename -> sharedLinkAction = url to filename },
-                                                )
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                SelectionContainer(modifier = Modifier.fillMaxSize()) {
+                                    LazyColumn(
+                                        state = listState,
+                                        modifier = Modifier.fillMaxSize(),
+                                    ) {
+                                        itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
+                                            val running = when (message.role) {
+                                                Role.TOOL -> message.toolUseId != null && message.toolUseId in state.pendingToolIds
+                                                Role.THINKING -> index == state.messages.lastIndex && state.streaming
+                                                else -> false
                                             }
-                                        }
-                                    }
-                                    if (showScrollButton && state.messages.isNotEmpty()) {
-                                        Surface(
-                                            onClick = {
-                                                followBottom = true
-                                                scope.launch { listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE) }
-                                            },
-                                            shape = CircleShape,
-                                            color = MaterialTheme.colorScheme.onBackground,
-                                            shadowElevation = 4.dp,
-                                            modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).size(40.dp),
-                                        ) {
-                                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                                Icon(
-                                                    Lucide.ChevronDown,
-                                                    contentDescription = stringResource(R.string.scroll_to_bottom),
-                                                    tint = MaterialTheme.colorScheme.background,
-                                                )
-                                            }
+                                            ChatMessageItem(
+                                                message,
+                                                prevRole = state.messages.getOrNull(index - 1)?.role,
+                                                nextRole = state.messages.getOrNull(index + 1)?.role,
+                                                running = running,
+                                                onAnswer = vm::answerInteraction,
+                                                onSharedLink = { url, filename -> sharedLinkAction = url to filename },
+                                            )
                                         }
                                     }
                                 }
-                                if (sideActive && sc != null) {
-                                    val dragModifier = Modifier.pointerInput(boxHeightPx) {
-                                        detectVerticalDragGestures(
-                                            onDragEnd = {
-                                                scope.launch {
-                                                    val v = expansion.value
-                                                    when {
-                                                        v < 0.32f -> { expansion.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)); vm.closeSideChat() }
-                                                        v < (peek + 1f) / 2f -> expansion.animateTo(peek, spring(stiffness = Spring.StiffnessMediumLow))
-                                                        else -> expansion.animateTo(1f, spring(stiffness = Spring.StiffnessMediumLow))
-                                                    }
-                                                }
-                                            },
-                                        ) { change, dy ->
-                                            change.consume()
-                                            if (boxHeightPx > 0f) {
-                                                val target = (expansion.value - dy / boxHeightPx).coerceIn(0f, 1f)
-                                                scope.launch { expansion.snapTo(target) }
-                                            }
+                                if (showScrollButton && state.messages.isNotEmpty()) {
+                                    Surface(
+                                        onClick = {
+                                            followBottom = true
+                                            scope.launch { listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE) }
+                                        },
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.onBackground,
+                                        shadowElevation = 4.dp,
+                                        modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).size(40.dp),
+                                    ) {
+                                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                Lucide.ChevronDown,
+                                                contentDescription = stringResource(R.string.scroll_to_bottom),
+                                                tint = MaterialTheme.colorScheme.background,
+                                            )
                                         }
                                     }
-                                    SidePanel(
-                                        sideChat = sc,
-                                        headerModifier = dragModifier,
-                                        onClear = vm::clearSideChat,
-                                        modifier = Modifier.fillMaxWidth().weight(expansion.value.coerceAtLeast(0.001f)),
-                                    )
                                 }
+                            }
+                            // Overlay anchored to the bottom; at full height it covers the main pane completely (no sliver).
+                            if (sideActive && sc != null) {
+                                val dragModifier = Modifier.pointerInput(boxHeightPx) {
+                                    detectVerticalDragGestures(
+                                        onDragEnd = {
+                                            scope.launch {
+                                                val v = expansion.value
+                                                when {
+                                                    v < 0.32f -> { expansion.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)); vm.closeSideChat() }
+                                                    v < (peek + 1f) / 2f -> expansion.animateTo(peek, spring(stiffness = Spring.StiffnessMediumLow))
+                                                    else -> expansion.animateTo(1f, spring(stiffness = Spring.StiffnessMediumLow))
+                                                }
+                                            }
+                                        },
+                                    ) { change, dy ->
+                                        change.consume()
+                                        if (boxHeightPx > 0f) {
+                                            val target = (expansion.value - dy / boxHeightPx).coerceIn(0f, 1f)
+                                            scope.launch { expansion.snapTo(target) }
+                                        }
+                                    }
+                                }
+                                val dockT = ((expansion.value - peek) / (1f - peek)).coerceIn(0f, 1f)
+                                SidePanel(
+                                    sideChat = sc,
+                                    headerModifier = dragModifier,
+                                    onClear = vm::clearSideChat,
+                                    topCorner = (20 * (1f - dockT)).dp,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .fillMaxWidth()
+                                        .fillMaxHeight(expansion.value.coerceIn(0.0001f, 1f)),
+                                )
                             }
                         }
                         if (!sideActive) {
@@ -605,12 +609,13 @@ private fun SidePanel(
     sideChat: SideChatState,
     headerModifier: Modifier = Modifier,
     onClear: () -> Unit = {},
+    topCorner: Dp = 20.dp,
     modifier: Modifier = Modifier,
 ) {
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+        shape = RoundedCornerShape(topStart = topCorner, topEnd = topCorner),
         tonalElevation = 2.dp,
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
