@@ -451,7 +451,7 @@ async def ask_side_question(question: str, context: str, partial: bool = False) 
     """Answer a quick side question in an isolated lightweight session (haiku, AI_WORKDIR),
     streaming text deltas. Runs concurrently with the main turn and never touches the user's
     session or history. ``context`` is recent transcript text for reference."""
-    from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, StreamEvent
+    from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, StreamEvent, UserMessage
 
     os.makedirs(AI_WORKDIR, exist_ok=True)
     system = (
@@ -471,18 +471,40 @@ async def ask_side_question(question: str, context: str, partial: bool = False) 
         include_partial_messages=partial,
         cli_path=cli_manager.resolve_cli_path(),
     )
+    worked = False
     try:
         async for message in query(prompt=prompt, options=options):
-            if partial and isinstance(message, StreamEvent):
-                for ev in _stream_event_to_events(message.event):
-                    if ev.get("type") == "assistant_text" and ev.get("text"):
-                        yield {"type": "ask_text", "text": ev["text"]}
-            elif not partial and isinstance(message, AssistantMessage):
-                for block in message.content:
-                    if type(block).__name__ == "TextBlock":
-                        yield {"type": "ask_text", "text": getattr(block, "text", "")}
+            if isinstance(message, StreamEvent):
+                if not worked and _stream_event_is_working(message.event):
+                    worked = True
+                    yield {"type": "ask_working"}
+                if partial:
+                    for ev in _stream_event_to_events(message.event):
+                        if ev.get("type") == "assistant_text" and ev.get("text"):
+                            yield {"type": "ask_text", "text": ev["text"]}
+            elif isinstance(message, AssistantMessage):
+                if not worked and any(type(b).__name__ in ("ThinkingBlock", "ToolUseBlock") for b in message.content):
+                    worked = True
+                    yield {"type": "ask_working"}
+                if not partial:
+                    for block in message.content:
+                        if type(block).__name__ == "TextBlock":
+                            yield {"type": "ask_text", "text": getattr(block, "text", "")}
+            elif isinstance(message, UserMessage):
+                if not worked and any(type(b).__name__ == "ToolResultBlock" for b in (getattr(message, "content", None) or [])):
+                    worked = True
+                    yield {"type": "ask_working"}
     except Exception as exc:
         logger.error(f"ask_side_question failed: {type(exc).__name__}: {exc}")
         yield {"type": "ask_text", "text": f"(error: {type(exc).__name__})"}
 
 
+def _stream_event_is_working(ev) -> bool:
+    """True for raw stream events that mark thinking or tool activity."""
+    if not isinstance(ev, dict):
+        return False
+    if ev.get("type") == "content_block_start":
+        return ((ev.get("content_block") or {}).get("type")) in ("thinking", "redacted_thinking", "tool_use", "server_tool_use")
+    if ev.get("type") == "content_block_delta":
+        return ((ev.get("delta") or {}).get("type")) == "thinking_delta"
+    return False

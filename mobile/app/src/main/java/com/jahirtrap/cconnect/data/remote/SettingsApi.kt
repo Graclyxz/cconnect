@@ -21,6 +21,7 @@ object SettingsApi {
         val showToolUse: String,
         val showFileChange: String,
         val showCompact: String,
+        val showWorking: String,
     )
 
     private fun effectiveStr(o: JsonObject, key: String, fallback: String): String =
@@ -38,6 +39,7 @@ object SettingsApi {
         showToolUse = effectiveStr(o, "show_tool_use", "label"),
         showFileChange = effectiveStr(o, "show_file_change", "full"),
         showCompact = effectiveStr(o, "show_compact", "full"),
+        showWorking = effectiveStr(o, "show_working", "label"),
     )
 
     suspend fun get(): Snapshot? = Http.get("/settings")?.jsonObject?.let(::parse)
@@ -51,6 +53,7 @@ object SettingsApi {
         showToolUse: String? = null,
         showFileChange: String? = null,
         showCompact: String? = null,
+        showWorking: String? = null,
     ): Snapshot? = Http.post("/settings", buildJsonObject {
         if (model != null) put("model", model)
         if (effort != null) put("effort", effort)
@@ -60,6 +63,7 @@ object SettingsApi {
         if (showToolUse != null) put("show_tool_use", showToolUse)
         if (showFileChange != null) put("show_file_change", showFileChange)
         if (showCompact != null) put("show_compact", showCompact)
+        if (showWorking != null) put("show_working", showWorking)
     })?.jsonObject?.let(::parse)
 
     suspend fun reset(): Snapshot? = Http.post("/settings/reset")?.jsonObject?.let(::parse)

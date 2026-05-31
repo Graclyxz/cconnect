@@ -131,6 +131,7 @@ fun SettingsScreen(
     var showToolUse by remember { mutableStateOf("label") }
     var showFileChange by remember { mutableStateOf("full") }
     var showCompact by remember { mutableStateOf("full") }
+    var showWorking by remember { mutableStateOf("label") }
     var cliInfo by remember { mutableStateOf<CliApi.CliInfo?>(null) }
     // The generation/permission/CLI rows are server-owned: dimmed/disabled until a fetch
     // succeeds, with a loading indicator while fetching.
@@ -147,7 +148,7 @@ fun SettingsScreen(
         if (s != null) {
             model = s.model; effort = s.effort; permissionMode = s.permissionMode; streaming = s.streaming
             showThinking = s.showThinking; showToolUse = s.showToolUse
-            showFileChange = s.showFileChange; showCompact = s.showCompact
+            showFileChange = s.showFileChange; showCompact = s.showCompact; showWorking = s.showWorking
         }
         cliInfo = CliApi.status()
         serverReady = s != null
@@ -290,9 +291,10 @@ fun SettingsScreen(
             toolUse = showToolUse,
             fileChange = showFileChange,
             compact = showCompact,
-            onConfirm = { th, tu, fc, cp ->
-                showThinking = th; showToolUse = tu; showFileChange = fc; showCompact = cp
-                scope.launch { SettingsApi.update(showThinking = th, showToolUse = tu, showFileChange = fc, showCompact = cp) }
+            working = showWorking,
+            onConfirm = { th, tu, fc, cp, wk ->
+                showThinking = th; showToolUse = tu; showFileChange = fc; showCompact = cp; showWorking = wk
+                scope.launch { SettingsApi.update(showThinking = th, showToolUse = tu, showFileChange = fc, showCompact = cp, showWorking = wk) }
                 dialog = null
             },
             onDismiss = { dialog = null },
@@ -310,7 +312,7 @@ fun SettingsScreen(
                     SettingsApi.reset()?.let {
                         model = it.model; effort = it.effort; permissionMode = it.permissionMode; streaming = it.streaming
                         showThinking = it.showThinking; showToolUse = it.showToolUse
-                        showFileChange = it.showFileChange; showCompact = it.showCompact
+                        showFileChange = it.showFileChange; showCompact = it.showCompact; showWorking = it.showWorking
                     }
                 }
                 dialog = null
@@ -685,13 +687,15 @@ private fun VisibilityDialog(
     toolUse: String,
     fileChange: String,
     compact: String,
-    onConfirm: (String, String, String, String) -> Unit,
+    working: String,
+    onConfirm: (String, String, String, String, String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var th by remember { mutableStateOf(thinking) }
     var tu by remember { mutableStateOf(toolUse) }
     var fc by remember { mutableStateOf(fileChange) }
     var cp by remember { mutableStateOf(compact) }
+    var wk by remember { mutableStateOf(working) }
     val three = listOf(
         "full" to stringResource(R.string.show_full),
         "label" to stringResource(R.string.show_label),
@@ -701,12 +705,16 @@ private fun VisibilityDialog(
         "full" to stringResource(R.string.show_full),
         "label" to stringResource(R.string.show_label),
     )
+    val labelOff = listOf(
+        "label" to stringResource(R.string.show_label),
+        "off" to stringResource(R.string.show_off),
+    )
     CompactDialog(
         onDismiss = onDismiss,
         title = stringResource(R.string.visibility),
         buttons = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-            TextButton(onClick = { onConfirm(th, tu, fc, cp) }) { Text(stringResource(R.string.save)) }
+            TextButton(onClick = { onConfirm(th, tu, fc, cp, wk) }) { Text(stringResource(R.string.save)) }
         },
     ) {
         SelectField(stringResource(R.string.thinking), th, three) { th = it }
@@ -716,6 +724,8 @@ private fun VisibilityDialog(
         SelectField(stringResource(R.string.file_changes), fc, three) { fc = it }
         Spacer(Modifier.height(14.dp))
         SelectField(stringResource(R.string.compacted), cp, two) { cp = it }
+        Spacer(Modifier.height(14.dp))
+        SelectField(stringResource(R.string.working), wk, labelOff) { wk = it }
     }
 }
 

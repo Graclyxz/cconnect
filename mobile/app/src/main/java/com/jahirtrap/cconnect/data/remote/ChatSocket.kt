@@ -209,6 +209,7 @@ class ChatSocket(private val scope: CoroutineScope) {
                 summary = str("summary").orEmpty(),
             )
             "ask_text" -> ServerEvent.AskText(str("text").orEmpty())
+            "ask_working" -> ServerEvent.AskWorking
             "ask_done" -> ServerEvent.AskDone
             "usage" -> ServerEvent.Usage(str("markdown").orEmpty())
             "compact_summary" -> ServerEvent.CompactSummary(

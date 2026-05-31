@@ -72,6 +72,7 @@ data class ChatUiState(
     val compacting: Boolean = false,
     val sideChat: SideChatState? = null,             // persisted side conversation (kept while the session lives)
     val sideChatOpen: Boolean = false,               // whether the side panel is currently shown
+    val showWorking: String = "label",               // quick-chat working indicator visibility (label/off)
     val pendingToolIds: Set<String> = emptySet(),    // tools still running (tool_use seen, no result yet)
 )
 
@@ -129,7 +130,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             CapabilitiesApi.capabilities()?.let { caps -> _state.update { it.copy(capabilities = caps) } }
             SettingsApi.get()?.let { s ->
                 _state.update {
-                    it.copy(model = s.model, effort = s.effort, permissionMode = s.permissionMode, streamTokens = s.streaming)
+                    it.copy(model = s.model, effort = s.effort, permissionMode = s.permissionMode, streamTokens = s.streaming, showWorking = s.showWorking)
                 }
             }
             _state.update { it.copy(capabilitiesReady = true) }
@@ -340,6 +341,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     oldestLoadedIndex = page.startIndex.takeIf { page.items.isNotEmpty() },
                     transcriptLoading = false,
                     transcriptExhausted = !page.hasMore,
+                    sideChat = it.sideChat.promote(session.sessionId),
                 )
             }
             startSession(resume = session.sessionId)
@@ -484,6 +486,15 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         m.copy(compact = CompactData(event.trigger, event.preTokens, event.postTokens, event.summary))
                     } else m
                 })
+            }
+            is ServerEvent.AskWorking -> {
+                if (_state.value.showWorking == "label") {
+                    currentSideAssistantId = null
+                    _state.update { st ->
+                        val sc = st.sideChat ?: return@update st
+                        st.copy(sideChat = sc.copy(messages = sc.messages + ChatMessage(nextId++, Role.WORKING, "")))
+                    }
+                }
             }
             is ServerEvent.AskText -> _state.update { st ->
                 val sc = st.sideChat ?: return@update st

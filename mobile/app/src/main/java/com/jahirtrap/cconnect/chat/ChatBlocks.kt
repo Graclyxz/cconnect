@@ -49,6 +49,7 @@ import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.CircleQuestionMark
 import com.composables.icons.lucide.FilePen
+import com.composables.icons.lucide.Bot
 import com.composables.icons.lucide.Lightbulb
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.SendHorizontal
@@ -95,6 +96,8 @@ fun ChatMessageItem(
             }
 
             Role.THINKING -> Collapsible(label = stringResource(R.string.thinking), text = message.text, icon = Lucide.Lightbulb, labelOnly = message.labelOnly, running = running)
+
+            Role.WORKING -> Collapsible(label = stringResource(R.string.working), text = "", icon = Lucide.Bot, labelOnly = true, running = running)
 
             Role.TOOL -> ToolBlock(name = message.toolName, input = message.text, result = message.result, running = running)
 

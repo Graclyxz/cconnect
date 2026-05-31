@@ -706,6 +706,7 @@ private fun SidePanel(
                                 message,
                                 prevRole = sideChat.messages.getOrNull(index - 1)?.role,
                                 nextRole = sideChat.messages.getOrNull(index + 1)?.role,
+                                running = message.role == Role.WORKING && index == sideChat.messages.lastIndex && sideChat.streaming,
                             )
                         }
                     }

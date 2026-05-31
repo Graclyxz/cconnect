@@ -92,6 +92,7 @@
     <string name="type_message">Escribe un mensaje…</string>
     <string name="commands">Comandos</string>
     <string name="quick_chat">Chat rápido</string>
+    <string name="working">Trabajando</string>
     <string name="close">Cerrar</string>
     <string name="clear">Limpiar</string>
     <string name="compacting">Compactando…</string>

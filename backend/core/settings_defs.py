@@ -31,4 +31,5 @@ SETTINGS: dict[str, SettingDef] = {
     "show_tool_use": SettingDef("label", str, "How to show tool calls: full, label, or off", allowed=_SHOW_MODES),
     "show_file_change": SettingDef("full", str, "How to show file diffs: full, label, or off", allowed=_SHOW_MODES),
     "show_compact": SettingDef("full", str, "How to show compaction blocks: full summary or just a label", allowed=("full", "label")),
+    "show_working": SettingDef("label", str, "How to show the quick-chat working indicator: label or off", allowed=("label", "off")),
 }
