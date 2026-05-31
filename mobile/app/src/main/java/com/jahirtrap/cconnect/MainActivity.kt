@@ -2,9 +2,12 @@ package com.jahirtrap.cconnect
 
 import android.content.res.Configuration
 import android.os.Bundle
+import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.ComposeFoundationFlags
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberDrawerState
@@ -29,12 +32,15 @@ import java.security.Security
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
+    @OptIn(ExperimentalFoundationApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Android ships a stripped BC provider; swap it for the full BouncyCastle so sshj
         // has curve25519, ed25519, chacha20-poly1305, etc. Modern OpenSSH defaults need this.
         Security.removeProvider("BC")
         Security.insertProviderAt(BouncyCastleProvider(), 1)
+        // Richer text selection menu.
+        ComposeFoundationFlags.isNewContextMenuEnabled = true
         enableEdgeToEdge()
         setContent { App() }
     }
@@ -44,6 +50,7 @@ class MainActivity : AppCompatActivity() {
 @Composable
 private fun App() {
     val baseContext = LocalContext.current
+    val activityResultRegistryOwner = LocalActivityResultRegistryOwner.current!!
     val settings = remember { Settings(baseContext) }
 
     var themeMode by remember { mutableStateOf(settings.themeMode) }
@@ -71,6 +78,7 @@ private fun App() {
     CompositionLocalProvider(
         LocalContext provides localizedContext,
         LocalConfiguration provides localizedContext.resources.configuration,
+        LocalActivityResultRegistryOwner provides activityResultRegistryOwner,
     ) {
         CConnectTheme(
             themeMode = themeModeOf(themeMode),

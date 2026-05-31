@@ -54,6 +54,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.selection.SelectionContainer
 import com.composables.icons.lucide.Archive
 import com.composables.icons.lucide.ArrowUp
 import com.composables.icons.lucide.Check
@@ -422,24 +423,26 @@ fun ChatScreen(
                             val boxHeightPx = constraints.maxHeight.toFloat()
                             Column(modifier = Modifier.fillMaxSize()) {
                                 Box(modifier = Modifier.fillMaxWidth().weight((1f - expansion.value).coerceAtLeast(0.001f))) {
-                                    LazyColumn(
-                                        state = listState,
-                                        modifier = Modifier.fillMaxSize(),
-                                    ) {
-                                        itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
-                                            val running = when (message.role) {
-                                                Role.TOOL -> message.toolUseId != null && message.toolUseId in state.pendingToolIds
-                                                Role.THINKING -> index == state.messages.lastIndex && state.streaming
-                                                else -> false
+                                    SelectionContainer(modifier = Modifier.fillMaxSize()) {
+                                        LazyColumn(
+                                            state = listState,
+                                            modifier = Modifier.fillMaxSize(),
+                                        ) {
+                                            itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
+                                                val running = when (message.role) {
+                                                    Role.TOOL -> message.toolUseId != null && message.toolUseId in state.pendingToolIds
+                                                    Role.THINKING -> index == state.messages.lastIndex && state.streaming
+                                                    else -> false
+                                                }
+                                                ChatMessageItem(
+                                                    message,
+                                                    prevRole = state.messages.getOrNull(index - 1)?.role,
+                                                    nextRole = state.messages.getOrNull(index + 1)?.role,
+                                                    running = running,
+                                                    onAnswer = vm::answerInteraction,
+                                                    onSharedLink = { url, filename -> sharedLinkAction = url to filename },
+                                                )
                                             }
-                                            ChatMessageItem(
-                                                message,
-                                                prevRole = state.messages.getOrNull(index - 1)?.role,
-                                                nextRole = state.messages.getOrNull(index + 1)?.role,
-                                                running = running,
-                                                onAnswer = vm::answerInteraction,
-                                                onSharedLink = { url, filename -> sharedLinkAction = url to filename },
-                                            )
                                         }
                                     }
                                     if (showScrollButton && state.messages.isNotEmpty()) {
@@ -691,13 +694,15 @@ private fun SidePanel(
                 }
             }
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                    itemsIndexed(sideChat.messages, key = { _, it -> it.id }) { index, message ->
-                        ChatMessageItem(
-                            message,
-                            prevRole = sideChat.messages.getOrNull(index - 1)?.role,
-                            nextRole = sideChat.messages.getOrNull(index + 1)?.role,
-                        )
+                SelectionContainer(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                        itemsIndexed(sideChat.messages, key = { _, it -> it.id }) { index, message ->
+                            ChatMessageItem(
+                                message,
+                                prevRole = sideChat.messages.getOrNull(index - 1)?.role,
+                                nextRole = sideChat.messages.getOrNull(index + 1)?.role,
+                            )
+                        }
                     }
                 }
                 if (showScrollButton && sideChat.messages.isNotEmpty()) {

@@ -116,6 +116,7 @@ private val parser: Parser = Parser.builder()
 fun MarkdownText(
     markdown: String,
     modifier: Modifier = Modifier,
+    selectable: Boolean = true,
     onSharedLink: ((url: String, filename: String) -> Unit)? = null,
 ) {
     val root = remember(markdown) { parser.parse(markdown) }
@@ -136,8 +137,14 @@ fun MarkdownText(
         }
     }
     CompositionLocalProvider(LocalUriHandler provides uriHandler) {
-        SelectionContainer(modifier = modifier) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (selectable) {
+            SelectionContainer(modifier = modifier) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Blocks(root, codeBg, linkColor, depth = 0)
+                }
+            }
+        } else {
+            Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Blocks(root, codeBg, linkColor, depth = 0)
             }
         }

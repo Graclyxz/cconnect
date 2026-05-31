@@ -455,14 +455,17 @@ async def ask_side_question(question: str, context: str, partial: bool = False) 
 
     os.makedirs(AI_WORKDIR, exist_ok=True)
     system = (
-        "You answer quick side questions concisely. You're given context from the user's current "
-        "Claude Code session for reference; it may be unrelated to the question — ignore it if so."
+        "You are a helpful assistant answering quick questions from a developer, concisely and directly. "
+        "You may receive <session_context> with recent messages from their current Claude Code session. "
+        "When the question relates to that work, use the context to answer specifically; otherwise ignore "
+        "it and answer as a normal general-purpose assistant. Never invent files, code, commands, or facts: "
+        "if the context doesn't contain the answer and you don't know, say so plainly instead of guessing."
     )
     prompt = f"<session_context>\n{context}\n</session_context>\n\n{question}" if context else question
     options = ClaudeAgentOptions(
         cwd=AI_WORKDIR,
         permission_mode="default",
-        model="haiku",
+        model="sonnet",
         system_prompt=system,
         setting_sources=[],
         include_partial_messages=partial,

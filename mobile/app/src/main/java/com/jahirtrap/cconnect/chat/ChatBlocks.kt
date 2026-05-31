@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -88,13 +87,11 @@ fun ChatMessageItem(
     ) {
         when (message.role) {
             Role.USER -> Band(MaterialTheme.colorScheme.surfaceVariant) {
-                SelectionContainer {
-                    Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
-                }
+                Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
             }
 
             Role.ASSISTANT -> Plain {
-                MarkdownText(message.text, modifier = Modifier.fillMaxWidth(), onSharedLink = onSharedLink)
+                MarkdownText(message.text, modifier = Modifier.fillMaxWidth(), selectable = false, onSharedLink = onSharedLink)
             }
 
             Role.THINKING -> Collapsible(label = stringResource(R.string.thinking), text = message.text, icon = Lucide.Lightbulb, labelOnly = message.labelOnly, running = running)
@@ -114,15 +111,11 @@ fun ChatMessageItem(
             Role.COMPACT -> message.compact?.let { CompactBlock(it) }
 
             Role.ERROR -> Band(MaterialTheme.colorScheme.errorContainer) {
-                SelectionContainer {
-                    Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
-                }
+                Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
             }
 
             Role.SYSTEM -> Plain {
-                SelectionContainer {
-                    Text(message.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                Text(message.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -211,13 +204,12 @@ private fun Collapsible(label: String, text: String, icon: ImageVector? = null, 
             }
         }
         if (expanded && !labelOnly) {
-            SelectionContainer(modifier = Modifier.padding(top = 4.dp)) {
-                Text(
-                    text = text,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }
@@ -273,14 +265,13 @@ private fun ToolBlock(name: String?, input: String, result: String? = null, runn
         }
         if (expanded) {
             if (input.isNotBlank()) {
-                SelectionContainer(modifier = Modifier.padding(top = 4.dp)) {
-                    Text(
-                        text = input,
-                        fontFamily = FontFamily.Monospace,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text(
+                    text = input,
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
             }
             if (!result.isNullOrBlank()) {
                 Spacer(Modifier.size(6.dp))
@@ -391,7 +382,7 @@ private fun CompactBlock(data: CompactData) {
             }
         }
         if (expanded && hasSummary) {
-            MarkdownText(data.summary, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+            MarkdownText(data.summary, modifier = Modifier.fillMaxWidth().padding(top = 4.dp), selectable = false)
         }
     }
 }
