@@ -36,7 +36,10 @@ backend/
 ├── Dockerfile
 ├── .env.example
 ├── core/
-│   ├── config.py            # PORT (8723), CLAUDE_PROJECTS_DIR, SHARED_DIR, AUTO_UPDATE_SDK, PUBLIC_ACCESS_TOKEN
+│   ├── config.py            # PORT (8723), CLAUDE_PROJECTS_DIR, SHARED_DIR, AUTO_UPDATE_SDK, PUBLIC_ACCESS_TOKEN, COMMANDS, defaults
+│   ├── settings_defs.py     # KV settings registry — default, type, allowed values per key
+│   ├── db.py / models.py    # SQLite-backed store for the runtime settings
+│   ├── cli_manager.py       # Resolve/select the Claude CLI (system, bundled, custom) + update it
 │   ├── sdk.py               # Subscription auth + SDK install/upgrade + status
 │   ├── responses.py         # api_response() + paginated_response() — THE response envelope
 │   └── rate_limit.py        # slowapi limiter (configured, not globally enforced)
@@ -46,14 +49,20 @@ backend/
 │   └── error_handler.py     # Routes every error through api_response()
 ├── routers/
 │   ├── health.py            # GET /api/health  (+ SDK status)  — only path open with --expose
+│   ├── capabilities.py      # GET /api/capabilities — models, effort levels, permission modes, colors, commands
+│   ├── settings.py          # GET/POST /api/settings, POST /api/settings/reset — backend-owned config
+│   ├── cli.py               # GET/POST /api/cli, POST /api/cli/update — Claude CLI manager
 │   ├── sessions.py          # GET /api/projects, /api/sessions, /api/sessions/{id}/messages, rename, color, delete
-│   ├── shared.py            # GET /api/shared/{path}  — download files from backend/shared/
+│   ├── shared.py            # GET /api/shared (list) + /api/shared/{path} (download), DELETE /api/shared/{path}
 │   └── chat.py              # WS /api/chat/ws
 ├── schemas/
 │   └── chat.py              # Inbound WebSocket message models
 └── services/
-    ├── claude_runtime.py    # SDK query() -> normalized event stream
-    └── sessions.py          # Read transcripts from ~/.claude/projects (path-traversal safe)
+    ├── claude_runtime.py    # SDK query() -> normalized event stream; side-question + usage helpers
+    ├── sessions.py          # Read transcripts from ~/.claude/projects (path-traversal safe)
+    ├── settings_store.py    # Read/write the KV settings; visibility_mode() per block type
+    ├── usage.py             # Plan token usage (5h/weekly) from the CLI's OAuth credentials
+    └── shared.py            # List / read / delete files under backend/shared/
 ```
 
 ## Auth model
@@ -93,7 +102,11 @@ Every REST endpoint returns `core.responses.api_response()` —
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/api/health` | Liveness + SDK status. **Open** even with --expose. |
-| GET | `/api/capabilities` | Permission modes, effort levels, models, colors |
+| GET | `/api/capabilities` | Permission modes, effort levels, models, colors, slash commands |
+| GET / POST | `/api/settings` | Read / update backend-owned config (model, effort, permissions, streaming, CLI, visibility) |
+| POST | `/api/settings/reset` | Restore settings to defaults |
+| GET / POST | `/api/cli` | Read / set the active Claude CLI (system, bundled, or custom path) |
+| POST | `/api/cli/update` | Update the bundled/system CLI |
 | GET | `/api/projects` | Claude Code projects under `~/.claude/projects` |
 | GET | `/api/sessions?project=<key>` | Sessions in a project (or all when omitted) |
 | GET | `/api/sessions/{id}/messages?project=<key>&limit=200&before_index=N` | Cursor-based transcript slice. Without `before_index` returns the most recent `limit` items. Each item carries its `index`; clients pass the smallest index they have to pull the slice before it. Response: `{items, total, start_index, has_more}`. |
@@ -101,8 +114,9 @@ Every REST endpoint returns `core.responses.api_response()` —
 | POST | `/api/sessions/{id}/color` | Set the session color |
 | POST | `/api/sessions/{id}/auto-rename` | Ask the SDK to generate a title |
 | DELETE | `/api/sessions/{id}?project=<key>` | Delete a session |
-| GET | `/api/shared/{path:path}` | Download a file from `backend/shared/` |
 | GET | `/api/shared` | List entries in `backend/shared/` |
+| GET | `/api/shared/{path:path}` | Download a file from `backend/shared/` |
+| DELETE | `/api/shared/{path:path}` | Delete a file from `backend/shared/` |
 
 ## WebSocket protocol (`/api/chat/ws`)
 
@@ -114,12 +128,18 @@ Client → server (JSON):
 - `{"type":"interrupt"}`
 - `{"type":"interaction_response","id":"...","option_id":"...","free_text":"..."}`
 - `{"type":"load_history","session_id":"...","project":"...","before_index":N,"limit":100}` — pull the slice immediately before `before_index`. Used after the initial HTTP fetch when the user scrolls towards the top.
+- `{"type":"ask","text":"..."}` — quick-chat side question. Runs as a concurrent, isolated subquery (own workspace + model) and never touches the main turn.
+- `{"type":"usage"}` — request the ephemeral plan-usage report (`services/usage`); not part of any session.
 
 Server → client (JSON):
 
-- `ready` (sessionId), `assistant_text`, `thinking`, `todos`, `task`
-- `tool_use` (id, name, input as `"key: value"` per line)
+- `ready` (sessionId, project), `assistant_text`, `thinking`, `todos`, `task`
+- `tool_use` (id, name, input as `"key: value"` per line; carries `result` when tool visibility is `full`)
 - `tool_result` (tool_use_id, content, is_error)
+- `ask_text` / `ask_done` — quick-chat answer stream and its end marker.
+- `usage` (markdown) — ephemeral plan-usage report; rendered live and never persisted.
+- `compact` / `compact_summary` — compaction block and its summary, filled in live.
+- `permission_mode` — ack of `set_permission_mode`.
 - **`file_change`** (id, path, diff_lines) — emitted instead of `tool_use` for
   Edit/Write/MultiEdit/NotebookEdit. `diff_lines` is a list of
   `{kind, text}` entries with `kind ∈ header | hunk | add | del | ctx`, already
@@ -133,6 +153,16 @@ Server → client (JSON):
 
 `permission_mode` ∈
 `default | acceptEdits | plan | dontAsk | bypassPermissions | auto`.
+
+## Settings & visibility
+
+Model, effort, permission mode, streaming, CLI source and per-block visibility
+live in a SQLite KV store (`core/settings_defs` declares them; `services/settings_store`
+reads/writes). They're **backend-owned** so every client shares one config —
+mobile renders the effective values, it doesn't keep its own. `show_thinking`,
+`show_tool_use`, `show_file_change` and `show_compact` each take `full | label | off`
+and are applied the same way on the live stream (`claude_runtime`) and on resume
+(`sessions.get_session_messages`), so a block looks identical either way.
 
 ## Custom MCP server (`mcps/`)
 

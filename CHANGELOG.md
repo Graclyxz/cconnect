@@ -1,0 +1,8 @@
+- Added a quick chat — a draggable side panel for short, parallel questions that never touch the main turn, opened from a button in the toolbar
+- Added a /usage command that shows plan token usage for the 5-hour and weekly windows
+- Added visibility settings to control how thinking, tool calls, file changes and compaction appear — full, label, or off
+- Added a running spinner on tool and thinking blocks while they're still in progress
+- Added task-indicator restore when resuming a session
+- Changed tool blocks to fold their result inside the expandable block — input shown monospace, result as a code block
+- Changed text selection to a single scope per chat so tapping outside clears it everywhere
+- Fixed a crash when changing the app language

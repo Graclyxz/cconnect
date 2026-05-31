@@ -45,7 +45,7 @@ mobile/app/src/main/java/com/jahirtrap/cconnect/
 │       ├── Backend.kt           # Active connection + computed baseUrl/wsUrl + auth headers
 │       ├── Http.kt              # GET/POST/DELETE helpers, applyAuth
 │       ├── ChatSocket.kt        # WebSocket client + event parser
-│       ├── SessionsApi.kt, SharedApi.kt, CapabilitiesApi.kt
+│       ├── SessionsApi.kt, SharedApi.kt, CapabilitiesApi.kt, SettingsApi.kt, CliApi.kt
 ├── settings/
 │   ├── SettingsScreen.kt        # All preferences + ConnectionsDialog + ConnectionEditDialog
 │   └── QrScanner.kt             # play-services-code-scanner wrapper (no camera permission)
@@ -108,13 +108,16 @@ the settings list, the chat topbar, and the active-connection summary.
 |---|---|
 | `assistant_text` | streamed into the current `Role.ASSISTANT` message |
 | `thinking` | streamed into the current `Role.THINKING` message |
-| `tool_use` | `Role.TOOL` with name + input preview |
-| `tool_result` | `Role.TOOL_RESULT` collapsible |
+| `tool_use` | `Role.TOOL` with name + input preview; shows a running spinner until its result arrives |
+| `tool_result` | folded into the matching `Role.TOOL` block (input monospace + result as a code block), not a separate message |
 | **`file_change`** | `Role.FILE_CHANGE` block — path header + `List<DiffLine>` painted line-by-line in `FileChangeBlock`. The backend already classifies each line as `header`/`hunk`/`add`/`del`/`ctx`, so mobile only picks colors and the `+`/`-` prefix. |
 | `interaction_request` | `Role.INTERACTION` with buttons; on answer the WS receives `interaction_response` and the same message flips to resolved state |
 | `todos` | updates top-bar todo list |
 | `task` | updates the task progress UI |
 | `result` | stores the new `sessionId` |
+| `ask_text` / `ask_done` | streamed into the quick-chat panel, separate from the main thread |
+| `usage` | ephemeral markdown message (plan token usage) — shown live, never resumed |
+| `compact` / `compact_summary` | compaction block and its summary, filled in live |
 | `done` / `interrupted` / `error` | UI transitions |
 | `history_chunk` | older messages from the WS backfill — prepended to `state.messages`. Chunks for a non-active `sessionId` are dropped. Updates `oldestLoadedIndex = chunk.startIndex` and `transcriptExhausted = !chunk.hasMore`. |
 
@@ -150,7 +153,12 @@ filled on demand:
   composition thread. The transcript window cap (100/500) keeps the number of
   composed `MarkdownText` instances small enough that off-main parsing isn't
   worth the recomposition flicker it would introduce.
-- `SelectionContainer` wraps the column so any block is selectable via long-press.
+- Selection is one scope per chat: a single `SelectionContainer` wraps the whole
+  message list, so selecting in any message and tapping elsewhere clears it
+  consistently. `MarkdownText(selectable = false)` opts out of its own container
+  when it's already inside the list's. The new Compose text context menu is on
+  (`ComposeFoundationFlags.isNewContextMenuEnabled`), adding Translate / Search /
+  Share via the system's PROCESS_TEXT actions.
 - Inline code uses `addStringAnnotation(INLINE_CODE_TAG, ...)` instead of
   `SpanStyle.background`; `MdText` then reads the `TextLayoutResult` in
   `Modifier.drawBehind` and paints rounded boxes per line. This keeps Compose's
@@ -191,10 +199,12 @@ resumed sessions render identically.
 
 ## Selection icons & visual conventions
 
-- `Collapsible(label, text, icon?)` — used for `THINKING` (Lightbulb icon),
-  `TOOL_RESULT`, `SUMMARY`. Layout: `[icon] [label] [flex] [chevron]`.
-- `ToolBlock` — `SquareTerminal` icon + tool name + preview (same size text,
-  gray) + trailing chevron.
+- `Collapsible(label, text, icon?, running?)` — used for `THINKING` (Lightbulb
+  icon) and `SUMMARY`. Layout: `[icon] [label] [flex] [spinner?] [chevron]`; the
+  spinner shows while the block is still streaming.
+- `ToolBlock` — header (`SquareTerminal` icon + tool name + input preview) toggles
+  expand; a running spinner shows until the result lands. Expanded shows the input
+  monospace and the result folded in as a code block — no separate result block.
 - `InteractionBlock`:
   - Header icon: `Lucide.CircleQuestionMark` for `kind="question"`,
     `Lucide.Shield` for permission prompts.
@@ -215,6 +225,16 @@ resumed sessions render identically.
 - A separate `LaunchedEffect` on the last message's id force-scrolls (and
   re-asserts `followBottom = true`) when the last message is an unresolved
   interaction — so the user always sees the prompt they have to act on.
+
+## Quick chat
+
+A parallel mini-conversation that never touches the main turn. Opened from a
+sticky button in the toolbar (a dot marks an ongoing one). State lives in
+`ChatUiState.sideChat`, bound to the current `sessionId` so switching
+conversations drops it. `SidePanel` is a bottom-anchored overlay over the chat,
+drag-resizable between a peek height and full (where it docks flush under the
+app bar), reusing `ChatMessageItem` and the composer. Answers stream over the
+WS `ask` / `ask_text` / `ask_done` events and nothing is written to the session.
 
 ## SSH client
 

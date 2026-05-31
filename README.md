@@ -64,6 +64,17 @@ Open Settings → Connections → scan QR (top-right of the dialog) to autofill 
 connection from `--expose`'s output. The connection becomes active immediately
 and the chat reconnects.
 
+## In the chat
+
+Claude Code's own slash commands show up in the composer, plus a `/usage` view
+of your plan's token limits. A **quick chat** button opens a side panel for a
+throwaway question — handy to ask something while a long task keeps running,
+without derailing it.
+
+Model, effort, permission mode, how much of each turn you see, and which Claude
+CLI the backend drives are all set from the app and shared across every client
+that connects.
+
 ## Built-in features
 
 On top of plain Claude Code, the backend ships a few helpers wired into the
