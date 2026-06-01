@@ -82,7 +82,7 @@ data class CapabilitiesDefaults(
 
 sealed interface ServerEvent {
     data object Open : ServerEvent
-    data class Ready(val sessionId: String?, val project: String? = null) : ServerEvent
+    data class Ready(val sessionId: String?, val project: String? = null, val channel: String? = null, val running: Boolean = false) : ServerEvent
     data class AssistantText(val text: String) : ServerEvent
     data class Thinking(val text: String, val labelOnly: Boolean = false) : ServerEvent
     data class ToolUse(val id: String?, val name: String?, val input: String?, val result: String? = null) : ServerEvent

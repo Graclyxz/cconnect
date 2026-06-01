@@ -43,6 +43,10 @@ class ChatSocket(private val scope: CoroutineScope) {
     private var reconnectAttempts = 0
     private var reconnectJob: Job? = null
 
+    // Resume cursor across reconnects: re-attach by channel, replay events after lastSeq.
+    private var channel: String? = null
+    private var lastSeq = 0
+
     private val _events = MutableSharedFlow<ServerEvent>(extraBufferCapacity = 256)
     val events: SharedFlow<ServerEvent> = _events
 
@@ -55,6 +59,11 @@ class ChatSocket(private val scope: CoroutineScope) {
         reconnectAttempts = 0
         reconnectJob?.cancel()
         open()
+    }
+
+    fun resetResume() {
+        channel = null
+        lastSeq = 0
     }
 
     private fun open() {
@@ -117,6 +126,8 @@ class ChatSocket(private val scope: CoroutineScope) {
             put("effort", effort)
             put("partial", partial)
             put("base_url", Backend.baseUrl)
+            channel?.let { put("channel", it) }
+            put("last_seq", lastSeq)
         })
     }
 
@@ -174,6 +185,7 @@ class ChatSocket(private val scope: CoroutineScope) {
         generation++
         ws?.close(1000, null)
         ws = null
+        resetResume()
     }
 
     private fun send(payload: JsonObject) {
@@ -184,8 +196,22 @@ class ChatSocket(private val scope: CoroutineScope) {
         val obj = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return null
         fun str(key: String): String? = obj[key]?.jsonPrimitive?.contentOrNull
         fun flag(key: String): Boolean = obj[key]?.jsonPrimitive?.booleanOrNull == true
-        return when (str("type")) {
-            "ready" -> ServerEvent.Ready(str("session_id"), str("project"))
+        val type = str("type")
+        if (type == "ready") {
+            // New channel = fresh server session (replay restarts at 1); reset the cursor.
+            val newChannel = str("channel")
+            if (newChannel != null && newChannel != channel) {
+                channel = newChannel
+                lastSeq = 0
+            }
+            return ServerEvent.Ready(str("session_id"), str("project"), newChannel, flag("running"))
+        }
+        val seq = obj["seq"]?.jsonPrimitive?.intOrNull
+        if (seq != null) {
+            if (type != "interaction_request" && seq <= lastSeq) return null
+            if (seq > lastSeq) lastSeq = seq
+        }
+        return when (type) {
             "assistant_text" -> ServerEvent.AssistantText(str("text").orEmpty())
             "thinking" -> ServerEvent.Thinking(str("text").orEmpty(), labelOnly = flag("label"))
             "tool_use" -> ServerEvent.ToolUse(str("id"), str("name"), str("input"), result = str("result"))

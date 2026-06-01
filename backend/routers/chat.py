@@ -1,9 +1,15 @@
-"""Interactive chat over WebSocket — drives Claude Code and streams events back."""
+"""Interactive chat over WebSocket.
+
+The connection is a detachable transport over a connection-independent
+``LiveSession`` (``services/live_sessions``): the running turn lives in the
+session's worker, survives the socket dropping, and a reconnecting socket
+re-attaches by ``channel`` — getting the current ``running`` state and any
+still-pending permission prompt re-emitted.
+"""
 
 import asyncio
 import hmac
 import json
-import uuid
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from loguru import logger
@@ -14,39 +20,9 @@ from schemas.chat import PromptMessage, SetPermissionMessage, StartMessage
 from services import sessions as sessions_service
 from services import settings_store
 from services.claude_runtime import run_prompt
+from services.live_sessions import registry
 
 router = APIRouter(tags=["Chat"])
-
-
-class _InteractionBroker:
-    """Pairs interaction_request events with the user's interaction_response by id."""
-
-    def __init__(self):
-        self._pending: dict[str, asyncio.Future] = {}
-
-    async def ask(self, send, payload: dict) -> dict:
-        rid = uuid.uuid4().hex
-        loop = asyncio.get_running_loop()
-        future: asyncio.Future = loop.create_future()
-        self._pending[rid] = future
-        try:
-            await send({"type": "interaction_request", "id": rid, **payload})
-            return await future
-        finally:
-            self._pending.pop(rid, None)
-
-    def resolve(self, rid: str, response: dict) -> bool:
-        future = self._pending.get(rid)
-        if future is None or future.done():
-            return False
-        future.set_result(response)
-        return True
-
-    def cancel_all(self):
-        for future in self._pending.values():
-            if not future.done():
-                future.cancel()
-        self._pending.clear()
 
 
 def _resolve_model(model: str | None) -> str | None:
@@ -70,63 +46,65 @@ class _Session:
         self.base_url: str | None = None
 
 
-async def _stream_prompt(ws: WebSocket, send_lock: asyncio.Lock, state: _Session, broker: _InteractionBroker, text: str):
-    async def send(payload: dict):
-        async with send_lock:
-            await ws.send_json(payload)
+def _build_turn_runner(state: _Session, text: str):
+    """Build the async-gen factory the LiveSession runs for one prompt. It wraps
+    the run_prompt loop plus the post-turn session bookkeeping; the LiveSession
+    appends the trailing ``done`` event itself."""
 
-    name = text.strip()[:80] if state.session_id is None else None
-    compacted = False
-    is_compact_cmd = text.strip() == "/compact" or text.strip().startswith("/compact ")
-    boundaries_before = (
-        sessions_service.compact_boundary_count(state.cwd, state.session_id)
-        if is_compact_cmd and state.cwd and state.session_id else 0
-    )
-    async for event in run_prompt(
-        prompt=text,
-        cwd=state.cwd,
-        permission_mode=state.permission_mode,
-        resume=state.session_id,
-        fork=state.fork,
-        model=_resolve_model(settings_store.get("model")),
-        effort=settings_store.get("effort"),
-        partial=settings_store.get("streaming"),
-        name=name,
-        ask_user=lambda payload: broker.ask(send, payload),
-        base_url=state.base_url,
-    ):
-        if event.get("type") == "compact":
-            compacted = True
-        if event.get("type") == "result" and event.get("session_id"):
-            state.session_id = event["session_id"]
-            state.fork = False
-            if state.cwd:
-                sessions_service.record_prompt_history(state.cwd, state.session_id, text)
-        await send(event)
-    if state.cwd and state.session_id:
-        sessions_service.normalize_session_entrypoint(state.cwd, state.session_id)
-        # The token counts and summary are written to the transcript only after the turn.
-        if is_compact_cmd:
-            after = sessions_service.compact_boundary_count(state.cwd, state.session_id)
-            if after > boundaries_before:
-                data = sessions_service.latest_compact(state.cwd, state.session_id)
-                if data:
-                    await send({"type": "compact", **_compact_visibility(data)})
-        elif compacted:
-            data = sessions_service.latest_compact(state.cwd, state.session_id)
-            if data:
-                await send({"type": "compact_summary", **_compact_visibility(data)})
-    await send({"type": "done"})
+    def factory(ask_user):
+        async def gen():
+            name = text.strip()[:80] if state.session_id is None else None
+            compacted = False
+            is_compact_cmd = text.strip() == "/compact" or text.strip().startswith("/compact ")
+            boundaries_before = (
+                sessions_service.compact_boundary_count(state.cwd, state.session_id)
+                if is_compact_cmd and state.cwd and state.session_id else 0
+            )
+            async for event in run_prompt(
+                prompt=text,
+                cwd=state.cwd,
+                permission_mode=state.permission_mode,
+                resume=state.session_id,
+                fork=state.fork,
+                model=_resolve_model(settings_store.get("model")),
+                effort=settings_store.get("effort"),
+                partial=settings_store.get("streaming"),
+                name=name,
+                ask_user=ask_user,
+                base_url=state.base_url,
+            ):
+                if event.get("type") == "compact":
+                    compacted = True
+                if event.get("type") == "result" and event.get("session_id"):
+                    state.session_id = event["session_id"]
+                    state.fork = False
+                    if state.cwd:
+                        sessions_service.record_prompt_history(state.cwd, state.session_id, text)
+                yield event
+            if state.cwd and state.session_id:
+                sessions_service.normalize_session_entrypoint(state.cwd, state.session_id)
+                # The token counts and summary are written to the transcript only after the turn.
+                if is_compact_cmd:
+                    after = sessions_service.compact_boundary_count(state.cwd, state.session_id)
+                    if after > boundaries_before:
+                        data = sessions_service.latest_compact(state.cwd, state.session_id)
+                        if data:
+                            yield {"type": "compact", **_compact_visibility(data)}
+                elif compacted:
+                    data = sessions_service.latest_compact(state.cwd, state.session_id)
+                    if data:
+                        yield {"type": "compact_summary", **_compact_visibility(data)}
+
+        return gen()
+
+    return factory
 
 
-async def _run_side_question(ws: WebSocket, send_lock: asyncio.Lock, state: _Session, question: str):
+async def _run_side_question(send, state: _Session, question: str):
     """Side question answered by an isolated lightweight session — runs concurrently and
     streams ask_text/ask_done without touching the main turn."""
-    async def send(payload: dict):
-        async with send_lock:
-            await ws.send_json(payload)
-
     from services.claude_runtime import ask_side_question
+
     context = sessions_service.session_context(state.cwd, state.session_id or "")
     try:
         async for ev in ask_side_question(question, context, partial=settings_store.get("streaming")):
@@ -136,12 +114,15 @@ async def _run_side_question(ws: WebSocket, send_lock: asyncio.Lock, state: _Ses
         logger.debug(f"side question ended: {type(exc).__name__}: {exc}")
 
 
-async def _run_usage(ws: WebSocket, send_lock: asyncio.Lock, state: _Session):
+async def _run_usage(send):
     """Send the plan-usage report as a one-off markdown message."""
     from services.usage import usage_markdown
-    md = await usage_markdown()
-    async with send_lock:
-        await ws.send_json({"type": "usage", "markdown": md})
+
+    try:
+        md = await usage_markdown()
+        await send({"type": "usage", "markdown": md})
+    except Exception as exc:
+        logger.debug(f"usage report ended: {type(exc).__name__}: {exc}")
 
 
 def _ws_bearer_ok(ws: WebSocket) -> bool:
@@ -159,14 +140,18 @@ async def chat_ws(ws: WebSocket):
         await ws.close(code=1008)
         return
     await ws.accept()
-    state = _Session()
     send_lock = asyncio.Lock()
-    broker = _InteractionBroker()
-    task: asyncio.Task | None = None
+    session = None
+    bg_tasks: set = set()  # keep refs so fire-and-forget tasks aren't GC'd mid-run
 
     async def send(payload: dict):
         async with send_lock:
             await ws.send_json(payload)
+
+    def spawn(coro):
+        task = asyncio.create_task(coro)
+        bg_tasks.add(task)
+        task.add_done_callback(bg_tasks.discard)
 
     try:
         while True:
@@ -183,31 +168,47 @@ async def chat_ws(ws: WebSocket):
                 except ValidationError as exc:
                     await send({"type": "error", "message": exc.errors()})
                     continue
-                state.cwd = msg.cwd or DEFAULT_CWD
-                state.permission_mode = settings_store.get("permission_mode")
-                state.session_id = msg.resume
-                state.fork = msg.fork
-                state.base_url = msg.base_url
+                # Re-attach to a still-live session when the client supplies a known
+                # channel; otherwise start a fresh one.
+                existing = registry.get(msg.channel) if msg.channel else None
+                reattaching = existing is not None
+                if reattaching:
+                    session = existing
+                    if msg.base_url:
+                        session.state.base_url = msg.base_url
+                else:
+                    state = _Session()
+                    state.cwd = msg.cwd or DEFAULT_CWD
+                    state.permission_mode = settings_store.get("permission_mode")
+                    state.session_id = msg.resume
+                    state.fork = msg.fork
+                    state.base_url = msg.base_url
+                    session = registry.create(state)
                 await send({
                     "type": "ready",
-                    "session_id": state.session_id,
-                    "project": sessions_service.project_key_for(state.cwd or ""),
+                    "session_id": session.state.session_id,
+                    "project": sessions_service.project_key_for(session.state.cwd or ""),
+                    "channel": session.channel,
+                    "running": session.running,
                 })
-                # Restore the task indicator on resume.
-                if state.session_id:
-                    for t in sessions_service.session_tasks(state.session_id):
+                await session.attach(send, last_seq=msg.last_seq)
+                # On a fresh (re)open, restore the task indicators from disk. On a
+                # live re-attach the replayed stream already carries them.
+                if not reattaching and session.state.session_id:
+                    for t in sessions_service.session_tasks(session.state.session_id):
                         await send({"type": "task", **t})
 
             elif mtype == "prompt":
-                if task and not task.done():
-                    await send({"type": "error", "message": "busy: a prompt is already running"})
+                if session is None:
+                    await send({"type": "error", "message": "send 'start' first"})
                     continue
                 try:
                     msg = PromptMessage(**raw)
                 except ValidationError as exc:
                     await send({"type": "error", "message": exc.errors()})
                     continue
-                task = asyncio.create_task(_stream_prompt(ws, send_lock, state, broker, msg.text))
+                if not session.start(_build_turn_runner(session.state, msg.text)):
+                    await send({"type": "error", "message": "busy: a prompt is already running"})
 
             elif mtype == "set_permission_mode":
                 try:
@@ -218,32 +219,32 @@ async def chat_ws(ws: WebSocket):
                 if msg.mode not in permission_modes():
                     await send({"type": "error", "message": f"invalid permission_mode: {msg.mode}"})
                     continue
-                state.permission_mode = msg.mode
+                if session is not None:
+                    session.state.permission_mode = msg.mode
                 await send({"type": "permission_mode", "mode": msg.mode})
 
             elif mtype == "ask":
                 question = (raw.get("text") or "").strip()
-                if question:
-                    asyncio.create_task(_run_side_question(ws, send_lock, state, question))
+                if question and session is not None:
+                    spawn(_run_side_question(send, session.state, question))
 
             elif mtype == "usage":
-                asyncio.create_task(_run_usage(ws, send_lock, state))
+                spawn(_run_usage(send))
 
             elif mtype == "interrupt":
-                if task and not task.done():
-                    task.cancel()
-                    await send({"type": "interrupted"})
+                if session is not None:
+                    await session.interrupt()
 
             elif mtype == "interaction_response":
                 rid = raw.get("id")
-                if isinstance(rid, str):
-                    broker.resolve(rid, {
+                if isinstance(rid, str) and session is not None:
+                    session.resolve(rid, {
                         "option_id": raw.get("option_id"),
                         "free_text": raw.get("free_text"),
                     })
 
             elif mtype == "load_history":
-                project = raw.get("project") or state.cwd
+                project = raw.get("project") or (session.state.cwd if session else DEFAULT_CWD)
                 sid = raw.get("session_id")
                 limit = raw.get("limit") or 200
                 before_index = raw.get("before_index")
@@ -278,6 +279,6 @@ async def chat_ws(ws: WebSocket):
     except Exception as exc:
         logger.error(f"chat_ws error: {type(exc).__name__}: {exc}")
     finally:
-        broker.cancel_all()
-        if task and not task.done():
-            task.cancel()
+        # Detach only — the worker keeps running so a reconnect can re-attach.
+        if session is not None:
+            await session.detach(send)

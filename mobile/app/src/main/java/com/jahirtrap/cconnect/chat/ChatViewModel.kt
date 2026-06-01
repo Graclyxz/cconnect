@@ -253,6 +253,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 transcriptExhausted = false,
             )
         }
+        client.resetResume()
         startSession(resume = null)
     }
 
@@ -344,6 +345,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     sideChat = it.sideChat.promote(session.sessionId),
                 )
             }
+            client.resetResume()
             startSession(resume = session.sessionId)
         }
     }
@@ -425,14 +427,18 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private fun onEvent(event: ServerEvent) {
         when (event) {
             is ServerEvent.Open -> startSession(_state.value.sessionId)
-            is ServerEvent.Ready -> _state.update {
-                val sid = event.sessionId ?: it.sessionId
-                it.copy(
-                    connection = ConnectionState.Connected,
-                    sessionId = sid,
-                    activeProjectKey = event.project ?: it.activeProjectKey,
-                    sideChat = it.sideChat.promote(sid),
-                )
+            is ServerEvent.Ready -> {
+                if (event.running) ConnectionService.start(appContext) else ConnectionService.stop(appContext)
+                _state.update {
+                    val sid = event.sessionId ?: it.sessionId
+                    it.copy(
+                        connection = ConnectionState.Connected,
+                        sessionId = sid,
+                        activeProjectKey = event.project ?: it.activeProjectKey,
+                        streaming = event.running,
+                        sideChat = it.sideChat.promote(sid),
+                    )
+                }
             }
             is ServerEvent.AssistantText -> {
                 currentThinkingId = null
@@ -537,25 +543,30 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             is ServerEvent.Done -> resetStreaming()
-            is ServerEvent.Interrupted -> resetStreaming()
+            is ServerEvent.Interrupted -> {
+                resetStreaming()
+                dismissPendingInteractions()
+            }
             is ServerEvent.Err -> {
                 resetStreaming()
                 addMessage(Role.ERROR, event.message)
             }
             is ServerEvent.InteractionRequest -> {
-                currentAssistantId = null
-                currentThinkingId = null
-                val data = InteractionData(
-                    requestId = event.requestId,
-                    kind = event.kind,
-                    options = event.options,
-                    freeText = event.freeText,
-                    title = event.title,
-                )
-                val tuid = event.toolUseId
-                _state.update { st ->
-                    val cleaned = if (tuid != null) st.messages.filterNot { it.role == Role.TOOL && it.toolUseId == tuid } else st.messages
-                    st.copy(messages = cleaned + ChatMessage(nextId++, Role.INTERACTION, event.input.orEmpty(), event.toolName, tuid, data))
+                if (_state.value.messages.none { it.interaction?.requestId == event.requestId }) {
+                    currentAssistantId = null
+                    currentThinkingId = null
+                    val data = InteractionData(
+                        requestId = event.requestId,
+                        kind = event.kind,
+                        options = event.options,
+                        freeText = event.freeText,
+                        title = event.title,
+                    )
+                    val tuid = event.toolUseId
+                    _state.update { st ->
+                        val cleaned = if (tuid != null) st.messages.filterNot { it.role == Role.TOOL && it.toolUseId == tuid } else st.messages
+                        st.copy(messages = cleaned + ChatMessage(nextId++, Role.INTERACTION, event.input.orEmpty(), event.toolName, tuid, data))
+                    }
                 }
             }
             is ServerEvent.Closed -> {
@@ -614,6 +625,13 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         currentThinkingId = null
         ConnectionService.stop(appContext)
         _state.update { it.copy(streaming = false, compacting = false, pendingToolIds = emptySet()) }
+    }
+
+    private fun dismissPendingInteractions() {
+        _state.update { st ->
+            if (st.messages.none { it.role == Role.INTERACTION && it.interaction?.resolved == null }) return@update st
+            st.copy(messages = st.messages.filterNot { it.role == Role.INTERACTION && it.interaction?.resolved == null })
+        }
     }
 
     private fun append(currentId: Long?, role: Role, delta: String): Long {

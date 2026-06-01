@@ -13,7 +13,7 @@ OAuth), never an API key. The app reaches it either over the local tailnet
 ## Architecture
 
 ```
-[Mobile app] ──WS  /api/chat/ws────> chat router ──> services/claude_runtime.run_prompt ──> SDK query()
+[Mobile app] ──WS  /api/chat/ws────> chat router ──> services/live_sessions.LiveSession ──> services/claude_runtime.run_prompt ──> SDK query()
              ──REST /api/sessions/* ─> sessions router ──> services/sessions (reads ~/.claude/projects JSONL)
              ──GET  /api/shared/* ──> shared router (download-only from backend/shared/)
 ```
@@ -23,8 +23,14 @@ OAuth), never an API key. The app reaches it either over the local tailnet
   wins and bills API credits.
 - **SDK auto-update.** `core/sdk.ensure_sdk_installed()` runs
   `pip install -U claude-agent-sdk` on startup (toggle with `AUTO_UPDATE_SDK=0`).
-- **One prompt at a time per WS connection.** Multi-turn is achieved by resuming
-  the session id from each `result` event.
+- **Connection-independent turns.** Each chat runs in a `LiveSession`
+  (`services/live_sessions.py`) whose worker task is decoupled from the socket:
+  a dropped connection does **not** cancel the turn. The socket is a detachable
+  transport — a reconnecting client re-attaches by `channel` (handed out in
+  `ready`), gets the current `running` state, and any still-pending permission
+  prompt is re-emitted so it can be answered over the new connection. One prompt
+  at a time per session; multi-turn resumes the session id from each `result`.
+  (In-memory only — turns survive socket drops, not a backend restart.)
 
 ## Project Structure
 
@@ -58,6 +64,7 @@ backend/
 ├── schemas/
 │   └── chat.py              # Inbound WebSocket message models
 └── services/
+    ├── live_sessions.py     # In-memory LiveSession + SessionRegistry — turns decoupled from the WS connection; reattach by channel, idle reaper
     ├── claude_runtime.py    # SDK query() -> normalized event stream; side-question + usage helpers
     ├── sessions.py          # Read transcripts from ~/.claude/projects (path-traversal safe)
     ├── settings_store.py    # Read/write the KV settings; visibility_mode() per block type
@@ -122,7 +129,7 @@ Every REST endpoint returns `core.responses.api_response()` —
 
 Client → server (JSON):
 
-- `{"type":"start","cwd":"...","permission_mode":"...","resume":"...","fork":false,"model":"...","effort":"...","partial":false,"base_url":"..."}`
+- `{"type":"start","cwd":"...","permission_mode":"...","resume":"...","fork":false,"model":"...","effort":"...","partial":false,"base_url":"...","channel":"...","last_seq":N}` — `channel` is optional: when it matches a still-live session the server re-attaches to it (keeping the running turn) instead of starting fresh. `last_seq` (default 0) is the highest event `seq` the client has rendered; on re-attach the server replays buffered events with a greater `seq`.
 - `{"type":"prompt","text":"..."}`
 - `{"type":"set_permission_mode","mode":"..."}`
 - `{"type":"interrupt"}`
@@ -133,7 +140,19 @@ Client → server (JSON):
 
 Server → client (JSON):
 
-- `ready` (sessionId, project), `assistant_text`, `thinking`, `todos`, `task`
+Every streamed turn event below carries a monotonic **`seq`** (per session). The
+client tracks the highest `seq` it has rendered and sends it as `last_seq` on
+re-attach; the server replays only events past it (buffered in-memory, last
+`OUTBOX_MAX` events — a very long gap falls back to `load_history` on disk).
+Control/ephemeral messages (`ready`, `permission_mode`, `history_chunk`,
+`usage`, `ask_*`) are not part of the seq'd stream.
+
+- `ready` (session_id, project, **`channel`** — the live-session handle the
+  client stores and sends back in `start` to re-attach; **`running`** — whether a
+  turn is in progress, so a reconnecting client knows to show the spinner vs the
+  input). Sent before the replay. On re-attach, any still-pending
+  `interaction_request` is re-emitted so it can be answered over the new socket.
+- `assistant_text`, `thinking`, `todos`, `task`
 - `tool_use` (id, name, input as `"key: value"` per line; carries `result` when tool visibility is `full`)
 - `tool_result` (tool_use_id, content, is_error)
 - `ask_text` / `ask_done` — quick-chat answer stream and its end marker.

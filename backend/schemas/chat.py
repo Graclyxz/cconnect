@@ -15,6 +15,8 @@ class StartMessage(BaseModel):
     effort: str = "max"
     partial: bool = False
     base_url: Optional[str] = None
+    channel: Optional[str] = None
+    last_seq: int = 0
 
 
 class PromptMessage(BaseModel):

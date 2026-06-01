@@ -121,6 +121,33 @@ the settings list, the chat topbar, and the active-connection summary.
 | `done` / `interrupted` / `error` | UI transitions |
 | `history_chunk` | older messages from the WS backfill — prepended to `state.messages`. Chunks for a non-active `sessionId` are dropped. Updates `oldestLoadedIndex = chunk.startIndex` and `transcriptExhausted = !chunk.hasMore`. |
 
+## Reconnect & replay (connection-independent turns)
+
+The backend turn runs independently of the socket and buffers its events
+(sequence-numbered). The app mirrors that so a dropped connection resumes
+without losing work:
+
+- **`ChatSocket` holds the resume tokens** `channel` (server's live-session handle
+  from `ready`) and `lastSeq` (highest event `seq` rendered). `sendStart` auto-injects
+  both, so the existing auto-reconnect (`onDrop` backoff → `open` → `Open` →
+  `startSession`) re-attaches and the server replays only what was missed.
+- **`ready` carries `channel` + `running`.** A changed `channel` means the server
+  made a fresh session (old one reaped / it restarted) → `ChatSocket` resets `lastSeq`
+  so the restarted-at-1 replay isn't dropped. `running` drives `streaming` so the
+  spinner is correct after a mid-turn re-attach.
+- **Every turn event carries `seq`;** `ChatSocket.parse` drops `seq <= lastSeq`
+  duplicates — **except `interaction_request`**, which the server re-emits with an old
+  seq when a permission was pending. `InteractionRequest` is also deduped by
+  `requestId` in the VM so a re-emit never doubles the dialog.
+- **`resetResume()`** clears `channel`/`lastSeq` — called on `newSession`/`openSession`
+  (and `close`) so a different conversation never resumes a stale channel. NOT called
+  on a plain reconnect.
+- **`interrupted` dismisses unresolved interaction blocks** (a stop makes a pending
+  permission moot).
+- In-memory only: `channel`/`lastSeq` are not persisted, so resume works across
+  network drops, not across app process death (which falls back to `resume=<session_id>`
+  + on-disk history, as before).
+
 ## Transcript window (cursor-based sliding pagination)
 
 Long sessions never live in memory in full. The active window is bounded and
