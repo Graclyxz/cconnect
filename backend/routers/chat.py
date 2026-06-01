@@ -109,18 +109,25 @@ def _build_turn_runner(state: _Session, text: str):
     return factory
 
 
-async def _run_side_question(send, state: _Session, question: str, resume_id: str | None):
-    """Side question answered by an isolated lightweight session — runs concurrently and
-    streams ask_text/ask_done without touching the main turn."""
-    from services.claude_runtime import ask_side_question
-
-    context = sessions_service.session_context(state.cwd, state.session_id or "")
-    try:
-        async for ev in ask_side_question(question, context, resume_id, partial=settings_store.get("streaming")):
-            await send(ev)
-        await send({"type": "ask_done"})
-    except Exception as exc:
-        logger.debug(f"side question ended: {type(exc).__name__}: {exc}")
+def _build_side_runner(main_state: _Session, side_state: _Session, question: str, resume_id: str | None):
+    """LiveSession runner for one quick-chat turn: runs the isolated side question (with the
+    interaction callback for permissions/AskUserQuestion) and records the side SDK session id
+    so it can be resumed/reattached like the main turn. The trailing ``done`` is added by the
+    LiveSession itself."""
+    def factory(ask_user):
+        async def gen():
+            from services.claude_runtime import ask_side_question
+            context = sessions_service.session_context(main_state.cwd, main_state.session_id or "")
+            async for ev in ask_side_question(
+                question, context, resume_id,
+                partial=settings_store.get("streaming"),
+                ask_user=ask_user,
+            ):
+                if ev.get("type") == "ask_session" and ev.get("session_id"):
+                    side_state.session_id = ev["session_id"]
+                yield ev
+        return gen()
+    return factory
 
 
 async def _run_usage(send):
@@ -150,7 +157,8 @@ async def chat_ws(ws: WebSocket):
         return
     await ws.accept()
     send_lock = asyncio.Lock()
-    session = None
+    session = None        # main lane
+    side_session = None   # quick-chat lane
     bg_tasks: set = set()  # keep refs so fire-and-forget tasks aren't GC'd mid-run
 
     async def send(payload: dict):
@@ -204,6 +212,15 @@ async def chat_ws(ws: WebSocket):
                 if not session.running and session.state.session_id:
                     for t in sessions_service.session_tasks(session.state.session_id):
                         await send({"type": "task", **t})
+                side_channel = raw.get("side_channel")
+                side_resume = raw.get("side_resume")
+                existing_side = (registry.get(side_channel) if side_channel else None) \
+                    or (registry.get_by_session(side_resume) if side_resume else None)
+                if existing_side is not None:
+                    side_session = existing_side
+                    await side_session.attach(send, last_seq=raw.get("side_last_seq") or 0)
+                elif not side_channel:
+                    side_session = None
 
             elif mtype == "prompt":
                 if session is None:
@@ -234,22 +251,30 @@ async def chat_ws(ws: WebSocket):
                 question = (raw.get("text") or "").strip()
                 if question and session is not None:
                     resume_id = raw.get("resume") if isinstance(raw.get("resume"), str) else None
-                    spawn(_run_side_question(send, session.state, question, resume_id))
+                    if side_session is None:
+                        side_state = _Session()
+                        side_state.cwd = session.state.cwd
+                        side_state.session_id = resume_id
+                        side_session = registry.create(side_state)
+                        await side_session.attach(send)
+                    if not side_session.start(_build_side_runner(session.state, side_session.state, question, resume_id)):
+                        await send({"type": "error", "message": "busy: a side question is already running", "channel": side_session.channel})
 
             elif mtype == "usage":
                 spawn(_run_usage(send))
 
             elif mtype == "interrupt":
-                if session is not None:
-                    await session.interrupt()
+                target = side_session if raw.get("lane") == "side" else session
+                if target is not None:
+                    await target.interrupt()
 
             elif mtype == "interaction_response":
                 rid = raw.get("id")
-                if isinstance(rid, str) and session is not None:
-                    session.resolve(rid, {
-                        "option_id": raw.get("option_id"),
-                        "free_text": raw.get("free_text"),
-                    })
+                if isinstance(rid, str):
+                    payload = {"option_id": raw.get("option_id"), "free_text": raw.get("free_text")}
+                    for s in (session, side_session):
+                        if s is not None and s.resolve(rid, payload):
+                            break
 
             elif mtype == "load_history":
                 project = raw.get("project") or (session.state.cwd if session else DEFAULT_CWD)
@@ -287,6 +312,8 @@ async def chat_ws(ws: WebSocket):
     except Exception as exc:
         logger.error(f"chat_ws error: {type(exc).__name__}: {exc}")
     finally:
-        # Detach only — the worker keeps running so a reconnect can re-attach.
+        # Detach only — the workers keep running so a reconnect can re-attach.
         if session is not None:
             await session.detach(send)
+        if side_session is not None:
+            await side_session.detach(send)

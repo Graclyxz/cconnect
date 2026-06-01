@@ -64,7 +64,7 @@ class LiveSession:
     async def _emit(self, event):
         async with self._lock:
             self._seq += 1
-            stamped = {**event, "seq": self._seq}
+            stamped = {**event, "seq": self._seq, "channel": self.channel}
             self._outbox.append(stamped)
             if event.get("type") in ("done", "interrupted"):
                 self._committed_seq = self._seq

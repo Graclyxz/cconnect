@@ -52,7 +52,7 @@ fun AppTopBar(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (subtitleLeading != null) {
                             subtitleLeading()
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(4.dp))
                         }
                         Text(
                             subtitle,

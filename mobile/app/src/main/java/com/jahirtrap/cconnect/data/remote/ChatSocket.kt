@@ -44,14 +44,19 @@ class ChatSocket(private val scope: CoroutineScope) {
     private var reconnectJob: Job? = null
 
     // Resume cursor across reconnects: re-attach by channel, replay events after lastSeq.
+    // Per-lane because each LiveSession seq-counts independently (main + quick-chat side).
     private var channel: String? = null
     private var lastSeq = 0
+    private var sideChannel: String? = null
+    private var sideLastSeq = 0
+    private var sideResume: String? = null
 
-    private val _events = MutableSharedFlow<ServerEvent>(extraBufferCapacity = 256)
-    val events: SharedFlow<ServerEvent> = _events
+    // Boolean = side lane (quick chat) vs main lane.
+    private val _events = MutableSharedFlow<Pair<Boolean, ServerEvent>>(extraBufferCapacity = 256)
+    val events: SharedFlow<Pair<Boolean, ServerEvent>> = _events
 
-    private fun emit(event: ServerEvent) {
-        scope.launch { _events.emit(event) }
+    private fun emit(side: Boolean, event: ServerEvent) {
+        scope.launch { _events.emit(side to event) }
     }
 
     fun connect() {
@@ -64,12 +69,15 @@ class ChatSocket(private val scope: CoroutineScope) {
     fun resetResume() {
         channel = null
         lastSeq = 0
+        sideChannel = null
+        sideLastSeq = 0
+        sideResume = null
     }
 
     private fun open() {
         val gen = ++generation
         ws?.cancel()
-        emit(ServerEvent.Connecting)
+        emit(false, ServerEvent.Connecting)
         val builder = Request.Builder().url(Backend.wsUrl)
         Http.applyAuth(builder)
         val request = builder.build()
@@ -77,12 +85,12 @@ class ChatSocket(private val scope: CoroutineScope) {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 if (gen != generation) return
                 reconnectAttempts = 0
-                emit(ServerEvent.Open)
+                emit(false, ServerEvent.Open)
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
                 if (gen != generation) return
-                parse(text)?.let { emit(it) }
+                parse(text)?.let { (side, event) -> emit(side, event) }
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
@@ -98,7 +106,7 @@ class ChatSocket(private val scope: CoroutineScope) {
     }
 
     private fun onDrop(reason: String) {
-        emit(ServerEvent.Closed(reason))
+        emit(false, ServerEvent.Closed(reason))
         if (closed) return
         reconnectJob?.cancel()
         reconnectJob = scope.launch {
@@ -129,6 +137,9 @@ class ChatSocket(private val scope: CoroutineScope) {
             put("base_url", Backend.baseUrl)
             channel?.let { put("channel", it) }
             put("last_seq", lastSeq)
+            sideChannel?.let { put("side_channel", it) }
+            sideResume?.let { put("side_resume", it) }
+            if (sideChannel != null) put("side_last_seq", sideLastSeq)
         })
     }
 
@@ -146,11 +157,15 @@ class ChatSocket(private val scope: CoroutineScope) {
         })
     }
 
-    fun sendInterrupt() {
-        send(buildJsonObject { put("type", "interrupt") })
+    fun sendInterrupt(lane: String? = null) {
+        send(buildJsonObject {
+            put("type", "interrupt")
+            if (lane != null) put("lane", lane)
+        })
     }
 
     fun sendAsk(text: String, resume: String?) {
+        if (resume != null) sideResume = resume
         send(buildJsonObject {
             put("type", "ask")
             put("text", text)
@@ -194,7 +209,7 @@ class ChatSocket(private val scope: CoroutineScope) {
         ws?.send(payload.toString())
     }
 
-    private fun parse(text: String): ServerEvent? {
+    private fun parse(text: String): Pair<Boolean, ServerEvent>? {
         val obj = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return null
         fun str(key: String): String? = obj[key]?.jsonPrimitive?.contentOrNull
         fun flag(key: String): Boolean = obj[key]?.jsonPrimitive?.booleanOrNull == true
@@ -206,14 +221,21 @@ class ChatSocket(private val scope: CoroutineScope) {
                 channel = newChannel
                 lastSeq = 0
             }
-            return ServerEvent.Ready(str("session_id"), str("project"), newChannel, flag("running"))
+            return false to ServerEvent.Ready(str("session_id"), str("project"), newChannel, flag("running"))
+        }
+        val ch = str("channel")
+        val side = ch != null && channel != null && ch != channel
+        if (side && ch != sideChannel) {
+            sideChannel = ch
+            sideLastSeq = 0
         }
         val seq = obj["seq"]?.jsonPrimitive?.intOrNull
         if (seq != null) {
-            if (type != "interaction_request" && seq <= lastSeq) return null
-            if (seq > lastSeq) lastSeq = seq
+            val last = if (side) sideLastSeq else lastSeq
+            if (type != "interaction_request" && seq <= last) return null
+            if (seq > last) { if (side) sideLastSeq = seq else lastSeq = seq }
         }
-        return when (type) {
+        val event = when (type) {
             "assistant_text" -> ServerEvent.AssistantText(str("text").orEmpty())
             "thinking" -> ServerEvent.Thinking(str("text").orEmpty(), labelOnly = flag("label"))
             "tool_use" -> ServerEvent.ToolUse(str("id"), str("name"), str("input"), result = str("result"))
@@ -291,5 +313,7 @@ class ChatSocket(private val scope: CoroutineScope) {
             )
             else -> null
         }
+        if (event is ServerEvent.AskSession) sideResume = event.sessionId
+        return event?.let { side to it }
     }
 }

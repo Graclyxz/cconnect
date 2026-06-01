@@ -3,16 +3,13 @@ package com.jahirtrap.cconnect.chat
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,16 +19,17 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.DragInteraction
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -93,12 +91,12 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialExpressiveTheme
-import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationDrawerItem
@@ -130,6 +128,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
@@ -289,7 +288,7 @@ fun ChatScreen(
         ModalNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
-                ModalDrawerSheet {
+                ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surface) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -370,14 +369,24 @@ fun ChatScreen(
             MaterialExpressiveTheme(motionScheme = MotionScheme.expressive()) {
                 Scaffold(
                     topBar = {
-                        val statusLeading: (@Composable () -> Unit)? = when (state.connection) {
-                            ConnectionState.Connecting -> ({ LoadingIndicator(modifier = Modifier.size(14.dp)) })
-                            ConnectionState.Disconnected -> ({ StatusDot(palette.red) })
-                            ConnectionState.Connected -> null
+                        val waitingUser = state.messages.any { it.role == Role.INTERACTION && it.interaction?.resolved == null }
+                        val statusLeading: (@Composable () -> Unit) = when {
+                            state.connection == ConnectionState.Disconnected -> ({ StatusDot(palette.red) })
+                            state.connection == ConnectionState.Connecting -> ({ LoadingIndicator(modifier = Modifier.size(14.dp)) })
+                            waitingUser -> ({ StatusDot(palette.orange) })
+                            state.streaming -> ({ LoadingIndicator(modifier = Modifier.size(14.dp)) })
+                            else -> ({ StatusDot(palette.green) })
+                        }
+                        val statusText = when {
+                            state.connection == ConnectionState.Disconnected -> stringResource(R.string.server_unavailable)
+                            state.connection == ConnectionState.Connecting -> stringResource(R.string.connecting)
+                            waitingUser -> stringResource(R.string.waiting_user)
+                            state.streaming -> stringResource(R.string.working)
+                            else -> state.sessionId?.take(8) ?: stringResource(R.string.new_chat)
                         }
                         AppTopBar(
                             title = stringResource(R.string.app_name),
-                            subtitle = statusLabel(state),
+                            subtitle = statusText,
                             subtitleLeading = statusLeading,
                             navigationIcon = {
                                 TooltipIconButton(
@@ -409,6 +418,11 @@ fun ChatScreen(
                             expansion.animateTo(peek, spring(stiffness = Spring.StiffnessMediumLow))
                         }
                     }
+                    LaunchedEffect(expansion.value) {
+                        if (sideActive && followBottom && state.messages.isNotEmpty()) {
+                            listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
+                        }
+                    }
                     val dismissSide: () -> Unit = {
                         scope.launch {
                             expansion.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
@@ -420,9 +434,12 @@ fun ChatScreen(
                         if (imeVisible) focusManager.clearFocus() else dismissSide()
                     }
                     Column(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
-                        BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
                             val boxHeightPx = constraints.maxHeight.toFloat()
-                            Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
+                            val toolbarReveal = (1f - expansion.value / peek).coerceIn(0f, 1f)
+                            val panelH = expansion.value.coerceAtLeast(peek)
+                            var toolbarHeightPx by remember { mutableStateOf(0) }
+                            Box(modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().fillMaxHeight((1f - panelH * (1f - toolbarReveal)).coerceAtMost(1f - toolbarHeightPx / boxHeightPx).coerceIn(0.0001f, 1f)).clipToBounds()) {
                                 SelectionContainer(modifier = Modifier.fillMaxSize()) {
                                     LazyColumn(
                                         state = listState,
@@ -503,7 +520,32 @@ fun ChatScreen(
                                     }
                                 }
                             }
-                            // Overlay anchored to the bottom; at full height it covers the main pane completely (no sliver).
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .onSizeChanged { toolbarHeightPx = it.height }
+                                    .background(MaterialTheme.colorScheme.background)
+                                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
+                            ) {
+                                if (state.compacting) CompactProgress()
+                                ChatToolbar(
+                                    ready = state.capabilitiesReady,
+                                    disconnected = state.connection == ConnectionState.Disconnected,
+                                    connecting = state.connection == ConnectionState.Connecting,
+                                    model = state.model,
+                                    models = state.capabilities.models,
+                                    onModel = vm::setModel,
+                                    effort = state.effort,
+                                    effortLevels = state.capabilities.effortLevels,
+                                    onEffort = vm::setEffort,
+                                    permissionMode = state.permissionMode,
+                                    permissionModes = state.capabilities.permissionModes,
+                                    onPermissionMode = vm::setPermissionMode,
+                                    onQuickChat = vm::openSideChat,
+                                    quickChatActive = sc != null && sc.messages.isNotEmpty(),
+                                )
+                            }
                             if (sideActive && sc != null) {
                                 val dragModifier = Modifier.pointerInput(boxHeightPx) {
                                     detectVerticalDragGestures(
@@ -530,31 +572,15 @@ fun ChatScreen(
                                     sideChat = sc,
                                     headerModifier = dragModifier,
                                     onClear = vm::clearSideChat,
+                                    onAnswer = vm::answerInteraction,
                                     topCorner = (20 * (1f - dockT)).dp,
                                     modifier = Modifier
                                         .align(Alignment.BottomCenter)
                                         .fillMaxWidth()
-                                        .fillMaxHeight(expansion.value.coerceIn(0.0001f, 1f)),
+                                        .offset { IntOffset(0, (toolbarReveal * panelH * boxHeightPx).toInt()) }
+                                        .fillMaxHeight(panelH),
                                 )
                             }
-                        }
-                        if (!sideActive) {
-                            if (state.compacting) CompactProgress()
-                            ChatToolbar(
-                                ready = state.capabilitiesReady,
-                                disconnected = state.connection == ConnectionState.Disconnected,
-                                model = state.model,
-                                models = state.capabilities.models,
-                                onModel = vm::setModel,
-                                effort = state.effort,
-                                effortLevels = state.capabilities.effortLevels,
-                                onEffort = vm::setEffort,
-                                permissionMode = state.permissionMode,
-                                permissionModes = state.capabilities.permissionModes,
-                                onPermissionMode = vm::setPermissionMode,
-                                onQuickChat = vm::openSideChat,
-                                quickChatActive = sc != null && sc.messages.isNotEmpty(),
-                            )
                         }
                         Composer(
                             value = if (sideActive) sideDraft else mainDraft,
@@ -564,7 +590,7 @@ fun ChatScreen(
                             commands = state.capabilities.commands,
                             onCommand = { cmd -> if (cmd.requireConfirmation) confirmCommand = cmd else vm.runCommand(cmd) },
                             onSend = { if (sideActive) vm.sendSideQuestion(it) else vm.submit(it) },
-                            onStop = vm::stop,
+                            onStop = { if (sideActive) vm.stopSide() else vm.stop() },
                             canSend = state.connection == ConnectionState.Connected,
                             commandsEnabled = state.sessionId != null && state.connection == ConnectionState.Connected,
                             focusRequester = composerFocus,
@@ -649,6 +675,7 @@ private fun SidePanel(
     sideChat: SideChatState,
     headerModifier: Modifier = Modifier,
     onClear: () -> Unit = {},
+    onAnswer: ((String, String, String?) -> Unit)? = null,
     topCorner: Dp = 20.dp,
     modifier: Modifier = Modifier,
 ) {
@@ -750,6 +777,7 @@ private fun SidePanel(
                                 prevRole = sideChat.messages.getOrNull(index - 1)?.role,
                                 nextRole = sideChat.messages.getOrNull(index + 1)?.role,
                                 running = message.role == Role.WORKING && index == sideChat.messages.lastIndex && sideChat.streaming,
+                                onAnswer = onAnswer,
                             )
                         }
                     }
@@ -785,13 +813,6 @@ private fun hasCollapsibleContent(m: ChatMessage): Boolean = when (m.role) {
     Role.FILE_CHANGE -> !m.labelOnly && !m.diffLines.isNullOrEmpty()
     Role.COMPACT -> m.compact?.summary?.isNotBlank() == true
     else -> false
-}
-
-@Composable
-private fun statusLabel(state: ChatUiState): String = when (state.connection) {
-    ConnectionState.Connecting -> stringResource(R.string.connecting)
-    ConnectionState.Disconnected -> stringResource(R.string.server_unavailable)
-    ConnectionState.Connected -> state.sessionId?.take(8) ?: stringResource(R.string.new_chat)
 }
 
 @Composable
@@ -875,6 +896,7 @@ private fun TaskRow(todo: TodoItem) {
 private fun ChatToolbar(
     ready: Boolean,
     disconnected: Boolean,
+    connecting: Boolean,
     model: String,
     models: List<com.jahirtrap.cconnect.data.ModelOption>,
     onModel: (String) -> Unit,
@@ -926,6 +948,10 @@ private fun ChatToolbar(
                 DisconnectedChip()
                 return@Row
             }
+            if (connecting) {
+                ToolbarLoadingChip(stringResource(R.string.connecting))
+                return@Row
+            }
             if (!ready) {
                 ToolbarLoadingChip()
                 return@Row
@@ -962,7 +988,7 @@ private fun ChatToolbar(
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ToolbarLoadingChip() {
+private fun ToolbarLoadingChip(label: String = stringResource(R.string.loading)) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
@@ -971,8 +997,8 @@ private fun ToolbarLoadingChip() {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         LoadingIndicator(modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(stringResource(R.string.loading), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+        Spacer(Modifier.width(4.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
     }
 }
 
@@ -986,7 +1012,7 @@ private fun DisconnectedChip() {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         StatusDot(palette.red, box = 18.dp, dot = 10.dp)
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(4.dp))
         Text(stringResource(R.string.disconnected), style = MaterialTheme.typography.labelMedium, maxLines = 1)
     }
 }
@@ -1003,19 +1029,13 @@ private fun SelectorChip(
     onSelect: (String) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
-    // Guard against the dismiss-then-reopen race when re-tapping the chip while open.
-    var lastChange by remember { mutableStateOf(0L) }
-    fun setOpen(value: Boolean) {
-        open = value
-        lastChange = System.currentTimeMillis()
-    }
-    BackHandler(enabled = open) { setOpen(false) }
+    BackHandler(enabled = open) { open = false }
     Box {
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
                 .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-                .clickable { if (System.currentTimeMillis() - lastChange > 200) setOpen(!open) }
+                .clickable { open = true }
                 .padding(horizontal = 10.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1025,8 +1045,7 @@ private fun SelectorChip(
         }
         DropdownMenu(
             expanded = open,
-            onDismissRequest = { setOpen(false) },
-            properties = PopupProperties(focusable = false),
+            onDismissRequest = { open = false },
         ) {
             options.forEach { (value, display) ->
                 val style = optionStyle?.invoke(value)
@@ -1034,7 +1053,7 @@ private fun SelectorChip(
                     text = display,
                     leadingIcon = style?.let { { Icon(it.first, contentDescription = null, tint = it.second, modifier = Modifier.size(20.dp)) } },
                     selected = value == selected,
-                    onClick = { onSelect(value); setOpen(false) },
+                    onClick = { onSelect(value); open = false },
                 )
             }
         }
@@ -1054,7 +1073,7 @@ private fun CompactProgress() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun CommandMenuButton(
     commands: List<CommandOption>,
@@ -1064,12 +1083,7 @@ private fun CommandMenuButton(
 ) {
     val ready = commands.isNotEmpty() && enabled && !streaming
     var open by remember { mutableStateOf(false) }
-    var lastChange by remember { mutableStateOf(0L) }
-    fun setOpen(value: Boolean) {
-        open = value
-        lastChange = System.currentTimeMillis()
-    }
-    BackHandler(enabled = open) { setOpen(false) }
+    BackHandler(enabled = open) { open = false }
     Box {
         Box(
             modifier = Modifier
@@ -1077,9 +1091,7 @@ private fun CommandMenuButton(
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .pointerInput(ready) {
-                    detectTapGestures {
-                        if (ready && System.currentTimeMillis() - lastChange > 200) setOpen(!open)
-                    }
+                    detectTapGestures { if (ready) open = true }
                 },
             contentAlignment = Alignment.Center,
         ) {
@@ -1097,29 +1109,35 @@ private fun CommandMenuButton(
             val gap = with(LocalDensity.current) { 4.dp.roundToPx() }
             Popup(
                 popupPositionProvider = remember(gap) { AboveAnchorPositionProvider(gap) },
-                onDismissRequest = { setOpen(false) },
-                properties = PopupProperties(focusable = false),
+                onDismissRequest = { open = false },
+                properties = PopupProperties(focusable = true),
             ) {
-                val origin = TransformOrigin(0f, 1f)
-                AnimatedVisibility(
-                    visibleState = expanded,
-                    enter = fadeIn(tween(120)) + scaleIn(tween(120), initialScale = 0.85f, transformOrigin = origin),
-                    exit = fadeOut(tween(80)) + scaleOut(tween(80), targetScale = 0.85f, transformOrigin = origin),
+                val transition = rememberTransition(expanded, "DropDownMenu")
+                val scale by transition.animateFloat(
+                    transitionSpec = { MaterialTheme.motionScheme.fastSpatialSpec() },
+                ) { if (it) 1f else 0.8f }
+                val alpha by transition.animateFloat(
+                    transitionSpec = { MaterialTheme.motionScheme.fastEffectsSpec() },
+                ) { if (it) 1f else 0f }
+                Surface(
+                    modifier = Modifier.graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        this.alpha = alpha
+                        transformOrigin = TransformOrigin(0f, 1f)
+                    },
+                    shape = MenuDefaults.shape,
+                    color = MenuDefaults.containerColor,
+                    tonalElevation = MenuDefaults.TonalElevation,
+                    shadowElevation = MenuDefaults.ShadowElevation,
                 ) {
-                    Surface(
-                        shape = MenuDefaults.shape,
-                        color = MenuDefaults.containerColor,
-                        tonalElevation = MenuDefaults.TonalElevation,
-                        shadowElevation = MenuDefaults.ShadowElevation,
+                    Column(
+                        modifier = Modifier
+                            .padding(vertical = 8.dp)  // DropdownMenuVerticalPadding
+                            .width(IntrinsicSize.Max),
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .padding(vertical = 8.dp)  // DropdownMenuVerticalPadding
-                                .width(IntrinsicSize.Max),
-                        ) {
-                            commands.forEach { cmd ->
-                                CommandMenuItem(cmd) { setOpen(false); onCommand(cmd) }
-                            }
+                        commands.forEach { cmd ->
+                            CommandMenuItem(cmd) { open = false; onCommand(cmd) }
                         }
                     }
                 }

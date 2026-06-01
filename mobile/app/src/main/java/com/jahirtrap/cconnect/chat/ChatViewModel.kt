@@ -115,7 +115,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         applyDefaultDirectory()
         ProcessLifecycleOwner.get().lifecycle.addObserver(foregroundObserver)
         viewModelScope.launch {
-            client.events.collect(::onEvent)
+            client.events.collect { (side, event) -> if (side) onSideEvent(event) else onEvent(event) }
         }
     }
 
@@ -162,6 +162,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     fun stop() {
         if (_state.value.streaming) client.sendInterrupt()
+    }
+
+    fun stopSide() {
+        if (_state.value.boundSide()?.streaming == true) client.sendInterrupt("side")
     }
 
     fun submit(text: String) {
@@ -507,33 +511,6 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     } else m
                 })
             }
-            is ServerEvent.AskWorking -> {
-                if (_state.value.showWorking == "label") {
-                    currentSideAssistantId = null
-                    _state.update { st ->
-                        val sc = st.sideChat ?: return@update st
-                        st.copy(sideChat = sc.copy(messages = sc.messages + ChatMessage(nextId++, Role.WORKING, "")))
-                    }
-                }
-            }
-            is ServerEvent.AskText -> _state.update { st ->
-                val sc = st.sideChat ?: return@update st
-                val id = currentSideAssistantId
-                if (id == null) {
-                    val newId = nextId++
-                    currentSideAssistantId = newId
-                    st.copy(sideChat = sc.copy(messages = sc.messages + ChatMessage(newId, Role.ASSISTANT, event.text)))
-                } else {
-                    st.copy(sideChat = sc.copy(messages = sc.messages.map { if (it.id == id) it.copy(text = it.text + event.text) else it }))
-                }
-            }
-            is ServerEvent.AskSession -> _state.update { st ->
-                st.copy(sideChat = st.sideChat?.copy(sideSessionId = event.sessionId))
-            }
-            is ServerEvent.AskDone -> {
-                currentSideAssistantId = null
-                _state.update { it.copy(sideChat = it.sideChat?.copy(streaming = false)) }
-            }
             is ServerEvent.Command -> {
                 currentAssistantId = null
                 currentThinkingId = null
@@ -589,12 +566,84 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             is ServerEvent.Closed -> {
                 currentAssistantId = null
                 currentThinkingId = null
+                currentSideAssistantId = null
                 ConnectionService.stop(appContext)
                 _state.update {
-                    it.copy(connection = ConnectionState.Disconnected, streaming = false, error = event.reason)
+                    it.copy(
+                        connection = ConnectionState.Disconnected,
+                        streaming = false,
+                        error = event.reason,
+                        sideChat = it.sideChat?.copy(streaming = false),
+                    )
                 }
             }
             is ServerEvent.HistoryChunk -> onHistoryChunk(event)
+            else -> {}
+        }
+    }
+
+    private fun onSideEvent(event: ServerEvent) {
+        when (event) {
+            is ServerEvent.AskWorking -> {
+                if (_state.value.showWorking == "label") {
+                    currentSideAssistantId = null
+                    _state.update { st ->
+                        val sc = st.sideChat ?: return@update st
+                        st.copy(sideChat = sc.copy(messages = sc.messages + ChatMessage(nextId++, Role.WORKING, "")))
+                    }
+                }
+            }
+            is ServerEvent.AskText -> _state.update { st ->
+                val sc = st.sideChat ?: return@update st
+                val id = currentSideAssistantId
+                if (id == null) {
+                    val newId = nextId++
+                    currentSideAssistantId = newId
+                    st.copy(sideChat = sc.copy(messages = sc.messages + ChatMessage(newId, Role.ASSISTANT, event.text)))
+                } else {
+                    st.copy(sideChat = sc.copy(messages = sc.messages.map { if (it.id == id) it.copy(text = it.text + event.text) else it }))
+                }
+            }
+            is ServerEvent.AskSession -> _state.update { st ->
+                st.copy(sideChat = st.sideChat?.copy(sideSessionId = event.sessionId))
+            }
+            is ServerEvent.InteractionRequest -> {
+                currentSideAssistantId = null
+                _state.update { st ->
+                    val sc = st.sideChat ?: return@update st
+                    if (sc.messages.any { it.interaction?.requestId == event.requestId }) return@update st
+                    val data = InteractionData(
+                        requestId = event.requestId,
+                        kind = event.kind,
+                        options = event.options,
+                        freeText = event.freeText,
+                        title = event.title,
+                    )
+                    val tuid = event.toolUseId
+                    val cleaned = if (tuid != null) sc.messages.filterNot { it.role == Role.TOOL && it.toolUseId == tuid } else sc.messages
+                    st.copy(sideChat = sc.copy(messages = cleaned + ChatMessage(nextId++, Role.INTERACTION, event.input.orEmpty(), event.toolName, tuid, data)))
+                }
+            }
+            is ServerEvent.Done, is ServerEvent.Interrupted -> {
+                currentSideAssistantId = null
+                _state.update { it.copy(sideChat = it.sideChat?.copy(streaming = false)) }
+                if (event is ServerEvent.Interrupted) dismissSidePendingInteractions()
+            }
+            is ServerEvent.Err -> {
+                currentSideAssistantId = null
+                _state.update { st ->
+                    val sc = st.sideChat ?: return@update st
+                    st.copy(sideChat = sc.copy(streaming = false, messages = sc.messages + ChatMessage(nextId++, Role.ERROR, event.message)))
+                }
+            }
+            else -> {}
+        }
+    }
+
+    private fun dismissSidePendingInteractions() {
+        _state.update { st ->
+            val sc = st.sideChat ?: return@update st
+            st.copy(sideChat = sc.copy(messages = sc.messages.filterNot { it.role == Role.INTERACTION && it.interaction?.resolved == null }))
         }
     }
 
@@ -709,13 +758,17 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     fun answerInteraction(requestId: String, optionId: String, freeText: String?) {
         client.sendInteractionResponse(requestId, optionId, freeText)
+        fun List<ChatMessage>.resolve() = map { m ->
+            val data = m.interaction
+            if (data != null && data.requestId == requestId && data.resolved == null) {
+                m.copy(interaction = data.copy(resolved = optionId, resolvedText = freeText))
+            } else m
+        }
         _state.update { st ->
-            st.copy(messages = st.messages.map { m ->
-                val data = m.interaction
-                if (data != null && data.requestId == requestId && data.resolved == null) {
-                    m.copy(interaction = data.copy(resolved = optionId, resolvedText = freeText))
-                } else m
-            })
+            st.copy(
+                messages = st.messages.resolve(),
+                sideChat = st.sideChat?.copy(messages = st.sideChat.messages.resolve()),
+            )
         }
     }
 

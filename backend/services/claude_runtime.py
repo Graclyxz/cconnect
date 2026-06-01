@@ -246,43 +246,10 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False, hidden_tool_ids
     return events
 
 
-async def run_prompt(
-    prompt: str,
-    cwd: str,
-    permission_mode: str = "default",
-    resume: Optional[str] = None,
-    fork: bool = False,
-    model: Optional[str] = None,
-    effort: str = "max",
-    partial: bool = False,
-    name: Optional[str] = None,
-    ask_user: Optional[Callable[[dict], Awaitable[dict]]] = None,
-    base_url: Optional[str] = None,
-) -> AsyncIterator[dict]:
-    """Yield normalized events for one prompt. The SDK import is deferred because the
-    package is installed/upgraded during app startup."""
-    from claude_agent_sdk import (
-        query,
-        ClaudeAgentOptions,
-        AssistantMessage,
-        SystemMessage,
-        ResultMessage,
-        StreamEvent,
-        UserMessage,
-        PermissionResultAllow,
-        PermissionResultDeny,
-        HookMatcher,
-    )
-
-    # ultracode maps to xhigh + the `ultracode` session setting (passed via --settings).
-    ultracode = effort == "ultracode"
-    effort_level = "xhigh" if ultracode else (None if effort in (None, "", "default") else effort)
-    extra_args = {"name": name} if name else {}
-
-    system_prompt: dict = {"type": "preset", "preset": "claude_code"}
-    append = _agent_append(base_url)
-    if append:
-        system_prompt["append"] = append
+def _build_can_use_tool(ask_user: Callable[[dict], Awaitable[dict]]):
+    """can_use_tool callback routing AskUserQuestion + permission prompts through ``ask_user``.
+    Shared by the main chat and the quick chat, so every interaction type works in both."""
+    from claude_agent_sdk import PermissionResultAllow, PermissionResultDeny
 
     async def _can_use_tool(tool_name: str, tool_input: dict, ctx) -> Any:
         if tool_name == "AskUserQuestion" and isinstance(tool_input, dict):
@@ -338,10 +305,48 @@ async def run_prompt(
             )
         return PermissionResultDeny(message="User declined")
 
-    # Required by the SDK: a no-op PreToolUse hook keeps the prompt stream open while
-    # can_use_tool waits for the user's decision (without it, the stream closes first).
-    async def _keep_stream_open(input_data, tool_use_id, context):
-        return {"continue_": True}
+    return _can_use_tool
+
+
+# A no-op PreToolUse hook keeps the prompt stream open while can_use_tool awaits the user.
+async def _keep_stream_open(input_data, tool_use_id, context):
+    return {"continue_": True}
+
+
+async def run_prompt(
+    prompt: str,
+    cwd: str,
+    permission_mode: str = "default",
+    resume: Optional[str] = None,
+    fork: bool = False,
+    model: Optional[str] = None,
+    effort: str = "max",
+    partial: bool = False,
+    name: Optional[str] = None,
+    ask_user: Optional[Callable[[dict], Awaitable[dict]]] = None,
+    base_url: Optional[str] = None,
+) -> AsyncIterator[dict]:
+    from claude_agent_sdk import (
+        query,
+        ClaudeAgentOptions,
+        AssistantMessage,
+        SystemMessage,
+        ResultMessage,
+        StreamEvent,
+        UserMessage,
+        PermissionResultAllow,
+        PermissionResultDeny,
+        HookMatcher,
+    )
+
+    ultracode = effort == "ultracode"
+    effort_level = "xhigh" if ultracode else (None if effort in (None, "", "default") else effort)
+    extra_args = {"name": name} if name else {}
+
+    system_prompt: dict = {"type": "preset", "preset": "claude_code"}
+    append = _agent_append(base_url)
+    if append:
+        system_prompt["append"] = append
 
     options_kwargs: dict[str, Any] = dict(
         cwd=cwd,
@@ -361,7 +366,7 @@ async def run_prompt(
     if ultracode:
         options_kwargs["settings"] = json.dumps({"ultracode": True})
     if ask_user is not None:
-        options_kwargs["can_use_tool"] = _can_use_tool
+        options_kwargs["can_use_tool"] = _build_can_use_tool(ask_user)
         options_kwargs["hooks"] = {"PreToolUse": [HookMatcher(matcher=None, hooks=[_keep_stream_open])]}
     options = ClaudeAgentOptions(**options_kwargs)
 
@@ -460,11 +465,16 @@ async def generate_title(transcript: str) -> str:
     return "".join(parts).strip()
 
 
-async def ask_side_question(question: str, context: str, resume_id: str | None = None, partial: bool = False) -> AsyncIterator[dict]:
-    """Quick side question in an isolated, resumable session (sonnet, AI_WORKDIR), concurrent
-    with the main turn. ``resume_id`` continues the side conversation for memory; ``context``
-    is seeded only on the first turn, and ``ask_session`` returns the side session id."""
-    from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, StreamEvent, UserMessage, ResultMessage
+async def ask_side_question(
+    question: str,
+    context: str,
+    resume_id: str | None = None,
+    partial: bool = False,
+    ask_user: Optional[Callable[[dict], Awaitable[dict]]] = None,
+) -> AsyncIterator[dict]:
+    """Quick side question in an isolated, resumable session. ``context`` seeds the first turn,
+    ``resume_id`` continues it for memory, ``ask_user`` surfaces permission prompts."""
+    from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, StreamEvent, UserMessage, ResultMessage, HookMatcher
 
     os.makedirs(AI_WORKDIR, exist_ok=True)
     system = (
@@ -474,7 +484,7 @@ async def ask_side_question(question: str, context: str, resume_id: str | None =
         "commands, or facts: if you don't know, say so plainly instead of guessing."
     )
     prompt = f"<session_context>\n{context}\n</session_context>\n\n{question}" if (context and not resume_id) else question
-    options = ClaudeAgentOptions(
+    options_kwargs: dict[str, Any] = dict(
         cwd=AI_WORKDIR,
         permission_mode="default",
         model="sonnet",
@@ -484,9 +494,18 @@ async def ask_side_question(question: str, context: str, resume_id: str | None =
         cli_path=cli_manager.resolve_cli_path(),
         resume=resume_id,
     )
+    if ask_user is not None:
+        options_kwargs["can_use_tool"] = _build_can_use_tool(ask_user)
+        options_kwargs["hooks"] = {"PreToolUse": [HookMatcher(matcher=None, hooks=[_keep_stream_open])]}
+    options = ClaudeAgentOptions(**options_kwargs)
+
+    async def _prompt_stream():
+        yield {"type": "user", "message": {"role": "user", "content": prompt}}
+    prompt_arg = _prompt_stream() if ask_user is not None else prompt
+
     worked = False
     try:
-        async for message in query(prompt=prompt, options=options):
+        async for message in query(prompt=prompt_arg, options=options):
             if isinstance(message, StreamEvent):
                 if not worked and _stream_event_is_working(message.event):
                     worked = True

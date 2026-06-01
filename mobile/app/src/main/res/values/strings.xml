@@ -41,7 +41,7 @@
     <string name="ssh_user">User</string>
     <string name="ssh_password">Password</string>
     <string name="ssh_disconnect">Disconnect</string>
-    <string name="ssh_connecting">Connecting…</string>
+    <string name="ssh_connecting">Connecting</string>
     <string name="ssh_connected">Connected</string>
     <string name="ssh_closed">Disconnected</string>
     <string name="ssh_failed">Failed: %1$s</string>
@@ -55,7 +55,7 @@
     <string name="cli_source_bundled">Bundled</string>
     <string name="cli_custom_path">CLI path</string>
     <string name="cli_update">Update to latest</string>
-    <string name="cli_updating">Updating…</string>
+    <string name="cli_updating">Updating</string>
     <string name="server_unavailable">Server unavailable</string>
     <string name="generation">Generation</string>
     <string name="model">Model</string>
@@ -97,8 +97,8 @@
     <string name="working">Working</string>
     <string name="close">Close</string>
     <string name="clear">Clear</string>
-    <string name="compacting">Compacting…</string>
-    <string name="loading">Loading…</string>
+    <string name="compacting">Compacting</string>
+    <string name="loading">Loading</string>
     <string name="confirm">Confirm</string>
     <string name="visibility">Chat visibility</string>
     <string name="visibility_summary">What appears in the chat</string>
@@ -122,6 +122,7 @@
     <string name="permission_different">Do differently</string>
     <string name="interaction_text_hint">Tell Claude what to do differently…</string>
     <string name="scroll_to_bottom">Scroll to bottom</string>
-    <string name="connecting">Connecting…</string>
+    <string name="connecting">Connecting</string>
     <string name="disconnected">Disconnected</string>
+    <string name="waiting_user">Waiting for a reply</string>
 </resources>
