@@ -177,9 +177,9 @@ async def chat_ws(ws: WebSocket):
                 except ValidationError as exc:
                     await send({"type": "error", "message": exc.errors()})
                     continue
-                # Re-attach to a still-live session when the client supplies a known
-                # channel; otherwise start a fresh one.
                 existing = registry.get(msg.channel) if msg.channel else None
+                by_session = existing is None and registry.get_by_session(msg.resume)
+                existing = existing or by_session or None
                 reattaching = existing is not None
                 if reattaching:
                     session = existing
@@ -200,10 +200,8 @@ async def chat_ws(ws: WebSocket):
                     "channel": session.channel,
                     "running": session.running,
                 })
-                await session.attach(send, last_seq=msg.last_seq)
-                # On a fresh (re)open, restore the task indicators from disk. On a
-                # live re-attach the replayed stream already carries them.
-                if not reattaching and session.state.session_id:
+                await session.attach(send, last_seq=msg.last_seq, since_committed=bool(by_session))
+                if not session.running and session.state.session_id:
                     for t in sessions_service.session_tasks(session.state.session_id):
                         await send({"type": "task", **t})
 

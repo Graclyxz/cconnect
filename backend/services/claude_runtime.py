@@ -39,6 +39,19 @@ def _format_tool_input(inp: Any) -> str:
     return "" if inp is None else str(inp)
 
 
+def _display_tool_name(name: str) -> str:
+    """MCP tools arrive as ``mcp__<server>__<tool>``; show ``<server>: <tool>``.
+    Empty falls back to "Tool"."""
+    name = (name or "").strip()
+    if not name:
+        return "Tool"
+    if name.startswith("mcp__"):
+        server, sep, tool = name[len("mcp__"):].partition("__")
+        if sep and tool:
+            return f"{server}: {tool}"
+    return name
+
+
 def _stream_event_to_events(event: Any) -> list[dict]:
     """Map a raw Anthropic streaming event into incremental delta events."""
     if not isinstance(event, dict) or event.get("type") != "content_block_delta":
@@ -186,7 +199,7 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False, hidden_tool_ids
                 continue
             events.append({"type": "thinking", "text": (getattr(block, "thinking", "") or getattr(block, "text", "")).strip()})
         elif kind == "ToolUseBlock":
-            name = (getattr(block, "name", None) or "").strip() or "tool"
+            name = (getattr(block, "name", None) or "").strip()
             raw_input = getattr(block, "input", None)
             if name == "AskUserQuestion":
                 # Surfaced as an interaction block; don't render the tool_use itself.
@@ -216,7 +229,7 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False, hidden_tool_ids
                 events.append({
                     "type": "tool_use",
                     "id": getattr(block, "id", None),
-                    "name": name,
+                    "name": _display_tool_name(name),
                     "input": _format_tool_input(raw_input),
                 })
         elif kind == "ToolResultBlock":

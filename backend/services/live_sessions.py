@@ -26,6 +26,7 @@ class LiveSession:
         self._worker = None
         self._pending = {}  # rid -> {"future": Future, "event": stamped dict | None}
         self._seq = 0
+        self._committed_seq = 0
         self._outbox = collections.deque(maxlen=OUTBOX_MAX)
         self._lock = asyncio.Lock()  # serialize emit vs. replay so seq order holds
 
@@ -37,14 +38,16 @@ class LiveSession:
     def attached(self):
         return self._sink is not None
 
-    async def attach(self, sink, last_seq=0):
-        """Bind the socket and replay everything it missed: buffered events with
-        ``seq > last_seq``, then re-emit any still-pending permission prompt the
-        client had already passed (so an app that lost the dialog gets it back)."""
+    async def attach(self, sink, last_seq=0, since_committed=False):
+        """Bind the socket and replay what it missed, then re-emit any still-pending
+        permission prompt the client had already passed. ``since_committed`` is for a
+        fresh client re-attaching by session id: it already loaded the committed
+        transcript, so it only needs the in-progress turn (events after the last done)."""
         async with self._lock:
             self._sink = sink
+            floor = max(last_seq, self._committed_seq) if since_committed else last_seq
             for stamped in list(self._outbox):
-                if stamped["seq"] > last_seq:
+                if stamped["seq"] > floor:
                     await self._send(stamped)
             for entry in list(self._pending.values()):
                 event = entry.get("event")
@@ -63,6 +66,8 @@ class LiveSession:
             self._seq += 1
             stamped = {**event, "seq": self._seq}
             self._outbox.append(stamped)
+            if event.get("type") in ("done", "interrupted"):
+                self._committed_seq = self._seq
             await self._send(stamped)
             return stamped
 
@@ -73,8 +78,6 @@ class LiveSession:
         try:
             await sink(stamped)
         except Exception:
-            # The socket died mid-send. Drop it, but keep the worker alive so a
-            # reconnecting client can re-attach — that is the whole point.
             if self._sink is sink:
                 self._sink = None
 
@@ -153,6 +156,14 @@ class SessionRegistry:
 
     def get(self, channel):
         return self._sessions.get(channel)
+
+    def get_by_session(self, session_id):
+        if not session_id:
+            return None
+        for session in self._sessions.values():
+            if session.state.session_id == session_id:
+                return session
+        return None
 
     def _sweep(self):
         now = self._clock()

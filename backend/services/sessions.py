@@ -530,8 +530,8 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                 if text:
                     messages.append({"type": "thinking", "text": text})
             elif btype == "tool_use":
-                from services.claude_runtime import _FILE_EDIT_TOOLS, _build_file_diff, _format_tool_input
-                name = block.get("name", "")
+                from services.claude_runtime import _FILE_EDIT_TOOLS, _build_file_diff, _format_tool_input, _display_tool_name
+                name = (block.get("name") or "").strip()
                 inp = block.get("input")
                 bid = block.get("id")
                 if name == "AskUserQuestion" and isinstance(inp, dict):
@@ -583,7 +583,7 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                         continue
                 if vis["tool_use"] == "off":
                     continue
-                ev = {"type": "tool_use", "name": name, "text": _format_tool_input(inp), "id": bid}
+                ev = {"type": "tool_use", "name": _display_tool_name(name), "text": _format_tool_input(inp), "id": bid}
                 if vis["tool_use"] == "full":
                     from services.claude_runtime import _flatten_result_content
                     result = _flatten_result_content(tool_result_by_id.get(bid or "")).strip()

@@ -257,6 +257,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 oldestLoadedIndex = null,
                 transcriptLoading = false,
                 transcriptExhausted = false,
+                pendingToolIds = emptySet(),
             )
         }
         client.resetResume()
@@ -349,6 +350,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     transcriptLoading = false,
                     transcriptExhausted = !page.hasMore,
                     sideChat = it.sideChat.promote(session.sessionId),
+                    pendingToolIds = emptySet(),
                 )
             }
             client.resetResume()
