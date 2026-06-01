@@ -447,29 +447,29 @@ async def generate_title(transcript: str) -> str:
     return "".join(parts).strip()
 
 
-async def ask_side_question(question: str, context: str, partial: bool = False) -> AsyncIterator[dict]:
-    """Answer a quick side question in an isolated lightweight session (haiku, AI_WORKDIR),
-    streaming text deltas. Runs concurrently with the main turn and never touches the user's
-    session or history. ``context`` is recent transcript text for reference."""
-    from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, StreamEvent, UserMessage
+async def ask_side_question(question: str, context: str, resume_id: str | None = None, partial: bool = False) -> AsyncIterator[dict]:
+    """Quick side question in an isolated, resumable session (sonnet, AI_WORKDIR), concurrent
+    with the main turn. ``resume_id`` continues the side conversation for memory; ``context``
+    is seeded only on the first turn, and ``ask_session`` returns the side session id."""
+    from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, StreamEvent, UserMessage, ResultMessage
 
     os.makedirs(AI_WORKDIR, exist_ok=True)
     system = (
-        "You are a helpful assistant answering quick questions from a developer, concisely and directly. "
-        "You may receive <session_context> with recent messages from their current Claude Code session. "
-        "When the question relates to that work, use the context to answer specifically; otherwise ignore "
-        "it and answer as a normal general-purpose assistant. Never invent files, code, commands, or facts: "
-        "if the context doesn't contain the answer and you don't know, say so plainly instead of guessing."
+        "You are a helpful assistant answering a developer's quick questions, concisely and directly. "
+        "<session_context> is recent messages from their current Claude Code session; use it when the "
+        "question relates to that work, otherwise answer as a normal assistant. Never invent files, code, "
+        "commands, or facts: if you don't know, say so plainly instead of guessing."
     )
-    prompt = f"<session_context>\n{context}\n</session_context>\n\n{question}" if context else question
+    prompt = f"<session_context>\n{context}\n</session_context>\n\n{question}" if (context and not resume_id) else question
     options = ClaudeAgentOptions(
         cwd=AI_WORKDIR,
         permission_mode="default",
         model="sonnet",
-        system_prompt=system,
+        system_prompt=None if resume_id else system,
         setting_sources=[],
         include_partial_messages=partial,
         cli_path=cli_manager.resolve_cli_path(),
+        resume=resume_id,
     )
     worked = False
     try:
@@ -494,6 +494,10 @@ async def ask_side_question(question: str, context: str, partial: bool = False) 
                 if not worked and any(type(b).__name__ == "ToolResultBlock" for b in (getattr(message, "content", None) or [])):
                     worked = True
                     yield {"type": "ask_working"}
+            elif isinstance(message, ResultMessage):
+                sid = getattr(message, "session_id", None)
+                if sid:
+                    yield {"type": "ask_session", "session_id": sid}
     except Exception as exc:
         logger.error(f"ask_side_question failed: {type(exc).__name__}: {exc}")
         yield {"type": "ask_text", "text": f"(error: {type(exc).__name__})"}

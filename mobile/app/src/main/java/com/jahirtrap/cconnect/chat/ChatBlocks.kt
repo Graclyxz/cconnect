@@ -125,7 +125,7 @@ fun ChatMessageItem(
 }
 
 private fun group(role: Role?): Int = when (role) {
-    Role.THINKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION, Role.FILE_CHANGE, Role.COMPACT -> 0
+    Role.THINKING, Role.WORKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION, Role.FILE_CHANGE, Role.COMPACT -> 0
     Role.ASSISTANT -> 1
     Role.USER, Role.ERROR -> 2
     else -> 3

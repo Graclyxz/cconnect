@@ -70,7 +70,6 @@ COMMANDS = [
     {"name": "clear", "description": "Clear this conversation", "kind": "client", "require_confirmation": True},
     {"name": "compact", "description": "Compact the conversation", "kind": "prompt"},
     {"name": "context", "description": "Show context window usage", "kind": "prompt"},
-    {"name": "cost", "description": "Show token cost for this session", "kind": "prompt"},
     {"name": "usage", "description": "Show plan token usage", "kind": "usage"},
 ]
 

@@ -149,10 +149,11 @@ class ChatSocket(private val scope: CoroutineScope) {
         send(buildJsonObject { put("type", "interrupt") })
     }
 
-    fun sendAsk(text: String) {
+    fun sendAsk(text: String, resume: String?) {
         send(buildJsonObject {
             put("type", "ask")
             put("text", text)
+            if (resume != null) put("resume", resume)
         })
     }
 
@@ -236,8 +237,9 @@ class ChatSocket(private val scope: CoroutineScope) {
             )
             "ask_text" -> ServerEvent.AskText(str("text").orEmpty())
             "ask_working" -> ServerEvent.AskWorking
+            "ask_session" -> ServerEvent.AskSession(str("session_id").orEmpty())
             "ask_done" -> ServerEvent.AskDone
-            "usage" -> ServerEvent.Usage(str("markdown").orEmpty())
+            "command" -> ServerEvent.Command(str("markdown").orEmpty())
             "compact_summary" -> ServerEvent.CompactSummary(
                 trigger = str("trigger"),
                 preTokens = obj["pre_tokens"]?.jsonPrimitive?.intOrNull,

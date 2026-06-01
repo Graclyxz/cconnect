@@ -40,6 +40,7 @@ private const val MESSAGE_INITIAL_CAP = 100
 
 data class SideChatState(
     val boundSessionId: String? = null,    // the main conversation this side chat belongs to
+    val sideSessionId: String? = null,     // SDK session of the side conversation, resumed for memory
     val messages: List<ChatMessage> = emptyList(),
     val streaming: Boolean = false,
 )
@@ -163,6 +164,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (_state.value.streaming) client.sendInterrupt()
     }
 
+    fun submit(text: String) {
+        val cmd = _state.value.capabilities.commands.firstOrNull { "/${it.name}" == text.trim() }
+        if (cmd != null) runCommand(cmd) else sendPrompt(text)
+    }
+
     fun runCommand(cmd: CommandOption) {
         when {
             cmd.kind == "usage" -> {
@@ -201,7 +207,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             val cur = it.boundSide() ?: SideChatState(boundSessionId = it.sessionId)
             it.copy(sideChat = cur.copy(messages = cur.messages + ChatMessage(nextId++, Role.USER, trimmed), streaming = true))
         }
-        client.sendAsk(trimmed)
+        client.sendAsk(trimmed, sc.sideSessionId)
     }
 
     fun clearConversation() {
@@ -513,11 +519,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     st.copy(sideChat = sc.copy(messages = sc.messages.map { if (it.id == id) it.copy(text = it.text + event.text) else it }))
                 }
             }
+            is ServerEvent.AskSession -> _state.update { st ->
+                st.copy(sideChat = st.sideChat?.copy(sideSessionId = event.sessionId))
+            }
             is ServerEvent.AskDone -> {
                 currentSideAssistantId = null
                 _state.update { it.copy(sideChat = it.sideChat?.copy(streaming = false)) }
             }
-            is ServerEvent.Usage -> {
+            is ServerEvent.Command -> {
                 currentAssistantId = null
                 currentThinkingId = null
                 addMessage(Role.ASSISTANT, event.markdown)

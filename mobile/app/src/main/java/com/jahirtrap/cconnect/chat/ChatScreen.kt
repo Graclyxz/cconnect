@@ -524,7 +524,7 @@ fun ChatScreen(
                             sessionColor = state.sessionColor,
                             commands = state.capabilities.commands,
                             onCommand = { cmd -> if (cmd.requireConfirmation) confirmCommand = cmd else vm.runCommand(cmd) },
-                            onSend = { if (sideActive) vm.sendSideQuestion(it) else vm.sendPrompt(it) },
+                            onSend = { if (sideActive) vm.sendSideQuestion(it) else vm.submit(it) },
                             onStop = vm::stop,
                             commandsEnabled = state.sessionId != null,
                             focusRequester = composerFocus,
@@ -664,6 +664,9 @@ private fun SidePanel(
             HorizontalDivider()
             val listState = rememberLazyListState()
             val scope = rememberCoroutineScope()
+            LaunchedEffect(Unit) {
+                if (sideChat.messages.isNotEmpty()) listState.scrollToItem(sideChat.messages.lastIndex, Int.MAX_VALUE)
+            }
             val isAtBottom by remember {
                 derivedStateOf {
                     val info = listState.layoutInfo

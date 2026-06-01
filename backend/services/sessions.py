@@ -335,6 +335,40 @@ def compact_boundary_count(cwd: str, session_id: str) -> int:
     )
 
 
+def local_command_count(cwd: str, session_id: str) -> int:
+    """Count of local-command outputs in the transcript; compare before/after a turn to detect a new one."""
+    try:
+        file = _session_file(project_key_for(cwd), session_id)
+    except ValueError:
+        return 0
+    if not file.is_file():
+        return 0
+    return sum(
+        1 for e in _iter_lines(file)
+        if e.get("type") == "system" and e.get("subtype") == "local_command"
+    )
+
+
+def latest_local_command(cwd: str, session_id: str) -> Optional[str]:
+    """Markdown body of the most recent local-command output."""
+    try:
+        file = _session_file(project_key_for(cwd), session_id)
+    except ValueError:
+        return None
+    if not file.is_file():
+        return None
+    raw = None
+    for e in _iter_lines(file):
+        if e.get("type") == "system" and e.get("subtype") == "local_command":
+            content = e.get("content")
+            if isinstance(content, str) and "<local-command-stdout>" in content:
+                raw = content
+    if not raw:
+        return None
+    md = raw.split("<local-command-stdout>", 1)[1].split("</local-command-stdout>", 1)[0].strip()
+    return md or None
+
+
 def session_context(cwd: str, session_id: str, max_chars: int = 4000) -> str:
     """Recent user/assistant text from the live session, as reference context for a side
     question. Returns the tail (most recent), command-meta and sidechain entries excluded."""

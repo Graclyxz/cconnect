@@ -56,9 +56,14 @@ def _build_turn_runner(state: _Session, text: str):
             name = text.strip()[:80] if state.session_id is None else None
             compacted = False
             is_compact_cmd = text.strip() == "/compact" or text.strip().startswith("/compact ")
+            is_local_cmd = text.strip().startswith("/") and not is_compact_cmd
             boundaries_before = (
                 sessions_service.compact_boundary_count(state.cwd, state.session_id)
                 if is_compact_cmd and state.cwd and state.session_id else 0
+            )
+            local_cmds_before = (
+                sessions_service.local_command_count(state.cwd, state.session_id)
+                if is_local_cmd and state.cwd and state.session_id else 0
             )
             async for event in run_prompt(
                 prompt=text,
@@ -94,20 +99,24 @@ def _build_turn_runner(state: _Session, text: str):
                     data = sessions_service.latest_compact(state.cwd, state.session_id)
                     if data:
                         yield {"type": "compact_summary", **_compact_visibility(data)}
+                elif is_local_cmd and sessions_service.local_command_count(state.cwd, state.session_id) > local_cmds_before:
+                    md = sessions_service.latest_local_command(state.cwd, state.session_id)
+                    if md:
+                        yield {"type": "command", "markdown": md}
 
         return gen()
 
     return factory
 
 
-async def _run_side_question(send, state: _Session, question: str):
+async def _run_side_question(send, state: _Session, question: str, resume_id: str | None):
     """Side question answered by an isolated lightweight session — runs concurrently and
     streams ask_text/ask_done without touching the main turn."""
     from services.claude_runtime import ask_side_question
 
     context = sessions_service.session_context(state.cwd, state.session_id or "")
     try:
-        async for ev in ask_side_question(question, context, partial=settings_store.get("streaming")):
+        async for ev in ask_side_question(question, context, resume_id, partial=settings_store.get("streaming")):
             await send(ev)
         await send({"type": "ask_done"})
     except Exception as exc:
@@ -120,7 +129,7 @@ async def _run_usage(send):
 
     try:
         md = await usage_markdown()
-        await send({"type": "usage", "markdown": md})
+        await send({"type": "command", "markdown": md})
     except Exception as exc:
         logger.debug(f"usage report ended: {type(exc).__name__}: {exc}")
 
@@ -226,7 +235,8 @@ async def chat_ws(ws: WebSocket):
             elif mtype == "ask":
                 question = (raw.get("text") or "").strip()
                 if question and session is not None:
-                    spawn(_run_side_question(send, session.state, question))
+                    resume_id = raw.get("resume") if isinstance(raw.get("resume"), str) else None
+                    spawn(_run_side_question(send, session.state, question, resume_id))
 
             elif mtype == "usage":
                 spawn(_run_usage(send))
