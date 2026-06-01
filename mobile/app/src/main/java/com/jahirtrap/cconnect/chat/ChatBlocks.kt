@@ -39,8 +39,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.jahirtrap.cconnect.R
@@ -78,6 +81,8 @@ fun ChatMessageItem(
     prevRole: Role? = null,
     nextRole: Role? = null,
     running: Boolean = false,
+    expanded: Boolean? = null,
+    onToggle: (() -> Unit)? = null,
     onAnswer: ((String, String, String?) -> Unit)? = null,
     onSharedLink: ((String, String) -> Unit)? = null,
 ) {
@@ -95,23 +100,23 @@ fun ChatMessageItem(
                 MarkdownText(message.text, modifier = Modifier.fillMaxWidth(), selectable = false, onSharedLink = onSharedLink)
             }
 
-            Role.THINKING -> Collapsible(label = stringResource(R.string.thinking), text = message.text, icon = Lucide.Lightbulb, labelOnly = message.labelOnly, running = running)
+            Role.THINKING -> Collapsible(label = stringResource(R.string.thinking), text = message.text, icon = Lucide.Lightbulb, labelOnly = message.labelOnly, running = running, expanded = expanded, onToggle = onToggle)
 
             Role.WORKING -> Collapsible(label = stringResource(R.string.working), text = "", icon = Lucide.Bot, labelOnly = true, running = running)
 
-            Role.TOOL -> ToolBlock(name = message.toolName, input = message.text, result = message.result, running = running)
+            Role.TOOL -> ToolBlock(name = message.toolName, input = message.text, result = message.result, running = running, expanded = expanded, onToggle = onToggle)
 
-            Role.TOOL_RESULT -> Collapsible(label = stringResource(R.string.result), text = message.text, labelOnly = message.labelOnly)
+            Role.TOOL_RESULT -> Collapsible(label = stringResource(R.string.result), text = message.text, labelOnly = message.labelOnly, expanded = expanded, onToggle = onToggle)
 
-            Role.SUMMARY -> Collapsible(label = stringResource(R.string.summary), text = message.text)
+            Role.SUMMARY -> Collapsible(label = stringResource(R.string.summary), text = message.text, expanded = expanded, onToggle = onToggle)
 
             Role.INTERACTION -> message.interaction?.let {
                 InteractionBlock(data = it, toolName = message.toolName, input = message.text, onAnswer = onAnswer)
             }
 
-            Role.FILE_CHANGE -> FileChangeBlock(path = message.path.orEmpty(), diffLines = message.diffLines.orEmpty(), labelOnly = message.labelOnly)
+            Role.FILE_CHANGE -> FileChangeBlock(path = message.path.orEmpty(), diffLines = message.diffLines.orEmpty(), labelOnly = message.labelOnly, expanded = expanded, onToggle = onToggle)
 
-            Role.COMPACT -> message.compact?.let { CompactBlock(it) }
+            Role.COMPACT -> message.compact?.let { CompactBlock(it, expanded = expanded, onToggle = onToggle) }
 
             Role.ERROR -> Band(MaterialTheme.colorScheme.errorContainer) {
                 Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
@@ -120,6 +125,35 @@ fun ChatMessageItem(
             Role.SYSTEM -> Plain {
                 Text(message.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+    }
+}
+
+@Composable
+fun StickyCollapsibleHeader(message: ChatMessage, onCollapse: () -> Unit, modifier: Modifier = Modifier) {
+    val primary = MaterialTheme.colorScheme.primary
+    val variant = MaterialTheme.colorScheme.onSurfaceVariant
+    val spec: Triple<ImageVector?, String, Color> = when (message.role) {
+        Role.THINKING -> Triple(Lucide.Lightbulb, stringResource(R.string.thinking), variant)
+        Role.TOOL -> Triple(Lucide.SquareTerminal, message.toolName.orEmpty(), primary)
+        Role.TOOL_RESULT -> Triple(null, stringResource(R.string.result), variant)
+        Role.SUMMARY -> Triple(null, stringResource(R.string.summary), variant)
+        Role.FILE_CHANGE -> Triple(Lucide.FilePen, message.path.orEmpty(), primary)
+        Role.COMPACT -> Triple(Lucide.Archive, stringResource(R.string.compacted), primary)
+        else -> Triple(null, "", variant)
+    }
+    val (icon, label, tint) = spec
+    Surface(color = MaterialTheme.colorScheme.background, shadowElevation = 2.dp, modifier = modifier) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { onCollapse() }.padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (icon != null) {
+                Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.size(6.dp))
+            }
+            Text(label, style = MaterialTheme.typography.labelLarge, color = tint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Icon(Lucide.ChevronDown, contentDescription = null, tint = variant, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -137,7 +171,7 @@ private fun bottomGap(cur: Role, next: Role?): Dp = when {
     else -> BIG
 }
 
-private fun gapAbove(prev: Role?, cur: Role): Dp {
+internal fun gapAbove(prev: Role?, cur: Role): Dp {
     if (prev == null) return BIG
     if (prev == cur) return 0.dp
     if (cur == Role.ERROR || prev == Role.ERROR) {
@@ -171,11 +205,13 @@ private fun Plain(content: @Composable () -> Unit) {
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun Collapsible(label: String, text: String, icon: ImageVector? = null, labelOnly: Boolean = false, running: Boolean = false) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
+private fun Collapsible(label: String, text: String, icon: ImageVector? = null, labelOnly: Boolean = false, running: Boolean = false, expanded: Boolean? = null, onToggle: (() -> Unit)? = null) {
+    var localExpanded by rememberSaveable { mutableStateOf(false) }
+    val isExpanded = expanded ?: localExpanded
+    val toggle = onToggle ?: { localExpanded = !localExpanded }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth().then(if (labelOnly) Modifier else Modifier.clickable { expanded = !expanded }),
+            modifier = Modifier.fillMaxWidth().then(if (labelOnly) Modifier else Modifier.clickable { toggle() }),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (icon != null) {
@@ -199,14 +235,14 @@ private fun Collapsible(label: String, text: String, icon: ImageVector? = null, 
             }
             if (!labelOnly) {
                 Icon(
-                    imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
+                    imageVector = if (isExpanded) Lucide.ChevronDown else Lucide.ChevronRight,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp),
                 )
             }
         }
-        if (expanded && !labelOnly) {
+        if (isExpanded && !labelOnly) {
             Text(
                 text = text,
                 style = MaterialTheme.typography.bodySmall,
@@ -219,16 +255,27 @@ private fun Collapsible(label: String, text: String, icon: ImageVector? = null, 
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun ToolBlock(name: String?, input: String, result: String? = null, running: Boolean = false) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
+private fun ToolBlock(name: String?, input: String, result: String? = null, running: Boolean = false, expanded: Boolean? = null, onToggle: (() -> Unit)? = null) {
+    var localExpanded by rememberSaveable { mutableStateOf(false) }
+    val isExpanded = expanded ?: localExpanded
+    val toggle = onToggle ?: { localExpanded = !localExpanded }
     val preview = input.replace("\n", " ").trim()
+    val nameColor = MaterialTheme.colorScheme.primary
+    val previewColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val header = buildAnnotatedString {
+        withStyle(SpanStyle(color = nameColor)) { append(name.orEmpty()) }
+        if (!isExpanded && preview.isNotEmpty()) {
+            append("  ")
+            withStyle(SpanStyle(color = previewColor)) { append(preview) }
+        }
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth().clickable { toggle() },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -237,36 +284,26 @@ private fun ToolBlock(name: String?, input: String, result: String? = null, runn
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(16.dp),
             )
+            Spacer(Modifier.size(6.dp))
             Text(
-                text = "  ${name.orEmpty()}",
+                text = header,
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
-            if (!expanded && preview.isNotEmpty()) {
-                Text(
-                    text = "  $preview",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-            } else {
-                Spacer(Modifier.weight(1f))
-            }
             if (running) {
                 LoadingIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.size(2.dp))
             }
             Icon(
-                imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
+                imageVector = if (isExpanded) Lucide.ChevronDown else Lucide.ChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp),
             )
         }
-        if (expanded) {
+        if (isExpanded) {
             if (input.isNotBlank()) {
                 Text(
                     text = input,
@@ -285,11 +322,13 @@ private fun ToolBlock(name: String?, input: String, result: String? = null, runn
 }
 
 @Composable
-private fun FileChangeBlock(path: String, diffLines: List<DiffLine>, labelOnly: Boolean = false) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
+private fun FileChangeBlock(path: String, diffLines: List<DiffLine>, labelOnly: Boolean = false, expanded: Boolean? = null, onToggle: (() -> Unit)? = null) {
+    var localExpanded by rememberSaveable { mutableStateOf(false) }
+    val isExpanded = expanded ?: localExpanded
+    val toggle = onToggle ?: { localExpanded = !localExpanded }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth().then(if (labelOnly) Modifier else Modifier.clickable { expanded = !expanded }),
+            modifier = Modifier.fillMaxWidth().then(if (labelOnly) Modifier else Modifier.clickable { toggle() }),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -298,8 +337,9 @@ private fun FileChangeBlock(path: String, diffLines: List<DiffLine>, labelOnly: 
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(16.dp),
             )
+            Spacer(Modifier.size(6.dp))
             Text(
-                text = "  $path",
+                text = path,
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 maxLines = 1,
@@ -308,14 +348,14 @@ private fun FileChangeBlock(path: String, diffLines: List<DiffLine>, labelOnly: 
             )
             if (!labelOnly) {
                 Icon(
-                    imageVector = if (expanded) Lucide.ChevronDown else Lucide.ChevronRight,
+                    imageVector = if (isExpanded) Lucide.ChevronDown else Lucide.ChevronRight,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp),
                 )
             }
         }
-        if (expanded && !labelOnly && diffLines.isNotEmpty()) {
+        if (isExpanded && !labelOnly && diffLines.isNotEmpty()) {
             val bg = MaterialTheme.colorScheme.surfaceContainerHigh
             val defaultFg = MaterialTheme.colorScheme.onSurfaceVariant
             val scroll = rememberScrollState()
@@ -350,8 +390,10 @@ private fun FileChangeBlock(path: String, diffLines: List<DiffLine>, labelOnly: 
 }
 
 @Composable
-private fun CompactBlock(data: CompactData) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
+private fun CompactBlock(data: CompactData, expanded: Boolean? = null, onToggle: (() -> Unit)? = null) {
+    var localExpanded by rememberSaveable { mutableStateOf(false) }
+    val isExpanded = expanded ?: localExpanded
+    val toggle = onToggle ?: { localExpanded = !localExpanded }
     val hasSummary = data.summary.isNotBlank()
     val triggerLabel = when (data.trigger) {
         "manual" -> stringResource(R.string.compact_manual)
@@ -369,7 +411,7 @@ private fun CompactBlock(data: CompactData) {
     }.ifBlank { null }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Row(
-            modifier = Modifier.fillMaxWidth().clickable(enabled = hasSummary) { expanded = !expanded },
+            modifier = Modifier.fillMaxWidth().clickable(enabled = hasSummary) { toggle() },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Lucide.Archive, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
@@ -381,10 +423,10 @@ private fun CompactBlock(data: CompactData) {
             }
             if (hasSummary) {
                 Spacer(Modifier.size(6.dp))
-                Icon(if (expanded) Lucide.ChevronDown else Lucide.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                Icon(if (isExpanded) Lucide.ChevronDown else Lucide.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
             }
         }
-        if (expanded && hasSummary) {
+        if (isExpanded && hasSummary) {
             MarkdownText(data.summary, modifier = Modifier.fillMaxWidth().padding(top = 4.dp), selectable = false)
         }
     }

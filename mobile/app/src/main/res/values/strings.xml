@@ -45,6 +45,7 @@
     <string name="ssh_connected">Connected</string>
     <string name="ssh_closed">Disconnected</string>
     <string name="ssh_failed">Failed: %1$s</string>
+    <string name="connection_error">Connection error</string>
     <string name="delete_connection_confirm">Delete the connection \"%1$s\"?</string>
     <string name="no_connections">No connections yet</string>
     <string name="cli">Claude CLI</string>
@@ -79,6 +80,7 @@
     <string name="delete_file_confirm">Delete \"%1$s\"?</string>
     <string name="new_session">New session</string>
     <string name="new_chat">New chat</string>
+    <string name="tasks">Tasks</string>
     <string name="all_projects">All projects</string>
     <string name="rename">Rename</string>
     <string name="auto_rename">Auto-rename</string>

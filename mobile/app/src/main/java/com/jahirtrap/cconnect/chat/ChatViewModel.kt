@@ -434,9 +434,14 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun onEvent(event: ServerEvent) {
         when (event) {
+            is ServerEvent.Connecting -> _state.update {
+                if (it.connection == ConnectionState.Connected) it
+                else it.copy(connection = ConnectionState.Connecting)
+            }
             is ServerEvent.Open -> startSession(_state.value.sessionId)
             is ServerEvent.Ready -> {
                 if (event.running) ConnectionService.start(appContext) else ConnectionService.stop(appContext)
+                historyLoaded = false
                 _state.update {
                     val sid = event.sessionId ?: it.sessionId
                     it.copy(
@@ -445,6 +450,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         activeProjectKey = event.project ?: it.activeProjectKey,
                         streaming = event.running,
                         sideChat = it.sideChat.promote(sid),
+                        messages = it.messages.filterNot { m -> m.ephemeral },
                     )
                 }
             }
@@ -531,7 +537,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             is ServerEvent.Command -> {
                 currentAssistantId = null
                 currentThinkingId = null
-                addMessage(Role.ASSISTANT, event.markdown)
+                addMessage(Role.ASSISTANT, event.markdown, ephemeral = true)
             }
             is ServerEvent.Todos -> _state.update { it.copy(todos = event.items) }
             is ServerEvent.Task -> upsertTask(event)
@@ -673,9 +679,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         compact: CompactData? = null,
         labelOnly: Boolean = false,
         result: String? = null,
+        ephemeral: Boolean = false,
     ) {
         _state.update {
-            applyTailCap(it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines, compact, labelOnly = labelOnly, result = result)))
+            applyTailCap(it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines, compact, labelOnly = labelOnly, result = result, ephemeral = ephemeral)))
         }
     }
 

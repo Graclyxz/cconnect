@@ -62,11 +62,15 @@ import com.composables.icons.lucide.Share2
 import com.composables.icons.lucide.Trash
 import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.chat.ChatViewModel
+import com.jahirtrap.cconnect.chat.ConnectionState
 import com.jahirtrap.cconnect.data.SharedEntry
 import com.jahirtrap.cconnect.data.remote.SharedApi
+import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.ConfirmDialog
+import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.TooltipIconButton
+import com.jahirtrap.cconnect.ui.theme.palette
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -83,6 +87,8 @@ fun FileExplorerScreen(onClose: () -> Unit) {
     var path by remember { mutableStateOf("") }
     var entries by remember { mutableStateOf<List<SharedEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
+    var refreshing by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<SharedEntry?>(null) }
     var pendingSaveUrl by remember { mutableStateOf<String?>(null) }
     var envMenu by remember { mutableStateOf(false) }
@@ -99,11 +105,15 @@ fun FileExplorerScreen(onClose: () -> Unit) {
     fun reload() {
         scope.launch {
             loading = true
-            entries = runCatching { SharedApi.list(path) }.getOrDefault(emptyList())
+            val result = runCatching { SharedApi.list(path) }.getOrNull()
+            failed = result == null
+            entries = result ?: emptyList()
             loading = false
+            refreshing = false
         }
     }
     LaunchedEffect(state.activeConnectionId, path) { reload() }
+    LaunchedEffect(state.connection) { if (state.connection == ConnectionState.Connected) reload() }
 
     fun goUp() {
         if (path.isEmpty()) onClose() else path = path.substringBeforeLast('/', "")
@@ -112,19 +122,10 @@ fun FileExplorerScreen(onClose: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.background,
-                ),
-                title = {
-                    Column {
-                        Text(stringResource(R.string.files), style = MaterialTheme.typography.titleLarge, maxLines = 1)
-                        if (activeName != null) {
-                            Text(activeName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                },
+            AppTopBar(
+                title = stringResource(R.string.files),
+                subtitle = if (failed) stringResource(R.string.server_unavailable) else activeName,
+                subtitleLeading = if (failed) ({ StatusDot(palette.red) }) else null,
                 navigationIcon = {
                     TooltipIconButton(label = stringResource(R.string.back), onClick = ::goUp) {
                         Icon(Lucide.ArrowLeft, contentDescription = null)
@@ -151,8 +152,8 @@ fun FileExplorerScreen(onClose: () -> Unit) {
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             Breadcrumb(path = path, onNavigate = { path = it })
             PullToRefreshBox(
-                isRefreshing = loading,
-                onRefresh = ::reload,
+                isRefreshing = if (path.isEmpty()) loading else refreshing,
+                onRefresh = { refreshing = true; reload() },
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             ) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {

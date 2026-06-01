@@ -14,7 +14,8 @@ data class ChatMessage(
     val compact: CompactData? = null,
     val sourceIndex: Int = -1,
     val labelOnly: Boolean = false,
-    val result: String? = null,    // tool output, folded into the tool block (full mode)
+    val result: String? = null,
+    val ephemeral: Boolean = false,
 )
 
 data class CompactData(
@@ -81,6 +82,7 @@ data class CapabilitiesDefaults(
 )
 
 sealed interface ServerEvent {
+    data object Connecting : ServerEvent
     data object Open : ServerEvent
     data class Ready(val sessionId: String?, val project: String? = null, val channel: String? = null, val running: Boolean = false) : ServerEvent
     data class AssistantText(val text: String) : ServerEvent

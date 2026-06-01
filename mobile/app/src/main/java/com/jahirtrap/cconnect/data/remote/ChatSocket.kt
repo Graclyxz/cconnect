@@ -69,6 +69,7 @@ class ChatSocket(private val scope: CoroutineScope) {
     private fun open() {
         val gen = ++generation
         ws?.cancel()
+        emit(ServerEvent.Connecting)
         val builder = Request.Builder().url(Backend.wsUrl)
         Http.applyAuth(builder)
         val request = builder.build()

@@ -76,9 +76,11 @@ import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.data.SshProfile
 import com.jahirtrap.cconnect.data.SshStore
+import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.SecretTextField
+import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.theme.palette
 import org.connectbot.terminal.Terminal as TermlibTerminal
@@ -118,12 +120,8 @@ fun TerminalScreen(onClose: () -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.background,
-                ),
-                title = { Text(stringResource(R.string.ssh_hosts), style = MaterialTheme.typography.titleLarge) },
+            AppTopBar(
+                title = stringResource(R.string.ssh_hosts),
                 navigationIcon = {
                     TooltipIconButton(label = stringResource(R.string.back), onClick = onClose) {
                         Icon(Lucide.ArrowLeft, contentDescription = null)
@@ -288,34 +286,16 @@ private fun TerminalSession(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.background,
-                ),
-                title = {
-                    Column {
-                        Text(profile.name.ifBlank { profile.host }, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(14.dp), contentAlignment = Alignment.Center) {
-                                when (state) {
-                                    SshConnection.State.Idle, SshConnection.State.Connecting ->
-                                        LoadingIndicator(modifier = Modifier.fillMaxSize())
-                                    SshConnection.State.Connected ->
-                                        Box(
-                                            modifier = Modifier
-                                                .size(8.dp)
-                                                .clip(CircleShape)
-                                                .background(palette.green),
-                                        )
-                                    else -> {}
-                                }
-                            }
-                            Spacer(Modifier.width(6.dp))
-                            Text(statusLabel(state), style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                },
+            val sshLeading: (@Composable () -> Unit)? = when (state) {
+                SshConnection.State.Idle, SshConnection.State.Connecting ->
+                    ({ LoadingIndicator(modifier = Modifier.size(14.dp)) })
+                SshConnection.State.Connected -> ({ StatusDot(palette.green) })
+                else -> ({ StatusDot(palette.red) })
+            }
+            AppTopBar(
+                title = profile.name.ifBlank { profile.host },
+                subtitle = statusLabel(state),
+                subtitleLeading = sshLeading,
                 navigationIcon = {
                     TooltipIconButton(label = stringResource(R.string.back), onClick = onClose) {
                         Icon(Lucide.ArrowLeft, contentDescription = null)
@@ -356,7 +336,7 @@ private fun statusLabel(state: SshConnection.State): String = when (state) {
     SshConnection.State.Idle, SshConnection.State.Connecting -> stringResource(R.string.ssh_connecting)
     SshConnection.State.Connected -> stringResource(R.string.ssh_connected)
     SshConnection.State.Closed -> stringResource(R.string.ssh_closed)
-    is SshConnection.State.Failed -> stringResource(R.string.ssh_failed, state.message)
+    is SshConnection.State.Failed -> stringResource(R.string.connection_error)
 }
 
 @Composable

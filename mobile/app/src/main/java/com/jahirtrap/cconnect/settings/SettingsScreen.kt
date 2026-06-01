@@ -83,6 +83,7 @@ import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
 import com.jahirtrap.cconnect.data.remote.CliApi
 import com.jahirtrap.cconnect.data.remote.SettingsApi
 import kotlinx.coroutines.launch
+import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.ConfirmSelectDialog
@@ -90,6 +91,7 @@ import com.jahirtrap.cconnect.ui.DialogActionItem
 import com.jahirtrap.cconnect.ui.DialogSelectItem
 import com.jahirtrap.cconnect.ui.SecretTextField
 import com.jahirtrap.cconnect.ui.SelectDialog
+import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.SelectField
 import com.jahirtrap.cconnect.ui.languageLabel
@@ -98,6 +100,7 @@ import com.jahirtrap.cconnect.ui.themeLabel
 import com.jahirtrap.cconnect.ui.LANGUAGE_TAGS
 import com.jahirtrap.cconnect.ui.THEME_MODES
 import com.jahirtrap.cconnect.ui.theme.ACCENTS
+import com.jahirtrap.cconnect.ui.theme.palette
 import com.jahirtrap.cconnect.ui.theme.accentAt
 import com.jahirtrap.cconnect.ui.theme.accentNameAt
 import com.jahirtrap.cconnect.ui.theme.dynamicAccent
@@ -163,12 +166,8 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    scrolledContainerColor = MaterialTheme.colorScheme.background,
-                ),
-                title = { Text(stringResource(R.string.settings)) },
+            AppTopBar(
+                title = stringResource(R.string.settings),
                 navigationIcon = {
                     TooltipIconButton(label = stringResource(R.string.back), onClick = onClose) {
                         Icon(Lucide.ArrowLeft, contentDescription = null)
@@ -211,13 +210,15 @@ fun SettingsScreen(
                 )
                 // Server-owned: always shown, dimmed/disabled until reachable.
                 val spinner: (@Composable () -> Unit)? = if (loading) ({ LoadingIndicator(modifier = Modifier.size(20.dp)) }) else null
+                val offlineDot: (@Composable () -> Unit)? = if (!serverReady && !loading) ({ StatusDot(palette.red, box = 20.dp, dot = 12.dp) }) else null
+                val statusTrailing = spinner ?: offlineDot
                 val loadingText = stringResource(R.string.connecting)
                 val offlineText = stringResource(R.string.server_unavailable)
                 fun serverSummary(real: String) = if (serverReady) real else if (loading) loadingText else offlineText
-                PreferenceRow(Lucide.Terminal, stringResource(R.string.cli), serverSummary(cliInfo?.activeVersion ?: "—"), trailing = spinner, enabled = serverReady) { dialog = SettingsDialog.Cli }
-                PreferenceRow(Lucide.Sparkles, stringResource(R.string.generation), serverSummary("${caps.models.firstOrNull { it.id == model }?.label ?: model} • $effort"), trailing = spinner, enabled = serverReady) { dialog = SettingsDialog.Generation }
-                PreferenceRow(Lucide.Shield, stringResource(R.string.permissions), serverSummary(permissionLabel(caps, permissionMode)), trailing = spinner, enabled = serverReady) { dialog = SettingsDialog.Permissions }
-                PreferenceRow(Lucide.Eye, stringResource(R.string.visibility), serverSummary(stringResource(R.string.visibility_summary)), trailing = spinner, enabled = serverReady) { dialog = SettingsDialog.Visibility }
+                PreferenceRow(Lucide.Terminal, stringResource(R.string.cli), serverSummary(cliInfo?.activeVersion ?: "—"), trailing = statusTrailing, enabled = serverReady) { dialog = SettingsDialog.Cli }
+                PreferenceRow(Lucide.Sparkles, stringResource(R.string.generation), serverSummary("${caps.models.firstOrNull { it.id == model }?.label ?: model} • $effort"), trailing = statusTrailing, enabled = serverReady) { dialog = SettingsDialog.Generation }
+                PreferenceRow(Lucide.Shield, stringResource(R.string.permissions), serverSummary(permissionLabel(caps, permissionMode)), trailing = statusTrailing, enabled = serverReady) { dialog = SettingsDialog.Permissions }
+                PreferenceRow(Lucide.Eye, stringResource(R.string.visibility), serverSummary(stringResource(R.string.visibility_summary)), trailing = statusTrailing, enabled = serverReady) { dialog = SettingsDialog.Visibility }
                 PreferenceRow(Lucide.History, stringResource(R.string.reset_settings), stringResource(R.string.reset_settings_summary)) { dialog = SettingsDialog.Reset }
             }
         }

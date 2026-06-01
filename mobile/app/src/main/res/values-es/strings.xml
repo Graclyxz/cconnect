@@ -45,6 +45,7 @@
     <string name="ssh_connected">Conectado</string>
     <string name="ssh_closed">Desconectado</string>
     <string name="ssh_failed">Falló: %1$s</string>
+    <string name="connection_error">Error de conexión</string>
     <string name="delete_connection_confirm">¿Borrar la conexión «%1$s»?</string>
     <string name="no_connections">Sin conexiones aún</string>
     <string name="cli">CLI de Claude</string>
@@ -79,6 +80,7 @@
     <string name="delete_file_confirm">¿Borrar «%1$s»?</string>
     <string name="new_session">Nueva sesión</string>
     <string name="new_chat">Nuevo chat</string>
+    <string name="tasks">Tareas</string>
     <string name="all_projects">Todos los proyectos</string>
     <string name="rename">Renombrar</string>
     <string name="auto_rename">Auto-renombrar</string>

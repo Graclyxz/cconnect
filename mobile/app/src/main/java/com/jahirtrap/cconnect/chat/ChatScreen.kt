@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -78,8 +79,11 @@ import com.composables.icons.lucide.SquareCheckBig
 import com.composables.icons.lucide.SquareTerminal
 import com.composables.icons.lucide.SquarePen
 import com.composables.icons.lucide.X
+import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CustomIcons
+import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.Stop
+import com.jahirtrap.cconnect.ui.theme.palette
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
@@ -110,6 +114,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -119,6 +124,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -145,6 +151,7 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.R
+import com.jahirtrap.cconnect.data.ChatMessage
 import com.jahirtrap.cconnect.data.CommandOption
 import com.jahirtrap.cconnect.data.ConnectionProfile
 import com.jahirtrap.cconnect.data.PermissionMode
@@ -187,6 +194,8 @@ fun ChatScreen(
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
+    val density = LocalDensity.current
+    val expandedState = remember { mutableStateMapOf<Long, Boolean>() }
 
     val context = LocalContext.current
     var renameTarget by remember { mutableStateOf<SessionInfo?>(null) }
@@ -253,7 +262,7 @@ fun ChatScreen(
     }
     LaunchedEffect(state.messages.lastOrNull()?.id, state.messages.lastOrNull()?.text) {
         if (state.messages.isNotEmpty() && followBottom) {
-            listState.animateScrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
+            listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
         }
     }
     // A pending interaction needs the user's attention.
@@ -361,28 +370,20 @@ fun ChatScreen(
             MaterialExpressiveTheme(motionScheme = MotionScheme.expressive()) {
                 Scaffold(
                     topBar = {
-                        TopAppBar(
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = MaterialTheme.colorScheme.background,
-                                scrolledContainerColor = MaterialTheme.colorScheme.background,
-                            ),
+                        val statusLeading: (@Composable () -> Unit)? = when (state.connection) {
+                            ConnectionState.Connecting -> ({ LoadingIndicator(modifier = Modifier.size(14.dp)) })
+                            ConnectionState.Disconnected -> ({ StatusDot(palette.red) })
+                            ConnectionState.Connected -> null
+                        }
+                        AppTopBar(
+                            title = stringResource(R.string.app_name),
+                            subtitle = statusLabel(state),
+                            subtitleLeading = statusLeading,
                             navigationIcon = {
                                 TooltipIconButton(
                                     label = stringResource(R.string.menu),
                                     onClick = { scope.launch { drawerState.open() } },
                                 ) { Icon(Lucide.Menu, contentDescription = null) }
-                            },
-                            title = {
-                                Column {
-                                    Text(stringResource(R.string.app_name))
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        if (state.connection == ConnectionState.Connecting) {
-                                            LoadingIndicator(modifier = Modifier.size(14.dp))
-                                            Spacer(Modifier.width(6.dp))
-                                        }
-                                        Text(statusLabel(state), style = MaterialTheme.typography.labelSmall)
-                                    }
-                                }
                             },
                             actions = {
                                 TaskIndicator(todos = state.todos)
@@ -421,7 +422,7 @@ fun ChatScreen(
                     Column(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
                         BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f)) {
                             val boxHeightPx = constraints.maxHeight.toFloat()
-                            Box(modifier = Modifier.fillMaxSize()) {
+                            Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
                                 SelectionContainer(modifier = Modifier.fillMaxSize()) {
                                     LazyColumn(
                                         state = listState,
@@ -438,8 +439,45 @@ fun ChatScreen(
                                                 prevRole = state.messages.getOrNull(index - 1)?.role,
                                                 nextRole = state.messages.getOrNull(index + 1)?.role,
                                                 running = running,
+                                                expanded = expandedState[message.id] ?: false,
+                                                onToggle = { expandedState[message.id] = !(expandedState[message.id] ?: false) },
                                                 onAnswer = vm::answerInteraction,
                                                 onSharedLink = { url, filename -> sharedLinkAction = url to filename },
+                                            )
+                                        }
+                                    }
+                                }
+                                var stickyHeaderHeight by remember { mutableStateOf(0) }
+                                val sticky by remember(expandedState) {
+                                    derivedStateOf {
+                                        val info = listState.layoutInfo
+                                        val start = info.viewportStartOffset
+                                        val first = info.visibleItemsInfo.firstOrNull { it.offset + it.size > start }
+                                            ?: return@derivedStateOf null
+                                        val id = first.key as? Long ?: return@derivedStateOf null
+                                        if (expandedState[id] != true) return@derivedStateOf null
+                                        Triple(id, first.offset - start, first.offset + first.size - start)
+                                    }
+                                }
+                                sticky?.let { (id, topRel, bottomRel) ->
+                                    val idx = state.messages.indexOfFirst { it.id == id }
+                                    val msg = state.messages.getOrNull(idx)
+                                    if (msg != null && hasCollapsibleContent(msg)) {
+                                        val gapPx = with(density) { gapAbove(state.messages.getOrNull(idx - 1)?.role, msg.role).roundToPx() }
+                                        if (topRel + gapPx < 0) {
+                                            val h = if (stickyHeaderHeight > 0) stickyHeaderHeight else with(density) { 40.dp.roundToPx() }
+                                            val pushY = minOf(0, bottomRel - h)
+                                            StickyCollapsibleHeader(
+                                                message = msg,
+                                                onCollapse = {
+                                                    expandedState[id] = false
+                                                    scope.launch { listState.scrollToItem(idx, gapPx) }
+                                                },
+                                                modifier = Modifier
+                                                    .align(Alignment.TopCenter)
+                                                    .fillMaxWidth()
+                                                    .offset { IntOffset(0, pushY) }
+                                                    .onSizeChanged { stickyHeaderHeight = it.height },
                                             )
                                         }
                                     }
@@ -504,6 +542,7 @@ fun ChatScreen(
                             if (state.compacting) CompactProgress()
                             ChatToolbar(
                                 ready = state.capabilitiesReady,
+                                disconnected = state.connection == ConnectionState.Disconnected,
                                 model = state.model,
                                 models = state.capabilities.models,
                                 onModel = vm::setModel,
@@ -526,7 +565,8 @@ fun ChatScreen(
                             onCommand = { cmd -> if (cmd.requireConfirmation) confirmCommand = cmd else vm.runCommand(cmd) },
                             onSend = { if (sideActive) vm.sendSideQuestion(it) else vm.submit(it) },
                             onStop = vm::stop,
-                            commandsEnabled = state.sessionId != null,
+                            canSend = state.connection == ConnectionState.Connected,
+                            commandsEnabled = state.sessionId != null && state.connection == ConnectionState.Connected,
                             focusRequester = composerFocus,
                             onCloseSide = if (sideActive) dismissSide else null,
                         )
@@ -698,7 +738,7 @@ private fun SidePanel(
             val lastMsg = sideChat.messages.lastOrNull()
             LaunchedEffect(lastMsg?.id, lastMsg?.text) {
                 if (sideChat.messages.isNotEmpty() && followBottom) {
-                    listState.animateScrollToItem(sideChat.messages.lastIndex, Int.MAX_VALUE)
+                    listState.scrollToItem(sideChat.messages.lastIndex, Int.MAX_VALUE)
                 }
             }
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -739,10 +779,18 @@ private fun SidePanel(
     }
 }
 
+private fun hasCollapsibleContent(m: ChatMessage): Boolean = when (m.role) {
+    Role.THINKING, Role.TOOL_RESULT, Role.SUMMARY -> !m.labelOnly && m.text.isNotBlank()
+    Role.TOOL -> m.text.isNotBlank() || !m.result.isNullOrBlank()
+    Role.FILE_CHANGE -> !m.labelOnly && !m.diffLines.isNullOrEmpty()
+    Role.COMPACT -> m.compact?.summary?.isNotBlank() == true
+    else -> false
+}
+
 @Composable
 private fun statusLabel(state: ChatUiState): String = when (state.connection) {
     ConnectionState.Connecting -> stringResource(R.string.connecting)
-    ConnectionState.Disconnected -> state.error ?: stringResource(R.string.disconnected)
+    ConnectionState.Disconnected -> stringResource(R.string.server_unavailable)
     ConnectionState.Connected -> state.sessionId?.take(8) ?: stringResource(R.string.new_chat)
 }
 
@@ -757,6 +805,14 @@ private fun TaskIndicator(todos: List<TodoItem>) {
             TaskPie(done = done, inProgress = inProgress, total = todos.size)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            Text(
+                "${stringResource(R.string.tasks)} ($done/${todos.size})",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 8.dp),
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             Column(
                 modifier = Modifier
                     .widthIn(max = 320.dp)
@@ -818,6 +874,7 @@ private fun TaskRow(todo: TodoItem) {
 @Composable
 private fun ChatToolbar(
     ready: Boolean,
+    disconnected: Boolean,
     model: String,
     models: List<com.jahirtrap.cconnect.data.ModelOption>,
     onModel: (String) -> Unit,
@@ -865,6 +922,10 @@ private fun ChatToolbar(
                 .padding(end = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            if (disconnected) {
+                DisconnectedChip()
+                return@Row
+            }
             if (!ready) {
                 ToolbarLoadingChip()
                 return@Row
@@ -912,6 +973,21 @@ private fun ToolbarLoadingChip() {
         LoadingIndicator(modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
         Text(stringResource(R.string.loading), style = MaterialTheme.typography.labelMedium, maxLines = 1)
+    }
+}
+
+@Composable
+private fun DisconnectedChip() {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StatusDot(palette.red, box = 18.dp, dot = 10.dp)
+        Spacer(Modifier.width(6.dp))
+        Text(stringResource(R.string.disconnected), style = MaterialTheme.typography.labelMedium, maxLines = 1)
     }
 }
 
@@ -986,7 +1062,7 @@ private fun CommandMenuButton(
     enabled: Boolean = true,
     onCommand: (CommandOption) -> Unit,
 ) {
-    val ready = commands.isNotEmpty() && enabled
+    val ready = commands.isNotEmpty() && enabled && !streaming
     var open by remember { mutableStateOf(false) }
     var lastChange by remember { mutableStateOf(0L) }
     fun setOpen(value: Boolean) {
@@ -1042,7 +1118,7 @@ private fun CommandMenuButton(
                                 .width(IntrinsicSize.Max),
                         ) {
                             commands.forEach { cmd ->
-                                CommandMenuItem(cmd, enabled = !streaming) { setOpen(false); onCommand(cmd) }
+                                CommandMenuItem(cmd) { setOpen(false); onCommand(cmd) }
                             }
                         }
                     }
@@ -1094,6 +1170,7 @@ private fun Composer(
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     showCommands: Boolean = true,
+    canSend: Boolean = true,
     commandsEnabled: Boolean = true,
     focusRequester: FocusRequester? = null,
     onCloseSide: (() -> Unit)? = null,
@@ -1163,7 +1240,7 @@ private fun Composer(
             CircleActionButton(
                 icon = Lucide.ArrowUp,
                 contentDescription = stringResource(R.string.send),
-                enabled = value.isNotBlank(),
+                enabled = value.isNotBlank() && canSend,
                 onClick = { onSend(value); onValueChange("") },
             )
         }
