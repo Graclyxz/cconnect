@@ -121,7 +121,13 @@
     <string name="permission_allow_always">Permitir siempre</string>
     <string name="permission_deny">Denegar</string>
     <string name="permission_different">Hacerlo diferente</string>
-    <string name="interaction_text_hint">Indícale a Claude qué cambiar…</string>
+    <string name="questions_title">Preguntas</string>
+    <string name="submit_answers">Enviar respuestas</string>
+    <string name="next">Siguiente</string>
+    <string name="chat_about_this">Conversar al respecto</string>
+    <string name="add_notes">Agregar nota</string>
+    <string name="interaction_other_hint">Otra respuesta (opcional)</string>
+    <string name="interaction_notes_hint">Nota (opcional)</string>
     <string name="scroll_to_bottom">Ir al final</string>
     <string name="connecting">Conectando</string>
     <string name="disconnected">Desconectado</string>

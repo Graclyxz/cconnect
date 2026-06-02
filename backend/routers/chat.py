@@ -271,7 +271,7 @@ async def chat_ws(ws: WebSocket):
             elif mtype == "interaction_response":
                 rid = raw.get("id")
                 if isinstance(rid, str):
-                    payload = {"option_id": raw.get("option_id"), "free_text": raw.get("free_text")}
+                    payload = {"option_id": raw.get("option_id"), "free_text": raw.get("free_text"), "answers": raw.get("answers"), "chat": raw.get("chat")}
                     for s in (session, side_session):
                         if s is not None and s.resolve(rid, payload):
                             break

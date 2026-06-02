@@ -121,7 +121,13 @@
     <string name="permission_allow_always">Allow always</string>
     <string name="permission_deny">Deny</string>
     <string name="permission_different">Do differently</string>
-    <string name="interaction_text_hint">Tell Claude what to do differently…</string>
+    <string name="questions_title">Questions</string>
+    <string name="submit_answers">Submit answers</string>
+    <string name="next">Next</string>
+    <string name="chat_about_this">Chat about this</string>
+    <string name="add_notes">Add note</string>
+    <string name="interaction_other_hint">Other (optional)</string>
+    <string name="interaction_notes_hint">Note (optional)</string>
     <string name="scroll_to_bottom">Scroll to bottom</string>
     <string name="connecting">Connecting</string>
     <string name="disconnected">Disconnected</string>

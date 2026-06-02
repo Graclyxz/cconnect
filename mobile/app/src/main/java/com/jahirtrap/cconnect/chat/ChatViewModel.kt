@@ -11,6 +11,8 @@ import com.jahirtrap.cconnect.data.CommandOption
 import com.jahirtrap.cconnect.data.CompactData
 import com.jahirtrap.cconnect.data.DiffLine
 import com.jahirtrap.cconnect.data.InteractionData
+import com.jahirtrap.cconnect.data.pending
+import com.jahirtrap.cconnect.data.QuestionDraft
 import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.Role
 import com.jahirtrap.cconnect.data.ServerEvent
@@ -549,13 +551,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 if (_state.value.messages.none { it.interaction?.requestId == event.requestId }) {
                     currentAssistantId = null
                     currentThinkingId = null
-                    val data = InteractionData(
-                        requestId = event.requestId,
-                        kind = event.kind,
-                        options = event.options,
-                        freeText = event.freeText,
-                        title = event.title,
-                    )
+                    val data = interactionDataOf(event)
                     val tuid = event.toolUseId
                     _state.update { st ->
                         val cleaned = if (tuid != null) st.messages.filterNot { it.role == Role.TOOL && it.toolUseId == tuid } else st.messages
@@ -612,13 +608,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 _state.update { st ->
                     val sc = st.sideChat ?: return@update st
                     if (sc.messages.any { it.interaction?.requestId == event.requestId }) return@update st
-                    val data = InteractionData(
-                        requestId = event.requestId,
-                        kind = event.kind,
-                        options = event.options,
-                        freeText = event.freeText,
-                        title = event.title,
-                    )
+                    val data = interactionDataOf(event)
                     val tuid = event.toolUseId
                     val cleaned = if (tuid != null) sc.messages.filterNot { it.role == Role.TOOL && it.toolUseId == tuid } else sc.messages
                     st.copy(sideChat = sc.copy(messages = cleaned + ChatMessage(nextId++, Role.INTERACTION, event.input.orEmpty(), event.toolName, tuid, data)))
@@ -643,7 +633,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private fun dismissSidePendingInteractions() {
         _state.update { st ->
             val sc = st.sideChat ?: return@update st
-            st.copy(sideChat = sc.copy(messages = sc.messages.filterNot { it.role == Role.INTERACTION && it.interaction?.resolved == null }))
+            st.copy(sideChat = sc.copy(messages = sc.messages.filterNot { it.role == Role.INTERACTION && it.interaction?.pending == true }))
         }
     }
 
@@ -695,10 +685,19 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun dismissPendingInteractions() {
         _state.update { st ->
-            if (st.messages.none { it.role == Role.INTERACTION && it.interaction?.resolved == null }) return@update st
-            st.copy(messages = st.messages.filterNot { it.role == Role.INTERACTION && it.interaction?.resolved == null })
+            if (st.messages.none { it.role == Role.INTERACTION && it.interaction?.pending == true }) return@update st
+            st.copy(messages = st.messages.filterNot { it.role == Role.INTERACTION && it.interaction?.pending == true })
         }
     }
+
+    private fun interactionDataOf(event: ServerEvent.InteractionRequest): InteractionData = InteractionData(
+        requestId = event.requestId,
+        kind = event.kind,
+        options = event.options,
+        title = event.title,
+        questions = event.questions,
+        drafts = if (event.kind == "questions") List(event.questions.size) { QuestionDraft() } else emptyList(),
+    )
 
     private fun append(currentId: Long?, role: Role, delta: String): Long {
         if (currentId == null) {
@@ -770,6 +769,78 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 sideChat = st.sideChat?.copy(messages = st.sideChat.messages.resolve()),
             )
         }
+    }
+
+    private fun updateInteraction(requestId: String, transform: (InteractionData) -> InteractionData) {
+        fun List<ChatMessage>.apply() = map { m ->
+            val data = m.interaction
+            if (data != null && data.requestId == requestId) m.copy(interaction = transform(data)) else m
+        }
+        _state.update { st ->
+            st.copy(
+                messages = st.messages.apply(),
+                sideChat = st.sideChat?.let { it.copy(messages = it.messages.apply()) },
+            )
+        }
+    }
+
+    private fun findInteraction(requestId: String): InteractionData? {
+        val st = _state.value
+        return (st.messages + (st.sideChat?.messages ?: emptyList()))
+            .firstNotNullOfOrNull { m -> m.interaction?.takeIf { it.requestId == requestId } }
+    }
+
+    private fun editDraft(requestId: String, qIndex: Int, edit: (QuestionDraft) -> QuestionDraft) =
+        updateInteraction(requestId) { data ->
+            if (data.submitted || qIndex !in data.drafts.indices) return@updateInteraction data
+            data.copy(drafts = data.drafts.toMutableList().also { it[qIndex] = edit(it[qIndex]) })
+        }
+
+    fun toggleQuestionOption(requestId: String, qIndex: Int, optionId: String) =
+        updateInteraction(requestId) { data ->
+            if (data.submitted || qIndex !in data.questions.indices || qIndex !in data.drafts.indices) return@updateInteraction data
+            val multi = data.questions[qIndex].multiSelect
+            val draft = data.drafts[qIndex]
+            val selected = when {
+                multi -> if (optionId in draft.selected) draft.selected - optionId else draft.selected + optionId
+                optionId in draft.selected -> emptySet()
+                else -> setOf(optionId)
+            }
+            val freeText = if (!multi && selected.isNotEmpty()) "" else draft.freeText
+            data.copy(drafts = data.drafts.toMutableList().also { it[qIndex] = draft.copy(selected = selected, freeText = freeText) })
+        }
+
+    fun setQuestionFreeText(requestId: String, qIndex: Int, text: String) =
+        updateInteraction(requestId) { data ->
+            if (data.submitted || qIndex !in data.drafts.indices) return@updateInteraction data
+            val single = qIndex in data.questions.indices && !data.questions[qIndex].multiSelect
+            data.copy(drafts = data.drafts.toMutableList().also {
+                val d = it[qIndex]
+                it[qIndex] = d.copy(freeText = text, selected = if (single && text.isNotBlank()) emptySet() else d.selected)
+            })
+        }
+
+    fun setQuestionNotes(requestId: String, qIndex: Int, text: String) =
+        editDraft(requestId, qIndex) { it.copy(notes = text) }
+
+    fun submitQuestions(requestId: String) {
+        val data = findInteraction(requestId) ?: return
+        if (data.submitted) return
+        client.sendQuestionsResponse(requestId, data.drafts)
+        val summary = data.questions.mapIndexed { i, q ->
+            val draft = data.drafts.getOrElse(i) { QuestionDraft() }
+            val labels = q.options.filter { it.id in draft.selected }.mapNotNull { it.label }
+            (labels + listOfNotNull(draft.freeText.ifBlank { null })).joinToString(", ")
+        }
+        val notes = data.questions.indices.map { data.drafts.getOrElse(it) { QuestionDraft() }.notes }
+        updateInteraction(requestId) { it.copy(submitted = true, summary = summary, notes = notes) }
+    }
+
+    fun chatQuestions(requestId: String) {
+        val data = findInteraction(requestId) ?: return
+        if (data.submitted) return
+        client.sendQuestionsChat(requestId)
+        updateInteraction(requestId) { it.copy(submitted = true, declined = true) }
     }
 
     override fun onCleared() {

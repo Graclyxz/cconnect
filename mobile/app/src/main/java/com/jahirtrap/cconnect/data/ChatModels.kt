@@ -41,17 +41,39 @@ data class InteractionOption(
     val id: String,
     val label: String? = null,
     val description: String? = null,
+    val preview: String? = null,
+)
+
+data class InteractionQuestion(
+    val header: String? = null,
+    val question: String? = null,
+    val multiSelect: Boolean = false,
+    val options: List<InteractionOption> = emptyList(),
+)
+
+data class QuestionDraft(
+    val selected: Set<String> = emptySet(),
+    val freeText: String = "",
+    val notes: String = "",
 )
 
 data class InteractionData(
     val requestId: String,
     val kind: String,
-    val options: List<InteractionOption>,
-    val freeText: String,
+    val options: List<InteractionOption> = emptyList(),   // permission chips
     val title: String? = null,
     val resolved: String? = null,
     val resolvedText: String? = null,
+    val questions: List<InteractionQuestion> = emptyList(),  // kind == "questions"
+    val drafts: List<QuestionDraft> = emptyList(),           // parallel to questions, pre-submit
+    val submitted: Boolean = false,
+    val declined: Boolean = false,                           // "Chat about this" — questions dismissed
+    val summary: List<String> = emptyList(),                 // per-question answer text after submit
+    val notes: List<String> = emptyList(),                   // per-question note text after submit
 )
+
+val InteractionData.pending: Boolean
+    get() = if (kind == "questions") !(submitted || declined) else resolved == null
 
 data class ModelOption(val id: String, val label: String)
 
@@ -118,6 +140,6 @@ sealed interface ServerEvent {
         val input: String?,
         val title: String?,
         val options: List<InteractionOption>,
-        val freeText: String,
+        val questions: List<InteractionQuestion> = emptyList(),
     ) : ServerEvent
 }

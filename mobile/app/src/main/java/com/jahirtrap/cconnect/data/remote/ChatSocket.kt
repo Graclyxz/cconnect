@@ -2,6 +2,8 @@ package com.jahirtrap.cconnect.data.remote
 
 import com.jahirtrap.cconnect.data.DiffLine
 import com.jahirtrap.cconnect.data.InteractionOption
+import com.jahirtrap.cconnect.data.InteractionQuestion
+import com.jahirtrap.cconnect.data.QuestionDraft
 import com.jahirtrap.cconnect.data.ServerEvent
 import com.jahirtrap.cconnect.data.TodoItem
 import com.jahirtrap.cconnect.data.diffKindOf
@@ -14,6 +16,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -22,6 +26,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -196,6 +201,30 @@ class ChatSocket(private val scope: CoroutineScope) {
         })
     }
 
+    fun sendQuestionsResponse(requestId: String, answers: List<QuestionDraft>) {
+        send(buildJsonObject {
+            put("type", "interaction_response")
+            put("id", requestId)
+            putJsonArray("answers") {
+                answers.forEach { d ->
+                    addJsonObject {
+                        putJsonArray("selected") { d.selected.forEach { add(it) } }
+                        if (d.freeText.isNotBlank()) put("free_text", d.freeText)
+                        if (d.notes.isNotBlank()) put("notes", d.notes)
+                    }
+                }
+            }
+        })
+    }
+
+    fun sendQuestionsChat(requestId: String) {
+        send(buildJsonObject {
+            put("type", "interaction_response")
+            put("id", requestId)
+            put("chat", true)
+        })
+    }
+
     fun close() {
         closed = true
         reconnectJob?.cancel()
@@ -301,15 +330,16 @@ class ChatSocket(private val scope: CoroutineScope) {
                 toolUseId = str("tool_use_id"),
                 input = str("input"),
                 title = str("title"),
-                options = obj["options"]?.jsonArray?.map { el ->
-                    val o = el.jsonObject
-                    InteractionOption(
-                        id = o["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                        label = o["label"]?.jsonPrimitive?.contentOrNull,
-                        description = o["description"]?.jsonPrimitive?.contentOrNull,
+                options = obj["options"]?.jsonArray?.map { it.jsonObject.toOption() } ?: emptyList(),
+                questions = obj["questions"]?.jsonArray?.map { el ->
+                    val q = el.jsonObject
+                    InteractionQuestion(
+                        header = q["header"]?.jsonPrimitive?.contentOrNull,
+                        question = q["question"]?.jsonPrimitive?.contentOrNull,
+                        multiSelect = q["multi_select"]?.jsonPrimitive?.booleanOrNull == true,
+                        options = q["options"]?.jsonArray?.map { it.jsonObject.toOption() } ?: emptyList(),
                     )
                 } ?: emptyList(),
-                freeText = str("free_text") ?: "off",
             )
             else -> null
         }
@@ -317,3 +347,10 @@ class ChatSocket(private val scope: CoroutineScope) {
         return event?.let { side to it }
     }
 }
+
+private fun JsonObject.toOption() = InteractionOption(
+    id = this["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+    label = this["label"]?.jsonPrimitive?.contentOrNull,
+    description = this["description"]?.jsonPrimitive?.contentOrNull,
+    preview = this["preview"]?.jsonPrimitive?.contentOrNull,
+)

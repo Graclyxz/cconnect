@@ -151,6 +151,7 @@ import com.jahirtrap.cconnect.data.ConnectionProfile
 import com.jahirtrap.cconnect.data.PermissionMode
 import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.Role
+import com.jahirtrap.cconnect.data.pending
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.TodoItem
 import com.jahirtrap.cconnect.files.FileTransfer
@@ -248,7 +249,7 @@ fun ChatScreen(
     }
     LaunchedEffect(listState) {
         snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
-            if (!scrolling) followBottom = isAtBottom
+            if (!scrolling && isAtBottom) followBottom = true
         }
     }
     LaunchedEffect(followBottom) { vm.setFollowBottom(followBottom) }
@@ -261,23 +262,28 @@ fun ChatScreen(
             listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
         }
     }
-    // A pending interaction needs the user's attention.
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()
+            Triple(last?.index, last?.size, info.viewportEndOffset)
+        }.collect { (index, _, _) ->
+            val lastIdx = listState.layoutInfo.totalItemsCount - 1
+            if (followBottom && index != null && lastIdx >= 0 && index == lastIdx) {
+                listState.scrollToItem(lastIdx, Int.MAX_VALUE)
+            }
+        }
+    }
     LaunchedEffect(state.messages.lastOrNull()?.id) {
         val last = state.messages.lastOrNull() ?: return@LaunchedEffect
-        if (last.role == Role.INTERACTION && last.interaction?.resolved == null) {
+        if (last.role == Role.INTERACTION && last.interaction?.pending == true) {
             followBottom = true
             listState.animateScrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
         }
     }
     val imeVisible = WindowInsets.isImeVisible
     LaunchedEffect(imeVisible) {
-        if (imeVisible) {
-            if (followBottom && state.messages.isNotEmpty()) {
-                listState.animateScrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
-            }
-        } else {
-            focusManager.clearFocus()
-        }
+        if (!imeVisible) focusManager.clearFocus()
     }
 
     // Expressive motion overshoots the drawer slide and exposes the background; standard avoids it.
@@ -366,7 +372,7 @@ fun ChatScreen(
             MaterialExpressiveTheme(motionScheme = MotionScheme.expressive()) {
                 Scaffold(
                     topBar = {
-                        val waitingUser = state.messages.any { it.role == Role.INTERACTION && it.interaction?.resolved == null }
+                        val waitingUser = state.messages.any { it.role == Role.INTERACTION && it.interaction?.pending == true }
                         val statusLeading: (@Composable () -> Unit) = when {
                             state.connection == ConnectionState.Disconnected -> ({ StatusDot(palette.red) })
                             state.connection == ConnectionState.Connecting -> ({ LoadingIndicator(modifier = Modifier.size(14.dp)) })
@@ -456,6 +462,11 @@ fun ChatScreen(
                                                 expanded = expandedState[message.id] ?: false,
                                                 onToggle = { expandedState[message.id] = !(expandedState[message.id] ?: false) },
                                                 onAnswer = vm::answerInteraction,
+                                                onToggleOption = vm::toggleQuestionOption,
+                                                onQuestionText = vm::setQuestionFreeText,
+                                                onQuestionNotes = vm::setQuestionNotes,
+                                                onSubmitQuestions = vm::submitQuestions,
+                                                onChatQuestions = vm::chatQuestions,
                                                 onSharedLink = { url, filename -> sharedLinkAction = url to filename },
                                             )
                                         }
@@ -570,6 +581,11 @@ fun ChatScreen(
                                     headerModifier = dragModifier,
                                     onClear = vm::clearSideChat,
                                     onAnswer = vm::answerInteraction,
+                                    onToggleOption = vm::toggleQuestionOption,
+                                    onQuestionText = vm::setQuestionFreeText,
+                                    onQuestionNotes = vm::setQuestionNotes,
+                                    onSubmitQuestions = vm::submitQuestions,
+                                    onChatQuestions = vm::chatQuestions,
                                     topCorner = (20 * (1f - dockT)).dp,
                                     modifier = Modifier
                                         .align(Alignment.BottomCenter)
@@ -673,6 +689,11 @@ private fun SidePanel(
     headerModifier: Modifier = Modifier,
     onClear: () -> Unit = {},
     onAnswer: ((String, String, String?) -> Unit)? = null,
+    onToggleOption: ((String, Int, String) -> Unit)? = null,
+    onQuestionText: ((String, Int, String) -> Unit)? = null,
+    onQuestionNotes: ((String, Int, String) -> Unit)? = null,
+    onSubmitQuestions: ((String) -> Unit)? = null,
+    onChatQuestions: ((String) -> Unit)? = null,
     topCorner: Dp = 20.dp,
     modifier: Modifier = Modifier,
 ) {
@@ -757,13 +778,25 @@ private fun SidePanel(
             }
             LaunchedEffect(listState) {
                 snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
-                    if (!scrolling) followBottom = isAtBottom
+                    if (!scrolling && isAtBottom) followBottom = true
                 }
             }
             val lastMsg = sideChat.messages.lastOrNull()
             LaunchedEffect(lastMsg?.id, lastMsg?.text) {
                 if (sideChat.messages.isNotEmpty() && followBottom) {
                     listState.scrollToItem(sideChat.messages.lastIndex, Int.MAX_VALUE)
+                }
+            }
+            LaunchedEffect(listState) {
+                snapshotFlow {
+                    val info = listState.layoutInfo
+                    val last = info.visibleItemsInfo.lastOrNull()
+                    Triple(last?.index, last?.size, info.viewportEndOffset)
+                }.collect { (index, _, _) ->
+                    val lastIdx = listState.layoutInfo.totalItemsCount - 1
+                    if (followBottom && index != null && lastIdx >= 0 && index == lastIdx) {
+                        listState.scrollToItem(lastIdx, Int.MAX_VALUE)
+                    }
                 }
             }
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
@@ -776,6 +809,11 @@ private fun SidePanel(
                                 nextRole = sideChat.messages.getOrNull(index + 1)?.role,
                                 running = message.role == Role.WORKING && index == sideChat.messages.lastIndex && sideChat.streaming,
                                 onAnswer = onAnswer,
+                                onToggleOption = onToggleOption,
+                                onQuestionText = onQuestionText,
+                                onQuestionNotes = onQuestionNotes,
+                                onSubmitQuestions = onSubmitQuestions,
+                                onChatQuestions = onChatQuestions,
                             )
                         }
                     }

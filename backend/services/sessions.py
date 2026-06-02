@@ -19,6 +19,8 @@ _ASK_ANSWERS_RE = re.compile(r'"([^"]+)"="([^"]*)"')
 
 # Slash-command invocations and their output are stored as user messages.
 _COMMAND_META_RE = re.compile(r"<command-(name|message|args)>|<local-command-stdout>")
+# The CLI writes interruption notices as plain user text.
+_INTERRUPT_RE = re.compile(r"^\[Request interrupted by user")
 
 
 def _base() -> Path:
@@ -305,11 +307,24 @@ def delete_session(project_key: str, session_id: str) -> bool:
     return True
 
 
-def _parse_ask_answers(content: object) -> dict[str, str]:
-    """Claude Code stores AskUserQuestion answers in the tool_result content as `"Q"="A"`."""
+def _parse_ask_result(content: object, qtexts: list[str]) -> dict[str, tuple[str, str]]:
+    """Parse an AskUserQuestion tool_result into {question: (answer, note)}."""
     from services.claude_runtime import _flatten_result_content
     text = _flatten_result_content(content)
-    return dict(_ASK_ANSWERS_RE.findall(text))
+    marks = sorted((text.find(f'"{qt}"='), qt) for qt in qtexts if f'"{qt}"=' in text)
+    out: dict[str, tuple[str, str]] = {}
+    for i, (start, qt) in enumerate(marks):
+        end = marks[i + 1][0] if i + 1 < len(marks) else len(text)
+        seg = text[start:end]
+        am = re.match(r'"(?:[^"]*)"=(?:"([^"]*)"|\(no option selected\))', seg)
+        answer = (am.group(1) or "") if am else ""
+        note = ""
+        nm = re.search(r"\bnotes:\s*(.*)", seg, re.S)
+        if nm:
+            note = re.sub(r"\.\s*You can now continue.*$", "", nm.group(1), flags=re.S).strip()
+            note = re.sub(r",\s*$", "", note)
+        out[qt] = (answer, note)
+    return out
 
 
 def _compact_summary_text(entry: dict) -> str:
@@ -388,7 +403,7 @@ def session_context(cwd: str, session_id: str, max_chars: int = 4000) -> str:
         if entry.get("type") not in ("user", "assistant") or entry.get("isMeta") or entry.get("isSidechain"):
             continue
         text = _text_from_content(entry.get("message", {}).get("content"))
-        if text and not _COMMAND_META_RE.search(text):
+        if text and not _COMMAND_META_RE.search(text) and not _INTERRUPT_RE.match(text):
             parts.append(f"{entry.get('type')}: {text}")
     return "\n".join(parts)[-max_chars:]
 
@@ -510,7 +525,7 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
         content = message.get("content")
         if isinstance(content, str):
             text = content.strip()
-            if text and not _COMMAND_META_RE.search(text):
+            if text and not _COMMAND_META_RE.search(text) and not _INTERRUPT_RE.match(text):
                 messages.append({"type": "text", "role": role, "text": text})
             continue
         if not isinstance(content, list):
@@ -521,7 +536,7 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
             btype = block.get("type")
             if btype == "text":
                 text = block.get("text", "").strip()
-                if text and not _COMMAND_META_RE.search(text):
+                if text and not _COMMAND_META_RE.search(text) and not _INTERRUPT_RE.match(text):
                     messages.append({"type": "text", "role": role, "text": text})
             elif btype == "thinking":
                 if vis["thinking"] == "off":
@@ -540,28 +555,34 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                 if name == "AskUserQuestion" and isinstance(inp, dict):
                     if isinstance(bid, str):
                         hidden_ids.add(bid)
-                    questions = inp.get("questions") or []
-                    answers = _parse_ask_answers(tool_result_by_id.get(bid or ""))
-                    for q in questions:
-                        if not isinstance(q, dict):
-                            continue
+                    result_content = tool_result_by_id.get(bid or "")
+                    if result_content is None:
+                        continue
+                    qs = [q for q in (inp.get("questions") or []) if isinstance(q, dict)]
+                    qtexts = [q.get("question") or q.get("header") or "" for q in qs]
+                    parsed = _parse_ask_result(result_content, qtexts)
+                    out_questions = []
+                    for qi, q in enumerate(qs):
                         qtext = q.get("question") or q.get("header") or ""
-                        opts = [
-                            {"id": f"q_{i}", "label": str(opt.get("label", "")), "description": opt.get("description")}
-                            for i, opt in enumerate(q.get("options", []))
-                            if isinstance(opt, dict)
-                        ]
-                        answer = answers.get(qtext, "")
-                        chosen_id = next((o["id"] for o in opts if o["label"] == answer), None)
-                        messages.append({
-                            "type": "interaction",
-                            "title": qtext,
-                            "tool_name": q.get("header"),
-                            "options": opts,
-                            "free_text": "optional",
-                            "resolved": chosen_id or "",
-                            "resolved_text": None if chosen_id else answer,
+                        answer, note = parsed.get(qtext, ("", ""))
+                        out_questions.append({
+                            "header": q.get("header"),
+                            "question": q.get("question"),
+                            "multi_select": bool(q.get("multiSelect")),
+                            "options": [
+                                {
+                                    "id": f"{qi}_{oi}",
+                                    "label": str(opt.get("label", "")),
+                                    "description": opt.get("description"),
+                                    "preview": opt.get("preview"),
+                                }
+                                for oi, opt in enumerate(q.get("options", []))
+                                if isinstance(opt, dict)
+                            ],
+                            "answer": answer,
+                            "note": note,
                         })
+                    messages.append({"type": "interaction", "kind": "questions", "questions": out_questions})
                     continue
                 if name == "TodoWrite" or name.startswith("Task"):
                     if isinstance(bid, str):
