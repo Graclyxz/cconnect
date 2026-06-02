@@ -1,8 +1,6 @@
-- Added a quick chat — a draggable side panel for short, parallel questions that never touch the main turn, opened from a button in the toolbar
-- Added a /usage command that shows plan token usage for the 5-hour and weekly windows
-- Added visibility settings to control how thinking, tool calls, file changes and compaction appear — full, label, or off
-- Added a running spinner on tool and thinking blocks while they're still in progress
-- Added task-indicator restore when resuming a session
-- Changed tool blocks to fold their result inside the expandable block — input shown monospace, result as a code block
-- Changed text selection to a single scope per chat so tapping outside clears it everywhere
-- Fixed a crash when changing the app language
+- Added resilient chat — a running turn keeps going on the server if the connection drops, and reconnecting picks up where it left off and replays anything you missed
+- Added permissions and questions to the quick chat and made it survive reconnects like the main chat, with all its tool activity folded into a single working indicator
+- Added a connection indicator to the app bar — connecting, working, waiting for a reply, or idle — with a clear "Server unavailable" state instead of raw network errors, and disabled sending and commands while offline
+- Added a sticky header for expanded blocks so you can still collapse them after their header scrolls out of view
+- Changed the quick chat to push the main chat up as it expands instead of covering it
+- Changed MCP tools to show as "server: tool" and unified the look of the thinking, tool, result and diff blocks
