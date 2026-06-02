@@ -36,7 +36,7 @@
     <string name="add_ssh_host">Add SSH host</string>
     <string name="edit_ssh_host">Edit SSH host</string>
     <string name="delete_ssh_host_confirm">Delete the SSH host \"%1$s\"?</string>
-    <string name="no_ssh_hosts">No SSH hosts yet</string>
+    <string name="no_hosts">No hosts</string>
     <string name="ssh_name">Name</string>
     <string name="ssh_user">User</string>
     <string name="ssh_password">Password</string>
@@ -68,6 +68,7 @@
     <string name="reset_settings_summary">Restore default values (does not affect saved connections)</string>
     <string name="reset_settings_confirm">Restore all settings to their defaults? Saved connections are kept.</string>
     <string name="save">Save</string>
+    <string name="accept">Accept</string>
     <string name="back">Back</string>
 
     <!-- Chat -->
@@ -76,7 +77,7 @@
     <string name="files">Files</string>
     <string name="save_as">Save as…</string>
     <string name="share">Share</string>
-    <string name="empty_folder">Empty folder</string>
+    <string name="no_files">No files</string>
     <string name="delete_file_confirm">Delete \"%1$s\"?</string>
     <string name="new_session">New session</string>
     <string name="new_chat">New chat</string>
@@ -90,7 +91,7 @@
     <string name="cancel">Cancel</string>
     <string name="session_channel">Active session</string>
     <string name="session_active">Session active</string>
-    <string name="delete_conversation">Delete conversation?</string>
+    <string name="delete_conversation_confirm">Delete the conversation \"%1$s\"?</string>
     <string name="type_message">Type a message…</string>
     <string name="commands">Commands</string>
     <string name="quick_chat">Quick chat</string>

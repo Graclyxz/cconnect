@@ -9,7 +9,6 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -79,6 +78,7 @@ import com.composables.icons.lucide.SquarePen
 import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CustomIcons
+import com.jahirtrap.cconnect.ui.DropdownScrim
 import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.Stop
 import com.jahirtrap.cconnect.ui.theme.palette
@@ -91,7 +91,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialExpressiveTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -99,14 +98,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -229,15 +224,17 @@ fun ChatScreen(
     // Only manual scrolling changes this, so incoming content can't flip it before we react.
     var followBottom by remember { mutableStateOf(true) }
 
-    // Hidden while following so streaming doesn't flicker it; shows only well above the bottom.
+    // Hidden while following; otherwise shown once scrolled more than half the chat viewport above the bottom.
     val showScrollButton by remember {
         derivedStateOf {
             if (followBottom) return@derivedStateOf false
             val info = listState.layoutInfo
+            val viewportH = info.viewportEndOffset - info.viewportStartOffset
+            if (viewportH == 0) return@derivedStateOf false
             val last = info.visibleItemsInfo.lastOrNull() ?: return@derivedStateOf false
-            val viewportHeight = info.viewportEndOffset - info.viewportStartOffset
-            val itemsBelow = info.totalItemsCount - 1 - last.index
-            itemsBelow >= 2 || (last.offset + last.size) - info.viewportEndOffset > viewportHeight
+            val belowFold = if (last.index < info.totalItemsCount - 1) viewportH
+            else (last.offset + last.size) - info.viewportEndOffset
+            belowFold > viewportH / 2
         }
     }
 
@@ -611,8 +608,8 @@ fun ChatScreen(
     }
     deleteTarget?.let { s ->
         ConfirmDialog(
-            title = stringResource(R.string.delete_conversation),
-            text = s.title ?: s.preview ?: s.sessionId,
+            title = stringResource(R.string.delete),
+            text = stringResource(R.string.delete_conversation_confirm, s.title ?: s.preview ?: s.sessionId),
             confirmLabel = stringResource(R.string.delete),
             onConfirm = { vm.deleteSession(s); deleteTarget = null },
             onDismiss = { deleteTarget = null },
@@ -681,9 +678,8 @@ private fun SidePanel(
 ) {
     Surface(
         modifier = modifier,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        color = MaterialTheme.colorScheme.background,
         shape = RoundedCornerShape(topStart = topCorner, topEnd = topCorner),
-        tonalElevation = 2.dp,
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxWidth().then(headerModifier)) {
@@ -746,10 +742,12 @@ private fun SidePanel(
                 derivedStateOf {
                     if (followBottom) return@derivedStateOf false
                     val info = listState.layoutInfo
+                    val viewportH = info.viewportEndOffset - info.viewportStartOffset
+                    if (viewportH == 0) return@derivedStateOf false
                     val last = info.visibleItemsInfo.lastOrNull() ?: return@derivedStateOf false
-                    val viewportHeight = info.viewportEndOffset - info.viewportStartOffset
-                    val itemsBelow = info.totalItemsCount - 1 - last.index
-                    itemsBelow >= 2 || (last.offset + last.size) - info.viewportEndOffset > viewportHeight
+                    val belowFold = if (last.index < info.totalItemsCount - 1) viewportH
+                    else (last.offset + last.size) - info.viewportEndOffset
+                    belowFold > viewportH / 2
                 }
             }
             LaunchedEffect(listState) {
@@ -1043,9 +1041,11 @@ private fun SelectorChip(
             Spacer(Modifier.width(4.dp))
             Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
         }
+        if (open) DropdownScrim { open = false }
         DropdownMenu(
             expanded = open,
             onDismissRequest = { open = false },
+            properties = PopupProperties(focusable = false),
         ) {
             options.forEach { (value, display) ->
                 val style = optionStyle?.invoke(value)
@@ -1103,6 +1103,7 @@ private fun CommandMenuButton(
                 modifier = Modifier.size(20.dp),
             )
         }
+        if (open) DropdownScrim { open = false }
         val expanded = remember { MutableTransitionState(false) }
         expanded.targetState = open
         if (expanded.currentState || expanded.targetState) {
@@ -1110,7 +1111,7 @@ private fun CommandMenuButton(
             Popup(
                 popupPositionProvider = remember(gap) { AboveAnchorPositionProvider(gap) },
                 onDismissRequest = { open = false },
-                properties = PopupProperties(focusable = true),
+                properties = PopupProperties(focusable = false),
             ) {
                 val transition = rememberTransition(expanded, "DropDownMenu")
                 val scale by transition.animateFloat(
@@ -1369,7 +1370,7 @@ private fun ConversationRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 1.dp)
+            .padding(horizontal = 8.dp)
             .clip(RoundedCornerShape(20.dp))
             .then(if (selected) Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)) else Modifier)
             .combinedClickable(onClick = onOpen, onLongClick = { menu = true })

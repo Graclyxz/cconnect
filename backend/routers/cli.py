@@ -16,6 +16,11 @@ class CliSourceBody(BaseModel):
     custom_path: Optional[str] = None
 
 
+class CliUpdateBody(BaseModel):
+    source: Optional[str] = None
+    custom_path: Optional[str] = None
+
+
 @router.get("/cli")
 def get_cli():
     return api_response(data=cli_manager.status())
@@ -31,5 +36,6 @@ def set_cli(body: CliSourceBody):
 
 
 @router.post("/cli/update")
-def update_cli():
-    return api_response(data=cli_manager.update_cli())
+def update_cli(body: Optional[CliUpdateBody] = None):
+    body = body or CliUpdateBody()
+    return api_response(data=cli_manager.update_cli(body.source, body.custom_path))

@@ -36,7 +36,7 @@
     <string name="add_ssh_host">Agregar host SSH</string>
     <string name="edit_ssh_host">Editar host SSH</string>
     <string name="delete_ssh_host_confirm">¿Borrar el host SSH «%1$s»?</string>
-    <string name="no_ssh_hosts">Todavía no hay hosts SSH</string>
+    <string name="no_hosts">Sin hosts</string>
     <string name="ssh_name">Nombre</string>
     <string name="ssh_user">Usuario</string>
     <string name="ssh_password">Contraseña</string>
@@ -68,6 +68,7 @@
     <string name="reset_settings_summary">Restaura los valores predeterminados (no afecta a las conexiones guardadas)</string>
     <string name="reset_settings_confirm">¿Restablecer todos los ajustes a sus valores predeterminados? Las conexiones guardadas se conservan.</string>
     <string name="save">Guardar</string>
+    <string name="accept">Aceptar</string>
     <string name="back">Atrás</string>
 
     <!-- Chat -->
@@ -76,7 +77,7 @@
     <string name="files">Archivos</string>
     <string name="save_as">Guardar en…</string>
     <string name="share">Compartir</string>
-    <string name="empty_folder">Carpeta vacía</string>
+    <string name="no_files">Sin archivos</string>
     <string name="delete_file_confirm">¿Borrar «%1$s»?</string>
     <string name="new_session">Nueva sesión</string>
     <string name="new_chat">Nuevo chat</string>
@@ -90,7 +91,7 @@
     <string name="cancel">Cancelar</string>
     <string name="session_channel">Sesión activa</string>
     <string name="session_active">Sesión activa</string>
-    <string name="delete_conversation">¿Borrar conversación?</string>
+    <string name="delete_conversation_confirm">¿Borrar la conversación «%1$s»?</string>
     <string name="type_message">Escribe un mensaje…</string>
     <string name="commands">Comandos</string>
     <string name="quick_chat">Chat rápido</string>

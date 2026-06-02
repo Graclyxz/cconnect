@@ -260,19 +260,22 @@ def _is_type(line: str, type_name: str) -> bool:
 
 def _transcript_for_title(path: Path, max_chars: int = 2000) -> str:
     parts: list[str] = []
-    total = 0
     for entry in _iter_lines(path):
         if entry.get("type") not in ("user", "assistant"):
             continue
         text = _text_from_content(entry.get("message", {}).get("content"))
         if not text:
             continue
-        chunk = f"{entry.get('type')}: {text[:600]}"
-        parts.append(chunk)
-        total += len(chunk)
-        if total >= max_chars:
+        parts.append(f"{entry.get('type')}: {text[:600]}")
+    selected: list[str] = []
+    total = 0
+    for chunk in reversed(parts):
+        if selected and total + len(chunk) > max_chars:
             break
-    return "\n".join(parts)[:max_chars]
+        selected.append(chunk)
+        total += len(chunk)
+    selected.reverse()
+    return "\n".join(selected)[:max_chars]
 
 
 async def auto_generate_title(project_key: str, session_id: str) -> Optional[str]:

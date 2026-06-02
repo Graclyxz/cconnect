@@ -9,13 +9,11 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -29,8 +27,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,7 +41,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.composables.icons.lucide.ArrowLeft
@@ -68,6 +63,8 @@ import com.jahirtrap.cconnect.data.remote.SharedApi
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.ConfirmDialog
+import com.jahirtrap.cconnect.ui.EmptyState
+import com.jahirtrap.cconnect.ui.ListRow
 import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.theme.palette
@@ -87,6 +84,7 @@ fun FileExplorerScreen(onClose: () -> Unit) {
     var path by remember { mutableStateOf("") }
     var entries by remember { mutableStateOf<List<SharedEntry>>(emptyList()) }
     var loading by remember { mutableStateOf(false) }
+    var loaded by remember { mutableStateOf(false) }
     var refreshing by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<SharedEntry?>(null) }
@@ -108,11 +106,12 @@ fun FileExplorerScreen(onClose: () -> Unit) {
             val result = runCatching { SharedApi.list(path) }.getOrNull()
             failed = result == null
             entries = result ?: emptyList()
+            loaded = true
             loading = false
             refreshing = false
         }
     }
-    LaunchedEffect(state.activeConnectionId, path) { reload() }
+    LaunchedEffect(state.activeConnectionId, path) { loaded = false; entries = emptyList(); reload() }
     LaunchedEffect(state.connection) { if (state.connection == ConnectionState.Connected) reload() }
 
     fun goUp() {
@@ -157,17 +156,8 @@ fun FileExplorerScreen(onClose: () -> Unit) {
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             ) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    if (entries.isEmpty() && !loading) {
-                        item {
-                            Text(
-                                stringResource(R.string.empty_folder),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(20.dp),
-                            )
-                        }
-                    } else {
-                        items(entries, key = { it.name }) { entry ->
+                    when {
+                        entries.isNotEmpty() -> items(entries, key = { it.name }) { entry ->
                             EntryRow(
                                 entry = entry,
                                 onOpen = { if (entry.isDir) path = child(entry.name) },
@@ -183,6 +173,7 @@ fun FileExplorerScreen(onClose: () -> Unit) {
                                 onDelete = { deleting = entry },
                             )
                         }
+                        loaded -> item { EmptyState(stringResource(R.string.no_files), Modifier.fillParentMaxSize()) }
                     }
                 }
             }
@@ -266,60 +257,43 @@ private fun EntryRow(
     onDelete: () -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { if (entry.isDir) onOpen() else menu = true }
-            .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            if (entry.isDir) Lucide.Folder else Lucide.File,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(22.dp),
-        )
-        Spacer(Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(entry.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (!entry.isDir) {
-                Text(
-                    "${formatSize(entry.size)} • ${formatDate(entry.modified)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        Box {
-            IconButton(onClick = { menu = true }) {
-                Icon(Lucide.EllipsisVertical, contentDescription = null, modifier = Modifier.size(20.dp))
-            }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                if (!entry.isDir) {
+    ListRow(
+        icon = if (entry.isDir) Lucide.Folder else Lucide.File,
+        title = entry.name,
+        subtitle = if (!entry.isDir) "${formatSize(entry.size)} • ${formatDate(entry.modified)}" else null,
+        onClick = { if (entry.isDir) onOpen() else menu = true },
+        trailing = {
+            Box {
+                IconButton(onClick = { menu = true }, modifier = Modifier.size(40.dp)) {
+                    Icon(Lucide.EllipsisVertical, contentDescription = null, modifier = Modifier.size(22.dp))
+                }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    if (!entry.isDir) {
+                        CompactDropdownItem(
+                            text = stringResource(R.string.save),
+                            leadingIcon = { Icon(Lucide.Download, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                            onClick = { menu = false; onSave() },
+                        )
+                        CompactDropdownItem(
+                            text = stringResource(R.string.save_as),
+                            leadingIcon = { Icon(Lucide.Save, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                            onClick = { menu = false; onSaveAs() },
+                        )
+                        CompactDropdownItem(
+                            text = stringResource(R.string.share),
+                            leadingIcon = { Icon(Lucide.Share2, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                            onClick = { menu = false; onShare() },
+                        )
+                    }
                     CompactDropdownItem(
-                        text = stringResource(R.string.save),
-                        leadingIcon = { Icon(Lucide.Download, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                        onClick = { menu = false; onSave() },
-                    )
-                    CompactDropdownItem(
-                        text = stringResource(R.string.save_as),
-                        leadingIcon = { Icon(Lucide.Save, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                        onClick = { menu = false; onSaveAs() },
-                    )
-                    CompactDropdownItem(
-                        text = stringResource(R.string.share),
-                        leadingIcon = { Icon(Lucide.Share2, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                        onClick = { menu = false; onShare() },
+                        text = stringResource(R.string.delete),
+                        leadingIcon = { Icon(Lucide.Trash, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                        onClick = { menu = false; onDelete() },
                     )
                 }
-                CompactDropdownItem(
-                    text = stringResource(R.string.delete),
-                    leadingIcon = { Icon(Lucide.Trash, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                    onClick = { menu = false; onDelete() },
-                )
             }
-        }
-    }
+        },
+    )
 }
 
 private fun formatSize(bytes: Long): String {

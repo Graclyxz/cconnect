@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,7 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,13 +27,9 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -50,7 +44,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -65,12 +58,11 @@ import com.composables.icons.lucide.ChevronUp
 import com.composables.icons.lucide.Eraser
 import com.composables.icons.lucide.Keyboard
 import com.composables.icons.lucide.LogOut
+import com.composables.icons.lucide.CirclePlus
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Pause
 import com.composables.icons.lucide.Pencil
-import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.Square
-import com.composables.icons.lucide.SquareTerminal
 import com.composables.icons.lucide.Trash
 import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.R
@@ -79,6 +71,9 @@ import com.jahirtrap.cconnect.data.SshStore
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
+import com.jahirtrap.cconnect.ui.EmptyState
+import com.jahirtrap.cconnect.ui.InputField
+import com.jahirtrap.cconnect.ui.ListRow
 import com.jahirtrap.cconnect.ui.SecretTextField
 import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.TooltipIconButton
@@ -129,7 +124,7 @@ fun TerminalScreen(onClose: () -> Unit) {
                 },
                 actions = {
                     TooltipIconButton(label = stringResource(R.string.add_ssh_host), onClick = { adding = true }) {
-                        Icon(Lucide.Plus, contentDescription = null)
+                        Icon(Lucide.CirclePlus, contentDescription = null)
                     }
                 },
             )
@@ -137,31 +132,21 @@ fun TerminalScreen(onClose: () -> Unit) {
     ) { pad ->
         Column(modifier = Modifier.fillMaxSize().padding(pad)) {
             if (profiles.isEmpty()) {
-                Text(
-                    stringResource(R.string.no_ssh_hosts),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(20.dp),
-                )
+                EmptyState(stringResource(R.string.no_hosts), Modifier.fillMaxSize())
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
                     items(profiles, key = { it.id }) { p ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { active = p }
-                                .padding(start = 20.dp, end = 8.dp, top = 14.dp, bottom = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(iconForOs(p.os), contentDescription = null, tint = colorForOs(p.os) ?: MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-                            Spacer(Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(p.name.ifBlank { p.host }, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(p.address, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                            IconButton(onClick = { editing = p }, modifier = Modifier.size(36.dp)) { Icon(Lucide.Pencil, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                            IconButton(onClick = { deleting = p }, modifier = Modifier.size(36.dp)) { Icon(Lucide.Trash, contentDescription = stringResource(R.string.delete), modifier = Modifier.size(18.dp)) }
-                        }
+                        ListRow(
+                            icon = iconForOs(p.os),
+                            iconTint = colorForOs(p.os) ?: MaterialTheme.colorScheme.primary,
+                            title = p.name.ifBlank { p.host },
+                            subtitle = p.address,
+                            onClick = { active = p },
+                            trailing = {
+                                IconButton(onClick = { editing = p }, modifier = Modifier.size(40.dp)) { Icon(Lucide.Pencil, contentDescription = null, modifier = Modifier.size(22.dp)) }
+                                IconButton(onClick = { deleting = p }, modifier = Modifier.size(40.dp)) { Icon(Lucide.Trash, contentDescription = stringResource(R.string.delete), modifier = Modifier.size(22.dp)) }
+                            },
+                        )
                     }
                 }
             }
@@ -227,13 +212,13 @@ private fun SshEditDialog(
             ) { Text(stringResource(R.string.save)) }
         },
     ) {
-        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.ssh_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        InputField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.ssh_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Box(Modifier.height(8.dp))
-        OutlinedTextField(value = host, onValueChange = { host = it }, label = { Text(stringResource(R.string.host)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        InputField(value = host, onValueChange = { host = it }, label = { Text(stringResource(R.string.host)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Box(Modifier.height(8.dp))
-        OutlinedTextField(value = port, onValueChange = { port = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.port)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
+        InputField(value = port, onValueChange = { port = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.port)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
         Box(Modifier.height(8.dp))
-        OutlinedTextField(value = user, onValueChange = { user = it }, label = { Text(stringResource(R.string.ssh_user)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        InputField(value = user, onValueChange = { user = it }, label = { Text(stringResource(R.string.ssh_user)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Box(Modifier.height(8.dp))
         SecretTextField(
             value = password,

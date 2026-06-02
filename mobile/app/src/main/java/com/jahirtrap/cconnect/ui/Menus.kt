@@ -30,13 +30,13 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.Lucide
 
-// Shared, compact menu row used by every dropdown. A null onClick renders it
-// non-interactive (no ripple), for display-only rows like the task list.
 @Composable
 fun CompactDropdownItem(
     text: String,
@@ -94,18 +94,21 @@ fun SelectField(
                     .fillMaxWidth()
                     .onSizeChanged { fieldWidth = with(density) { it.width.toDp() } }
                     .clip(shape)
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
+                    .border(1.dp, if (open) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant, shape)
                     .clickable { open = true }
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(display, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                Icon(Lucide.ChevronDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                Text(display, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Spacer(Modifier.width(8.dp))
+                Icon(Lucide.ChevronDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
             }
+            if (open) DropdownScrim { open = false }
             DropdownMenu(
                 expanded = open,
                 onDismissRequest = { open = false },
                 modifier = Modifier.widthIn(min = fieldWidth),
+                properties = PopupProperties(focusable = false),
             ) {
                 options.forEach { (value, text) ->
                     CompactDropdownItem(text = text, selected = value == selected, onClick = { onSelect(value); open = false })

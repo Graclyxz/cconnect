@@ -41,9 +41,12 @@ object CliApi {
             if (customPath != null) put("custom_path", customPath)
         })?.jsonObject?.let(::parse)
 
-    // Returns the update outcome: ok flag + the CLI's own output to surface to the user.
-    suspend fun update(): Pair<Boolean, String> {
-        val o = Http.post("/cli/update")?.jsonObject ?: return false to "No response"
+    suspend fun update(source: String? = null, customPath: String? = null): Pair<Boolean, String> {
+        val body = buildJsonObject {
+            if (source != null) put("source", source)
+            if (customPath != null) put("custom_path", customPath)
+        }
+        val o = Http.post("/cli/update", body)?.jsonObject ?: return false to "No response"
         return (o["ok"]?.jsonPrimitive?.booleanOrNull ?: false) to (o["message"]?.jsonPrimitive?.contentOrNull.orEmpty())
     }
 }

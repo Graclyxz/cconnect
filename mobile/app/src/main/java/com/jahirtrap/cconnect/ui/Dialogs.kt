@@ -1,6 +1,5 @@
 package com.jahirtrap.cconnect.ui
 
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,7 +30,6 @@ import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -44,14 +42,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Download
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Save
@@ -78,7 +74,7 @@ fun CompactDialog(
             color = AlertDialogDefaults.containerColor,
             tonalElevation = AlertDialogDefaults.TonalElevation,
         ) {
-            Column(modifier = Modifier.heightIn(max = 560.dp).padding(vertical = 14.dp)) {
+            Column(modifier = Modifier.heightIn(max = 640.dp).padding(vertical = 14.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = if (titleTrailing != null) 8.dp else 20.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -146,7 +142,7 @@ fun RenameDialog(
             }
         },
     ) {
-        OutlinedTextField(
+        InputField(
             value = text,
             onValueChange = { text = it },
             maxLines = 2,
@@ -162,43 +158,31 @@ fun ColorDialog(
     selected: String?,
     onSelect: (String?) -> Unit,
     onDismiss: () -> Unit,
+    columns: Int = 5,
 ) {
+    var picked by remember { mutableStateOf(selected) }
     CompactDialog(
         onDismiss = onDismiss,
         title = stringResource(R.string.conversation_color),
-        buttons = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+        buttons = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            TextButton(onClick = { onSelect(picked); onDismiss() }) { Text(stringResource(R.string.save)) }
+        },
     ) {
         FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            maxItemsInEachRow = columns,
         ) {
-            Swatch(color = null, selected = selected == null) { onSelect(null); onDismiss() }
+            ColorSwatch(color = null, selected = picked == null, onClick = { picked = null }, icon = Lucide.X)
             colors.forEach { name ->
                 sessionColorOf(name)?.let { c ->
-                    Swatch(color = c, selected = selected == name) { onSelect(name); onDismiss() }
+                    ColorSwatch(color = c, selected = picked == name, onClick = { picked = name })
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun Swatch(color: Color?, selected: Boolean, onClick: () -> Unit) {
-    val ring = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant
-    val cornerRadius by animateDpAsState(if (selected) 12.dp else 18.dp, label = "swatch-shape")
-    val shape = RoundedCornerShape(cornerRadius)
-    Box(
-        modifier = Modifier
-            .size(36.dp)
-            .clip(shape)
-            .background(color ?: MaterialTheme.colorScheme.surfaceVariant)
-            .border(if (selected) 2.dp else 1.dp, ring, shape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        when {
-            color == null -> Icon(Lucide.X, contentDescription = stringResource(R.string.color_none), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            selected -> Icon(Lucide.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+            val remainder = (1 + colors.count { sessionColorOf(it) != null }) % columns
+            if (remainder != 0) repeat(columns - remainder) { Spacer(Modifier.size(40.dp)) }
         }
     }
 }
@@ -300,8 +284,11 @@ fun DialogSelectItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .then(if (selected) Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)) else Modifier)
             .clickable(onClick = onClick)
-            .padding(start = 20.dp, end = if (trailing != null) 8.dp else 20.dp, top = 10.dp, bottom = 10.dp),
+            .padding(start = 12.dp, end = if (trailing != null) 4.dp else 12.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val dotScale by animateFloatAsState(if (selected) 1f else 0f, label = "select-dot")
@@ -309,13 +296,17 @@ fun DialogSelectItem(
             modifier = Modifier.size(20.dp).clip(CircleShape).border(2.dp, ring, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Box(
-                modifier = Modifier.size(10.dp).scale(dotScale).clip(CircleShape).background(MaterialTheme.colorScheme.primary),
-            )
+            Box(Modifier.size(10.dp).scale(dotScale).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
         }
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             if (subtitle != null) Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,

@@ -50,13 +50,15 @@ def bundled_version() -> Optional[str]:
         return None
 
 
-def resolve_cli_path() -> Optional[str]:
-    """Path to pass as ClaudeAgentOptions.cli_path. None = let the SDK use its bundled CLI."""
-    source = get_source()
-    if source == "custom":
-        path = get_custom_path()
+def resolve_cli_path(source: Optional[str] = None, custom_path: Optional[str] = None) -> Optional[str]:
+    """Path to pass as ClaudeAgentOptions.cli_path. None = let the SDK use its bundled CLI.
+
+    Pass source/custom_path to resolve a specific (unsaved) selection instead of the stored one."""
+    src = source or get_source()
+    if src == "custom":
+        path = custom_path if custom_path is not None else get_custom_path()
         return path if path and Path(path).exists() else None
-    if source == "system":
+    if src == "system":
         return system_cli()
     return None
 
@@ -72,11 +74,14 @@ def cli_version(path: Optional[str]) -> Optional[str]:
     return result.stdout.strip() or None
 
 
-def update_cli() -> dict:
-    """Self-update the resolved CLI in place (`claude update`). Bundled can't update."""
-    if get_source() == "bundled":
+def update_cli(source: Optional[str] = None, custom_path: Optional[str] = None) -> dict:
+    """Self-update the resolved CLI in place (`claude update`). Bundled can't update.
+
+    Updates the given (unsaved) selection when provided, otherwise the stored source."""
+    src = source or get_source()
+    if src == "bundled":
         return {"ok": False, "message": "The bundled CLI can't be updated; switch to system."}
-    path = resolve_cli_path()
+    path = resolve_cli_path(source, custom_path)
     if not path:
         return {"ok": False, "message": "No CLI resolved for the current source."}
     try:

@@ -29,16 +29,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,7 +43,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -57,14 +53,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
-import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.History
 import com.composables.icons.lucide.Languages
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Palette
 import com.composables.icons.lucide.Pencil
-import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.ScanQrCode
 import com.composables.icons.lucide.Server
 import com.composables.icons.lucide.SquareTerminal
@@ -83,13 +77,18 @@ import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
 import com.jahirtrap.cconnect.data.remote.CliApi
 import com.jahirtrap.cconnect.data.remote.SettingsApi
 import kotlinx.coroutines.launch
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jahirtrap.cconnect.chat.ChatViewModel
+import com.jahirtrap.cconnect.chat.ConnectionState
+import com.jahirtrap.cconnect.ui.ActionButton
 import com.jahirtrap.cconnect.ui.AppTopBar
+import com.jahirtrap.cconnect.ui.ColorSwatch
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.ConfirmSelectDialog
-import com.jahirtrap.cconnect.ui.DialogActionItem
 import com.jahirtrap.cconnect.ui.DialogSelectItem
 import com.jahirtrap.cconnect.ui.SecretTextField
+import com.jahirtrap.cconnect.ui.InputField
 import com.jahirtrap.cconnect.ui.SelectDialog
 import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.TooltipIconButton
@@ -142,6 +141,7 @@ fun SettingsScreen(
     var loading by remember { mutableStateOf(Backend.isConfigured) }
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val chatState by viewModel<ChatViewModel>().state.collectAsState()
 
     suspend fun loadServerSettings() {
         if (!Backend.isConfigured) { serverReady = false; loading = false; cliInfo = null; return }
@@ -159,6 +159,13 @@ fun SettingsScreen(
     }
 
     LaunchedEffect(activeId, connections) { loadServerSettings() }
+    LaunchedEffect(chatState.connection) {
+        when (chatState.connection) {
+            ConnectionState.Connected -> loadServerSettings()
+            ConnectionState.Disconnected -> serverReady = false
+            else -> {}
+        }
+    }
 
     var dialog by remember { mutableStateOf<SettingsDialog?>(null) }
 
@@ -304,7 +311,7 @@ fun SettingsScreen(
         SettingsDialog.Reset -> ConfirmDialog(
             title = stringResource(R.string.reset_settings),
             text = stringResource(R.string.reset_settings_confirm),
-            confirmLabel = stringResource(R.string.reset_settings),
+            confirmLabel = stringResource(R.string.accept),
             onConfirm = {
                 settings.resetDefaults()
                 onThemeMode(settings.themeMode); onLanguage(settings.language)
@@ -393,30 +400,14 @@ private fun AccentDialog(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             maxItemsInEachRow = 5,
         ) {
-            Swatch(color = dynamicColor, selected = pickedDynamic, dynamic = true) { pickedDynamic = true }
+            ColorSwatch(color = dynamicColor, selected = pickedDynamic, onClick = { pickedDynamic = true }, icon = Lucide.Wand)
             ACCENTS.forEachIndexed { index, (_, color) ->
-                Swatch(color = color, selected = !pickedDynamic && index == pickedIndex, dynamic = false) {
-                    pickedDynamic = false; pickedIndex = index
-                }
+                ColorSwatch(
+                    color = color,
+                    selected = !pickedDynamic && index == pickedIndex,
+                    onClick = { pickedDynamic = false; pickedIndex = index },
+                )
             }
-        }
-    }
-}
-
-@Composable
-private fun Swatch(color: Color, selected: Boolean, dynamic: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(color)
-            .border(if (selected) 2.dp else 1.dp, if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outlineVariant, CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        when {
-            selected -> Icon(Lucide.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-            dynamic -> Icon(Lucide.Wand, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -466,7 +457,12 @@ private fun ConnectionsDialog(
                 },
             )
         }
-        DialogActionItem(stringResource(R.string.add_connection), Lucide.Plus) { adding = true }
+        Spacer(Modifier.height(8.dp))
+        ActionButton(
+            text = stringResource(R.string.add_connection),
+            onClick = { adding = true },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+        )
     }
 
     if (adding) {
@@ -585,10 +581,10 @@ private fun ConnectionEditDialog(
         )
         Spacer(Modifier.height(8.dp))
         val nameFocus = remember { FocusRequester() }
-        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.connection_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth().focusRequester(nameFocus))
+        InputField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.connection_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth().focusRequester(nameFocus))
         LaunchedEffect(focusName) { if (focusName) nameFocus.requestFocus() }
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
+        InputField(
             value = host,
             onValueChange = { input ->
                 val parsed = parseHostInput(input)
@@ -606,7 +602,7 @@ private fun ConnectionEditDialog(
         )
         Spacer(Modifier.height(8.dp))
         if (kind == "http") {
-            OutlinedTextField(value = port, onValueChange = { port = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.port)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
+            InputField(value = port, onValueChange = { port = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.port)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(8.dp))
         }
         SelectField(
@@ -624,18 +620,18 @@ private fun ConnectionEditDialog(
         when (authKind) {
             "bearer" -> SecretTextField(value = authToken, onValueChange = { authToken = it }, label = stringResource(R.string.connection_token), modifier = Modifier.fillMaxWidth())
             "basic" -> {
-                OutlinedTextField(value = authUser, onValueChange = { authUser = it }, label = { Text(stringResource(R.string.auth_user)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                InputField(value = authUser, onValueChange = { authUser = it }, label = { Text(stringResource(R.string.auth_user)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 SecretTextField(value = authPassword, onValueChange = { authPassword = it }, label = stringResource(R.string.auth_password), modifier = Modifier.fillMaxWidth())
             }
             "header" -> {
-                OutlinedTextField(value = authHeaderName, onValueChange = { authHeaderName = it }, label = { Text(stringResource(R.string.auth_header_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                InputField(value = authHeaderName, onValueChange = { authHeaderName = it }, label = { Text(stringResource(R.string.auth_header_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 SecretTextField(value = authHeaderValue, onValueChange = { authHeaderValue = it }, label = stringResource(R.string.auth_header_value), modifier = Modifier.fillMaxWidth())
             }
         }
         if (authKind != "none") Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
+        InputField(
             value = directory,
             onValueChange = { directory = it },
             label = { Text(stringResource(R.string.connection_directory)) },
@@ -758,8 +754,7 @@ private fun CliDialog(
         }
         src to (labelFor(src) + (version?.let { " - $it" } ?: ""))
     }
-    // Update targets the saved/active CLI, not the unsaved dropdown selection.
-    val canUpdate = info.source != "bundled"
+    val canUpdate = source != "bundled"
 
     CompactDialog(
         onDismiss = onDismiss,
@@ -777,7 +772,7 @@ private fun CliDialog(
         SelectField(stringResource(R.string.cli_source), source, sourceOptions) { source = it }
         if (source == "custom") {
             Spacer(Modifier.height(10.dp))
-            OutlinedTextField(
+            InputField(
                 value = customPath,
                 onValueChange = { customPath = it },
                 label = { Text(stringResource(R.string.cli_custom_path)) },
@@ -785,28 +780,21 @@ private fun CliDialog(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        Spacer(Modifier.height(12.dp))
-        Text(
-            info.activeVersion ?: "—",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         if (canUpdate) {
-            Spacer(Modifier.height(10.dp))
-            OutlinedButton(
+            Spacer(Modifier.height(12.dp))
+            ActionButton(
+                text = if (updating) stringResource(R.string.cli_updating) else stringResource(R.string.cli_update),
                 onClick = {
                     scope.launch {
                         updating = true
-                        CliApi.update()
+                        CliApi.update(source, customPath.trim().ifBlank { null })
                         CliApi.status()?.let(onChanged)
                         updating = false
                     }
                 },
                 enabled = !updating,
                 modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(if (updating) stringResource(R.string.cli_updating) else stringResource(R.string.cli_update))
-            }
+            )
         }
     }
 }
