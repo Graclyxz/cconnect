@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from core.config import COLORS
 from core.responses import api_response
+from services import rewind as rewind_service
 from services import sessions as sessions_service
 
 router = APIRouter(tags=["Sessions"])
@@ -88,6 +89,53 @@ def get_sessions(project: Optional[str] = None):
         return api_response(data=items)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+class RewindPreviewBody(BaseModel):
+    project: str
+    user_message_id: str
+
+
+class RewindBody(BaseModel):
+    project: str
+    user_message_id: str
+    rewind_id: str
+    mode: str  # "both" (code + conversation) | "conversation"
+
+
+def _session_cwd(project: str, session_id: str) -> str:
+    cwd = sessions_service.session_cwd(project, session_id)
+    if not cwd:
+        raise HTTPException(status_code=404, detail="session not found")
+    return cwd
+
+
+@router.get("/sessions/{session_id}/checkpoints")
+def get_session_checkpoints(session_id: str, project: str):
+    try:
+        return api_response(data=sessions_service.list_checkpoints(project, session_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/sessions/{session_id}/rewind/preview")
+async def rewind_preview(session_id: str, body: RewindPreviewBody):
+    cwd = _session_cwd(body.project, session_id)
+    return api_response(data=await rewind_service.preview(cwd, session_id, body.user_message_id))
+
+
+@router.post("/sessions/{session_id}/rewind")
+async def rewind_session(session_id: str, body: RewindBody):
+    if body.mode not in ("both", "conversation"):
+        raise HTTPException(status_code=400, detail="invalid mode")
+    cwd = _session_cwd(body.project, session_id)
+    result: dict = {"can_rewind": True}
+    if body.mode == "both":
+        result = await rewind_service.rewind_code(cwd, session_id, body.user_message_id)
+        if not result.get("can_rewind"):
+            raise HTTPException(status_code=409, detail=result.get("error") or "cannot rewind files")
+    rewind_service.set_pending(session_id, body.rewind_id)
+    return api_response(data=result)
 
 
 @router.get("/sessions/{session_id}/messages")

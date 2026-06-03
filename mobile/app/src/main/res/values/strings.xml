@@ -84,6 +84,12 @@
     <string name="delete_file_confirm">Delete \"%1$s\"?</string>
     <string name="new_session">New session</string>
     <string name="new_chat">New chat</string>
+    <string name="rewind">Rewind</string>
+    <string name="rewind_empty">No rewind points</string>
+    <string name="rewind_both">Restore code and conversation</string>
+    <string name="rewind_conversation">Restore conversation only</string>
+    <string name="rewind_no_checkpoint">No file checkpoint for this message</string>
+    <string name="rewind_files_count">%1$d files</string>
     <string name="tasks">Tasks</string>
     <string name="all_projects">All projects</string>
     <string name="rename">Rename</string>

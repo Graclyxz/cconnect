@@ -144,6 +144,56 @@ object SessionsApi {
         )
     }
 
+    data class RewindPoint(
+        val id: String,
+        val rewindId: String,
+        val text: String,
+    )
+
+    data class RewindPreview(
+        val canRewind: Boolean,
+        val error: String?,
+        val filesChanged: List<String>,
+        val insertions: Int,
+        val deletions: Int,
+    )
+
+    suspend fun checkpoints(sessionId: String, project: String): List<RewindPoint> =
+        Http.get("/sessions/$sessionId/checkpoints", mapOf("project" to project))?.jsonArray?.mapNotNull { el ->
+            val o = el.jsonObject
+            RewindPoint(
+                id = o["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                rewindId = o["rewind_id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                text = o["text"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+            )
+        } ?: emptyList()
+
+    private fun parseRewindResult(el: JsonElement?): RewindPreview? {
+        val o = el?.jsonObject ?: return null
+        return RewindPreview(
+            canRewind = o["can_rewind"]?.jsonPrimitive?.booleanOrNull == true,
+            error = o["error"]?.jsonPrimitive?.contentOrNull,
+            filesChanged = o["files_changed"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList(),
+            insertions = o["insertions"]?.jsonPrimitive?.intOrNull ?: 0,
+            deletions = o["deletions"]?.jsonPrimitive?.intOrNull ?: 0,
+        )
+    }
+
+    suspend fun rewindPreview(sessionId: String, project: String, userMessageId: String): RewindPreview? =
+        parseRewindResult(Http.post("/sessions/$sessionId/rewind/preview", buildJsonObject {
+            put("project", project)
+            put("user_message_id", userMessageId)
+        }))
+
+    // mode: "both" (code + conversation) or "conversation".
+    suspend fun rewind(sessionId: String, project: String, point: RewindPoint, mode: String): RewindPreview? =
+        parseRewindResult(Http.post("/sessions/$sessionId/rewind", buildJsonObject {
+            put("project", project)
+            put("user_message_id", point.id)
+            put("rewind_id", point.rewindId)
+            put("mode", mode)
+        }))
+
     suspend fun deleteSession(sessionId: String, project: String): Boolean =
         Http.delete("/sessions/$sessionId", mapOf("project" to project)) != null
 

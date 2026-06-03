@@ -307,6 +307,13 @@ def delete_session(project_key: str, session_id: str) -> bool:
     return True
 
 
+def session_cwd(project_key: str, session_id: str) -> Optional[str]:
+    file = _session_file(project_key, session_id)
+    if not file.is_file():
+        return None
+    return _read_cwd(file)
+
+
 def _parse_ask_result(content: object, qtexts: list[str]) -> dict[str, tuple[str, str]]:
     """Parse an AskUserQuestion tool_result into {question: (answer, note)}."""
     from services.claude_runtime import _flatten_result_content
@@ -462,11 +469,94 @@ def latest_compact(cwd: str, session_id: str) -> Optional[dict]:
     }
 
 
+def _active_entries(entries: list[dict], session_id: str) -> list[dict]:
+    """Only the transcript's active branch: rewound turns append as siblings, so walk
+    parentUuid (logicalParentUuid across compacts) back from the last entry, like the
+    CLI does. A pending (not yet branched) rewind truncates at its anchor instead."""
+    from services import rewind
+
+    anchor = rewind.get_pending(session_id)
+    if anchor is not None:
+        idx = next((i for i, e in enumerate(entries) if e.get("uuid") == anchor), None)
+        if idx is not None:
+            entries = entries[: idx + 1]
+
+    by_uuid: dict[str, dict] = {}
+    child_count: dict[str, int] = {}
+    leaf = None
+    for e in entries:
+        u = e.get("uuid")
+        if not u or e.get("isSidechain"):
+            continue
+        by_uuid[u] = e
+        parent = e.get("parentUuid") or e.get("logicalParentUuid")
+        if parent:
+            child_count[parent] = child_count.get(parent, 0) + 1
+        leaf = e
+    if leaf is None or all(c < 2 for c in child_count.values()):
+        return entries
+    active: set[str] = set()
+    cur = leaf
+    while cur is not None:
+        u = cur.get("uuid")
+        if u in active:
+            break
+        active.add(u)
+        parent = cur.get("parentUuid") or cur.get("logicalParentUuid")
+        cur = by_uuid.get(parent) if parent else None
+    return [e for e in entries if not e.get("uuid") or e.get("isSidechain") or e.get("uuid") in active]
+
+
+def list_checkpoints(project_key: str, session_id: str) -> list[dict]:
+    """Rewind points: each real user prompt on the active branch. `id` rewinds files;
+    `rewind_id` is the previous assistant TEXT entry (--resume-session-at accepts only
+    those), which is why the first prompt is omitted."""
+    file = _session_file(project_key, session_id)
+    if not file.is_file():
+        return []
+    entries = _active_entries(list(_iter_lines(file)), session_id)
+    points: list[dict] = []
+    last_anchor: Optional[str] = None
+    for entry in entries:
+        etype = entry.get("type")
+        if entry.get("isMeta") or entry.get("isSidechain") or entry.get("isCompactSummary"):
+            continue
+        uuid = entry.get("uuid")
+        content = entry.get("message", {}).get("content")
+        if etype == "assistant" and uuid and isinstance(content, list):
+            if any(isinstance(b, dict) and b.get("type") == "text" and (b.get("text") or "").strip() for b in content):
+                last_anchor = uuid
+            continue
+        if etype != "user" or not uuid:
+            continue
+        if isinstance(content, str):
+            text = content.strip()
+        elif isinstance(content, list):
+            if any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content):
+                continue
+            text = "\n".join(
+                b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"
+            ).strip()
+        else:
+            continue
+        if not text or _COMMAND_META_RE.search(text) or _INTERRUPT_RE.match(text):
+            continue
+        if last_anchor is None:
+            continue
+        points.append({
+            "id": uuid,
+            "rewind_id": last_anchor,
+            "text": text[:300],
+            "ts": entry.get("timestamp"),
+        })
+    return points
+
+
 def get_session_messages(project_key: str, session_id: str) -> list[dict]:
     file = _session_file(project_key, session_id)
     if not file.is_file():
         return []
-    entries = list(_iter_lines(file))
+    entries = _active_entries(list(_iter_lines(file)), session_id)
     # AskUserQuestion answers live in the tool_result, not in the tool_use input.
     tool_result_by_id: dict[str, object] = {}
     for entry in entries:

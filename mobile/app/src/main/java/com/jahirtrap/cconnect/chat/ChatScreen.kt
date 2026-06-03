@@ -156,10 +156,20 @@ import com.jahirtrap.cconnect.data.pending
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.TodoItem
 import com.jahirtrap.cconnect.files.FileTransfer
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import com.composables.icons.lucide.FileCode
+import com.composables.icons.lucide.History
+import com.composables.icons.lucide.MessageSquare
+import com.jahirtrap.cconnect.data.remote.SessionsApi
 import com.jahirtrap.cconnect.ui.ColorDialog
+import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmSelectDialog
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.ConfirmDialog
+import com.jahirtrap.cconnect.ui.DialogActionItem
 import com.jahirtrap.cconnect.ui.LANGUAGE_TAGS
 import com.jahirtrap.cconnect.ui.RenameDialog
 import com.jahirtrap.cconnect.ui.SelectDialog
@@ -402,6 +412,27 @@ fun ChatScreen(
                             },
                             actions = {
                                 TaskIndicator(todos = state.todos)
+                                if (state.sessionId != null && !state.streaming) {
+                                    Box {
+                                        var rewindMenu by remember { mutableStateOf(false) }
+                                        TooltipIconButton(
+                                            label = stringResource(R.string.rewind),
+                                            onClick = { vm.loadRewindPoints(); rewindMenu = true },
+                                        ) { Icon(Lucide.History, contentDescription = null) }
+                                        DropdownMenu(expanded = rewindMenu, onDismissRequest = { rewindMenu = false }) {
+                                            when {
+                                                state.rewindLoading -> CompactDropdownItem(text = stringResource(R.string.loading))
+                                                state.rewindPoints.isEmpty() -> CompactDropdownItem(text = stringResource(R.string.rewind_empty))
+                                                else -> state.rewindPoints.asReversed().forEach { point ->
+                                                    CompactDropdownItem(
+                                                        text = point.text.replace('\n', ' ').take(60),
+                                                        onClick = { rewindMenu = false; vm.selectRewindPoint(point) },
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                                 TooltipIconButton(
                                     label = stringResource(R.string.new_session),
                                     onClick = { vm.newSession() },
@@ -414,6 +445,9 @@ fun ChatScreen(
                     val sideActive = state.sideChatOpen && sc != null
                     var mainDraft by rememberSaveable { mutableStateOf("") }
                     var sideDraft by rememberSaveable { mutableStateOf("") }
+                    LaunchedEffect(state.pendingInput) {
+                        state.pendingInput?.let { mainDraft = it; vm.consumePendingInput() }
+                    }
                     val composerFocus = remember { FocusRequester() }
                     val expansion = remember { Animatable(0f) }
                     val peek = 0.58f
@@ -697,6 +731,84 @@ fun ChatScreen(
                 externalLink = null
             },
             onDismiss = { externalLink = null },
+        )
+    }
+    state.rewindTarget?.let { target ->
+        RewindDialog(
+            message = target.text,
+            preview = state.rewindPreview,
+            busy = state.rewindBusy,
+            onBoth = { vm.confirmRewind(both = true) },
+            onConversationOnly = { vm.confirmRewind(both = false) },
+            onDismiss = { vm.dismissRewind() },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun RewindDialog(
+    message: String,
+    preview: SessionsApi.RewindPreview?,
+    busy: Boolean,
+    onBoth: () -> Unit,
+    onConversationOnly: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    CompactDialog(
+        onDismiss = { if (!busy) onDismiss() },
+        title = stringResource(R.string.rewind),
+        contentPadding = PaddingValues(0.dp),
+        buttons = { TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.cancel)) } },
+    ) {
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 20.dp),
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
+        ) {
+            when {
+                busy || preview == null -> {
+                    LoadingIndicator(modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.loading), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+
+                preview.canRewind -> Text(
+                    text = buildAnnotatedString {
+                        withStyle(SpanStyle(color = palette.green)) { append("+${preview.insertions}") }
+                        append(" ")
+                        withStyle(SpanStyle(color = palette.red)) { append("−${preview.deletions}") }
+                        append(" · " + stringResource(R.string.rewind_files_count, preview.filesChanged.size))
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+
+                else -> Text(
+                    text = stringResource(R.string.rewind_no_checkpoint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        DialogActionItem(
+            text = stringResource(R.string.rewind_both),
+            icon = Lucide.FileCode,
+            enabled = !busy && preview?.canRewind == true,
+            onClick = onBoth,
+        )
+        DialogActionItem(
+            text = stringResource(R.string.rewind_conversation),
+            icon = Lucide.MessageSquare,
+            enabled = !busy,
+            onClick = onConversationOnly,
         )
     }
 }

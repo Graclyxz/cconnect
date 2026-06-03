@@ -77,6 +77,12 @@ data class ChatUiState(
     val sideChatOpen: Boolean = false,               // whether the side panel is currently shown
     val showWorking: String = "label",               // quick-chat working indicator visibility (label/off)
     val pendingToolIds: Set<String> = emptySet(),    // tools still running (tool_use seen, no result yet)
+    val rewindPoints: List<SessionsApi.RewindPoint> = emptyList(),
+    val rewindLoading: Boolean = false,
+    val rewindTarget: SessionsApi.RewindPoint? = null,
+    val rewindPreview: SessionsApi.RewindPreview? = null,
+    val rewindBusy: Boolean = false,
+    val pendingInput: String? = null,                // rewound prompt to restore into the composer
 )
 
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
@@ -372,6 +378,80 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val proj = s.activeProjectKey ?: return
         _state.update { it.copy(transcriptLoading = true) }
         client.sendLoadHistory(sid, proj, beforeIndex = before)
+    }
+
+    private fun currentProjectKey(): String? =
+        _state.value.activeProjectKey
+            ?: settings.cwd.takeIf { it.isNotBlank() }?.replace(Regex("[^A-Za-z0-9]"), "-")
+
+    fun loadRewindPoints() {
+        val sid = _state.value.sessionId ?: return
+        val proj = currentProjectKey() ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(rewindLoading = true) }
+            val points = SessionsApi.checkpoints(sid, proj)
+            _state.update { it.copy(rewindPoints = points, rewindLoading = false) }
+        }
+    }
+
+    fun selectRewindPoint(point: SessionsApi.RewindPoint) {
+        val sid = _state.value.sessionId ?: return
+        val proj = currentProjectKey() ?: return
+        _state.update { it.copy(rewindTarget = point, rewindPreview = null) }
+        viewModelScope.launch {
+            val preview = SessionsApi.rewindPreview(sid, proj, point.id)
+            _state.update { if (it.rewindTarget?.id == point.id) it.copy(rewindPreview = preview) else it }
+        }
+    }
+
+    fun dismissRewind() {
+        _state.update { it.copy(rewindTarget = null, rewindPreview = null, rewindBusy = false) }
+    }
+
+    fun confirmRewind(both: Boolean) {
+        val s = _state.value
+        val sid = s.sessionId ?: return
+        val proj = currentProjectKey() ?: return
+        val point = s.rewindTarget ?: return
+        if (s.rewindBusy) return
+        _state.update { it.copy(rewindBusy = true) }
+        viewModelScope.launch {
+            val result = SessionsApi.rewind(sid, proj, point, if (both) "both" else "conversation")
+            if (result == null) {
+                _state.update { it.copy(rewindBusy = false) }
+                return@launch
+            }
+            reloadConversation()
+            _state.update { it.copy(rewindTarget = null, rewindPreview = null, rewindBusy = false, pendingInput = point.text) }
+        }
+    }
+
+    fun consumePendingInput() {
+        _state.update { it.copy(pendingInput = null) }
+    }
+
+    private suspend fun reloadConversation() {
+        val s = _state.value
+        val sid = s.sessionId ?: return
+        val proj = currentProjectKey() ?: return
+        val page = SessionsApi.sessionMessages(sid, proj, limit = 100)
+        val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly }
+        val loaded = visible.mapIndexed { i, m ->
+            ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result)
+        }
+        nextId = loaded.size.toLong()
+        currentAssistantId = null
+        currentThinkingId = null
+        _state.update {
+            it.copy(
+                messages = loaded,
+                todos = emptyList(),
+                oldestLoadedIndex = page.startIndex.takeIf { page.items.isNotEmpty() },
+                transcriptLoading = false,
+                transcriptExhausted = !page.hasMore,
+                pendingToolIds = emptySet(),
+            )
+        }
     }
 
     fun deleteSession(session: SessionInfo) {

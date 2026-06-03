@@ -17,6 +17,7 @@ from pydantic import ValidationError
 
 from core.config import DEFAULT_CWD, PUBLIC_ACCESS_TOKEN, permission_modes
 from schemas.chat import PromptMessage, SetPermissionMessage, StartMessage
+from services import rewind as rewind_service
 from services import sessions as sessions_service
 from services import settings_store
 from services.claude_runtime import run_prompt
@@ -65,11 +66,14 @@ def _build_turn_runner(state: _Session, text: str):
                 sessions_service.local_command_count(state.cwd, state.session_id)
                 if is_local_cmd and state.cwd and state.session_id else 0
             )
+            resumed_sid = state.session_id
+            resume_at = rewind_service.get_pending(resumed_sid)
             async for event in run_prompt(
                 prompt=text,
                 cwd=state.cwd,
                 permission_mode=state.permission_mode,
                 resume=state.session_id,
+                resume_at=resume_at,
                 fork=state.fork,
                 model=_resolve_model(settings_store.get("model")),
                 effort=settings_store.get("effort"),
@@ -83,6 +87,8 @@ def _build_turn_runner(state: _Session, text: str):
                 if event.get("type") == "result" and event.get("session_id"):
                     state.session_id = event["session_id"]
                     state.fork = False
+                    if resume_at and not event.get("is_error"):
+                        rewind_service.clear_pending(resumed_sid)
                     if state.cwd:
                         sessions_service.record_prompt_history(state.cwd, state.session_id, text)
                 yield event

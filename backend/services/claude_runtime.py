@@ -341,6 +341,7 @@ async def run_prompt(
     cwd: str,
     permission_mode: str = "default",
     resume: Optional[str] = None,
+    resume_at: Optional[str] = None,
     fork: bool = False,
     model: Optional[str] = None,
     effort: str = "max",
@@ -365,6 +366,8 @@ async def run_prompt(
     ultracode = effort == "ultracode"
     effort_level = "xhigh" if ultracode else (None if effort in (None, "", "default") else effort)
     extra_args = {"name": name} if name else {}
+    if resume and resume_at:
+        extra_args["resume-session-at"] = resume_at
 
     system_prompt: dict = {"type": "preset", "preset": "claude_code"}
     append = _agent_append(base_url)
@@ -385,6 +388,7 @@ async def run_prompt(
         extra_args=extra_args,
         mcp_servers={"cconnect": build_cconnect_server()},
         cli_path=cli_manager.resolve_cli_path(),
+        enable_file_checkpointing=True,
     )
     if ultracode:
         options_kwargs["settings"] = json.dumps({"ultracode": True})
