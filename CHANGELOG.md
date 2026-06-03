@@ -1,6 +1,5 @@
-- Added resilient chat — a running turn keeps going on the server if the connection drops, and reconnecting picks up where it left off and replays anything you missed
-- Added permissions and questions to the quick chat and made it survive reconnects like the main chat, with all its tool activity folded into a single working indicator
-- Added a connection indicator to the app bar — connecting, working, waiting for a reply, or idle — with a clear "Server unavailable" state instead of raw network errors, and disabled sending and commands while offline
-- Added a sticky header for expanded blocks so you can still collapse them after their header scrolls out of view
-- Changed the quick chat to push the main chat up as it expands instead of covering it
-- Changed MCP tools to show as "server: tool" and unified the look of the thinking, tool, result and diff blocks
+- Added inline images in chat — markdown images render right in the conversation, whether they come from the app's shared files or an external link, scaled to fit the screen and tappable to save or share
+- Added a grouped question card — answer all of Claude's questions in one place and submit together, swipe between them, preview each option with its description, select multiple, type your own answer, attach notes, or choose to discuss it with Claude instead
+- Added a redesigned app icon
+- Added UX refinements across the app — file save and share actions with empty states in the browser, plus cleaner, more consistent inputs, dialogs and menus
+- Changed the CLI self-update to run against the source and path you have selected, so you can update one before saving it
