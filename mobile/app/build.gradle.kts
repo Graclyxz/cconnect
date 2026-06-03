@@ -96,6 +96,8 @@ dependencies {
     implementation(libs.commonmark.ext.footnotes)
     implementation(libs.commonmark.ext.autolink)
     implementation(libs.commonmark.ext.ins)
+    implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -24,7 +24,9 @@ object FileTransfer {
             .setMimeType(mimeOf(filename))
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
-        Backend.authHeaders.forEach { (name, value) -> request.addRequestHeader(name, value) }
+        if (url.startsWith(Backend.baseUrl)) {
+            Backend.authHeaders.forEach { (name, value) -> request.addRequestHeader(name, value) }
+        }
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         manager.enqueue(request)
     }
@@ -57,7 +59,9 @@ object FileTransfer {
 
     private fun authorizedRequest(url: String): Request {
         val builder = Request.Builder().url(url)
-        Backend.authHeaders.forEach { (name, value) -> builder.header(name, value) }
+        if (url.startsWith(Backend.baseUrl)) {
+            Backend.authHeaders.forEach { (name, value) -> builder.header(name, value) }
+        }
         return builder.build()
     }
 

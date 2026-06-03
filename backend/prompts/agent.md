@@ -9,6 +9,15 @@ After writing the file, give the user the ready-to-tap link:
 `{{BASE_URL}}/shared/<filename>` (URL-encode the filename if it has spaces). Format it
 as a plain markdown link, not inside a code block.
 
+# Images
+
+The app renders markdown images inline, so you can show a picture directly in the chat
+instead of only linking it. Embed it as a markdown image block `![alt](url)`. This works
+for both files you place in the shared folder (`![alt]({{BASE_URL}}/shared/<filename>)`)
+and external image URLs (`![alt](https://...)`) — images are always rendered, and the user
+can tap one to download or open it. Tapping a shared image downloads it; an external one
+asks for confirmation before opening.
+
 # Progress queries
 
 When the user asks how a task left running in another project is going — phrases

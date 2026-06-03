@@ -1,10 +1,13 @@
 package com.jahirtrap.cconnect.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -21,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -28,32 +32,42 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import coil3.compose.AsyncImagePainter
+import coil3.compose.rememberAsyncImagePainter
+import coil3.request.ImageRequest
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Copy
 import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.File
+import com.composables.icons.lucide.ImageOff
 import com.composables.icons.lucide.Lucide
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.text.AnnotatedString
@@ -70,6 +84,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import android.net.Uri
+import com.jahirtrap.cconnect.data.remote.AppImageLoader
 import com.jahirtrap.cconnect.data.remote.Backend
 import org.commonmark.ext.autolink.AutolinkExtension
 import org.commonmark.ext.footnotes.FootnoteDefinition
@@ -148,7 +163,10 @@ fun MarkdownText(
             }
         }
     }
-    CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+    CompositionLocalProvider(
+        LocalUriHandler provides uriHandler,
+        LocalImageDownload provides onSharedLink,
+    ) {
         if (selectable) {
             SelectionContainer(modifier = modifier) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -162,6 +180,8 @@ fun MarkdownText(
         }
     }
 }
+
+internal val LocalImageDownload = staticCompositionLocalOf<((url: String, filename: String) -> Unit)?> { null }
 
 @Composable
 private fun Blocks(parent: Node, codeBg: Color, linkColor: Color, depth: Int) {
@@ -198,11 +218,7 @@ private fun RenderNode(node: Node, codeBg: Color, linkColor: Color, depth: Int) 
             }).copy(fontWeight = FontWeight.Bold),
         )
 
-        is Paragraph -> MdText(
-            text = inline(node, linkColor, codeBg),
-            codeBg = codeBg,
-            style = MaterialTheme.typography.bodyMedium,
-        )
+        is Paragraph -> ParagraphBlock(node, codeBg, linkColor)
 
         is FencedCodeBlock -> CodeBlock(node.literal, codeBg, node.info?.trim()?.lowercase().orEmpty())
         is IndentedCodeBlock -> CodeBlock(node.literal, codeBg, "")
@@ -220,6 +236,103 @@ private fun RenderNode(node: Node, codeBg: Color, linkColor: Color, depth: Int) 
             Column { Blocks(node, codeBg, linkColor, depth) }
         }
     }
+}
+
+@Composable
+private fun ParagraphBlock(node: Node, codeBg: Color, linkColor: Color) {
+    val children = remember(node) {
+        buildList { var c = node.firstChild; while (c != null) { add(c); c = c.next } }
+    }
+    if (children.none { imageOf(it) != null }) {
+        MdText(inline(node, linkColor, codeBg), codeBg, style = MaterialTheme.typography.bodyMedium)
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        val run = ArrayList<Node>()
+        for (c in children) {
+            val image = imageOf(c)
+            if (image != null) {
+                if (run.isNotEmpty()) {
+                    val text = inlineOf(run, linkColor, codeBg)
+                    if (text.isNotBlank()) MdText(text, codeBg, style = MaterialTheme.typography.bodyMedium)
+                    run.clear()
+                }
+                MarkdownImage(url = image.first, alt = image.second, linkColor = linkColor)
+            } else run.add(c)
+        }
+        if (run.isNotEmpty()) {
+            val text = inlineOf(run, linkColor, codeBg)
+            if (text.isNotBlank()) MdText(text, codeBg, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+private fun MarkdownImage(url: String, alt: String, linkColor: Color) {
+    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
+    val download = LocalImageDownload.current
+    val loader = remember { AppImageLoader.get(context) }
+    val resolved = remember(url) {
+        when {
+            url.startsWith("http://") || url.startsWith("https://") -> url
+            url.startsWith("/") -> Backend.baseUrl.removeSuffix("/api") + url
+            else -> url
+        }
+    }
+    val onTap = {
+        if (download != null) download(resolved, filenameFromUrl(resolved)) else uriHandler.openUri(resolved)
+    }
+    val painter = rememberAsyncImagePainter(
+        model = ImageRequest.Builder(context).data(resolved).build(),
+        imageLoader = loader,
+    )
+    val state by painter.state.collectAsState()
+    val shape = RoundedCornerShape(6.dp)
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val maxSide = maxWidth
+        when (state) {
+            is AsyncImagePainter.State.Success -> {
+                val sz = painter.intrinsicSize
+                val aspect = if (sz.isSpecified && sz.height > 0f) sz.width / sz.height else 1f
+                val imageModifier = if (aspect >= 1f) {
+                    Modifier.fillMaxWidth().aspectRatio(aspect)
+                } else {
+                    Modifier.height(maxSide).aspectRatio(aspect)
+                }
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Image(
+                        painter = painter,
+                        contentDescription = alt.ifBlank { null },
+                        contentScale = ContentScale.Fit,
+                        modifier = imageModifier.clip(shape).clickable(onClick = onTap),
+                    )
+                }
+            }
+
+            is AsyncImagePainter.State.Error -> Row(
+                modifier = Modifier.fillMaxWidth().clip(shape).clickable(onClick = onTap).padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Lucide.ImageOff, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    text = alt.ifBlank { resolved },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            else -> Box(Modifier.fillMaxWidth().height(140.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = linkColor)
+            }
+        }
+    }
+}
+
+private fun filenameFromUrl(url: String): String {
+    val raw = url.substringBefore('?').substringBefore('#').substringAfterLast('/')
+    return (Uri.decode(raw) ?: raw).ifBlank { "image" }
 }
 
 @Composable
@@ -428,47 +541,68 @@ private fun inline(node: Node, linkColor: Color, codeBg: Color): AnnotatedString
 private fun AnnotatedString.Builder.appendInline(node: Node, linkColor: Color, codeBg: Color) {
     var child = node.firstChild
     while (child != null) {
-        when (val n = child) {
-            is CmText -> append(n.literal)
-            is Emphasis -> styled(SpanStyle(fontStyle = FontStyle.Italic)) { appendInline(n, linkColor, codeBg) }
-            is StrongEmphasis -> styled(SpanStyle(fontWeight = FontWeight.Bold)) { appendInline(n, linkColor, codeBg) }
-            is Code -> {
-                val start = length
-                styled(SpanStyle(fontFamily = FontFamily.Monospace)) { append(n.literal) }
-                addStringAnnotation(INLINE_CODE_TAG, n.literal, start, length)
-            }
-            is Link -> {
-                val url = n.destination?.trim().orEmpty()
-                val style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
-                if (url.isNotEmpty()) {
-                    val shared = url.startsWith(Backend.baseUrl + "/shared/")
-                    withLink(LinkAnnotation.Url(url = url, styles = TextLinkStyles(style = style))) {
-                        if (shared) appendInlineContent(SHARED_FILE_TAG, "📄")
-                        appendInline(n, linkColor, codeBg)
-                        if (!shared) appendInlineContent(EXT_LINK_TAG, "↗")
-                    }
-                } else styled(style) { appendInline(n, linkColor, codeBg) }
-            }
-            is Strikethrough -> styled(SpanStyle(textDecoration = TextDecoration.LineThrough)) { appendInline(n, linkColor, codeBg) }
-            is Ins -> styled(SpanStyle(textDecoration = TextDecoration.Underline)) { appendInline(n, linkColor, codeBg) }
-            is Image -> {
-                append("🖼 ")
-                styled(SpanStyle(color = linkColor, fontStyle = FontStyle.Italic)) { appendInline(n, linkColor, codeBg) }
-            }
-            is FootnoteReference -> styled(SpanStyle(baselineShift = BaselineShift.Superscript, color = linkColor)) { append("[${n.label}]") }
-            is InlineFootnote -> styled(SpanStyle(baselineShift = BaselineShift.Superscript, color = linkColor)) {
-                append("[")
-                appendInline(n, linkColor, codeBg)
-                append("]")
-            }
-            is SoftLineBreak -> append(" ")
-            is HardLineBreak -> append("\n")
-            is HtmlInline -> if (n.literal.equals("<br>", true) || n.literal.equals("<br/>", true) || n.literal.equals("<br />", true)) append("\n")
-            is TaskListItemMarker -> Unit
-            else -> appendInline(n, linkColor, codeBg)
-        }
+        appendNode(child, linkColor, codeBg)
         child = child.next
     }
+}
+
+private fun AnnotatedString.Builder.appendNode(n: Node, linkColor: Color, codeBg: Color) {
+    when (n) {
+        is CmText -> append(n.literal)
+        is Emphasis -> styled(SpanStyle(fontStyle = FontStyle.Italic)) { appendInline(n, linkColor, codeBg) }
+        is StrongEmphasis -> styled(SpanStyle(fontWeight = FontWeight.Bold)) { appendInline(n, linkColor, codeBg) }
+        is Code -> {
+            val start = length
+            styled(SpanStyle(fontFamily = FontFamily.Monospace)) { append(n.literal) }
+            addStringAnnotation(INLINE_CODE_TAG, n.literal, start, length)
+        }
+        is Link -> {
+            val url = n.destination?.trim().orEmpty()
+            val style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
+            if (url.isNotEmpty()) {
+                val shared = url.startsWith(Backend.baseUrl + "/shared/")
+                withLink(LinkAnnotation.Url(url = url, styles = TextLinkStyles(style = style))) {
+                    if (shared) { appendInlineContent(SHARED_FILE_TAG, "📄"); append("⁠") }
+                    appendInline(n, linkColor, codeBg)
+                    if (!shared) { append("⁠"); appendInlineContent(EXT_LINK_TAG, "↗") }
+                }
+            } else styled(style) { appendInline(n, linkColor, codeBg) }
+        }
+        is Strikethrough -> styled(SpanStyle(textDecoration = TextDecoration.LineThrough)) { appendInline(n, linkColor, codeBg) }
+        is Ins -> styled(SpanStyle(textDecoration = TextDecoration.Underline)) { appendInline(n, linkColor, codeBg) }
+        is Image -> {
+            append("🖼 ")
+            styled(SpanStyle(color = linkColor, fontStyle = FontStyle.Italic)) { appendInline(n, linkColor, codeBg) }
+        }
+        is FootnoteReference -> styled(SpanStyle(baselineShift = BaselineShift.Superscript, color = linkColor)) { append("[${n.label}]") }
+        is InlineFootnote -> styled(SpanStyle(baselineShift = BaselineShift.Superscript, color = linkColor)) {
+            append("[")
+            appendInline(n, linkColor, codeBg)
+            append("]")
+        }
+        is SoftLineBreak -> append(" ")
+        is HardLineBreak -> append("\n")
+        is HtmlInline -> if (n.literal.equals("<br>", true) || n.literal.equals("<br/>", true) || n.literal.equals("<br />", true)) append("\n")
+        is TaskListItemMarker -> Unit
+        else -> appendInline(n, linkColor, codeBg)
+    }
+}
+
+private fun inlineOf(nodes: List<Node>, linkColor: Color, codeBg: Color): AnnotatedString =
+    buildAnnotatedString { nodes.forEach { appendNode(it, linkColor, codeBg) } }
+
+private fun imageOf(node: Node): Pair<String, String>? {
+    val image = when (node) {
+        is Image -> node
+        is Link -> (node.firstChild as? Image)?.takeIf { node.firstChild?.next == null }
+        else -> null
+    } ?: return null
+    val url = image.destination?.trim().orEmpty().ifEmpty { return null }
+    val alt = buildString {
+        var c = image.firstChild
+        while (c != null) { if (c is CmText) append(c.literal); c = c.next }
+    }
+    return url to alt
 }
 
 private inline fun AnnotatedString.Builder.styled(style: SpanStyle, block: AnnotatedString.Builder.() -> Unit) {
@@ -500,7 +634,7 @@ private fun MdText(
                     imageVector = Lucide.File,
                     contentDescription = null,
                     tint = linkColor,
-                    modifier = Modifier.fillMaxSize().padding(end = 3.dp),
+                    modifier = Modifier.fillMaxSize().padding(end = 2.dp),
                 )
             },
             EXT_LINK_TAG to InlineTextContent(
@@ -510,7 +644,7 @@ private fun MdText(
                     imageVector = Lucide.ExternalLink,
                     contentDescription = null,
                     tint = linkColor,
-                    modifier = Modifier.fillMaxSize().padding(start = 3.dp),
+                    modifier = Modifier.fillMaxSize().padding(start = 2.dp),
                 )
             },
         )

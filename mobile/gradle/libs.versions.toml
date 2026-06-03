@@ -12,6 +12,7 @@ material3 = "1.5.0-alpha20"
 okhttp = "4.12.0"
 kotlinxSerialization = "1.7.3"
 commonmark = "0.24.0"
+coil = "3.4.0"
 appcompat = "1.7.1"
 composeIcons = "2.2.1"
 playCodeScanner = "16.1.0"
@@ -36,6 +37,8 @@ commonmark-ext-task-list = { module = "org.commonmark:commonmark-ext-task-list-i
 commonmark-ext-footnotes = { module = "org.commonmark:commonmark-ext-footnotes", version.ref = "commonmark" }
 commonmark-ext-autolink = { module = "org.commonmark:commonmark-ext-autolink", version.ref = "commonmark" }
 commonmark-ext-ins = { module = "org.commonmark:commonmark-ext-ins", version.ref = "commonmark" }
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
