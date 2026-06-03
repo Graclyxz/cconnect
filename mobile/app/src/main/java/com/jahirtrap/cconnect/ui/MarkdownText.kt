@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,6 +18,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -27,6 +30,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Copy
+import com.composables.icons.lucide.ExternalLink
+import com.composables.icons.lucide.File
 import com.composables.icons.lucide.Lucide
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -44,6 +49,8 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -61,6 +68,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.BaselineShift
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import android.net.Uri
 import com.jahirtrap.cconnect.data.remote.Backend
 import org.commonmark.ext.autolink.AutolinkExtension
@@ -118,21 +126,25 @@ fun MarkdownText(
     modifier: Modifier = Modifier,
     selectable: Boolean = true,
     onSharedLink: ((url: String, filename: String) -> Unit)? = null,
+    onExternalLink: ((url: String) -> Unit)? = null,
 ) {
     val root = remember(markdown) { parser.parse(markdown) }
     val codeBg = MaterialTheme.colorScheme.surfaceContainerHigh
     val linkColor = MaterialTheme.colorScheme.primary
     val defaultHandler = LocalUriHandler.current
-    val uriHandler = remember(onSharedLink, defaultHandler) {
-        if (onSharedLink == null) defaultHandler
-        else object : UriHandler {
+    val uriHandler = remember(onSharedLink, onExternalLink, defaultHandler) {
+        object : UriHandler {
             override fun openUri(uri: String) {
                 val prefix = Backend.baseUrl + "/shared/"
-                if (uri.startsWith(prefix)) {
+                if (uri.startsWith(prefix) && onSharedLink != null) {
                     val raw = uri.substring(prefix.length).substringBefore('?').substringBefore('#')
                     val filename = Uri.decode(raw.substringAfterLast('/')) ?: raw
                     onSharedLink(uri, filename)
-                } else defaultHandler.openUri(uri)
+                } else if (onExternalLink != null) {
+                    onExternalLink(uri)
+                } else {
+                    defaultHandler.openUri(uri)
+                }
             }
         }
     }
@@ -429,8 +441,11 @@ private fun AnnotatedString.Builder.appendInline(node: Node, linkColor: Color, c
                 val url = n.destination?.trim().orEmpty()
                 val style = SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
                 if (url.isNotEmpty()) {
+                    val shared = url.startsWith(Backend.baseUrl + "/shared/")
                     withLink(LinkAnnotation.Url(url = url, styles = TextLinkStyles(style = style))) {
+                        if (shared) appendInlineContent(SHARED_FILE_TAG, "📄")
                         appendInline(n, linkColor, codeBg)
+                        if (!shared) appendInlineContent(EXT_LINK_TAG, "↗")
                     }
                 } else styled(style) { appendInline(n, linkColor, codeBg) }
             }
@@ -464,6 +479,8 @@ private inline fun AnnotatedString.Builder.styled(style: SpanStyle, block: Annot
 
 private val SUMMARY_RE = Regex("<summary>(.*?)</summary>", RegexOption.IGNORE_CASE)
 private const val INLINE_CODE_TAG = "inline_code"
+private const val EXT_LINK_TAG = "ext_link"
+private const val SHARED_FILE_TAG = "shared_file"
 
 @Composable
 private fun MdText(
@@ -473,9 +490,35 @@ private fun MdText(
     style: TextStyle = LocalTextStyle.current,
 ) {
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val linkColor = MaterialTheme.colorScheme.primary
+    val linkIcons = remember(linkColor) {
+        mapOf(
+            SHARED_FILE_TAG to InlineTextContent(
+                Placeholder(width = 1.05.em, height = 1.05.em, placeholderVerticalAlign = PlaceholderVerticalAlign.Center)
+            ) {
+                Icon(
+                    imageVector = Lucide.File,
+                    contentDescription = null,
+                    tint = linkColor,
+                    modifier = Modifier.fillMaxSize().padding(end = 3.dp),
+                )
+            },
+            EXT_LINK_TAG to InlineTextContent(
+                Placeholder(width = 1.05.em, height = 1.05.em, placeholderVerticalAlign = PlaceholderVerticalAlign.Center)
+            ) {
+                Icon(
+                    imageVector = Lucide.ExternalLink,
+                    contentDescription = null,
+                    tint = linkColor,
+                    modifier = Modifier.fillMaxSize().padding(start = 3.dp),
+                )
+            },
+        )
+    }
     Text(
         text = text,
         style = style,
+        inlineContent = linkIcons,
         onTextLayout = { layout = it },
         modifier = modifier.drawBehind {
             val result = layout ?: return@drawBehind

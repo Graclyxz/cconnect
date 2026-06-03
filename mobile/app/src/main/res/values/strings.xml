@@ -77,6 +77,9 @@
     <string name="files">Files</string>
     <string name="save_as">Save as…</string>
     <string name="share">Share</string>
+    <string name="open">Open</string>
+    <string name="open_external_link">Open external link</string>
+    <string name="open_external_link_message">This will open an external link:\n%1$s</string>
     <string name="no_files">No files</string>
     <string name="delete_file_confirm">Delete \"%1$s\"?</string>
     <string name="new_session">New session</string>

@@ -109,6 +109,7 @@ fun ChatMessageItem(
     onSubmitQuestions: ((String) -> Unit)? = null,
     onChatQuestions: ((String) -> Unit)? = null,
     onSharedLink: ((String, String) -> Unit)? = null,
+    onExternalLink: ((String) -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier
@@ -121,7 +122,7 @@ fun ChatMessageItem(
             }
 
             Role.ASSISTANT -> Plain {
-                MarkdownText(message.text, modifier = Modifier.fillMaxWidth(), selectable = false, onSharedLink = onSharedLink)
+                MarkdownText(message.text, modifier = Modifier.fillMaxWidth(), selectable = false, onSharedLink = onSharedLink, onExternalLink = onExternalLink)
             }
 
             Role.THINKING -> Collapsible(label = stringResource(R.string.thinking), text = message.text, icon = Lucide.Lightbulb, labelOnly = message.labelOnly, running = running, expanded = expanded, onToggle = onToggle)

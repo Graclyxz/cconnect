@@ -130,6 +130,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -193,6 +194,7 @@ fun ChatScreen(
     val expandedState = remember { mutableStateMapOf<Long, Boolean>() }
 
     val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     var renameTarget by remember { mutableStateOf<SessionInfo?>(null) }
     var deleteTarget by remember { mutableStateOf<SessionInfo?>(null) }
     var colorTarget by remember { mutableStateOf<SessionInfo?>(null) }
@@ -200,6 +202,7 @@ fun ChatScreen(
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var sharedLinkAction by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var externalLink by remember { mutableStateOf<String?>(null) }
     var pendingSaveAsUrl by remember { mutableStateOf<String?>(null) }
     val saveAsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
         val url = pendingSaveAsUrl
@@ -468,6 +471,7 @@ fun ChatScreen(
                                                 onSubmitQuestions = vm::submitQuestions,
                                                 onChatQuestions = vm::chatQuestions,
                                                 onSharedLink = { url, filename -> sharedLinkAction = url to filename },
+                                                onExternalLink = { externalLink = it },
                                             )
                                         }
                                     }
@@ -586,6 +590,8 @@ fun ChatScreen(
                                     onQuestionNotes = vm::setQuestionNotes,
                                     onSubmitQuestions = vm::submitQuestions,
                                     onChatQuestions = vm::chatQuestions,
+                                    onSharedLink = { url, filename -> sharedLinkAction = url to filename },
+                                    onExternalLink = { externalLink = it },
                                     topCorner = (20 * (1f - dockT)).dp,
                                     modifier = Modifier
                                         .align(Alignment.BottomCenter)
@@ -681,6 +687,18 @@ fun ChatScreen(
             onDismiss = { sharedLinkAction = null },
         )
     }
+    externalLink?.let { url ->
+        ConfirmDialog(
+            title = stringResource(R.string.open_external_link),
+            text = stringResource(R.string.open_external_link_message, url),
+            confirmLabel = stringResource(R.string.open),
+            onConfirm = {
+                uriHandler.openUri(url)
+                externalLink = null
+            },
+            onDismiss = { externalLink = null },
+        )
+    }
 }
 
 @Composable
@@ -694,6 +712,8 @@ private fun SidePanel(
     onQuestionNotes: ((String, Int, String) -> Unit)? = null,
     onSubmitQuestions: ((String) -> Unit)? = null,
     onChatQuestions: ((String) -> Unit)? = null,
+    onSharedLink: ((String, String) -> Unit)? = null,
+    onExternalLink: ((String) -> Unit)? = null,
     topCorner: Dp = 20.dp,
     modifier: Modifier = Modifier,
 ) {
@@ -814,6 +834,8 @@ private fun SidePanel(
                                 onQuestionNotes = onQuestionNotes,
                                 onSubmitQuestions = onSubmitQuestions,
                                 onChatQuestions = onChatQuestions,
+                                onSharedLink = onSharedLink,
+                                onExternalLink = onExternalLink,
                             )
                         }
                     }
