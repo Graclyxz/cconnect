@@ -23,39 +23,38 @@ class Settings(context: Context) {
         syncBackend()
     }
 
-    // Named backend connections; the active one drives Backend.host/port.
-    var connections: List<ConnectionProfile>
-        get() = parseConnections(prefs.getString("connections", null))
+    var environments: List<EnvironmentProfile>
+        get() = parseEnvironments(prefs.getString("environments", null))
         set(value) {
-            prefs.edit { putString("connections", encodeConnections(value)) }
+            prefs.edit { putString("environments", encodeEnvironments(value)) }
             syncBackend()
         }
 
-    var activeConnectionId: String?
-        get() = prefs.getString("active_connection", null)
+    var activeEnvironmentId: String?
+        get() = prefs.getString("active_environment", null)
         set(value) {
-            prefs.edit { putString("active_connection", value) }
+            prefs.edit { putString("active_environment", value) }
             syncBackend()
         }
 
-    val activeConnection: ConnectionProfile?
-        get() = connections.let { list -> list.firstOrNull { it.id == activeConnectionId } ?: list.firstOrNull() }
+    val activeEnvironment: EnvironmentProfile?
+        get() = environments.let { list -> list.firstOrNull { it.id == activeEnvironmentId } ?: list.firstOrNull() }
 
-    fun upsertConnection(profile: ConnectionProfile) {
-        val list = connections.toMutableList()
+    fun upsertEnvironment(profile: EnvironmentProfile) {
+        val list = environments.toMutableList()
         val i = list.indexOfFirst { it.id == profile.id }
         if (i >= 0) list[i] = profile else list.add(profile)
-        connections = list
-        if (activeConnectionId == null) activeConnectionId = profile.id
+        environments = list
+        if (activeEnvironmentId == null) activeEnvironmentId = profile.id
     }
 
-    fun deleteConnection(id: String) {
-        connections = connections.filterNot { it.id == id }
-        if (activeConnectionId == id) activeConnectionId = connections.firstOrNull()?.id
+    fun deleteEnvironment(id: String) {
+        environments = environments.filterNot { it.id == id }
+        if (activeEnvironmentId == id) activeEnvironmentId = environments.firstOrNull()?.id
     }
 
     private fun syncBackend() {
-        activeConnection?.let {
+        activeEnvironment?.let {
             Backend.kind = it.kind
             Backend.host = it.host
             Backend.port = it.port
@@ -91,7 +90,7 @@ class Settings(context: Context) {
         set(value) = prefs.edit { putInt("accent_index", value) }
 
     val isConfigured: Boolean
-        get() = activeConnection != null
+        get() = activeEnvironment != null
 
     // Reset app-local prefs (backend-owned settings reset via /api/settings/reset).
     fun resetDefaults() {
@@ -102,21 +101,21 @@ class Settings(context: Context) {
     }
 
     private fun migrateLegacyHost() {
-        if (prefs.contains("connections")) return
+        if (prefs.contains("environments")) return
         val legacy = prefs.getString("host", "") ?: ""
         if (legacy.isNotBlank()) {
-            val profile = ConnectionProfile(
+            val profile = EnvironmentProfile(
                 id = UUID.randomUUID().toString(),
                 name = "Default",
                 host = legacy,
                 port = prefs.getInt("port", 8723),
             )
-            connections = listOf(profile)
-            activeConnectionId = profile.id
+            environments = listOf(profile)
+            activeEnvironmentId = profile.id
         }
     }
 
-    private fun parseConnections(raw: String?): List<ConnectionProfile> {
+    private fun parseEnvironments(raw: String?): List<EnvironmentProfile> {
         if (raw.isNullOrBlank()) return emptyList()
         return runCatching {
             Json.parseToJsonElement(raw).jsonArray.map { el ->
@@ -131,7 +130,7 @@ class Settings(context: Context) {
                     resolvedKind == "https" -> portRaw?.takeIf { it != 443 }
                     else -> portRaw ?: 8723
                 }
-                ConnectionProfile(
+                EnvironmentProfile(
                     id = o["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                     name = o["name"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                     kind = resolvedKind,
@@ -151,7 +150,7 @@ class Settings(context: Context) {
         }.getOrDefault(emptyList())
     }
 
-    private fun encodeConnections(list: List<ConnectionProfile>): String =
+    private fun encodeEnvironments(list: List<EnvironmentProfile>): String =
         buildJsonArray {
             list.forEach { p ->
                 addJsonObject {

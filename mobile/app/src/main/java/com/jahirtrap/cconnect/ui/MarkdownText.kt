@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -257,7 +256,7 @@ private fun ParagraphBlock(node: Node, codeBg: Color, linkColor: Color) {
                     if (text.isNotBlank()) MdText(text, codeBg, style = MaterialTheme.typography.bodyMedium)
                     run.clear()
                 }
-                MarkdownImage(url = image.first, alt = image.second, linkColor = linkColor)
+                MarkdownImage(url = image.first, alt = image.second)
             } else run.add(c)
         }
         if (run.isNotEmpty()) {
@@ -268,7 +267,7 @@ private fun ParagraphBlock(node: Node, codeBg: Color, linkColor: Color) {
 }
 
 @Composable
-private fun MarkdownImage(url: String, alt: String, linkColor: Color) {
+private fun MarkdownImage(url: String, alt: String) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val download = LocalImageDownload.current
@@ -323,9 +322,7 @@ private fun MarkdownImage(url: String, alt: String, linkColor: Color) {
                 )
             }
 
-            else -> Box(Modifier.fillMaxWidth().height(140.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = linkColor)
-            }
+            else -> CenteredProgress(Modifier.fillMaxWidth().height(140.dp), size = 24.dp)
         }
     }
 }

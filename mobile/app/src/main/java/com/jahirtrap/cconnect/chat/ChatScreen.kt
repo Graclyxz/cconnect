@@ -31,6 +31,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -67,7 +69,6 @@ import com.composables.icons.lucide.Languages
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Menu
 import com.composables.icons.lucide.MessagesSquare
-import com.composables.icons.lucide.Server
 import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Slash
 import com.composables.icons.lucide.Sparkles
@@ -76,14 +77,17 @@ import com.composables.icons.lucide.SquareCheckBig
 import com.composables.icons.lucide.SquareTerminal
 import com.composables.icons.lucide.SquarePen
 import com.composables.icons.lucide.X
+import com.jahirtrap.cconnect.ui.AppBottomSheet
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.DropdownScrim
+import com.jahirtrap.cconnect.ui.EmptyState
 import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.Stop
 import com.jahirtrap.cconnect.ui.theme.palette
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -114,10 +118,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.Image
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -131,6 +137,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -141,6 +149,7 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
@@ -148,7 +157,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.data.ChatMessage
 import com.jahirtrap.cconnect.data.CommandOption
-import com.jahirtrap.cconnect.data.ConnectionProfile
+import com.jahirtrap.cconnect.data.EnvironmentProfile
 import com.jahirtrap.cconnect.data.PermissionMode
 import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.Role
@@ -156,25 +165,31 @@ import com.jahirtrap.cconnect.data.pending
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.TodoItem
 import com.jahirtrap.cconnect.files.FileTransfer
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
-import com.composables.icons.lucide.FileCode
 import com.composables.icons.lucide.History
-import com.composables.icons.lucide.MessageSquare
 import com.jahirtrap.cconnect.data.remote.SessionsApi
 import com.jahirtrap.cconnect.ui.ColorDialog
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmSelectDialog
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
+import com.jahirtrap.cconnect.ui.CenteredProgress
 import com.jahirtrap.cconnect.ui.ConfirmDialog
-import com.jahirtrap.cconnect.ui.DialogActionItem
+import com.jahirtrap.cconnect.ui.DialogSelectItem
+import com.jahirtrap.cconnect.ui.EnvironmentSelectDialog
 import com.jahirtrap.cconnect.ui.LANGUAGE_TAGS
 import com.jahirtrap.cconnect.ui.RenameDialog
 import com.jahirtrap.cconnect.ui.SelectDialog
 import com.jahirtrap.cconnect.ui.SharedLinkActionsDialog
 import com.jahirtrap.cconnect.ui.THEME_MODES
+import com.jahirtrap.cconnect.ui.OutlinedPanel
 import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.languageLabel
 import com.jahirtrap.cconnect.ui.themeIcon
@@ -213,6 +228,7 @@ fun ChatScreen(
     var showLanguageDialog by remember { mutableStateOf(false) }
     var sharedLinkAction by remember { mutableStateOf<Pair<String, String>?>(null) }
     var externalLink by remember { mutableStateOf<String?>(null) }
+    var showRewindSheet by remember { mutableStateOf(false) }
     var pendingSaveAsUrl by remember { mutableStateOf<String?>(null) }
     val saveAsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
         val url = pendingSaveAsUrl
@@ -222,7 +238,7 @@ fun ChatScreen(
     LaunchedEffect(drawerState.targetValue) {
         if (drawerState.targetValue == DrawerValue.Open) {
             focusManager.clearFocus()
-            vm.refreshConnections()
+            vm.refreshEnvironments()
             vm.ensureHistoryLoaded()
         }
     }
@@ -299,19 +315,19 @@ fun ChatScreen(
         if (!imeVisible) focusManager.clearFocus()
     }
 
-    // Expressive motion overshoots the drawer slide and exposes the background; standard avoids it.
     MaterialExpressiveTheme(motionScheme = MotionScheme.standard()) {
         ModalNavigationDrawer(
             drawerState = drawerState,
             drawerContent = {
                 ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surface) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp),
+                        modifier = Modifier.fillMaxWidth().height(56.dp).padding(start = 8.dp, end = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            stringResource(R.string.app_name),
-                            style = MaterialTheme.typography.titleMedium,
+                        EnvironmentSelector(
+                            environments = state.environments,
+                            activeId = state.activeEnvironmentId,
+                            onSelect = vm::selectEnvironment,
                             modifier = Modifier.weight(1f),
                         )
                         TooltipIconButton(
@@ -319,17 +335,11 @@ fun ChatScreen(
                             onClick = { vm.newSession(); scope.launch { drawerState.close() } },
                         ) { Icon(Lucide.SquarePen, contentDescription = null) }
                     }
-                    EnvironmentSelector(
-                        connections = state.connections,
-                        activeId = state.activeConnectionId,
-                        onSelect = vm::selectConnection,
-                    )
                     ProjectSelector(
                         projects = state.historyProjects,
                         selected = state.historyProjectKey,
                         onSelect = vm::selectHistoryProject,
                     )
-                    HorizontalDivider()
                     val drawerListState = rememberLazyListState()
                     LaunchedEffect(state.historySessions.size) {
                         if (state.historySessions.isNotEmpty()) drawerListState.scrollToItem(0)
@@ -344,22 +354,25 @@ fun ChatScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(vertical = 6.dp),
                         ) {
-                            items(state.historySessions, key = { it.sessionId }) { s ->
-                                ConversationRow(
-                                    title = s.title ?: s.preview ?: s.sessionId.take(8),
-                                    selected = s.sessionId == state.sessionId,
-                                    onOpen = { vm.openSession(s); scope.launch { drawerState.close() } },
-                                    onRename = { renameTarget = s },
-                                    onAutoRename = { vm.autoRenameSession(s) },
-                                    onColor = { colorTarget = s },
-                                    onDelete = { deleteTarget = s },
-                                )
+                            when {
+                                state.historySessions.isNotEmpty() -> items(state.historySessions, key = { it.sessionId }) { s ->
+                                    ConversationRow(
+                                        title = s.title ?: s.preview ?: s.sessionId.take(8),
+                                        selected = s.sessionId == state.sessionId,
+                                        onOpen = { vm.openSession(s); scope.launch { drawerState.close() } },
+                                        onRename = { renameTarget = s },
+                                        onAutoRename = { vm.autoRenameSession(s) },
+                                        onColor = { colorTarget = s },
+                                        onDelete = { deleteTarget = s },
+                                    )
+                                }
+
+                                !state.historyLoading -> item { EmptyState(stringResource(R.string.no_chats), Modifier.fillParentMaxSize()) }
                             }
                         }
                     }
-                    HorizontalDivider()
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         TooltipIconButton(label = stringResource(R.string.files), onClick = onOpenExplorer) {
@@ -413,25 +426,10 @@ fun ChatScreen(
                             actions = {
                                 TaskIndicator(todos = state.todos)
                                 if (state.sessionId != null && !state.streaming) {
-                                    Box {
-                                        var rewindMenu by remember { mutableStateOf(false) }
-                                        TooltipIconButton(
-                                            label = stringResource(R.string.rewind),
-                                            onClick = { vm.loadRewindPoints(); rewindMenu = true },
-                                        ) { Icon(Lucide.History, contentDescription = null) }
-                                        DropdownMenu(expanded = rewindMenu, onDismissRequest = { rewindMenu = false }) {
-                                            when {
-                                                state.rewindLoading -> CompactDropdownItem(text = stringResource(R.string.loading))
-                                                state.rewindPoints.isEmpty() -> CompactDropdownItem(text = stringResource(R.string.rewind_empty))
-                                                else -> state.rewindPoints.asReversed().forEach { point ->
-                                                    CompactDropdownItem(
-                                                        text = point.text.replace('\n', ' ').take(60),
-                                                        onClick = { rewindMenu = false; vm.selectRewindPoint(point) },
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
+                                    TooltipIconButton(
+                                        label = stringResource(R.string.rewind),
+                                        onClick = { vm.loadRewindPoints(); showRewindSheet = true },
+                                    ) { Icon(Lucide.History, contentDescription = null) }
                                 }
                                 TooltipIconButton(
                                     label = stringResource(R.string.new_session),
@@ -733,15 +731,62 @@ fun ChatScreen(
             onDismiss = { externalLink = null },
         )
     }
+    if (showRewindSheet) {
+        RewindSheet(
+            points = state.rewindPoints,
+            loading = state.rewindLoading,
+            onSelect = { showRewindSheet = false; vm.selectRewindPoint(it) },
+            onDismiss = { showRewindSheet = false },
+        )
+    }
     state.rewindTarget?.let { target ->
         RewindDialog(
             message = target.text,
             preview = state.rewindPreview,
             busy = state.rewindBusy,
-            onBoth = { vm.confirmRewind(both = true) },
-            onConversationOnly = { vm.confirmRewind(both = false) },
+            onConfirm = { both -> vm.confirmRewind(both) },
             onDismiss = { vm.dismissRewind() },
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun RewindSheet(
+    points: List<SessionsApi.RewindPoint>,
+    loading: Boolean,
+    onSelect: (SessionsApi.RewindPoint) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AppBottomSheet(onDismiss = onDismiss, title = stringResource(R.string.rewind), showClose = true) {
+        when {
+            loading -> CenteredProgress(Modifier.fillMaxWidth().weight(1f))
+
+            points.isEmpty() -> Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                Text(
+                    text = stringResource(R.string.rewind_empty),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            else -> LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(points.asReversed()) { point ->
+                    OutlinedPanel(onClick = { onSelect(point) }, modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = point.text,
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -751,64 +796,67 @@ private fun RewindDialog(
     message: String,
     preview: SessionsApi.RewindPreview?,
     busy: Boolean,
-    onBoth: () -> Unit,
-    onConversationOnly: () -> Unit,
+    onConfirm: (Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val codeAvailable = preview?.canRewind != false
+    var both by remember { mutableStateOf(true) }
+    LaunchedEffect(preview) { if (preview != null && !preview.canRewind) both = false }
     CompactDialog(
         onDismiss = { if (!busy) onDismiss() },
         title = stringResource(R.string.rewind),
         contentPadding = PaddingValues(0.dp),
-        buttons = { TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.cancel)) } },
+        buttons = {
+            TextButton(onClick = onDismiss, enabled = !busy) { Text(stringResource(R.string.cancel)) }
+            TextButton(onClick = { onConfirm(both) }, enabled = !busy) { Text(stringResource(R.string.accept)) }
+        },
     ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 20.dp),
-        )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 8.dp),
-        ) {
-            when {
-                busy || preview == null -> {
-                    LoadingIndicator(modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.loading), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedPanel(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (both) Row(verticalAlignment = Alignment.CenterVertically) {
+                when {
+                    preview == null -> {
+                        LoadingIndicator(modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(stringResource(R.string.loading), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    preview.canRewind -> Text(
+                        text = buildAnnotatedString {
+                            withStyle(SpanStyle(color = palette.green)) { append("+${preview.insertions}") }
+                            append(" ")
+                            withStyle(SpanStyle(color = palette.red)) { append("−${preview.deletions}") }
+                            append(" • " + stringResource(R.string.rewind_files_count, preview.filesChanged.size))
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+
+                    else -> Text(
+                        text = stringResource(R.string.rewind_no_checkpoint),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
-
-                preview.canRewind -> Text(
-                    text = buildAnnotatedString {
-                        withStyle(SpanStyle(color = palette.green)) { append("+${preview.insertions}") }
-                        append(" ")
-                        withStyle(SpanStyle(color = palette.red)) { append("−${preview.deletions}") }
-                        append(" · " + stringResource(R.string.rewind_files_count, preview.filesChanged.size))
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-
-                else -> Text(
-                    text = stringResource(R.string.rewind_no_checkpoint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
-        DialogActionItem(
-            text = stringResource(R.string.rewind_both),
-            icon = Lucide.FileCode,
-            enabled = !busy && preview?.canRewind == true,
-            onClick = onBoth,
+        Spacer(Modifier.height(8.dp))
+        DialogSelectItem(
+            label = stringResource(R.string.rewind_both),
+            selected = both,
+            enabled = !busy && codeAvailable,
+            onClick = { both = true },
         )
-        DialogActionItem(
-            text = stringResource(R.string.rewind_conversation),
-            icon = Lucide.MessageSquare,
+        DialogSelectItem(
+            label = stringResource(R.string.rewind_conversation),
+            selected = !both,
             enabled = !busy,
-            onClick = onConversationOnly,
+            onClick = { both = false },
         )
     }
 }
@@ -1306,7 +1354,7 @@ private fun CommandMenuButton(
                 ) {
                     Column(
                         modifier = Modifier
-                            .padding(vertical = 8.dp)  // DropdownMenuVerticalPadding
+                            .padding(vertical = 8.dp)
                             .width(IntrinsicSize.Max),
                     ) {
                         commands.forEach { cmd ->
@@ -1460,36 +1508,74 @@ private fun CircleActionButton(
     }
 }
 
+@Composable
+private fun AppLogo() {
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(colorResource(R.color.ic_launcher_background)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(R.drawable.ic_launcher_foreground),
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize().scale(1.6f),
+        )
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EnvironmentSelector(connections: List<ConnectionProfile>, activeId: String?, onSelect: (String) -> Unit) {
-    if (connections.isEmpty()) return
-    var open by remember { mutableStateOf(false) }
-    var fieldWidth by remember { mutableStateOf(0.dp) }
-    val density = LocalDensity.current
-    val active = connections.firstOrNull { it.id == activeId } ?: connections.first()
-    Box {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .onSizeChanged { fieldWidth = with(density) { it.width.toDp() } }
-                .clickable { open = true }
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Lucide.Server, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+private fun EnvironmentSelector(
+    environments: List<EnvironmentProfile>,
+    activeId: String?,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val active = environments.firstOrNull { it.id == activeId } ?: environments.firstOrNull()
+    if (active == null) {
+        Row(modifier = modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            AppLogo()
             Spacer(Modifier.width(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(active.name, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(active.address, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            Icon(Lucide.ChevronDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.widthIn(min = fieldWidth)) {
-            connections.forEach { c ->
-                CompactDropdownItem(c.name, selected = c.id == active.id) { onSelect(c.id); open = false }
-            }
+        return
+    }
+    var open by remember { mutableStateOf(false) }
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { open = true }
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AppLogo()
+        Spacer(Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                active.name,
+                style = MaterialTheme.typography.titleMedium.copy(lineHeight = 18.sp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                active.address,
+                style = MaterialTheme.typography.labelSmall.copy(lineHeight = 12.sp),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
+        Icon(Lucide.ChevronDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    if (open) {
+        EnvironmentSelectDialog(
+            environments = environments,
+            activeId = active.id,
+            onSelect = onSelect,
+            onDismiss = { open = false },
+        )
     }
 }
 
@@ -1505,9 +1591,11 @@ private fun ProjectSelector(projects: List<ProjectInfo>, selected: String?, onSe
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = 8.dp)
                 .onSizeChanged { fieldWidth = with(density) { it.width.toDp() } }
+                .clip(RoundedCornerShape(8.dp))
                 .clickable { open = true }
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 8.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Lucide.FolderOpen, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))

@@ -62,6 +62,7 @@ import com.jahirtrap.cconnect.data.SharedEntry
 import com.jahirtrap.cconnect.data.remote.SharedApi
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
+import com.jahirtrap.cconnect.ui.EnvironmentSelectDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.EmptyState
 import com.jahirtrap.cconnect.ui.ListRow
@@ -90,7 +91,7 @@ fun FileExplorerScreen(onClose: () -> Unit) {
     var deleting by remember { mutableStateOf<SharedEntry?>(null) }
     var pendingSaveUrl by remember { mutableStateOf<String?>(null) }
     var envMenu by remember { mutableStateOf(false) }
-    val activeName = state.connections.firstOrNull { it.id == state.activeConnectionId }?.name
+    val activeName = state.environments.firstOrNull { it.id == state.activeEnvironmentId }?.name
 
     val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
         val url = pendingSaveUrl
@@ -111,7 +112,7 @@ fun FileExplorerScreen(onClose: () -> Unit) {
             refreshing = false
         }
     }
-    LaunchedEffect(state.activeConnectionId, path) { loaded = false; entries = emptyList(); reload() }
+    LaunchedEffect(state.activeEnvironmentId, path) { loaded = false; entries = emptyList(); reload() }
     LaunchedEffect(state.connection) { if (state.connection == ConnectionState.Connected) reload() }
 
     fun goUp() {
@@ -131,23 +132,21 @@ fun FileExplorerScreen(onClose: () -> Unit) {
                     }
                 },
                 actions = {
-                    Box {
-                        TooltipIconButton(label = stringResource(R.string.environment), onClick = { envMenu = true }) {
-                            Icon(Lucide.Server, contentDescription = null)
-                        }
-                        DropdownMenu(expanded = envMenu, onDismissRequest = { envMenu = false }) {
-                            state.connections.forEach { c ->
-                                CompactDropdownItem(c.name, selected = c.id == state.activeConnectionId) {
-                                    envMenu = false
-                                    if (c.id != state.activeConnectionId) vm.selectConnection(c.id)
-                                }
-                            }
-                        }
+                    TooltipIconButton(label = stringResource(R.string.environment), onClick = { envMenu = true }) {
+                        Icon(Lucide.Server, contentDescription = null)
                     }
                 },
             )
         },
     ) { padding ->
+        if (envMenu) {
+            EnvironmentSelectDialog(
+                environments = state.environments,
+                activeId = state.activeEnvironmentId,
+                onSelect = { if (it != state.activeEnvironmentId) vm.selectEnvironment(it) },
+                onDismiss = { envMenu = false },
+            )
+        }
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             Breadcrumb(path = path, onNavigate = { path = it })
             PullToRefreshBox(

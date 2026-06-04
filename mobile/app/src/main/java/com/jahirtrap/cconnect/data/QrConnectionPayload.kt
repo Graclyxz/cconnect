@@ -5,14 +5,14 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-data class QrConnectionPayload(val url: String, val token: String) {
+data class QrEnvironmentPayload(val url: String, val token: String) {
     companion object {
-        fun parse(raw: String): QrConnectionPayload? = runCatching {
+        fun parse(raw: String): QrEnvironmentPayload? = runCatching {
             val o = Json.parseToJsonElement(raw).jsonObject
             val url = o["url"]?.jsonPrimitive?.contentOrNull
             val token = o["token"]?.jsonPrimitive?.contentOrNull
             if (url.isNullOrBlank() || token.isNullOrBlank()) null
-            else QrConnectionPayload(url, token)
+            else QrEnvironmentPayload(url, token)
         }.getOrNull()
     }
 }

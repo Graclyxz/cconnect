@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,6 +44,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -69,8 +71,8 @@ import com.composables.icons.lucide.Trash
 import com.composables.icons.lucide.Wand
 import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.data.Capabilities
-import com.jahirtrap.cconnect.data.ConnectionProfile
-import com.jahirtrap.cconnect.data.QrConnectionPayload
+import com.jahirtrap.cconnect.data.EnvironmentProfile
+import com.jahirtrap.cconnect.data.QrEnvironmentPayload
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.remote.Backend
 import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
@@ -122,8 +124,8 @@ fun SettingsScreen(
     val context = LocalContext.current
     val settings = remember { Settings(context) }
 
-    var connections by remember { mutableStateOf(settings.connections) }
-    var activeId by remember { mutableStateOf(settings.activeConnection?.id) }
+    var environments by remember { mutableStateOf(settings.environments) }
+    var activeId by remember { mutableStateOf(settings.activeEnvironment?.id) }
     var caps by remember { mutableStateOf(Capabilities()) }
     var model by remember { mutableStateOf(caps.defaults.model) }
     var effort by remember { mutableStateOf(caps.defaults.effort) }
@@ -135,8 +137,6 @@ fun SettingsScreen(
     var showCompact by remember { mutableStateOf("full") }
     var showWorking by remember { mutableStateOf("label") }
     var cliInfo by remember { mutableStateOf<CliApi.CliInfo?>(null) }
-    // The generation/permission/CLI rows are server-owned: dimmed/disabled until a fetch
-    // succeeds, with a loading indicator while fetching.
     var serverReady by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(Backend.isConfigured) }
     var refreshing by remember { mutableStateOf(false) }
@@ -158,7 +158,7 @@ fun SettingsScreen(
         loading = false
     }
 
-    LaunchedEffect(activeId, connections) { loadServerSettings() }
+    LaunchedEffect(activeId, environments) { loadServerSettings() }
     LaunchedEffect(chatState.connection) {
         when (chatState.connection) {
             ConnectionState.Connected -> loadServerSettings()
@@ -192,41 +192,54 @@ fun SettingsScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(bottom = 6.dp),
+                    .padding(horizontal = 16.dp),
             ) {
-                PreferenceRow(themeIcon(themeMode), stringResource(R.string.theme), themeLabel(themeMode)) { dialog = SettingsDialog.Theme }
-                PreferenceRow(Lucide.Languages, stringResource(R.string.language), languageLabel(language)) { dialog = SettingsDialog.Language }
-                PreferenceRow(
-                    icon = Lucide.Palette,
-                    title = stringResource(R.string.accent),
-                    summary = if (dynamicColor) stringResource(R.string.accent_dynamic)
-                    else accentNameAt(accentIndex),
-                    trailing = { AccentDot(if (dynamicColor) MaterialTheme.colorScheme.primary else accentAt(accentIndex)) },
-                ) { dialog = SettingsDialog.Accent }
-                PreferenceRow(
-                    Lucide.Server,
-                    stringResource(R.string.connections),
-                    connections.firstOrNull { it.id == activeId }?.let { "${it.name} • ${it.address}" }
-                        ?: stringResource(R.string.no_connections),
-                ) { dialog = SettingsDialog.Connections }
-                PreferenceRow(
-                    Lucide.SquareTerminal,
-                    stringResource(R.string.ssh_hosts),
-                    stringResource(R.string.ssh_hosts_summary),
-                    onClick = onOpenSshHosts,
-                )
-                // Server-owned: always shown, dimmed/disabled until reachable.
-                val spinner: (@Composable () -> Unit)? = if (loading) ({ LoadingIndicator(modifier = Modifier.size(20.dp)) }) else null
-                val offlineDot: (@Composable () -> Unit)? = if (!serverReady && !loading) ({ StatusDot(palette.red, box = 20.dp, dot = 12.dp) }) else null
-                val statusTrailing = spinner ?: offlineDot
+                SettingsGroup(stringResource(R.string.settings_appearance)) {
+                    PreferenceRow(themeIcon(themeMode), stringResource(R.string.theme), themeLabel(themeMode)) { dialog = SettingsDialog.Theme }
+                    PreferenceRow(Lucide.Languages, stringResource(R.string.language), languageLabel(language)) { dialog = SettingsDialog.Language }
+                    PreferenceRow(
+                        icon = Lucide.Palette,
+                        title = stringResource(R.string.accent),
+                        summary = if (dynamicColor) stringResource(R.string.accent_dynamic)
+                        else accentNameAt(accentIndex),
+                        trailing = { AccentDot(if (dynamicColor) MaterialTheme.colorScheme.primary else accentAt(accentIndex)) },
+                    ) { dialog = SettingsDialog.Accent }
+                }
+                SettingsGroup(stringResource(R.string.settings_connectivity)) {
+                    PreferenceRow(
+                        Lucide.Server,
+                        stringResource(R.string.environments),
+                        environments.firstOrNull { it.id == activeId }?.let { "${it.name} • ${it.address}" }
+                            ?: stringResource(R.string.no_environments),
+                    ) { dialog = SettingsDialog.Environments }
+                    PreferenceRow(
+                        Lucide.SquareTerminal,
+                        stringResource(R.string.ssh_hosts),
+                        stringResource(R.string.ssh_hosts_summary),
+                        onClick = onOpenSshHosts,
+                    )
+                }
                 val loadingText = stringResource(R.string.connecting)
                 val offlineText = stringResource(R.string.server_unavailable)
                 fun serverSummary(real: String) = if (serverReady) real else if (loading) loadingText else offlineText
-                PreferenceRow(Lucide.Terminal, stringResource(R.string.cli), serverSummary(cliInfo?.activeVersion ?: "—"), trailing = statusTrailing, enabled = serverReady) { dialog = SettingsDialog.Cli }
-                PreferenceRow(Lucide.Sparkles, stringResource(R.string.generation), serverSummary("${caps.models.firstOrNull { it.id == model }?.label ?: model} • $effort"), trailing = statusTrailing, enabled = serverReady) { dialog = SettingsDialog.Generation }
-                PreferenceRow(Lucide.Shield, stringResource(R.string.permissions), serverSummary(permissionLabel(caps, permissionMode)), trailing = statusTrailing, enabled = serverReady) { dialog = SettingsDialog.Permissions }
-                PreferenceRow(Lucide.Eye, stringResource(R.string.visibility), serverSummary(stringResource(R.string.visibility_summary)), trailing = statusTrailing, enabled = serverReady) { dialog = SettingsDialog.Visibility }
-                PreferenceRow(Lucide.History, stringResource(R.string.reset_settings), stringResource(R.string.reset_settings_summary)) { dialog = SettingsDialog.Reset }
+                SettingsGroup(
+                    label = stringResource(R.string.settings_server),
+                    labelTrailing = {
+                        when {
+                            loading -> LoadingIndicator(modifier = Modifier.size(20.dp))
+                            serverReady -> StatusDot(palette.green, box = 20.dp, dot = 12.dp)
+                            else -> StatusDot(palette.red, box = 20.dp, dot = 12.dp)
+                        }
+                    },
+                ) {
+                    PreferenceRow(Lucide.Terminal, stringResource(R.string.cli), serverSummary(cliInfo?.activeVersion ?: "—"), enabled = serverReady) { dialog = SettingsDialog.Cli }
+                    PreferenceRow(Lucide.Sparkles, stringResource(R.string.generation), serverSummary("${caps.models.firstOrNull { it.id == model }?.label ?: model} • $effort"), enabled = serverReady) { dialog = SettingsDialog.Generation }
+                    PreferenceRow(Lucide.Shield, stringResource(R.string.permissions), serverSummary(permissionLabel(caps, permissionMode)), enabled = serverReady) { dialog = SettingsDialog.Permissions }
+                    PreferenceRow(Lucide.Eye, stringResource(R.string.visibility), serverSummary(stringResource(R.string.visibility_summary)), enabled = serverReady) { dialog = SettingsDialog.Visibility }
+                }
+                SettingsGroup(label = null) {
+                    PreferenceRow(Lucide.History, stringResource(R.string.reset_settings), stringResource(R.string.reset_settings_summary)) { dialog = SettingsDialog.Reset }
+                }
             }
         }
     }
@@ -260,12 +273,12 @@ fun SettingsScreen(
             onDismiss = { dialog = null },
         )
 
-        SettingsDialog.Connections -> ConnectionsDialog(
-            connections = connections,
+        SettingsDialog.Environments -> EnvironmentsDialog(
+            environments = environments,
             activeId = activeId,
-            onSetActive = { id -> settings.activeConnectionId = id; activeId = id },
-            onSave = { profile -> settings.upsertConnection(profile); connections = settings.connections; activeId = settings.activeConnection?.id },
-            onDelete = { id -> settings.deleteConnection(id); connections = settings.connections; activeId = settings.activeConnection?.id },
+            onSetActive = { id -> settings.activeEnvironmentId = id; activeId = id },
+            onSave = { profile -> settings.upsertEnvironment(profile); environments = settings.environments; activeId = settings.activeEnvironment?.id },
+            onDelete = { id -> settings.deleteEnvironment(id); environments = settings.environments; activeId = settings.activeEnvironment?.id },
             onDismiss = { dialog = null },
         )
 
@@ -332,11 +345,44 @@ fun SettingsScreen(
     }
 }
 
-private enum class SettingsDialog { Theme, Language, Accent, Connections, Cli, Generation, Permissions, Visibility, Reset }
+private enum class SettingsDialog { Theme, Language, Accent, Environments, Cli, Generation, Permissions, Visibility, Reset }
 
 @Composable
 private fun permissionLabel(caps: Capabilities, mode: String): String =
     caps.permissionModes.firstOrNull { it.id == mode }?.label ?: mode
+
+@Composable
+private fun SettingsGroup(
+    label: String?,
+    labelTrailing: (@Composable () -> Unit)? = null,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        if (label != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f),
+                )
+                labelTrailing?.invoke()
+            }
+        } else {
+            Spacer(Modifier.height(16.dp))
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            content = content,
+        )
+    }
+}
 
 @Composable
 private fun PreferenceRow(
@@ -352,7 +398,7 @@ private fun PreferenceRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary.copy(alpha = alpha), modifier = Modifier.size(24.dp))
@@ -413,23 +459,23 @@ private fun AccentDialog(
 }
 
 @Composable
-private fun ConnectionsDialog(
-    connections: List<ConnectionProfile>,
+private fun EnvironmentsDialog(
+    environments: List<EnvironmentProfile>,
     activeId: String?,
     onSetActive: (String) -> Unit,
-    onSave: (ConnectionProfile) -> Unit,
+    onSave: (EnvironmentProfile) -> Unit,
     onDelete: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
-    var editing by remember { mutableStateOf<ConnectionProfile?>(null) }
+    var editing by remember { mutableStateOf<EnvironmentProfile?>(null) }
     var adding by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf<ConnectionProfile?>(null) }
-    var scanned by remember { mutableStateOf<ConnectionProfile?>(null) }
+    var deleting by remember { mutableStateOf<EnvironmentProfile?>(null) }
+    var scanned by remember { mutableStateOf<EnvironmentProfile?>(null) }
 
     CompactDialog(
         onDismiss = onDismiss,
-        title = stringResource(R.string.connections),
+        title = stringResource(R.string.environments),
         contentPadding = PaddingValues(0.dp),
         buttons = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.back)) } },
         titleTrailing = {
@@ -445,7 +491,7 @@ private fun ConnectionsDialog(
             }
         },
     ) {
-        connections.forEach { c ->
+        environments.forEach { c ->
             DialogSelectItem(
                 label = c.name,
                 subtitle = c.address,
@@ -459,20 +505,20 @@ private fun ConnectionsDialog(
         }
         Spacer(Modifier.height(8.dp))
         ActionButton(
-            text = stringResource(R.string.add_connection),
+            text = stringResource(R.string.add_environment),
             onClick = { adding = true },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
         )
     }
 
     if (adding) {
-        ConnectionEditDialog(initial = null, onConfirm = { onSave(it); adding = false }, onDismiss = { adding = false })
+        EnvironmentEditDialog(initial = null, onConfirm = { onSave(it); adding = false }, onDismiss = { adding = false })
     }
     editing?.let { c ->
-        ConnectionEditDialog(initial = c, onConfirm = { onSave(it); editing = null }, onDismiss = { editing = null })
+        EnvironmentEditDialog(initial = c, onConfirm = { onSave(it); editing = null }, onDismiss = { editing = null })
     }
     scanned?.let { c ->
-        ConnectionEditDialog(
+        EnvironmentEditDialog(
             initial = c,
             focusName = true,
             onConfirm = { onSave(it); onSetActive(it.id); scanned = null },
@@ -482,7 +528,7 @@ private fun ConnectionsDialog(
     deleting?.let { c ->
         ConfirmDialog(
             title = stringResource(R.string.delete),
-            text = stringResource(R.string.delete_connection_confirm, c.name),
+            text = stringResource(R.string.delete_environment_confirm, c.name),
             confirmLabel = stringResource(R.string.delete),
             onConfirm = { onDelete(c.id); deleting = null },
             onDismiss = { deleting = null },
@@ -491,9 +537,9 @@ private fun ConnectionsDialog(
 }
 
 @Composable
-private fun ConnectionEditDialog(
-    initial: ConnectionProfile?,
-    onConfirm: (ConnectionProfile) -> Unit,
+private fun EnvironmentEditDialog(
+    initial: EnvironmentProfile?,
+    onConfirm: (EnvironmentProfile) -> Unit,
     onDismiss: () -> Unit,
     focusName: Boolean = false,
 ) {
@@ -514,12 +560,12 @@ private fun ConnectionEditDialog(
 
     CompactDialog(
         onDismiss = onDismiss,
-        title = stringResource(if (initial == null) R.string.add_connection else R.string.edit_connection),
+        title = stringResource(if (initial == null) R.string.add_environment else R.string.edit_environment),
         titleTrailing = {
             IconButton(
                 onClick = {
                     QrScanner.scan(context) { raw ->
-                        val payload = raw?.let(QrConnectionPayload::parse) ?: return@scan
+                        val payload = raw?.let(QrEnvironmentPayload::parse) ?: return@scan
                         val parsed = parseHostInput(payload.url) ?: return@scan
                         kind = parsed.kind
                         host = parsed.host
@@ -548,7 +594,7 @@ private fun ConnectionEditDialog(
                     }
                     val portInt: Int? = if (finalKind == "https") null else (finalPort.toIntOrNull() ?: 8723)
                     onConfirm(
-                        ConnectionProfile(
+                        EnvironmentProfile(
                             id = initial?.id ?: UUID.randomUUID().toString(),
                             name = name.trim().ifBlank { finalHost },
                             kind = finalKind,
@@ -569,7 +615,7 @@ private fun ConnectionEditDialog(
         },
     ) {
         SelectField(
-            label = stringResource(R.string.connection_kind),
+            label = stringResource(R.string.environment_kind),
             selected = kind,
             options = listOf("http" to "HTTP", "https" to "HTTPS"),
             onSelect = { newKind ->
@@ -581,7 +627,7 @@ private fun ConnectionEditDialog(
         )
         Spacer(Modifier.height(8.dp))
         val nameFocus = remember { FocusRequester() }
-        InputField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.connection_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth().focusRequester(nameFocus))
+        InputField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.environment_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth().focusRequester(nameFocus))
         LaunchedEffect(focusName) { if (focusName) nameFocus.requestFocus() }
         Spacer(Modifier.height(8.dp))
         InputField(
@@ -606,7 +652,7 @@ private fun ConnectionEditDialog(
             Spacer(Modifier.height(8.dp))
         }
         SelectField(
-            label = stringResource(R.string.connection_auth),
+            label = stringResource(R.string.environment_auth),
             selected = authKind,
             options = listOf(
                 "none" to stringResource(R.string.auth_none),
@@ -618,7 +664,7 @@ private fun ConnectionEditDialog(
         )
         Spacer(Modifier.height(8.dp))
         when (authKind) {
-            "bearer" -> SecretTextField(value = authToken, onValueChange = { authToken = it }, label = stringResource(R.string.connection_token), modifier = Modifier.fillMaxWidth())
+            "bearer" -> SecretTextField(value = authToken, onValueChange = { authToken = it }, label = stringResource(R.string.environment_token), modifier = Modifier.fillMaxWidth())
             "basic" -> {
                 InputField(value = authUser, onValueChange = { authUser = it }, label = { Text(stringResource(R.string.auth_user)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
@@ -634,7 +680,7 @@ private fun ConnectionEditDialog(
         InputField(
             value = directory,
             onValueChange = { directory = it },
-            label = { Text(stringResource(R.string.connection_directory)) },
+            label = { Text(stringResource(R.string.environment_directory)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -799,11 +845,11 @@ private fun CliDialog(
     }
 }
 
-private fun profileFromQrPayload(raw: String): ConnectionProfile? {
-    val payload = QrConnectionPayload.parse(raw) ?: return null
+private fun profileFromQrPayload(raw: String): EnvironmentProfile? {
+    val payload = QrEnvironmentPayload.parse(raw) ?: return null
     val parsed = parseHostInput(payload.url) ?: return null
     val port: Int? = if (parsed.kind == "https") null else parsed.port.toIntOrNull()
-    return ConnectionProfile(
+    return EnvironmentProfile(
         id = UUID.randomUUID().toString(),
         name = "",
         kind = parsed.kind,
@@ -816,8 +862,6 @@ private fun profileFromQrPayload(raw: String): ConnectionProfile? {
 
 private data class ParsedHost(val host: String, val port: String, val kind: String)
 
-// Returns non-null only when the user pasted a URL with a scheme (http(s)/ws(s)); plain
-// host text falls through to the normal onValueChange path.
 private fun parseHostInput(input: String): ParsedHost? {
     val raw = input.trim()
     val sep = raw.indexOf("://")

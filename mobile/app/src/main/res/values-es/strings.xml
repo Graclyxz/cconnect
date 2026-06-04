@@ -3,6 +3,9 @@
 
     <!-- Settings -->
     <string name="settings">Ajustes</string>
+    <string name="settings_appearance">Apariencia</string>
+    <string name="settings_connectivity">Conectividad</string>
+    <string name="settings_server">Servidor</string>
     <string name="theme">Tema</string>
     <string name="theme_system">Predeterminado del sistema</string>
     <string name="theme_light">Claro</string>
@@ -11,13 +14,13 @@
     <string name="language_system">Predeterminado del sistema</string>
     <string name="accent">Color de acento</string>
     <string name="accent_dynamic">Dinámico</string>
-    <string name="connections">Conexiones</string>
-    <string name="connection_name">Nombre</string>
+    <string name="environments">Entornos</string>
+    <string name="environment_name">Nombre</string>
     <string name="host">Host</string>
     <string name="port">Puerto</string>
-    <string name="connection_kind">Tipo de conexión</string>
-    <string name="connection_auth">Autenticación</string>
-    <string name="connection_token">Token</string>
+    <string name="environment_kind">Tipo de conexión</string>
+    <string name="environment_auth">Autenticación</string>
+    <string name="environment_token">Token</string>
     <string name="auth_none">Ninguna</string>
     <string name="auth_bearer">Token Bearer</string>
     <string name="auth_basic">Basic auth</string>
@@ -26,9 +29,9 @@
     <string name="auth_password">Contraseña</string>
     <string name="auth_header_name">Nombre del header</string>
     <string name="auth_header_value">Valor del header</string>
-    <string name="connection_directory">Directorio (Opcional)</string>
-    <string name="add_connection">Agregar conexión</string>
-    <string name="edit_connection">Editar conexión</string>
+    <string name="environment_directory">Directorio (Opcional)</string>
+    <string name="add_environment">Agregar entorno</string>
+    <string name="edit_environment">Editar entorno</string>
     <string name="scan_qr">Escanear QR</string>
     <string name="terminal">Terminal</string>
     <string name="ssh_hosts">Hosts SSH</string>
@@ -46,8 +49,8 @@
     <string name="ssh_closed">Desconectado</string>
     <string name="ssh_failed">Falló: %1$s</string>
     <string name="connection_error">Error de conexión</string>
-    <string name="delete_connection_confirm">¿Borrar la conexión «%1$s»?</string>
-    <string name="no_connections">Sin conexiones aún</string>
+    <string name="delete_environment_confirm">¿Borrar el entorno «%1$s»?</string>
+    <string name="no_environments">Sin entornos aún</string>
     <string name="cli">CLI de Claude</string>
     <string name="cli_source">Origen del CLI</string>
     <string name="cli_source_system">System</string>
@@ -65,8 +68,8 @@
     <string name="permissions">Permisos</string>
     <string name="permission_mode">Modo de permisos por defecto</string>
     <string name="reset_settings">Restablecer ajustes</string>
-    <string name="reset_settings_summary">Restaura los valores predeterminados (no afecta a las conexiones guardadas)</string>
-    <string name="reset_settings_confirm">¿Restablecer todos los ajustes a sus valores predeterminados? Las conexiones guardadas se conservan.</string>
+    <string name="reset_settings_summary">Restaura los valores predeterminados (no afecta a los entornos guardados)</string>
+    <string name="reset_settings_confirm">¿Restablecer todos los ajustes a sus valores predeterminados? Los entornos guardados se conservan.</string>
     <string name="save">Guardar</string>
     <string name="accept">Aceptar</string>
     <string name="back">Atrás</string>
@@ -84,10 +87,11 @@
     <string name="delete_file_confirm">¿Borrar «%1$s»?</string>
     <string name="new_session">Nueva sesión</string>
     <string name="new_chat">Nuevo chat</string>
+    <string name="no_chats">Sin chats</string>
     <string name="rewind">Restaurar</string>
     <string name="rewind_empty">Sin puntos de restauración</string>
-    <string name="rewind_both">Restaurar código y conversación</string>
-    <string name="rewind_conversation">Restaurar solo la conversación</string>
+    <string name="rewind_both">Código y conversación</string>
+    <string name="rewind_conversation">Conversación</string>
     <string name="rewind_no_checkpoint">Sin checkpoint de archivos para este mensaje</string>
     <string name="rewind_files_count">%1$d archivos</string>
     <string name="tasks">Tareas</string>

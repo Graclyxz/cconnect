@@ -55,6 +55,7 @@ import com.composables.icons.lucide.Save
 import com.composables.icons.lucide.Share2
 import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.R
+import com.jahirtrap.cconnect.data.EnvironmentProfile
 import com.jahirtrap.cconnect.ui.theme.sessionColorOf
 
 // Compact replacement for Material3 AlertDialog, whose built-in paddings look too airy.
@@ -233,6 +234,30 @@ fun ConfirmSelectDialog(
 }
 
 @Composable
+fun EnvironmentSelectDialog(
+    environments: List<EnvironmentProfile>,
+    activeId: String?,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    CompactDialog(
+        onDismiss = onDismiss,
+        title = stringResource(R.string.environment),
+        contentPadding = PaddingValues(0.dp),
+        buttons = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    ) {
+        environments.forEach { c ->
+            DialogSelectItem(
+                label = c.name,
+                subtitle = c.address,
+                selected = c.id == activeId,
+                onClick = { onSelect(c.id); onDismiss() },
+            )
+        }
+    }
+}
+
+@Composable
 fun SharedLinkActionsDialog(
     filename: String,
     onSave: () -> Unit,
@@ -281,6 +306,7 @@ fun DialogSelectItem(
     selected: Boolean,
     onClick: () -> Unit,
     subtitle: String? = null,
+    enabled: Boolean = true,
     trailing: @Composable (RowScope.() -> Unit)? = null,
 ) {
     val ring = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
@@ -290,7 +316,8 @@ fun DialogSelectItem(
             .padding(horizontal = 20.dp)
             .clip(RoundedCornerShape(20.dp))
             .then(if (selected) Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)) else Modifier)
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
+            .alpha(if (enabled) 1f else 0.38f)
             .padding(start = 12.dp, end = if (trailing != null) 4.dp else 12.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

@@ -6,7 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.ChatMessage
-import com.jahirtrap.cconnect.data.ConnectionProfile
+import com.jahirtrap.cconnect.data.EnvironmentProfile
 import com.jahirtrap.cconnect.data.CommandOption
 import com.jahirtrap.cconnect.data.CompactData
 import com.jahirtrap.cconnect.data.DiffLine
@@ -66,8 +66,8 @@ data class ChatUiState(
     val historySessions: List<SessionInfo> = emptyList(),
     val historyProjectKey: String? = null,
     val historyLoading: Boolean = false,
-    val connections: List<ConnectionProfile> = emptyList(),
-    val activeConnectionId: String? = null,
+    val environments: List<EnvironmentProfile> = emptyList(),
+    val activeEnvironmentId: String? = null,
     val oldestLoadedIndex: Int? = null,
     val transcriptLoading: Boolean = false,
     val transcriptExhausted: Boolean = false,
@@ -98,8 +98,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 model = d.model,
                 effort = d.effort,
                 streamTokens = true,
-                connections = settings.connections,
-                activeConnectionId = settings.activeConnection?.id,
+                environments = settings.environments,
+                activeEnvironmentId = settings.activeEnvironment?.id,
             )
         }
     )
@@ -128,7 +128,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun applyDefaultDirectory() {
-        settings.cwd = settings.activeConnection?.directory.orEmpty()
+        settings.cwd = settings.activeEnvironment?.directory.orEmpty()
     }
 
     fun connect() {
@@ -276,24 +276,20 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         startSession(resume = null)
     }
 
-    // Pull the latest connection profiles from settings (they may have been edited in
-    // the settings screen while this ViewModel stayed alive).
-    fun refreshConnections() {
-        _state.update { it.copy(connections = settings.connections, activeConnectionId = settings.activeConnection?.id) }
+    fun refreshEnvironments() {
+        _state.update { it.copy(environments = settings.environments, activeEnvironmentId = settings.activeEnvironment?.id) }
     }
 
-    // Switch the active backend (device) and reconnect from scratch — the new host has
-    // its own sessions/projects, so clear the chat and history.
-    fun selectConnection(id: String) {
-        if (id == settings.activeConnection?.id) return
-        settings.activeConnectionId = id
+    fun selectEnvironment(id: String) {
+        if (id == settings.activeEnvironment?.id) return
+        settings.activeEnvironmentId = id
         applyDefaultDirectory()
         currentAssistantId = null
         currentThinkingId = null
         client.close()
         _state.update {
             it.copy(
-                activeConnectionId = id,
+                activeEnvironmentId = id,
                 connection = ConnectionState.Disconnected,
                 capabilitiesReady = false,
                 messages = emptyList(),

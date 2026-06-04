@@ -3,6 +3,9 @@
 
     <!-- Settings -->
     <string name="settings">Settings</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_connectivity">Connectivity</string>
+    <string name="settings_server">Server</string>
     <string name="theme">Theme</string>
     <string name="theme_system">System default</string>
     <string name="theme_light">Light</string>
@@ -11,13 +14,13 @@
     <string name="language_system">System default</string>
     <string name="accent">Accent color</string>
     <string name="accent_dynamic">Dynamic</string>
-    <string name="connections">Connections</string>
-    <string name="connection_name">Name</string>
+    <string name="environments">Environments</string>
+    <string name="environment_name">Name</string>
     <string name="host">Host</string>
     <string name="port">Port</string>
-    <string name="connection_kind">Connection type</string>
-    <string name="connection_auth">Authentication</string>
-    <string name="connection_token">Token</string>
+    <string name="environment_kind">Connection type</string>
+    <string name="environment_auth">Authentication</string>
+    <string name="environment_token">Token</string>
     <string name="auth_none">None</string>
     <string name="auth_bearer">Bearer token</string>
     <string name="auth_basic">Basic auth</string>
@@ -26,9 +29,9 @@
     <string name="auth_password">Password</string>
     <string name="auth_header_name">Header name</string>
     <string name="auth_header_value">Header value</string>
-    <string name="connection_directory">Directory (Optional)</string>
-    <string name="add_connection">Add connection</string>
-    <string name="edit_connection">Edit connection</string>
+    <string name="environment_directory">Directory (Optional)</string>
+    <string name="add_environment">Add environment</string>
+    <string name="edit_environment">Edit environment</string>
     <string name="scan_qr">Scan QR</string>
     <string name="terminal">Terminal</string>
     <string name="ssh_hosts">SSH hosts</string>
@@ -46,8 +49,8 @@
     <string name="ssh_closed">Disconnected</string>
     <string name="ssh_failed">Failed: %1$s</string>
     <string name="connection_error">Connection error</string>
-    <string name="delete_connection_confirm">Delete the connection \"%1$s\"?</string>
-    <string name="no_connections">No connections yet</string>
+    <string name="delete_environment_confirm">Delete the environment \"%1$s\"?</string>
+    <string name="no_environments">No environments yet</string>
     <string name="cli">Claude CLI</string>
     <string name="cli_source">CLI source</string>
     <string name="cli_source_system">System</string>
@@ -65,8 +68,8 @@
     <string name="permissions">Permissions</string>
     <string name="permission_mode">Default permission mode</string>
     <string name="reset_settings">Reset settings</string>
-    <string name="reset_settings_summary">Restore default values (does not affect saved connections)</string>
-    <string name="reset_settings_confirm">Restore all settings to their defaults? Saved connections are kept.</string>
+    <string name="reset_settings_summary">Restore default values (does not affect saved environments)</string>
+    <string name="reset_settings_confirm">Restore all settings to their defaults? Saved environments are kept.</string>
     <string name="save">Save</string>
     <string name="accept">Accept</string>
     <string name="back">Back</string>
@@ -84,10 +87,11 @@
     <string name="delete_file_confirm">Delete \"%1$s\"?</string>
     <string name="new_session">New session</string>
     <string name="new_chat">New chat</string>
+    <string name="no_chats">No chats</string>
     <string name="rewind">Rewind</string>
     <string name="rewind_empty">No rewind points</string>
-    <string name="rewind_both">Restore code and conversation</string>
-    <string name="rewind_conversation">Restore conversation only</string>
+    <string name="rewind_both">Code and conversation</string>
+    <string name="rewind_conversation">Conversation</string>
     <string name="rewind_no_checkpoint">No file checkpoint for this message</string>
     <string name="rewind_files_count">%1$d files</string>
     <string name="tasks">Tasks</string>

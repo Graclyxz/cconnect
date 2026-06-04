@@ -1,6 +1,6 @@
 package com.jahirtrap.cconnect.data
 
-data class ConnectionProfile(
+data class EnvironmentProfile(
     val id: String,
     val name: String,
     val kind: String = "http",            // "http" | "https"

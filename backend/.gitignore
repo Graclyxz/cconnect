@@ -2,3 +2,6 @@
 cconnect.db
 cconnect.db-wal
 cconnect.db-shm
+
+# Pending conversation-rewind anchors (runtime state)
+rewind_pending.json
