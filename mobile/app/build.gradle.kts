@@ -16,6 +16,8 @@ android {
         targetSdk = 36
         versionCode = 9
         versionName = "1.0.8"
+        val supportedServer = ">=1.0.8"
+        buildConfigField("String", "SUPPORTED_SERVER", "\"$supportedServer\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -65,6 +67,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

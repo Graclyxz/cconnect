@@ -11,6 +11,19 @@ except ImportError:
 
 PORT = int(os.environ.get("PORT", "8723"))
 
+def _pyproject() -> dict:
+    import tomllib
+    try:
+        with (Path(__file__).resolve().parent.parent / "pyproject.toml").open("rb") as fh:
+            return tomllib.load(fh)
+    except (OSError, ValueError):
+        return {}
+
+
+_PYPROJECT = _pyproject()
+SERVER_VERSION = _PYPROJECT.get("project", {}).get("version", "1.0.0")
+SUPPORTED_APP = _PYPROJECT.get("tool", {}).get("cconnect", {}).get("supported-app", ">=1.0.0")
+
 CLAUDE_PROJECTS_DIR = os.environ.get(
     "CLAUDE_PROJECTS_DIR",
     str(Path.home() / ".claude" / "projects"),
@@ -105,6 +118,8 @@ PUBLIC_ACCESS_TOKEN: str | None = (
 
 __all__ = [
     "PORT",
+    "SERVER_VERSION",
+    "SUPPORTED_APP",
     "CLAUDE_PROJECTS_DIR",
     "AI_WORKDIR",
     "SHARED_DIR",

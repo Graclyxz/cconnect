@@ -4,6 +4,8 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.jahirtrap.cconnect.BuildConfig
+import com.jahirtrap.cconnect.data.AppCompat
 import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.ChatMessage
 import com.jahirtrap.cconnect.data.EnvironmentProfile
@@ -19,6 +21,7 @@ import com.jahirtrap.cconnect.data.ServerEvent
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.SessionMessage
 import com.jahirtrap.cconnect.data.Settings
+import com.jahirtrap.cconnect.data.remote.GitHubApi
 import com.jahirtrap.cconnect.data.TodoItem
 import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
 import com.jahirtrap.cconnect.data.remote.ChatSocket
@@ -83,7 +86,13 @@ data class ChatUiState(
     val rewindPreview: SessionsApi.RewindPreview? = null,
     val rewindBusy: Boolean = false,
     val pendingInput: String? = null,                // rewound prompt to restore into the composer
+    val latestRelease: GitHubApi.Release? = null,    // newer app release on GitHub, if any
+    val appOutdated: Boolean = false,                // server doesn't support this app version
+    val serverOutdated: Boolean = false,             // this app doesn't support the server version
+    val versionNotices: List<CompatStatus> = emptyList(),  // dismissable startup notices
 )
+
+enum class CompatStatus { AppOutdated, ServerOutdated, UpdateAvailable }
 
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val appContext: Context = app
@@ -112,7 +121,6 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private var historyJob: Job? = null
     private var historyLoaded = false
 
-    // Reconnect-and-resume when the app returns to the foreground after a drop.
     private val foregroundObserver = object : DefaultLifecycleObserver {
         override fun onStart(owner: LifecycleOwner) {
             if (_state.value.connection == ConnectionState.Disconnected) connect()
@@ -135,8 +143,12 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (!settings.isConfigured) return
         if (_state.value.connection != ConnectionState.Disconnected) return
         _state.update { it.copy(connection = ConnectionState.Connecting, error = null) }
+        refreshRelease()
         viewModelScope.launch {
-            CapabilitiesApi.capabilities()?.let { caps -> _state.update { it.copy(capabilities = caps) } }
+            CapabilitiesApi.capabilities()?.let { caps ->
+                _state.update { it.copy(capabilities = caps) }
+                evaluateCompat(caps)
+            }
             SettingsApi.get()?.let { s ->
                 _state.update {
                     it.copy(model = s.model, effort = s.effort, permissionMode = s.permissionMode, streamTokens = s.streaming, showWorking = s.showWorking)
@@ -145,6 +157,53 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(capabilitiesReady = true) }
             client.connect()
         }
+    }
+
+    private val dismissedNotices = mutableSetOf<CompatStatus>()
+
+    private fun pushNotice(notices: List<CompatStatus>, notice: CompatStatus): List<CompatStatus> =
+        if (notice in dismissedNotices || notice in notices) notices else notices + notice
+
+    private fun evaluateCompat(caps: Capabilities) {
+        val appOutdated = !AppCompat.satisfies(BuildConfig.VERSION_NAME, caps.supportedApp)
+        val serverOutdated = !AppCompat.satisfies(caps.serverVersion, AppCompat.SUPPORTED_SERVER)
+        if (!appOutdated) dismissedNotices.remove(CompatStatus.AppOutdated)
+        if (!serverOutdated) dismissedNotices.remove(CompatStatus.ServerOutdated)
+        _state.update {
+            var notices = it.versionNotices
+            notices = if (appOutdated) pushNotice(notices, CompatStatus.AppOutdated) else notices - CompatStatus.AppOutdated
+            notices = if (serverOutdated) pushNotice(notices, CompatStatus.ServerOutdated) else notices - CompatStatus.ServerOutdated
+            it.copy(appOutdated = appOutdated, serverOutdated = serverOutdated, versionNotices = notices)
+        }
+    }
+
+    private fun applyRelease(release: GitHubApi.Release?) {
+        val newer = release != null && AppCompat.compare(release.tag, BuildConfig.VERSION_NAME) > 0
+        if (!newer) dismissedNotices.remove(CompatStatus.UpdateAvailable)
+        _state.update {
+            var notices = it.versionNotices
+            notices = if (newer) pushNotice(notices, CompatStatus.UpdateAvailable) else notices - CompatStatus.UpdateAvailable
+            it.copy(latestRelease = if (newer) release else null, versionNotices = notices)
+        }
+    }
+
+    private fun refreshRelease() {
+        viewModelScope.launch { applyRelease(GitHubApi.latestRelease()) }
+    }
+
+    fun refreshVersionInfo() {
+        viewModelScope.launch {
+            CapabilitiesApi.capabilities()?.let { caps ->
+                _state.update { it.copy(capabilities = caps) }
+                evaluateCompat(caps)
+            }
+            applyRelease(GitHubApi.latestRelease())
+        }
+    }
+
+    fun dismissNotice(notice: CompatStatus) {
+        dismissedNotices.add(notice)
+        _state.update { it.copy(versionNotices = it.versionNotices - notice) }
     }
 
     private fun startSession(resume: String?) {

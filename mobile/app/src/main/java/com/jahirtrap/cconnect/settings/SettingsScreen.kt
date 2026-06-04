@@ -27,6 +27,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +51,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -74,14 +76,24 @@ import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.EnvironmentProfile
 import com.jahirtrap.cconnect.data.QrEnvironmentPayload
 import com.jahirtrap.cconnect.data.Settings
+import com.jahirtrap.cconnect.data.AppUpdater
 import com.jahirtrap.cconnect.data.remote.Backend
 import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
 import com.jahirtrap.cconnect.data.remote.CliApi
 import com.jahirtrap.cconnect.data.remote.SettingsApi
+import com.jahirtrap.cconnect.data.remote.AppImageLoader
+import com.jahirtrap.cconnect.data.remote.GitHubApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.chat.ChatViewModel
 import com.jahirtrap.cconnect.chat.ConnectionState
+import coil3.compose.AsyncImage
+import com.jahirtrap.cconnect.BuildConfig
+import com.composables.icons.lucide.Github
+import com.jahirtrap.cconnect.ui.AppLogo
+import com.jahirtrap.cconnect.ui.Claude
+import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.ActionButton
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.ColorSwatch
@@ -141,7 +153,8 @@ fun SettingsScreen(
     var loading by remember { mutableStateOf(Backend.isConfigured) }
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val chatState by viewModel<ChatViewModel>().state.collectAsState()
+    val chatVm = viewModel<ChatViewModel>()
+    val chatState by chatVm.state.collectAsState()
 
     suspend fun loadServerSettings() {
         if (!Backend.isConfigured) { serverReady = false; loading = false; cliInfo = null; return }
@@ -156,6 +169,7 @@ fun SettingsScreen(
         cliInfo = CliApi.status()
         serverReady = s != null
         loading = false
+        chatVm.refreshVersionInfo()
     }
 
     LaunchedEffect(activeId, environments) { loadServerSettings() }
@@ -232,13 +246,117 @@ fun SettingsScreen(
                         }
                     },
                 ) {
-                    PreferenceRow(Lucide.Terminal, stringResource(R.string.cli), serverSummary(cliInfo?.activeVersion ?: "—"), enabled = serverReady) { dialog = SettingsDialog.Cli }
+                    PreferenceRow(CustomIcons.Claude, stringResource(R.string.cli), serverSummary(cliInfo?.activeVersion ?: "—"), enabled = serverReady) { dialog = SettingsDialog.Cli }
                     PreferenceRow(Lucide.Sparkles, stringResource(R.string.generation), serverSummary("${caps.models.firstOrNull { it.id == model }?.label ?: model} • $effort"), enabled = serverReady) { dialog = SettingsDialog.Generation }
                     PreferenceRow(Lucide.Shield, stringResource(R.string.permissions), serverSummary(permissionLabel(caps, permissionMode)), enabled = serverReady) { dialog = SettingsDialog.Permissions }
                     PreferenceRow(Lucide.Eye, stringResource(R.string.visibility), serverSummary(stringResource(R.string.visibility_summary)), enabled = serverReady) { dialog = SettingsDialog.Visibility }
                 }
                 SettingsGroup(label = null) {
                     PreferenceRow(Lucide.History, stringResource(R.string.reset_settings), stringResource(R.string.reset_settings_summary)) { dialog = SettingsDialog.Reset }
+                }
+                SettingsGroup(stringResource(R.string.about)) {
+                    val uriHandler = LocalUriHandler.current
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { uriHandler.openUri(chatState.latestRelease?.url ?: GitHubApi.REPO_URL) }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        AppLogo()
+                        Spacer(Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                stringResource(R.string.version_label, BuildConfig.VERSION_NAME),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            if (chatState.appOutdated) Text(
+                                stringResource(R.string.compat_app_outdated),
+                                style = MaterialTheme.typography.bodySmall, color = palette.red,
+                            )
+                            if (chatState.serverOutdated) Text(
+                                stringResource(R.string.compat_server_outdated),
+                                style = MaterialTheme.typography.bodySmall, color = palette.red,
+                            )
+                            chatState.latestRelease?.let { release ->
+                                Text(
+                                    stringResource(R.string.update_available, release.tag),
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                            if (!chatState.appOutdated && !chatState.serverOutdated && chatState.latestRelease == null) Text(
+                                stringResource(R.string.up_to_date),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    chatState.latestRelease?.apkUrl?.let { apkUrl ->
+                        var progress by remember { mutableStateOf<Float?>(null) }
+                        var downloadJob by remember { mutableStateOf<Job?>(null) }
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress ?: 0f },
+                                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                            )
+                        }
+                        ActionButton(
+                            text = stringResource(if (progress != null) R.string.cancel else R.string.update_action),
+                            onClick = {
+                                if (progress != null) {
+                                    downloadJob?.cancel()
+                                } else {
+                                    progress = 0f
+                                    downloadJob = scope.launch {
+                                        try {
+                                            AppUpdater.downloadAndInstall(context, apkUrl) { progress = it }
+                                        } finally {
+                                            progress = null
+                                            downloadJob = null
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                        )
+                    }
+                    var profile by remember { mutableStateOf<GitHubApi.Profile?>(null) }
+                    LaunchedEffect(Unit) { profile = GitHubApi.ownerProfile() }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = profile != null) { profile?.let { uriHandler.openUri(it.url) } }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        val avatar = profile?.avatarUrl
+                        if (avatar != null) {
+                            AsyncImage(
+                                model = avatar,
+                                imageLoader = AppImageLoader.get(context),
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp).clip(CircleShape),
+                            )
+                        } else {
+                            Box(Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant))
+                        }
+                        Spacer(Modifier.width(16.dp))
+                        Column {
+                            Text(profile?.let { it.name ?: it.login } ?: "…", style = MaterialTheme.typography.bodyLarge)
+                            Text(
+                                stringResource(R.string.creator),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    PreferenceRow(
+                        Lucide.Github,
+                        stringResource(R.string.repository),
+                        GitHubApi.REPO_URL.removePrefix("https://"),
+                    ) { uriHandler.openUri(GitHubApi.REPO_URL) }
                 }
             }
         }

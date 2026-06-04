@@ -48,6 +48,8 @@ object CapabilitiesApi {
                     model = o["model"]?.jsonPrimitive?.contentOrNull ?: fallback.defaults.model,
                 )
             } ?: fallback.defaults,
+            serverVersion = data["version"]?.jsonPrimitive?.contentOrNull,
+            supportedApp = data["supported_app"]?.jsonPrimitive?.contentOrNull,
         )
     }
 }

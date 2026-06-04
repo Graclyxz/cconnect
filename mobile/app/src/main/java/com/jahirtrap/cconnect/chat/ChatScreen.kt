@@ -78,6 +78,8 @@ import com.composables.icons.lucide.SquareTerminal
 import com.composables.icons.lucide.SquarePen
 import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.ui.AppBottomSheet
+import com.jahirtrap.cconnect.ui.AppLogo
+import com.jahirtrap.cconnect.ui.NoticeCard
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.DropdownScrim
@@ -113,6 +115,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -397,6 +400,27 @@ fun ChatScreen(
         ) {
             MaterialExpressiveTheme(motionScheme = MotionScheme.expressive()) {
                 Scaffold(
+                    snackbarHost = {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            state.versionNotices.sortedBy { it.ordinal }.forEach { notice ->
+                                key(notice) {
+                                    NoticeCard(
+                                        text = when (notice) {
+                                            CompatStatus.AppOutdated -> stringResource(R.string.compat_app_outdated)
+                                            CompatStatus.ServerOutdated -> stringResource(R.string.compat_server_outdated)
+                                            else -> stringResource(R.string.update_available, state.latestRelease?.tag.orEmpty())
+                                        },
+                                        actionLabel = stringResource(R.string.settings),
+                                        onAction = { vm.dismissNotice(notice); onOpenSettings() },
+                                        onDismiss = { vm.dismissNotice(notice) },
+                                    )
+                                }
+                            }
+                        }
+                    },
                     topBar = {
                         val waitingUser = state.messages.any { it.role == Role.INTERACTION && it.interaction?.pending == true }
                         val statusLeading: (@Composable () -> Unit) = when {
@@ -1505,23 +1529,6 @@ private fun CircleActionButton(
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = contentDescription, tint = fg, modifier = Modifier.size(iconSize))
-    }
-}
-
-@Composable
-private fun AppLogo() {
-    Box(
-        modifier = Modifier
-            .size(32.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(colorResource(R.color.ic_launcher_background)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Image(
-            painter = painterResource(R.drawable.ic_launcher_foreground),
-            contentDescription = null,
-            modifier = Modifier.fillMaxSize().scale(1.6f),
-        )
     }
 }
 

@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from core.config import (
+    SERVER_VERSION,
     COLORS,
     COMMANDS,
     DEFAULT_EFFORT,
@@ -10,6 +11,7 @@ from core.config import (
     DEFAULT_PERMISSION_MODE,
     MODELS,
     PERMISSION_LABELS,
+    SUPPORTED_APP,
     ULTRACODE_EFFORT,
     effort_levels,
     permission_modes,
@@ -22,6 +24,8 @@ router = APIRouter(tags=["Capabilities"])
 @router.get("/capabilities")
 def get_capabilities():
     return api_response(data={
+        "version": SERVER_VERSION,
+        "supported_app": SUPPORTED_APP,
         "permission_modes": [{"id": m, "label": PERMISSION_LABELS.get(m, m)} for m in permission_modes()],
         "effort_levels": ["default"] + list(effort_levels()) + [ULTRACODE_EFFORT],
         "models": MODELS,
