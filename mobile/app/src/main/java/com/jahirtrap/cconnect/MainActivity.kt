@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import com.jahirtrap.cconnect.chat.ChatScreen
 import com.jahirtrap.cconnect.files.FileExplorerScreen
+import com.jahirtrap.cconnect.files.FilePreviewScreen
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.settings.SettingsScreen
 import com.jahirtrap.cconnect.terminal.TerminalScreen
@@ -59,6 +60,7 @@ private fun App() {
     var language by remember { mutableStateOf(settings.language) }
     var showSettings by remember { mutableStateOf(!settings.isConfigured) }
     var showExplorer by remember { mutableStateOf(false) }
+    var previewFile by remember { mutableStateOf<Pair<String, String>?>(null) }  // url to filename
     var showTerminal by remember { mutableStateOf(false) }
     var terminalFromSettings by remember { mutableStateOf(false) }
     // Hoisted so the open/closed state survives navigating to settings and back.
@@ -86,6 +88,10 @@ private fun App() {
             accent = accentAt(accentIndex),
         ) {
             when {
+                previewFile != null -> previewFile?.let { (url, name) ->
+                    FilePreviewScreen(url = url, filename = name, onClose = { previewFile = null })
+                }
+
                 showSettings -> SettingsScreen(
                     themeMode = themeMode,
                     onThemeMode = { themeMode = it; settings.themeMode = it },
@@ -103,7 +109,7 @@ private fun App() {
                     onClose = { showSettings = false },
                 )
 
-                showExplorer -> FileExplorerScreen(onClose = { showExplorer = false })
+                showExplorer -> FileExplorerScreen(onClose = { showExplorer = false }, onOpenPreview = { url, name -> previewFile = url to name })
 
                 showTerminal -> TerminalScreen(onClose = {
                     showTerminal = false
@@ -117,6 +123,7 @@ private fun App() {
                     onOpenSettings = { showSettings = true },
                     onOpenExplorer = { showExplorer = true },
                     onOpenTerminal = { showTerminal = true },
+                    onOpenPreview = { url, name -> previewFile = url to name },
                     drawerState = drawerState,
                     themeMode = themeMode,
                     onThemeMode = { themeMode = it; settings.themeMode = it },

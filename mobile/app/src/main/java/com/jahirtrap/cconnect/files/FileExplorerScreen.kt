@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -47,6 +48,7 @@ import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Download
 import com.composables.icons.lucide.EllipsisVertical
+import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.File
 import com.composables.icons.lucide.Folder
 import com.composables.icons.lucide.House
@@ -60,7 +62,10 @@ import com.jahirtrap.cconnect.chat.ChatViewModel
 import com.jahirtrap.cconnect.chat.ConnectionState
 import com.jahirtrap.cconnect.data.SharedEntry
 import com.jahirtrap.cconnect.data.remote.SharedApi
+import com.jahirtrap.cconnect.ui.AppBottomSheet
 import com.jahirtrap.cconnect.ui.AppTopBar
+import com.jahirtrap.cconnect.ui.CenteredProgress
+import com.jahirtrap.cconnect.ui.MarkdownText
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.EnvironmentSelectDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
@@ -76,7 +81,7 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FileExplorerScreen(onClose: () -> Unit) {
+fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: String) -> Unit) {
     val context = LocalContext.current
     val vm: ChatViewModel = viewModel()
     val state by vm.state.collectAsState()
@@ -160,6 +165,7 @@ fun FileExplorerScreen(onClose: () -> Unit) {
                             EntryRow(
                                 entry = entry,
                                 onOpen = { if (entry.isDir) path = child(entry.name) },
+                                onView = { onOpenPreview(SharedApi.downloadUrl(child(entry.name)), entry.name) },
                                 onSave = { FileTransfer.enqueueToDownloads(context, SharedApi.downloadUrl(child(entry.name)), entry.name) },
                                 onSaveAs = { pendingSaveUrl = SharedApi.downloadUrl(child(entry.name)); saveLauncher.launch(entry.name) },
                                 onShare = {
@@ -250,17 +256,25 @@ private fun Breadcrumb(path: String, onNavigate: (String) -> Unit) {
 private fun EntryRow(
     entry: SharedEntry,
     onOpen: () -> Unit,
+    onView: () -> Unit,
     onSave: () -> Unit,
     onSaveAs: () -> Unit,
     onShare: () -> Unit,
     onDelete: () -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
+    val previewable = !entry.isDir && isPreviewable(entry.name)
     ListRow(
         icon = if (entry.isDir) Lucide.Folder else Lucide.File,
         title = entry.name,
         subtitle = if (!entry.isDir) "${formatSize(entry.size)} • ${formatDate(entry.modified)}" else null,
-        onClick = { if (entry.isDir) onOpen() else menu = true },
+        onClick = {
+            when {
+                entry.isDir -> onOpen()
+                previewable -> onView()
+                else -> menu = true
+            }
+        },
         trailing = {
             Box {
                 IconButton(onClick = { menu = true }, modifier = Modifier.size(40.dp)) {
@@ -268,6 +282,13 @@ private fun EntryRow(
                 }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     if (!entry.isDir) {
+                        if (previewable) {
+                            CompactDropdownItem(
+                                text = stringResource(R.string.view),
+                                leadingIcon = { Icon(Lucide.Eye, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                                onClick = { menu = false; onView() },
+                            )
+                        }
                         CompactDropdownItem(
                             text = stringResource(R.string.save),
                             leadingIcon = { Icon(Lucide.Download, contentDescription = null, modifier = Modifier.size(20.dp)) },

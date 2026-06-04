@@ -1,6 +1,10 @@
 package com.jahirtrap.cconnect.data.remote
 
 import android.net.Uri
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import com.jahirtrap.cconnect.data.SharedEntry
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
@@ -26,6 +30,19 @@ object SharedApi {
     }
 
     suspend fun delete(path: String): Boolean = Http.delete("/shared/${encode(path)}") != null
+
+    suspend fun fetchText(url: String): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder().url(url).apply {
+                Backend.authHeaders.forEach { (name, value) -> header(name, value) }
+            }.build()
+            client.newCall(request).execute().use { resp ->
+                if (resp.isSuccessful) resp.body?.string() else null
+            }
+        }.getOrNull()
+    }
+
+    private val client = OkHttpClient()
 
     fun downloadUrl(path: String): String = "${Backend.baseUrl}/shared/${encode(path)}"
 

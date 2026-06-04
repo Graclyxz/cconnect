@@ -50,6 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Download
+import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Save
 import com.composables.icons.lucide.Share2
@@ -264,6 +265,7 @@ fun SharedLinkActionsDialog(
     onSaveAs: () -> Unit,
     onShare: () -> Unit,
     onDismiss: () -> Unit,
+    onView: (() -> Unit)? = null,
 ) {
     CompactDialog(
         onDismiss = onDismiss,
@@ -271,6 +273,7 @@ fun SharedLinkActionsDialog(
         contentPadding = PaddingValues(0.dp),
         buttons = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     ) {
+        if (onView != null) DialogActionItem(stringResource(R.string.view), Lucide.Eye) { onDismiss(); onView() }
         DialogActionItem(stringResource(R.string.save), Lucide.Download) { onDismiss(); onSave() }
         DialogActionItem(stringResource(R.string.save_as), Lucide.Save) { onDismiss(); onSaveAs() }
         DialogActionItem(stringResource(R.string.share), Lucide.Share2) { onDismiss(); onShare() }

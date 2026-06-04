@@ -89,6 +89,7 @@
     <string name="files">Archivos</string>
     <string name="save_as">Guardar en…</string>
     <string name="share">Compartir</string>
+    <string name="view">Ver</string>
     <string name="open">Abrir</string>
     <string name="open_external_link">Abrir enlace externo</string>
     <string name="open_external_link_message">Se abrirá un enlace externo:\n%1$s</string>

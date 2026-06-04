@@ -168,6 +168,7 @@ import com.jahirtrap.cconnect.data.pending
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.TodoItem
 import com.jahirtrap.cconnect.files.FileTransfer
+import com.jahirtrap.cconnect.files.isPreviewable
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.TextButton
@@ -207,6 +208,7 @@ fun ChatScreen(
     onOpenSettings: () -> Unit,
     onOpenExplorer: () -> Unit,
     onOpenTerminal: () -> Unit,
+    onOpenPreview: (url: String, filename: String) -> Unit,
     drawerState: DrawerState,
     themeMode: String,
     onThemeMode: (String) -> Unit,
@@ -729,8 +731,10 @@ fun ChatScreen(
         )
     }
     sharedLinkAction?.let { (url, filename) ->
+        val viewable = isPreviewable(filename)
         SharedLinkActionsDialog(
             filename = filename,
+            onView = if (viewable) ({ onOpenPreview(url, filename) }) else null,
             onSave = { FileTransfer.enqueueToDownloads(context, url, filename) },
             onSaveAs = { pendingSaveAsUrl = url; saveAsLauncher.launch(filename) },
             onShare = {
