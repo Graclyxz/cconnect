@@ -1,5 +1,5 @@
-- Added inline images in chat — markdown images render right in the conversation, whether they come from the app's shared files or an external link, scaled to fit the screen and tappable to save or share
-- Added a grouped question card — answer all of Claude's questions in one place and submit together, swipe between them, preview each option with its description, select multiple, type your own answer, attach notes, or choose to discuss it with Claude instead
-- Added a redesigned app icon
-- Added UX refinements across the app — file save and share actions with empty states in the browser, plus cleaner, more consistent inputs, dialogs and menus
-- Changed the CLI self-update to run against the source and path you have selected, so you can update one before saving it
+- Added rewind — pick any previous message from the new history button and restore code and conversation, or conversation only, with a +/− line preview of what the file restore touches
+- Added an environment picker to the sidebar header — the connected backend's name and host next to the app logo, switchable in one tap and also reachable from the file browser
+- Changed Settings into grouped sections — appearance, connectivity and server, with the server's connection status on its section header
+- Changed "Connections" to "Environments" across the app
+- Changed the app bar and sidebar to a tighter, consistent layout — slimmer bars, unified icon sizes and aligned headers
