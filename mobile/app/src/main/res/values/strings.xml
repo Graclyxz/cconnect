@@ -82,6 +82,7 @@
     <string name="up_to_date">You have the latest version</string>
     <string name="update_action">Update</string>
     <string name="repository">Repository</string>
+    <string name="changelog">Changelog</string>
 
     <!-- Chat -->
     <string name="menu">Menu</string>

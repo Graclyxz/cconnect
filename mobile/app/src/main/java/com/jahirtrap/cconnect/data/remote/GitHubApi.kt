@@ -19,6 +19,7 @@ object GitHubApi {
     private val client = OkHttpClient()
 
     data class Release(val tag: String, val url: String, val apkUrl: String?)
+    data class ReleaseNotes(val tag: String, val body: String)
     data class Profile(val login: String, val name: String?, val avatarUrl: String, val url: String)
 
     private suspend fun fetch(url: String) = withContext(Dispatchers.IO) {
@@ -42,6 +43,25 @@ object GitHubApi {
             url = o["html_url"]?.jsonPrimitive?.contentOrNull ?: REPO_URL,
             apkUrl = apk,
         )
+    }
+
+    suspend fun releaseNotes(): List<ReleaseNotes>? = withContext(Dispatchers.IO) {
+        runCatching {
+            val request = Request.Builder()
+                .url("https://api.github.com/repos/$OWNER/$REPO/releases?per_page=50")
+                .header("Accept", "application/vnd.github+json")
+                .build()
+            client.newCall(request).execute().use { resp ->
+                if (!resp.isSuccessful) return@use null
+                Json.parseToJsonElement(resp.body?.string().orEmpty()).jsonArray.mapNotNull { el ->
+                    val o = el.jsonObject
+                    ReleaseNotes(
+                        tag = o["tag_name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                        body = o["body"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    )
+                }
+            }
+        }.getOrNull()
     }
 
     suspend fun ownerProfile(): Profile? {

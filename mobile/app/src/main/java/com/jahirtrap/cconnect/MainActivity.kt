@@ -88,10 +88,6 @@ private fun App() {
             accent = accentAt(accentIndex),
         ) {
             when {
-                previewFile != null -> previewFile?.let { (url, name) ->
-                    FilePreviewScreen(url = url, filename = name, onClose = { previewFile = null })
-                }
-
                 showSettings -> SettingsScreen(
                     themeMode = themeMode,
                     onThemeMode = { themeMode = it; settings.themeMode = it },
@@ -130,6 +126,9 @@ private fun App() {
                     language = language,
                     onLanguage = { language = it; settings.language = it },
                 )
+            }
+            previewFile?.let { (url, name) ->
+                FilePreviewScreen(url = url, filename = name, onClose = { previewFile = null })
             }
         }
     }

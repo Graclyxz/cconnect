@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -64,6 +66,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Palette
 import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.ScanQrCode
+import com.composables.icons.lucide.FileText
 import com.composables.icons.lucide.Server
 import com.composables.icons.lucide.SquareTerminal
 import com.composables.icons.lucide.Shield
@@ -91,12 +94,15 @@ import com.jahirtrap.cconnect.chat.ConnectionState
 import coil3.compose.AsyncImage
 import com.jahirtrap.cconnect.BuildConfig
 import com.composables.icons.lucide.Github
+import com.jahirtrap.cconnect.ui.AppBottomSheet
 import com.jahirtrap.cconnect.ui.AppLogo
 import com.jahirtrap.cconnect.ui.Claude
 import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.ActionButton
 import com.jahirtrap.cconnect.ui.AppTopBar
+import com.jahirtrap.cconnect.ui.CenteredProgress
 import com.jahirtrap.cconnect.ui.ColorSwatch
+import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.ConfirmSelectDialog
@@ -106,6 +112,8 @@ import com.jahirtrap.cconnect.ui.InputField
 import com.jahirtrap.cconnect.ui.SelectDialog
 import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.TooltipIconButton
+import com.jahirtrap.cconnect.ui.EmptyState
+import com.jahirtrap.cconnect.ui.MarkdownText
 import com.jahirtrap.cconnect.ui.SelectField
 import com.jahirtrap.cconnect.ui.languageLabel
 import com.jahirtrap.cconnect.ui.themeIcon
@@ -256,11 +264,13 @@ fun SettingsScreen(
                 }
                 SettingsGroup(stringResource(R.string.about)) {
                     val uriHandler = LocalUriHandler.current
+                    var showChangelog by remember { mutableStateOf(false) }
+                    if (showChangelog) ChangelogSheet(onDismiss = { showChangelog = false })
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { uriHandler.openUri(chatState.latestRelease?.url ?: GitHubApi.RELEASES_URL) }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         AppLogo()
@@ -292,6 +302,9 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                        TooltipIconButton(label = stringResource(R.string.changelog), onClick = { showChangelog = true }) {
+                            Icon(Lucide.FileText, contentDescription = null)
+                        }
                     }
                     chatState.latestRelease?.apkUrl?.let { apkUrl ->
                         var progress by remember { mutableStateOf<Float?>(null) }
@@ -299,6 +312,7 @@ fun SettingsScreen(
                         if (progress != null) {
                             LinearProgressIndicator(
                                 progress = { progress ?: 0f },
+                                drawStopIndicator = {},
                                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
                             )
                         }
@@ -1002,4 +1016,38 @@ private fun parseHostInput(input: String): ParsedHost? {
         port = if (secure) "443" else "80"
     }
     return ParsedHost(host, port, parsedKind)
+}
+
+@Composable
+private fun ChangelogSheet(onDismiss: () -> Unit) {
+    var notes by remember { mutableStateOf<List<GitHubApi.ReleaseNotes>?>(null) }
+    var failed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val result = GitHubApi.releaseNotes()
+        if (result != null) notes = result else failed = true
+    }
+    AppBottomSheet(onDismiss = onDismiss, title = stringResource(R.string.changelog), showClose = true) {
+        val items = notes
+        when {
+            failed -> EmptyState(stringResource(R.string.connection_error), Modifier.fillMaxWidth().weight(1f))
+            items == null -> CenteredProgress(Modifier.fillMaxWidth().weight(1f))
+            else -> LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                items(items, key = { it.tag }) { release ->
+                    Column {
+                        Text(
+                            release.tag,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        MarkdownText(release.body, modifier = Modifier.fillMaxWidth(), selectable = false)
+                    }
+                }
+            }
+        }
+    }
 }

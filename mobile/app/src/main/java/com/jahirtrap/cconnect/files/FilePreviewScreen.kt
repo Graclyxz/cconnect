@@ -1,9 +1,23 @@
 package com.jahirtrap.cconnect.files
 
+import android.webkit.MimeTypeMap
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
+import coil3.compose.AsyncImagePainter
+import com.jahirtrap.cconnect.data.remote.AppImageLoader
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,14 +60,33 @@ import com.jahirtrap.cconnect.ui.TooltipIconButton
 import kotlinx.coroutines.launch
 
 private val MARKDOWN_EXTENSIONS = setOf("md", "markdown")
-private val TEXT_EXTENSIONS = MARKDOWN_EXTENSIONS + setOf(
-    "txt", "log", "json", "xml", "yaml", "yml", "toml", "ini", "cfg", "conf", "properties", "env",
-    "csv", "html", "css", "js", "ts", "jsx", "tsx", "py", "kt", "kts", "java", "c", "cpp", "h",
-    "sh", "bat", "ps1", "sql", "rs", "go", "rb", "php", "gradle", "diff", "patch",
+
+private val TEXT_APPLICATION_MIMES = setOf(
+    "application/json", "application/xml", "application/javascript", "application/typescript",
+    "application/x-sh", "application/x-yaml", "application/yaml", "application/toml",
+    "application/sql", "application/x-bat",
+)
+private val TEXT_FALLBACK_EXTENSIONS = setOf(
+    "kt", "kts", "gradle", "toml", "ini", "cfg", "conf", "properties", "env", "yml", "yaml",
+    "ts", "tsx", "jsx", "rs", "go", "ps1", "diff", "patch", "log", "lock",
 )
 
-fun isPreviewable(filename: String): Boolean =
-    filename.substringAfterLast('.', "").lowercase() in TEXT_EXTENSIONS
+enum class PreviewKind { Image, Markdown, Text, None }
+
+fun previewKindOf(filename: String): PreviewKind {
+    val extension = filename.substringAfterLast('.', "").lowercase()
+    if (extension in MARKDOWN_EXTENSIONS) return PreviewKind.Markdown
+    val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+    return when {
+        mime?.startsWith("image/") == true && mime != "image/svg+xml" -> PreviewKind.Image
+        mime?.startsWith("text/") == true -> PreviewKind.Text
+        mime in TEXT_APPLICATION_MIMES -> PreviewKind.Text
+        extension in TEXT_FALLBACK_EXTENSIONS -> PreviewKind.Text
+        else -> PreviewKind.None
+    }
+}
+
+fun isPreviewable(filename: String): Boolean = previewKindOf(filename) != PreviewKind.None
 
 @Composable
 fun FilePreviewScreen(url: String, filename: String, onClose: () -> Unit) {
@@ -69,7 +102,9 @@ fun FilePreviewScreen(url: String, filename: String, onClose: () -> Unit) {
         pendingSaveUrl = null
     }
 
+    val kind = previewKindOf(filename)
     LaunchedEffect(url) {
+        if (kind == PreviewKind.Image) return@LaunchedEffect  // Coil streams the image itself
         val result = SharedApi.fetchText(url)
         if (result != null) text = result else failed = true
     }
@@ -120,6 +155,7 @@ fun FilePreviewScreen(url: String, filename: String, onClose: () -> Unit) {
         },
     ) { padding ->
         when {
+            kind == PreviewKind.Image -> ImagePreview(url, Modifier.fillMaxSize().padding(padding))
             failed -> EmptyState(stringResource(R.string.connection_error), Modifier.fillMaxSize().padding(padding))
             text == null -> CenteredProgress(Modifier.fillMaxSize().padding(padding))
             else -> Column(
@@ -129,8 +165,7 @@ fun FilePreviewScreen(url: String, filename: String, onClose: () -> Unit) {
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
             ) {
-                val markdown = filename.substringAfterLast('.', "").lowercase() in MARKDOWN_EXTENSIONS
-                if (markdown) {
+                if (kind == PreviewKind.Markdown) {
                     MarkdownText(text.orEmpty(), modifier = Modifier.fillMaxWidth())
                 } else {
                     SelectionContainer {
@@ -142,6 +177,55 @@ fun FilePreviewScreen(url: String, filename: String, onClose: () -> Unit) {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ImagePreview(url: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    var imageState by remember { mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty) }
+    val transformState = rememberTransformableState { zoomChange, panChange, _ ->
+        scale = (scale * zoomChange).coerceIn(1f, 6f)
+        offset = if (scale > 1f) offset + panChange else Offset.Zero
+    }
+    Box(
+        modifier = modifier
+            .clipToBounds()
+            .transformable(transformState)
+            .pointerInput(Unit) {
+                detectTapGestures(onDoubleTap = {
+                    if (scale > 1f) {
+                        scale = 1f
+                        offset = Offset.Zero
+                    } else {
+                        scale = 2.5f
+                    }
+                })
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        AsyncImage(
+            model = url,
+            imageLoader = AppImageLoader.get(context),
+            contentDescription = null,
+            contentScale = ContentScale.Fit,
+            onState = { imageState = it },
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                    translationX = offset.x
+                    translationY = offset.y
+                },
+        )
+        when (imageState) {
+            is AsyncImagePainter.State.Error -> EmptyState(stringResource(R.string.connection_error), Modifier.fillMaxSize())
+            is AsyncImagePainter.State.Success -> Unit
+            else -> CenteredProgress(Modifier.fillMaxSize())
         }
     }
 }
