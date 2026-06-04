@@ -259,7 +259,7 @@ fun SettingsScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { uriHandler.openUri(chatState.latestRelease?.url ?: GitHubApi.REPO_URL) }
+                            .clickable { uriHandler.openUri(chatState.latestRelease?.url ?: GitHubApi.RELEASES_URL) }
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {

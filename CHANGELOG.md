@@ -1,5 +1,4 @@
-- Added rewind — pick any previous message from the new history button and restore code and conversation, or conversation only, with a +/− line preview of what the file restore touches
-- Added an environment picker to the sidebar header — the connected backend's name and host next to the app logo, switchable in one tap and also reachable from the file browser
-- Changed Settings into grouped sections — appearance, connectivity and server, with the server's connection status on its section header
-- Changed "Connections" to "Environments" across the app
-- Changed the app bar and sidebar to a tighter, consistent layout — slimmer bars, unified icon sizes and aligned headers
+- Added in-app updates — the app checks GitHub for new releases and can download and install them right from Settings, with download progress and cancel
+- Added an app–server compatibility check — both sides declare the version range they support, and dismissable notices on launch warn when either one should be updated to avoid issues
+- Added an About section in Settings — app version and update status, the creator's GitHub profile and a link to the repository
+- Added a file preview screen — shared markdown files open rendered like chat messages, from the file browser or a chat link, with save and share actions
