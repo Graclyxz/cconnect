@@ -38,7 +38,7 @@
     <string name="ssh_hosts_summary">Conexiones SSH guardadas a otras máquinas</string>
     <string name="add_ssh_host">Agregar host SSH</string>
     <string name="edit_ssh_host">Editar host SSH</string>
-    <string name="delete_ssh_host_confirm">¿Borrar el host SSH «%1$s»?</string>
+    <string name="delete_ssh_host_confirm">¿Eliminar el host SSH «%1$s»?</string>
     <string name="no_hosts">Sin hosts</string>
     <string name="ssh_name">Nombre</string>
     <string name="ssh_user">Usuario</string>
@@ -49,7 +49,7 @@
     <string name="ssh_closed">Desconectado</string>
     <string name="ssh_failed">Falló: %1$s</string>
     <string name="connection_error">Error de conexión</string>
-    <string name="delete_environment_confirm">¿Borrar el entorno «%1$s»?</string>
+    <string name="delete_environment_confirm">¿Eliminar el entorno «%1$s»?</string>
     <string name="no_environments">Sin entornos aún</string>
     <string name="cli">CLI de Claude</string>
     <string name="cli_source">Origen del CLI</string>
@@ -95,7 +95,30 @@
     <string name="open_external_link">Abrir enlace externo</string>
     <string name="open_external_link_message">Se abrirá un enlace externo:\n%1$s</string>
     <string name="no_files">Sin archivos</string>
-    <string name="delete_file_confirm">¿Borrar «%1$s»?</string>
+    <string name="delete_file_confirm">¿Eliminar «%1$s»?</string>
+    <string name="upload_files">Subir archivos</string>
+    <string name="uploads">Subidas</string>
+    <string name="new_folder">Nueva carpeta</string>
+    <string name="create">Crear</string>
+    <string name="more_options">Más opciones</string>
+    <string name="move">Mover</string>
+    <string name="copy">Copiar</string>
+    <string name="move_here">Mover aquí</string>
+    <string name="copy_here">Copiar aquí</string>
+    <string name="select_all">Seleccionar todo</string>
+    <string name="already_exists">Ya existe un elemento con ese nombre</string>
+    <string name="delete_items_confirm">¿Eliminar %1$d elementos?</string>
+    <plurals name="item_count">
+        <item quantity="one">%d elemento</item>
+        <item quantity="other">%d elementos</item>
+    </plurals>
+    <string name="more">Más</string>
+    <string name="copy_path">Copiar ruta</string>
+    <string name="upload">Subir</string>
+    <plurals name="upload_confirm">
+        <item quantity="one">Se subirá %d archivo</item>
+        <item quantity="other">Se subirán %d archivos</item>
+    </plurals>
     <string name="new_session">Nueva sesión</string>
     <string name="new_chat">Nuevo chat</string>
     <string name="no_chats">Sin chats</string>
@@ -111,11 +134,11 @@
     <string name="auto_rename">Auto-renombrar</string>
     <string name="conversation_color">Color de conversación</string>
     <string name="color_none">Ninguno</string>
-    <string name="delete">Borrar</string>
+    <string name="delete">Eliminar</string>
     <string name="cancel">Cancelar</string>
     <string name="session_channel">Sesión activa</string>
     <string name="session_active">Sesión activa</string>
-    <string name="delete_conversation_confirm">¿Borrar la conversación «%1$s»?</string>
+    <string name="delete_conversation_confirm">¿Eliminar la conversación «%1$s»?</string>
     <string name="type_message">Escribe un mensaje…</string>
     <string name="commands">Comandos</string>
     <string name="quick_chat">Chat rápido</string>

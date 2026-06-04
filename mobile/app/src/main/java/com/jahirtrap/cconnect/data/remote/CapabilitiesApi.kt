@@ -13,6 +13,12 @@ import kotlinx.serialization.json.jsonPrimitive
 
 object CapabilitiesApi {
 
+    suspend fun versionInfo(): Pair<String?, String?>? {
+        val data = Http.get("/health")?.jsonObject ?: return null
+        return data["version"]?.jsonPrimitive?.contentOrNull to
+            data["supported_app"]?.jsonPrimitive?.contentOrNull
+    }
+
     suspend fun capabilities(): Capabilities? {
         val data = Http.get("/capabilities")?.jsonObject ?: return null
         val fallback = Capabilities()

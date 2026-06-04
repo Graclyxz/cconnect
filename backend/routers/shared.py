@@ -1,12 +1,31 @@
-"""Browse, download and delete files in the backend's shared/ folder from the mobile app."""
+"""Browse, download, upload and manage files in the backend's shared/ folder from the mobile app."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from core.responses import api_response
 from services import shared as shared_service
 
 router = APIRouter(tags=["Shared"])
+
+
+class FolderBody(BaseModel):
+    path: str
+
+
+class RenameEntryBody(BaseModel):
+    path: str
+    name: str
+
+
+class TransferBody(BaseModel):
+    paths: list[str]
+    dest: str
+
+
+class PathsBody(BaseModel):
+    paths: list[str]
 
 
 @router.get("/shared")
@@ -15,6 +34,61 @@ def list_shared(path: str = ""):
         return api_response(data=shared_service.list_entries(path))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/shared/folder")
+def create_shared_folder(body: FolderBody):
+    try:
+        shared_service.create_folder(body.path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return api_response()
+
+
+@router.post("/shared/rename")
+def rename_shared(body: RenameEntryBody):
+    try:
+        renamed = shared_service.rename_entry(body.path, body.name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not renamed:
+        raise HTTPException(status_code=404, detail="not found")
+    return api_response()
+
+
+@router.post("/shared/paths")
+def shared_paths(body: PathsBody):
+    try:
+        return api_response(data=shared_service.absolute_paths(body.paths))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/shared/move")
+def move_shared(body: TransferBody):
+    try:
+        count = shared_service.move_entries(body.paths, body.dest)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return api_response(data={"count": count})
+
+
+@router.post("/shared/copy")
+def copy_shared(body: TransferBody):
+    try:
+        count = shared_service.copy_entries(body.paths, body.dest)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return api_response(data={"count": count})
+
+
+@router.put("/shared/{path:path}")
+async def upload_shared(path: str, request: Request):
+    try:
+        await shared_service.save_upload(path, request.stream())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return api_response()
 
 
 @router.get("/shared/{path:path}")

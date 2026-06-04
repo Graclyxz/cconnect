@@ -145,10 +145,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(connection = ConnectionState.Connecting, error = null) }
         refreshRelease()
         viewModelScope.launch {
-            CapabilitiesApi.capabilities()?.let { caps ->
-                _state.update { it.copy(capabilities = caps) }
-                evaluateCompat(caps)
-            }
+            refreshCompat()
             SettingsApi.get()?.let { s ->
                 _state.update {
                     it.copy(model = s.model, effort = s.effort, permissionMode = s.permissionMode, streamTokens = s.streaming, showWorking = s.showWorking)
@@ -164,9 +161,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private fun pushNotice(notices: List<CompatStatus>, notice: CompatStatus): List<CompatStatus> =
         if (notice in dismissedNotices || notice in notices) notices else notices + notice
 
-    private fun evaluateCompat(caps: Capabilities) {
-        val appOutdated = !AppCompat.satisfies(BuildConfig.VERSION_NAME, caps.supportedApp)
-        val serverOutdated = !AppCompat.satisfies(caps.serverVersion, AppCompat.SUPPORTED_SERVER)
+    private fun evaluateCompat(serverVersion: String?, supportedApp: String?) {
+        val appOutdated = !AppCompat.satisfies(BuildConfig.VERSION_NAME, supportedApp)
+        val serverOutdated = !AppCompat.satisfies(serverVersion, AppCompat.SUPPORTED_SERVER)
         if (!appOutdated) dismissedNotices.remove(CompatStatus.AppOutdated)
         if (!serverOutdated) dismissedNotices.remove(CompatStatus.ServerOutdated)
         _state.update {
@@ -191,12 +188,19 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { applyRelease(GitHubApi.latestRelease()) }
     }
 
+    private suspend fun refreshCompat() {
+        val caps = CapabilitiesApi.capabilities()
+        if (caps != null) {
+            _state.update { it.copy(capabilities = caps) }
+            evaluateCompat(caps.serverVersion, caps.supportedApp)
+        } else {
+            CapabilitiesApi.versionInfo()?.let { (version, supported) -> evaluateCompat(version, supported) }
+        }
+    }
+
     fun refreshVersionInfo() {
         viewModelScope.launch {
-            CapabilitiesApi.capabilities()?.let { caps ->
-                _state.update { it.copy(capabilities = caps) }
-                evaluateCompat(caps)
-            }
+            refreshCompat()
             applyRelease(GitHubApi.latestRelease())
         }
     }

@@ -45,6 +45,7 @@ fun CompactDropdownItem(
     color: Color = Color.Unspecified,
     textDecoration: TextDecoration? = null,
     fontWeight: FontWeight? = null,
+    trailing: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
 ) {
     Row(
@@ -69,6 +70,10 @@ fun CompactDropdownItem(
         if (selected) {
             Spacer(Modifier.width(10.dp))
             Icon(Lucide.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        }
+        if (trailing != null) {
+            Spacer(Modifier.width(10.dp))
+            trailing()
         }
     }
 }

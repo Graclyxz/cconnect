@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
+import android.provider.DocumentsContract
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import com.jahirtrap.cconnect.data.remote.Backend
@@ -40,6 +41,22 @@ object FileTransfer {
         }.getOrDefault(false)
     }
 
+    suspend fun saveAllTo(context: Context, files: List<Pair<String, String>>, tree: Uri): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            val dir = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+            files.forEach { (url, filename) ->
+                val target = DocumentsContract.createDocument(context.contentResolver, dir, mimeOf(filename), filename)
+                    ?: return@withContext false
+                client.newCall(authorizedRequest(url)).execute().use { resp ->
+                    val body = resp.body ?: return@withContext false
+                    context.contentResolver.openOutputStream(target)?.use { body.byteStream().copyTo(it) }
+                        ?: return@withContext false
+                }
+            }
+            true
+        }.getOrDefault(false)
+    }
+
     suspend fun shareIntent(context: Context, url: String, filename: String): Intent? = withContext(Dispatchers.IO) {
         runCatching {
             val dir = File(context.cacheDir, "shared").apply { mkdirs() }
@@ -52,6 +69,27 @@ object FileTransfer {
             Intent(Intent.ACTION_SEND).apply {
                 type = mimeOf(filename)
                 putExtra(Intent.EXTRA_STREAM, uri)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        }.getOrNull()
+    }
+
+    suspend fun shareMultipleIntent(context: Context, files: List<Pair<String, String>>): Intent? = withContext(Dispatchers.IO) {
+        runCatching {
+            val dir = File(context.cacheDir, "shared").apply { mkdirs() }
+            val uris = ArrayList<Uri>()
+            files.forEach { (url, filename) ->
+                val file = File(dir, filename)
+                client.newCall(authorizedRequest(url)).execute().use { resp ->
+                    val body = resp.body ?: return@withContext null
+                    file.outputStream().use { body.byteStream().copyTo(it) }
+                }
+                uris.add(FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file))
+            }
+            if (uris.isEmpty()) return@withContext null
+            Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                type = "*/*"
+                putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
         }.getOrNull()

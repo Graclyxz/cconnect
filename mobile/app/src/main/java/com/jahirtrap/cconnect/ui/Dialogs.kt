@@ -34,12 +34,14 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
@@ -133,15 +135,22 @@ fun RenameDialog(
     initial: String,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
+    title: String = stringResource(R.string.rename),
+    confirmLabel: String = stringResource(R.string.save),
+    suffix: String? = null,
+    errorOf: ((String) -> String?)? = null,
 ) {
     var text by remember { mutableStateOf(initial) }
+    val error = if (text.isNotBlank()) errorOf?.invoke(text) else null
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
     CompactDialog(
         onDismiss = onDismiss,
-        title = stringResource(R.string.rename),
+        title = title,
         buttons = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
-            TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) {
-                Text(stringResource(R.string.save))
+            TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank() && error == null) {
+                Text(confirmLabel)
             }
         },
     ) {
@@ -150,7 +159,15 @@ fun RenameDialog(
             onValueChange = { text = it },
             maxLines = 2,
             modifier = Modifier.fillMaxWidth(),
+            focusRequester = focusRequester,
+            trailingIcon = suffix?.let {
+                { Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            },
         )
+        if (error != null) {
+            Spacer(Modifier.height(6.dp))
+            Text(error, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        }
     }
 }
 
@@ -304,6 +321,18 @@ fun DialogActionItem(
 }
 
 @Composable
+fun SelectionDot(selected: Boolean, modifier: Modifier = Modifier) {
+    val ring = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+    val dotScale by animateFloatAsState(if (selected) 1f else 0f, label = "select-dot")
+    Box(
+        modifier = modifier.size(20.dp).clip(CircleShape).border(2.dp, ring, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.size(10.dp).scale(dotScale).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
+    }
+}
+
+@Composable
 fun DialogSelectItem(
     label: String,
     selected: Boolean,
@@ -312,7 +341,6 @@ fun DialogSelectItem(
     enabled: Boolean = true,
     trailing: @Composable (RowScope.() -> Unit)? = null,
 ) {
-    val ring = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -324,13 +352,7 @@ fun DialogSelectItem(
             .padding(start = 12.dp, end = if (trailing != null) 4.dp else 12.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val dotScale by animateFloatAsState(if (selected) 1f else 0f, label = "select-dot")
-        Box(
-            modifier = Modifier.size(20.dp).clip(CircleShape).border(2.dp, ring, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(Modifier.size(10.dp).scale(dotScale).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
-        }
+        SelectionDot(selected)
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(

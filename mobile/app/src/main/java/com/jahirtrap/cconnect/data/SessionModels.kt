@@ -37,4 +37,5 @@ data class SharedEntry(
     val isDir: Boolean,
     val size: Long,
     val modified: Double,
+    val items: Int = 0,
 )
