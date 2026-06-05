@@ -306,7 +306,8 @@ fun SettingsScreen(
                             Icon(Lucide.FileText, contentDescription = null)
                         }
                     }
-                    chatState.latestRelease?.apkUrl?.let { apkUrl ->
+                    val apkUrl = chatState.latestRelease?.apkUrl
+                    if (apkUrl != null) {
                         var progress by remember { mutableStateOf<Float?>(null) }
                         var downloadJob by remember { mutableStateOf<Job?>(null) }
                         if (progress != null) {
@@ -335,9 +336,23 @@ fun SettingsScreen(
                             },
                             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
                         )
+                    } else {
+                        var checking by remember { mutableStateOf(false) }
+                        ActionButton(
+                            text = stringResource(if (checking) R.string.checking_updates else R.string.check_updates),
+                            enabled = !checking,
+                            onClick = {
+                                scope.launch {
+                                    checking = true
+                                    chatVm.checkForUpdates()
+                                    checking = false
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                        )
                     }
                     var profile by remember { mutableStateOf<GitHubApi.Profile?>(null) }
-                    LaunchedEffect(Unit) { profile = GitHubApi.ownerProfile() }
+                    LaunchedEffect(Unit) { profile = GitHubApi.ownerProfile(context) }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1020,10 +1035,11 @@ private fun parseHostInput(input: String): ParsedHost? {
 
 @Composable
 private fun ChangelogSheet(onDismiss: () -> Unit) {
+    val context = LocalContext.current
     var notes by remember { mutableStateOf<List<GitHubApi.ReleaseNotes>?>(null) }
     var failed by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        val result = GitHubApi.releaseNotes()
+        val result = GitHubApi.releaseNotes(context)
         if (result != null) notes = result else failed = true
     }
     AppBottomSheet(onDismiss = onDismiss, title = stringResource(R.string.changelog), showClose = true) {

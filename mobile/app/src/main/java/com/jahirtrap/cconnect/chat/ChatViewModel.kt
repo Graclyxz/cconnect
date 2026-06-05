@@ -143,7 +143,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         if (!settings.isConfigured) return
         if (_state.value.connection != ConnectionState.Disconnected) return
         _state.update { it.copy(connection = ConnectionState.Connecting, error = null) }
-        refreshRelease()
+        if (!releaseChecked) {
+            releaseChecked = true
+            viewModelScope.launch { checkForUpdates() }
+        }
         viewModelScope.launch {
             refreshCompat()
             SettingsApi.get()?.let { s ->
@@ -184,8 +187,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private fun refreshRelease() {
-        viewModelScope.launch { applyRelease(GitHubApi.latestRelease()) }
+    private var releaseChecked = false
+
+    suspend fun checkForUpdates() {
+        applyRelease(GitHubApi.latestRelease())
     }
 
     private suspend fun refreshCompat() {
@@ -199,10 +204,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshVersionInfo() {
-        viewModelScope.launch {
-            refreshCompat()
-            applyRelease(GitHubApi.latestRelease())
-        }
+        viewModelScope.launch { refreshCompat() }
     }
 
     fun dismissNotice(notice: CompatStatus) {

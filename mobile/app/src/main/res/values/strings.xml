@@ -81,6 +81,8 @@
     <string name="creator">Creator</string>
     <string name="up_to_date">You have the latest version</string>
     <string name="update_action">Update</string>
+    <string name="check_updates">Check for updates</string>
+    <string name="checking_updates">Checking</string>
     <string name="repository">Repository</string>
     <string name="changelog">Changelog</string>
 
