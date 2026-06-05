@@ -3,9 +3,12 @@
 ## Project Overview
 
 Mobile interface for Claude Code. The Android app drives Claude Code running on
-the user's PC — sessions, files, projects, file edits and interactive permission
-prompts — over HTTP/WS, reachable either locally via Tailscale or publicly via
-Tailscale Funnel.
+the user's PC — sessions, files, projects, file edits, interactive permission
+prompts, chat attachments, rewind — over HTTP/WS, reachable either locally via
+Tailscale or publicly via Tailscale Funnel. It also remote-manages the Claude
+Code installation itself (CLI version/updates, plugins, marketplaces, MCP
+servers, skills, memories, user prompt) and ships a full file manager over the
+backend's shared folder.
 
 The mobile app also bundles a standalone SSH client (saved hosts, embedded
 terminal, OS auto-detection) — see `mobile/CLAUDE.md`.
@@ -25,7 +28,9 @@ See `backend/CLAUDE.md` and `mobile/CLAUDE.md` for module-specific rules.
 ```
 [Android app] ──HTTP/WS──> [Backend :8723] ──claude-agent-sdk──> [Claude Code CLI]
                                 │
-                                └──> ~/.claude/projects (sessions on disk)
+                                ├──> ~/.claude/projects (sessions on disk)
+                                ├──> ~/.claude (plugins, marketplaces, MCP, skills, memories — read + `claude` CLI subprocess for mutations)
+                                └──> backend/shared/ (file manager + chat attachment uploads)
 ```
 
 - Backend port `8723`, runs on the user's PC.
@@ -36,6 +41,21 @@ See `backend/CLAUDE.md` and `mobile/CLAUDE.md` for module-specific rules.
 - Claude auth: the SDK uses the **Claude Code CLI's OAuth subscription** (no API
   key). `core/sdk.ensure_subscription_auth()` drops `ANTHROPIC_API_KEY` so the
   CLI's session wins.
+
+## Version contract
+
+Three-way compatibility, declared in `backend/pyproject.toml`:
+
+- `[project] version` — the server version.
+- `[tool.cconnect] supported-app` — minimum mobile app version the server accepts.
+- `[tool.cconnect] supported-cli` — minimum Claude CLI version the backend's
+  features are validated against.
+
+`GET /api/health` and `GET /api/capabilities` expose `version`,
+`supported_app`, `cli_version`, `supported_cli`. The app compares them against
+its own `versionName` / `BuildConfig.SUPPORTED_SERVER` and surfaces
+AppOutdated / ServerOutdated / CliOutdated notices. **Bump these together**
+when a change requires a newer counterpart.
 
 ## Auth model
 
@@ -58,7 +78,7 @@ cd backend && python run.py --production       # Multi-worker (Linux/macOS)
 
 ### Mobile
 ```bash
-cd mobile && ./gradlew :app:installDebug       # Debug to connected device
+cd mobile && ./gradlew :app:installRelease     # Signed release to connected device
 cd mobile && ./gradlew :app:assembleRelease    # Signed release APK
 ```
 
@@ -66,8 +86,11 @@ cd mobile && ./gradlew :app:assembleRelease    # Signed release APK
 
 1. **Monorepo consistency** — backend and mobile must agree on event types,
    field names, and the QR payload shape (`{url, token}` JSON).
-2. **No secrets in the repo** — `.env`, `key.properties`, `keystore.jks` are
-   all gitignored.
-3. **English only** — all code, comments, docs in English.
-4. **Read before acting** — verify before editing; check existing
+2. **Version contract** — when a feature needs a newer app/server/CLI, update
+   `version` / `supported-app` / `supported-cli` in `backend/pyproject.toml`
+   and the app's `versionName` / `SUPPORTED_SERVER` accordingly.
+3. **No secrets in the repo** — `.env`, `key.properties`, `keystore.jks` are
+   all gitignored. `backend/prompts/USER.md` is user-owned and gitignored too.
+4. **English only** — all code, comments, docs in English.
+5. **Read before acting** — verify before editing; check existing
    conventions/helpers before creating new ones.

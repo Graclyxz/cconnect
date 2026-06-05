@@ -7,6 +7,8 @@ It drives Claude Code through the official **Claude Agent SDK**
 (`claude-agent-sdk`), using the user's **subscription** (the logged-in CLI
 OAuth), never an API key. The app reaches it either over the local tailnet
 (plain HTTP, no auth) or over a Tailscale Funnel (HTTPS, Bearer-token gated).
+Beyond the chat bridge it manages the local Claude Code install (CLI, plugins,
+marketplaces, MCP servers, skills, memories) and a shared-folder file manager.
 
 ---
 
@@ -14,8 +16,9 @@ OAuth), never an API key. The app reaches it either over the local tailnet
 
 ```
 [Mobile app] ──WS  /api/chat/ws────> chat router ──> services/live_sessions.LiveSession ──> services/claude_runtime.run_prompt ──> SDK query()
-             ──REST /api/sessions/* ─> sessions router ──> services/sessions (reads ~/.claude/projects JSONL)
-             ──GET  /api/shared/* ──> shared router (download-only from backend/shared/)
+             ──REST /api/sessions/* ─> sessions router ──> services/sessions (reads ~/.claude/projects JSONL; rewind via services/rewind)
+             ──REST /api/shared/* ──> shared router ──> services/shared (list/upload/download/move/copy/rename under backend/shared/)
+             ──REST /api/claude/* ──> claude router ──> services/claude_assets (reads ~/.claude) + services/claude_manage (mutations via `claude` CLI subprocess)
 ```
 
 - **Subscription auth.** `core/sdk.ensure_subscription_auth()` drops
@@ -38,14 +41,17 @@ OAuth), never an API key. The app reaches it either over the local tailnet
 backend/
 ├── main.py                  # FastAPI app; lifespan ensures auth + SDK; router auto-discovery; catch-all 404; GZipMiddleware(minimum_size=512)
 ├── run.py                   # Uvicorn launcher; --expose tailscale brings up Funnel + token + QR
-├── pyproject.toml
+├── pyproject.toml           # version + [tool.cconnect] supported-app / supported-cli (the version contract)
 ├── Dockerfile
 ├── .env.example
+├── prompts/
+│   ├── CCONNECT.md          # System conventions appended to every turn ({{SHARED_DIR}}/{{BASE_URL}} placeholders)
+│   └── USER.md              # User's own prompt (gitignored, edited from the app; never deleted — emptied instead)
 ├── core/
-│   ├── config.py            # PORT (8723), CLAUDE_PROJECTS_DIR, SHARED_DIR, AUTO_UPDATE_SDK, PUBLIC_ACCESS_TOKEN, COMMANDS, defaults
+│   ├── config.py            # PORT (8723), CLAUDE_PROJECTS_DIR, SHARED_DIR, AUTO_UPDATE_SDK, PUBLIC_ACCESS_TOKEN, COMMANDS, defaults; reads pyproject for SERVER_VERSION / SUPPORTED_APP / SUPPORTED_CLI
 │   ├── settings_defs.py     # KV settings registry — default, type, allowed values per key
 │   ├── db.py / models.py    # SQLite-backed store for the runtime settings
-│   ├── cli_manager.py       # Resolve/select the Claude CLI (system, bundled, custom) + update it
+│   ├── cli_manager.py       # Resolve/select the Claude CLI (system, bundled, custom) + update it; active_version() is cached per resolved path, invalidated on update/set_source
 │   ├── sdk.py               # Subscription auth + SDK install/upgrade + status
 │   ├── responses.py         # api_response() + paginated_response() — THE response envelope
 │   └── rate_limit.py        # slowapi limiter (configured, not globally enforced)
@@ -54,22 +60,28 @@ backend/
 │   ├── security.py          # Security headers + 25MB request size limit
 │   └── error_handler.py     # Routes every error through api_response()
 ├── routers/
-│   ├── health.py            # GET /api/health  (+ SDK status)  — only path open with --expose
-│   ├── capabilities.py      # GET /api/capabilities — models, effort levels, permission modes, colors, commands
+│   ├── health.py            # GET /api/health (+ SDK status + version contract) — only path open with --expose
+│   ├── capabilities.py      # GET /api/capabilities — models, effort levels, permission modes, colors, commands + version contract
 │   ├── settings.py          # GET/POST /api/settings, POST /api/settings/reset — backend-owned config
 │   ├── cli.py               # GET/POST /api/cli, POST /api/cli/update — Claude CLI manager
-│   ├── sessions.py          # GET /api/projects, /api/sessions, /api/sessions/{id}/messages, rename, color, delete
-│   ├── shared.py            # GET /api/shared (list) + /api/shared/{path} (download), DELETE /api/shared/{path}
+│   ├── sessions.py          # Projects, sessions, transcript slices, rename/color/delete, checkpoints + rewind, transcript images
+│   ├── shared.py            # File manager API over backend/shared/
+│   ├── claude.py            # Claude install manager: prompt, plugins, marketplaces, catalog, skills, MCP, memories
 │   └── chat.py              # WS /api/chat/ws
 ├── schemas/
 │   └── chat.py              # Inbound WebSocket message models
+├── mcps/                    # In-process MCP server (auto-registered tools) — see below
 └── services/
-    ├── live_sessions.py     # In-memory LiveSession + SessionRegistry — turns decoupled from the WS connection; reattach by channel, idle reaper
-    ├── claude_runtime.py    # SDK query() -> normalized event stream; side-question + usage helpers
-    ├── sessions.py          # Read transcripts from ~/.claude/projects (path-traversal safe)
+    ├── live_sessions.py     # In-memory LiveSession + SessionRegistry — turns decoupled from the WS connection; reattach by channel, idle reaper, seq'd outbox replay
+    ├── claude_runtime.py    # SDK query() -> normalized event stream; system-prompt append; side-question + usage helpers; title generation
+    ├── sessions.py          # Read transcripts from ~/.claude/projects (path-traversal safe); checkpoints; image extraction
+    ├── rewind.py            # Rewind preview/execute via SDK control requests; pending rewind id in rewind_pending.json
+    ├── attachments.py       # compose_prompt(): native image blocks + @-mentions for chat attachments
+    ├── claude_assets.py     # Read-only views of ~/.claude: plugins, marketplaces + catalogs, skills, MCP servers, memories, USER.md
+    ├── claude_manage.py     # Mutations via `claude` CLI subprocess: plugin/marketplace actions, MCP add/remove
     ├── settings_store.py    # Read/write the KV settings; visibility_mode() per block type
     ├── usage.py             # Plan token usage (5h/weekly) from the CLI's OAuth credentials
-    └── shared.py            # List / read / delete files under backend/shared/
+    └── shared.py            # List / upload (dedup) / download / mkdir / rename / move / copy / delete under backend/shared/
 ```
 
 ## Auth model
@@ -101,6 +113,24 @@ validates the same header on the WebSocket handshake before `accept()`.
 **Tailnet requirements:** Tailscale signed in, Funnel allowed for this node in
 the tailnet ACL.
 
+## Version contract
+
+`pyproject.toml` declares the three-way compatibility:
+
+```toml
+[project]
+version = "x.y.z"            # server version
+[tool.cconnect]
+supported-app = ">=x.y.z"    # minimum mobile app version
+supported-cli = ">=x.y.z"    # minimum Claude CLI version
+```
+
+`core/config` parses these at import; `/api/health` and `/api/capabilities`
+expose `version`, `supported_app`, `cli_version` (from
+`cli_manager.active_version()`, cached) and `supported_cli`. The app renders
+outdated notices from them. Raise `supported-cli` only after checking the
+official CHANGELOG for the feature you depend on.
+
 ## HTTP API
 
 Every REST endpoint returns `core.responses.api_response()` —
@@ -108,34 +138,54 @@ Every REST endpoint returns `core.responses.api_response()` —
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/health` | Liveness + SDK status. **Open** even with --expose. |
-| GET | `/api/capabilities` | Permission modes, effort levels, models, colors, slash commands |
+| GET | `/api/health` | Liveness + SDK status + version contract. **Open** even with --expose. |
+| GET | `/api/capabilities` | Permission modes, effort levels, models, colors, slash commands, defaults + version contract |
 | GET / POST | `/api/settings` | Read / update backend-owned config (model, effort, permissions, streaming, CLI, visibility) |
 | POST | `/api/settings/reset` | Restore settings to defaults |
 | GET / POST | `/api/cli` | Read / set the active Claude CLI (system, bundled, or custom path) |
-| POST | `/api/cli/update` | Update the bundled/system CLI |
+| POST | `/api/cli/update` | Update the bundled/system CLI (invalidates the version cache) |
 | GET | `/api/projects` | Claude Code projects under `~/.claude/projects` |
 | GET | `/api/sessions?project=<key>` | Sessions in a project (or all when omitted) |
 | GET | `/api/sessions/{id}/messages?project=<key>&limit=200&before_index=N` | Cursor-based transcript slice. Without `before_index` returns the most recent `limit` items. Each item carries its `index`; clients pass the smallest index they have to pull the slice before it. Response: `{items, total, start_index, has_more}`. |
+| GET | `/api/sessions/{id}/checkpoints` | Rewind points (one per user prompt on the active branch) |
+| POST | `/api/sessions/{id}/rewind/preview` | Dry-run: `{can_rewind, files_changed, insertions, deletions}` |
+| POST | `/api/sessions/{id}/rewind` | Execute rewind; `mode ∈ both \| conversation` |
+| GET | `/api/sessions/{id}/images/{message_uuid}/{index}` | Binary image extracted from a transcript message (pasted/attached images in history) |
 | POST | `/api/sessions/{id}/rename` | Set a custom title |
+| POST | `/api/sessions/{id}/auto-rename` | Ask the SDK (haiku) to generate a title |
 | POST | `/api/sessions/{id}/color` | Set the session color |
-| POST | `/api/sessions/{id}/auto-rename` | Ask the SDK to generate a title |
 | DELETE | `/api/sessions/{id}?project=<key>` | Delete a session |
-| GET | `/api/shared` | List entries in `backend/shared/` |
-| GET | `/api/shared/{path:path}` | Download a file from `backend/shared/` |
-| DELETE | `/api/shared/{path:path}` | Delete a file from `backend/shared/` |
+| GET | `/api/shared` | List entries (name, is_dir, size, modified, items) |
+| GET | `/api/shared/{path:path}` | Download a file |
+| PUT | `/api/shared/{path:path}` | Upload (streamed body). Name collisions dedupe with ` (n)`; returns the final saved relpath |
+| POST | `/api/shared/folder` | Create a folder |
+| POST | `/api/shared/rename` | Rename an entry (extension preserved by the app) |
+| POST | `/api/shared/move` / `/api/shared/copy` | Move/copy entries to a destination folder |
+| POST | `/api/shared/paths` | Resolve relpaths to absolute PC paths (for "copy path") |
+| DELETE | `/api/shared/{path:path}` | Delete an entry |
+| GET / PUT | `/api/claude/prompt` | Read / save `prompts/USER.md` (never deleted — emptied) |
+| GET | `/api/claude/plugins` | Installed plugins (+description from catalog) + marketplaces |
+| POST | `/api/claude/plugins/action` | `{action, plugin}` — install/uninstall/enable/disable/update |
+| POST | `/api/claude/marketplaces/action` | `{action, target}` — add/remove/update |
+| GET | `/api/claude/marketplaces/{name}/catalog` | Full catalog with `installed` flags |
+| GET | `/api/claude/skills` | Skills across installed plugins (id, plugin, plugin_name, description) |
+| GET | `/api/claude/skills/file?skill=&plugin=` | The SKILL.md (text/markdown) |
+| GET / POST / DELETE | `/api/claude/mcp` | List / add (stdio, http, sse) / remove MCP servers |
+| GET | `/api/claude/memories?project=` | Memories: global + per-project (description from frontmatter) |
+| GET | `/api/claude/memories/file?scope=&name=&project=` | A memory file (text/markdown) |
+| DELETE | `/api/claude/memories` | Delete a memory (also prunes its MEMORY.md index line) |
 
 ## WebSocket protocol (`/api/chat/ws`)
 
 Client → server (JSON):
 
-- `{"type":"start","cwd":"...","permission_mode":"...","resume":"...","fork":false,"model":"...","effort":"...","partial":false,"base_url":"...","channel":"...","last_seq":N}` — `channel` is optional: when it matches a still-live session the server re-attaches to it (keeping the running turn) instead of starting fresh. `last_seq` (default 0) is the highest event `seq` the client has rendered; on re-attach the server replays buffered events with a greater `seq`.
-- `{"type":"prompt","text":"..."}`
+- `{"type":"start","cwd":"...","permission_mode":"...","resume":"...","fork":false,"model":"...","effort":"...","partial":false,"base_url":"...","channel":"...","last_seq":N}` — `channel` is optional: when it matches a still-live session the server re-attaches to it (keeping the running turn) instead of starting fresh. `last_seq` (default 0) is the highest event `seq` the client has rendered; on re-attach the server replays buffered events with a greater `seq`. Side-chat re-attach uses the parallel `side_channel` / `side_resume` / `side_last_seq` fields.
+- `{"type":"prompt","text":"...","attachments":["uploads/a.png", ...]}` — `attachments` are relpaths under `shared/` previously uploaded via `PUT /api/shared/...`; the server composes them into the prompt (see Attachments below).
 - `{"type":"set_permission_mode","mode":"..."}`
-- `{"type":"interrupt"}`
-- `{"type":"interaction_response","id":"...","option_id":"...","free_text":"..."}`
+- `{"type":"interrupt"}` — optional `"lane":"side"` interrupts the quick chat instead of the main turn.
+- `{"type":"interaction_response","id":"...","option_id":"...","free_text":"...","answers":[...],"chat":false}`
 - `{"type":"load_history","session_id":"...","project":"...","before_index":N,"limit":100}` — pull the slice immediately before `before_index`. Used after the initial HTTP fetch when the user scrolls towards the top.
-- `{"type":"ask","text":"..."}` — quick-chat side question. Runs as a concurrent, isolated subquery (own workspace + model) and never touches the main turn.
+- `{"type":"ask","text":"...","resume":"..."}` — quick-chat side question. Runs as a concurrent, isolated subquery (own workspace + model) and never touches the main turn.
 - `{"type":"usage"}` — request the ephemeral plan-usage report (`services/usage`); not part of any session.
 
 Server → client (JSON):
@@ -151,13 +201,15 @@ Control/ephemeral messages (`ready`, `permission_mode`, `history_chunk`,
   client stores and sends back in `start` to re-attach; **`running`** — whether a
   turn is in progress, so a reconnecting client knows to show the spinner vs the
   input). Sent before the replay. On re-attach, any still-pending
-  `interaction_request` is re-emitted so it can be answered over the new socket.
+  `interaction_request` is re-emitted so it can be answered over the new socket,
+  and current task state is re-emitted so indicators restore.
 - `assistant_text`, `thinking`, `todos`, `task`
 - `tool_use` (id, name, input as `"key: value"` per line; carries `result` when tool visibility is `full`)
 - `tool_result` (tool_use_id, content, is_error)
 - `ask_text` / `ask_done` — quick-chat answer stream and its end marker.
 - `usage` (markdown) — ephemeral plan-usage report; rendered live and never persisted.
 - `compact` / `compact_summary` — compaction block and its summary, filled in live.
+- `command` (markdown) — output of local slash commands.
 - `permission_mode` — ack of `set_permission_mode`.
 - **`file_change`** (id, path, diff_lines) — emitted instead of `tool_use` for
   Edit/Write/MultiEdit/NotebookEdit. `diff_lines` is a list of
@@ -165,13 +217,64 @@ Control/ephemeral messages (`ready`, `permission_mode`, `history_chunk`,
   classified backend-side so mobile only renders. The matching `tool_result`
   is suppressed.
 - `interaction_request` (id, kind, options, free_text, title, tool_name, input,
-  tool_use_id) — for `AskUserQuestion` and per-tool permission prompts. Paired
-  by id with the client's `interaction_response`.
+  tool_use_id; question kind carries `questions`) — for `AskUserQuestion` and
+  per-tool permission prompts. Paired by id with the client's
+  `interaction_response`.
 - `system`, `result` (carries `session_id`), `done`, `interrupted`, `error`.
 - `history_chunk` (session_id, start_index, items, has_more) — push response to `load_history`. Each `item` matches the resume transcript shape and carries its `index`. When `has_more=false` the client stops requesting.
 
 `permission_mode` ∈
 `default | acceptEdits | plan | dontAsk | bypassPermissions | auto`.
+
+## Chat attachments (`services/attachments.py`)
+
+`compose_prompt(text, relpaths)` turns uploaded shared files into Claude Code's
+**native** attachment shapes:
+
+- Every file gets an `@`-mention with its **absolute** path appended to the
+  prompt text, so the CLI treats it like a file referenced in the terminal.
+- Images (png/jpg/gif/webp/bmp) additionally become real vision input: Pillow
+  thumbnails to max 1568px, re-encodes (JPEG q85, PNG when alpha), base64, and
+  a `[Image #N]` marker is appended to the text — matching what the CLI
+  produces for pasted images. `claude_runtime.run_prompt(images=...)` sends
+  `content: [{type:"text"...}, {type:"image",source:{type:"base64",...}}]`
+  through the SDK's stream-input mode.
+
+History parity: pasted/attached images in old transcripts are served by
+`GET /api/sessions/{id}/images/...` so resumed chats render them too.
+
+## Rewind (`services/rewind.py`)
+
+- `checkpoints` lists one rewind point per user prompt on the active branch.
+- Preview and execute go through SDK control requests (`rewind_files` with
+  `dry_run` for preview). `mode="both"` restores files and conversation;
+  `"conversation"` only branches the transcript.
+- The pending rewind id persists in `rewind_pending.json`; the next
+  `run_prompt` resumes the session **at** that message (branching), then clears
+  it.
+
+## Claude install manager
+
+Two services with a strict split:
+
+- **`claude_assets.py` — reads.** Parses `~/.claude` directly:
+  `plugins/installed_plugins.json` (v2: scope/installPath/version),
+  `plugins/known_marketplaces.json` → each marketplace's
+  `.claude-plugin/marketplace.json` catalog (descriptions come from here),
+  `settings.json → enabledPlugins`, `~/.claude.json → mcpServers`, skills from
+  `<installPath>/skills/*/SKILL.md` (frontmatter name/description), memories
+  from `~/.claude/CLAUDE.md` (global), `<repo>/CLAUDE.md` and
+  `~/.claude/projects/<key>/memory/*.md`. Memory file access is
+  whitelist-validated (scope + project-key regex + filename pattern) — never
+  raw paths from the client.
+- **`claude_manage.py` — mutations.** Shells out to the `claude` CLI
+  (`subprocess` with `encoding="utf-8", errors="replace"` — required on
+  Windows to avoid cp1252 mojibake). Plugin actions resolve the install
+  **scope** and project path from `installed_plugins.json` and pass
+  `-s <scope>` + the project cwd (the CLI defaults to user scope and fails on
+  project-scoped plugins otherwise). MCP add supports stdio (`-- cmd args`),
+  http and sse (`--transport`), at user scope; there is no enable/disable or
+  restart for user-scope MCP servers.
 
 ## Settings & visibility
 
@@ -204,18 +307,23 @@ single-file drop:
    `{"content": [{"type": "text", "text": "..."}]}` from the handler.
 3. Expose `tools = [your_handler]` at module level.
 4. Restart the backend — it's picked up automatically.
-5. Recommended: add a section to `prompts/agent.md` telling Claude when to
+5. Recommended: add a section to `prompts/CCONNECT.md` telling Claude when to
    call it. Without that guidance the SDK often won't reach for it.
 
-### Prompt template (`prompts/agent.md`)
+### Prompt files (`prompts/`)
 
-The file is appended verbatim to every session's system prompt by
-`_agent_append()`. Two placeholders are substituted at request time:
+`_system_append()` builds the per-turn system-prompt suffix from two files,
+read fresh on every turn:
 
-- `{{SHARED_DIR}}` → absolute path of `backend/shared/`.
-- `{{BASE_URL}}` → the request's effective base URL. The phone sends its
-  current `base_url` in the WS `start` payload, so the substituted shared
-  links always work for whichever device issued the prompt.
+- **`CCONNECT.md`** — the system conventions (file-sharing links, markdown
+  images, attachments, progress-check tool). Two placeholders are substituted
+  at request time: `{{SHARED_DIR}}` → absolute path of `backend/shared/`, and
+  `{{BASE_URL}}` → the request's effective base URL (the phone sends its
+  current `base_url` in the WS `start` payload, so substituted shared links
+  always work for whichever device issued the prompt).
+- **`USER.md`** — the user's own standing instructions, edited from the app
+  via `/api/claude/prompt`. Gitignored. The file is **never deleted** — saving
+  empty content writes an empty file.
 
 ### Bundled tools
 
@@ -231,6 +339,8 @@ normalizes blocks so resume == live:
 - `text`, `thinking`, `summary` — `.strip()`-ed (the SDK leaves a leading space
   in the first block chunk; live streaming strips the same way inside
   `claude_runtime.run_prompt` using a per-block-index flag).
+- User messages carry attachment/image references so the app can rebuild chips
+  and fetch images via the transcript-images endpoint.
 - `tool_use` — emitted with `text = _format_tool_input(input)` (same `"key: value"`
   format as live). Special handling:
   - `Edit/Write/MultiEdit/NotebookEdit` → `file_change` with `diff_lines`.
@@ -241,6 +351,8 @@ normalizes blocks so resume == live:
     with the chosen answer reconstructed by parsing the matching tool_result
     content (Claude Code stores it as `"Q"="A", "Q2"="A2"`).
 - `tool_result` — emitted with `_flatten_result_content(...)` (same as live).
+- Rewind forks are honored: only the active branch (via parent links) is
+  emitted.
 
 ## File-edit diff construction (`_build_file_diff`)
 
@@ -284,3 +396,5 @@ worker breaks the asyncio subprocess that Claude CLI spawns
    `claude_agent_sdk` import inside `services/claude_runtime.py` (the package is
    installed/upgraded at startup, so it may be absent at module-load time).
 4. **No secrets in the repo.** Secrets come from env vars / a gitignored `.env`.
+5. **Subprocesses that print text use `encoding="utf-8", errors="replace"`** —
+   Windows defaults to cp1252 and mojibakes CLI output otherwise.

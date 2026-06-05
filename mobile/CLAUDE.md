@@ -1,8 +1,9 @@
 # CLAUDE.md — CConnect Mobile
 
-Android app (Jetpack Compose, Kotlin 2.2.20, Compose BOM 2025.09) that drives
-the CConnect backend via REST + WebSocket. Talks to a Claude Code instance
-running on a PC, locally over Tailscale or publicly over a Tailscale Funnel.
+Android app (Jetpack Compose, Kotlin 2.2, Compose BOM 2025.09, Material3
+1.5 alpha) that drives the CConnect backend via REST + WebSocket. Talks to a
+Claude Code instance running on a PC, locally over Tailscale or publicly over
+a Tailscale Funnel.
 
 Package: `com.jahirtrap.cconnect`. Min SDK 26, target SDK 36.
 
@@ -12,74 +13,90 @@ Package: `com.jahirtrap.cconnect`. Min SDK 26, target SDK 36.
 
 ```
 ChatScreen (UI) ──> ChatViewModel ──> ChatSocket (OkHttp WS) ──> backend /api/chat/ws
-                                  └─> SessionsApi / SharedApi / CapabilitiesApi (Http) ──> backend /api/...
+                                  └─> SessionsApi / SharedApi / ClaudeApi / ... (Http) ──> backend /api/...
 ```
 
 - Single ViewModel per screen; state via `StateFlow<ChatUiState>`.
 - Networking via OkHttp 4 (`data/remote/Http.kt`). The `Backend` object holds
-  the active connection (kind, host, port, authKind, auth fields). The active
-  connection is mirrored from `Settings.activeConnection` on app start and on
-  every switch.
+  the active connection (kind, host, port, authKind, auth fields), mirrored
+  from `Settings` on app start and on every switch.
 - All requests pass through `Http.applyAuth(builder)` which appends the headers
-  built by `Backend.authHeaders` (Bearer, Basic, or custom).
+  built by `Backend.authHeaders` (Bearer, Basic, or custom). The same headers
+  ride on downloads (`FileTransfer`), uploads, Coil image loads
+  (`AppImageLoader`) and the file-preview WebView.
 
 ## Project Structure
 
 ```
 mobile/app/src/main/java/com/jahirtrap/cconnect/
-├── MainActivity.kt
+├── MainActivity.kt              # Navigation hub: chat / settings / explorer / claude / terminal + FilePreview overlay (PreviewRequest(url, name, onDelete?)); BouncyCastle swap; runtime locale
 ├── chat/
-│   ├── ChatScreen.kt            # Top-level screen + drawer + scroll logic
-│   ├── ChatBlocks.kt            # ChatMessageItem and per-role renderers
-│   ├── ChatViewModel.kt         # State + event handlers + transcript window
+│   ├── ChatScreen.kt            # Top-level screen + drawer (environments/projects/sessions) + scroll logic + notices + rewind sheet/dialog + quick chat + tasks
+│   ├── ChatBlocks.kt            # ChatMessageItem and per-role renderers (incl. user attachment chips + transcript images)
+│   ├── ChatViewModel.kt         # State + WS events + transcript window + attachments upload + version compat + rewind
 │   └── PermissionUi.kt          # permissionStyle() → icon + Palette color per mode
+├── claude/
+│   ├── ClaudeScreen.kt          # Claude manager hub: CLI (version/changelog/source/update inline), user prompt editor, links to detail screens
+│   └── ClaudeDetailScreen.kt    # One parameterized screen (enum ClaudeKind): Plugins / Skills / Mcp / Marketplaces / Memories
 ├── data/
-│   ├── ChatModels.kt            # Role, ChatMessage, InteractionData, ServerEvent
-│   ├── SessionModels.kt
+│   ├── ChatModels.kt            # Role, ChatMessage (attachments/images), InteractionData, ServerEvent, DiffLine, TodoItem, Capabilities
+│   ├── SessionModels.kt         # ProjectInfo, SessionInfo, ...
+│   ├── AppCompat.kt             # Version-range comparison for the app/server/CLI contract
+│   ├── AppUpdater.kt            # GitHub release check + APK download
 │   ├── QrConnectionPayload.kt   # Parse the QR JSON {url, token}
-│   ├── ConnectionProfile.kt     # kind, host, port?, authKind, authToken, ...
+│   ├── EnvironmentProfile.kt    # Saved backend connection (kind, host, port?, authKind, ...)
 │   ├── Settings.kt              # SharedPreferences-backed; syncs Backend
-│   ├── SshProfile.kt            # id, name, host, port, user, password, os?
-│   ├── SshStore.kt              # EncryptedSharedPreferences-backed list of SshProfile
+│   ├── SshProfile.kt / SshStore.kt  # SSH hosts (EncryptedSharedPreferences)
 │   └── remote/
 │       ├── Backend.kt           # Active connection + computed baseUrl/wsUrl + auth headers
-│       ├── Http.kt              # GET/POST/DELETE helpers, applyAuth
-│       ├── ChatSocket.kt        # WebSocket client + event parser
-│       ├── SessionsApi.kt, SharedApi.kt, CapabilitiesApi.kt, SettingsApi.kt, CliApi.kt
-├── settings/
-│   ├── SettingsScreen.kt        # All preferences + ConnectionsDialog + ConnectionEditDialog
-│   └── QrScanner.kt             # play-services-code-scanner wrapper (no camera permission)
+│       ├── Http.kt              # GET/POST/PUT/DELETE helpers, applyAuth, envelope unwrap
+│       ├── ChatSocket.kt        # WebSocket client + event parser + resume tokens
+│       ├── SessionsApi.kt       # projects/sessions/messages + rename/color/delete + rewind points/preview/confirm
+│       ├── SharedApi.kt         # list/delete/mkdir/rename/move/copy/absolutePaths + streamed upload(progress) + downloadUrl/relativeFromUrl
+│       ├── ClaudeApi.kt         # /api/claude/*: userPrompt, extensions, catalog, pluginAction, marketplaceAction, skills, mcp, memories
+│       ├── CliApi.kt            # /api/cli: status/setSource/update
+│       ├── CapabilitiesApi.kt, SettingsApi.kt
+│       ├── GitHubApi.kt         # Releases + changelogs + profile, disk-cached (see below)
+│       └── AppImageLoader.kt    # Coil ImageLoader with auth headers (+ SVG decoding)
 ├── files/
-│   ├── FileExplorerScreen.kt    # Browse backend/shared/
-│   └── FileTransfer.kt          # DownloadManager + OkHttp save-as / share (with auth headers)
+│   ├── FileExplorerScreen.kt    # File manager over backend/shared/ (see below)
+│   ├── FilePreviewScreen.kt     # Typed preview + optional delete (see below)
+│   ├── FileTransfer.kt          # DownloadManager + OkHttp save-as / share (with auth headers)
+│   └── UploadManager.kt         # Upload queue state (progress ring data, cancel)
+├── service/ConnectionService.kt # Keeps the chat connection alive in background
+├── settings/
+│   ├── SettingsScreen.kt        # Preferences; SettingsGroup/PreferenceRow are public (reused by claude/); highlight targets
+│   └── QrScanner.kt             # play-services-code-scanner wrapper (no camera permission)
 ├── terminal/
 │   ├── TerminalScreen.kt        # SSH host list + edit dialog + termlib-backed session
 │   ├── SshConnection.kt         # sshj wrapper: connect, PTY shell, debounced resize, OS probe
 │   └── OsIcons.kt               # iconForOs / colorForOs: FA Brands + distro brand colors
 └── ui/
-    ├── MarkdownText.kt          # CommonMark parser + Compose renderer (selection, inline-code box, copy)
-    ├── Dialogs.kt               # CompactDialog, DialogSelectItem, DialogActionItem, SharedLinkActionsDialog
-    ├── ScrollIndicator.kt       # Thin custom scrollbars for horizontalScroll
-    ├── CustomIcons.kt           # PlayFilled, Stop — filled icons matching Lucide shapes
+    ├── MarkdownText.kt          # CommonMark parser + Compose renderer; unified link handling (see below)
+    ├── Dialogs.kt               # CompactDialog, ConfirmDialog, SelectDialog, DialogSelectItem/ActionItem, SharedLinkActionsDialog, RenameDialog, EnvironmentSelectDialog, ...
+    ├── AppBottomSheet.kt        # Full-height modal sheet; `dismissible=false` → no handle, no drag gesture, Back/X close with animation
+    ├── PopupMenu.kt             # AbovePopupMenu + position provider (popup anchored above, scrim, animation) — chat command menu + Files "More"
+    ├── AttachmentChip.kt        # File chip (icon + name + optional remove) — composer + message bubbles
+    ├── NoticeCard.kt            # Alert card with action + dismiss (version notices)
+    ├── InputField.kt / SelectField (Menus.kt) / ActionButton.kt / OutlinedPanel.kt / ListRow.kt
+    ├── AppTopBar.kt / AppLogo.kt / AppOptions.kt / ColorSwatch.kt / DropdownScrim.kt
+    ├── EmptyState.kt / Loading.kt (CenteredProgress, StatusDot) / ScrollIndicator.kt
     ├── SecretTextField.kt       # OutlinedTextField with show/hide toggle for tokens/passwords
+    ├── CustomIcons.kt           # PlayFilled, Stop, Claude logo — filled icons matching Lucide shapes
     ├── TooltipIconButton.kt     # IconButton wrapped with M3 PlainTooltip + custom anchor provider
-    └── theme/
-        ├── Theme.kt             # CConnectTheme: MaterialExpressiveTheme + ExpressiveShapes + Palette provider
-        ├── Palette.kt           # data class Palette + Light/Dark sets + LocalPalette + palette getter
-        ├── Accents.kt           # User-selectable accent presets
-        └── SessionColors.kt     # Per-conversation color picker
+    └── theme/                   # CConnectTheme (MaterialExpressive), Palette (semantic colors), Accents, SessionColors
 ```
 
 ## Connection model
 
-`ConnectionProfile`:
+`EnvironmentProfile`:
 
 - `kind` ∈ `"http" | "https"`.
 - `port: Int?` — nullable. For `https` it's always `null` (implicit 443); the
   edit dialog hides the port field. For `http` it defaults to 8723.
 - `authKind` ∈ `"none" | "bearer" | "basic" | "header"`. `Backend.authHeaders`
   flattens the active auth into a `List<Pair<String,String>>` consumed
-  uniformly by `Http`, `ChatSocket`, and `FileTransfer`.
+  uniformly by `Http`, `ChatSocket`, `FileTransfer`, Coil and the WebView.
 
 `Backend.address` (`host` or `host:port`) is the human-facing string used in
 the settings list, the chat topbar, and the active-connection summary.
@@ -94,8 +111,8 @@ the settings list, the chat topbar, and the active-connection summary.
    — no camera permission required, Google's modal UI.
 3. `profileFromQrPayload(raw)` parses the JSON, derives `kind`/`host` via
    `parseHostInput`, sets `authKind = "bearer"`, leaves `name = ""`.
-4. The `ConnectionEditDialog` opens prefilled with `focusName = true` so the
-   name field gets focus immediately for the user to type a custom name.
+4. The edit dialog opens prefilled with `focusName = true` so the name field
+   gets focus immediately for the user to type a custom name.
 5. On save, an empty name falls back to `host`. The new profile is upserted and
    set active in one step.
 
@@ -111,9 +128,10 @@ the settings list, the chat topbar, and the active-connection summary.
 | `tool_use` | `Role.TOOL` with name + input preview; shows a running spinner until its result arrives |
 | `tool_result` | folded into the matching `Role.TOOL` block (input monospace + result as a code block), not a separate message |
 | **`file_change`** | `Role.FILE_CHANGE` block — path header + `List<DiffLine>` painted line-by-line in `FileChangeBlock`. The backend already classifies each line as `header`/`hunk`/`add`/`del`/`ctx`, so mobile only picks colors and the `+`/`-` prefix. |
-| `interaction_request` | `Role.INTERACTION` with buttons; on answer the WS receives `interaction_response` and the same message flips to resolved state |
+| `interaction_request` | `Role.INTERACTION` with buttons (permission) or a question form; on answer the WS receives `interaction_response` and the same message flips to resolved state |
 | `todos` | updates top-bar todo list |
-| `task` | updates the task progress UI |
+| `task` | updates the task indicator (donut pie + dropdown of TaskRows) |
+| `command` | local-command output rendered as markdown |
 | `result` | stores the new `sessionId` |
 | `ask_text` / `ask_done` | streamed into the quick-chat panel, separate from the main thread |
 | `usage` | ephemeral markdown message (plan token usage) — shown live, never resumed |
@@ -173,6 +191,108 @@ filled on demand:
 - **Cancellation**: implicit. Chunks whose `session_id` doesn't match the
   active one are dropped on arrival.
 
+## Chat attachments
+
+- The composer's paperclip (bottom-aligned to the last text line — height
+  measured from `onTextLayout`, no hardcoded offsets) opens the system picker;
+  selections appear as `AttachmentChip`s in a horizontal row above the toolbar.
+- On send, `ChatViewModel` uploads each one sequentially to `shared/uploads/`
+  via `SharedApi.upload` (streamed PUT with progress; the server dedupes names
+  with ` (n)` and returns the final relpath). Cancel restores the pending
+  input. The prompt then goes over the WS with `attachments: [relpaths]`.
+- The **backend** composes the native message (images as base64 vision blocks
+  + `@`-mentions) — the app never builds prompt text for attachments.
+- Rendering is bidirectional: user bubbles show chips for attachments (parsed
+  from `@`-mention/`[Image #N]` conventions for live turns, and from
+  transcript metadata for history); pasted/attached images from PC sessions
+  load through the transcript-images endpoint with auth headers.
+
+## Files (FileExplorerScreen)
+
+File manager over `backend/shared/`:
+
+- **Upload**: FAB (scroll-to-bottom style) → system picker → confirm dialog →
+  per-file progress ring (custom ring icon, states uploading/done) in a
+  dropdown like the tasks footer, with a real cancel `X` per file.
+- **New folder / rename**: dialogs with duplicate validation, autofocus, and
+  extension preserved on rename (`RenameDialog` with `errorOf`/`suffix`).
+- **Multi-select** (Samsung style): long-press enters selection; drag after
+  long-press marks ranges (with haptics; `suppressClick` kills the ghost click
+  on release); top bar gets select-all dot + count + close; a bottom toolbar
+  (animated in only after the gesture ends — `marking` state) offers
+  Move / Copy / Share / Delete plus a "More" `AbovePopupMenu` with
+  View / Rename / Save / Save as / Copy path (absolute PC paths via
+  `SharedApi.absolutePaths`, one per line).
+- **Move/copy**: the selection persists while you navigate to the destination;
+  sticky bottom buttons confirm or cancel. Name collisions dedupe with ` (n)`.
+- **Rows**: icon, name (ellipsized), date on the left, size or item count
+  right-aligned in bold.
+
+## FilePreviewScreen
+
+`previewKindOf(filename)` (MimeTypeMap + fallbacks) picks the renderer:
+
+- **Image** (incl. SVG via Coil's SVG decoder): zoomable/pannable.
+- **Html**: WebView with JS/DOM/zoom; `shouldInterceptRequest` injects
+  `Backend.authHeaders` for same-server subresources (css/js/img).
+- **Markdown**: `MarkdownText`. **Text**: monospace + selection.
+- Toolbar menu: Save / Save as / Share / **Delete** — Delete only appears when
+  an `onDelete` callback was provided; it confirms, runs the callback, and
+  closes the preview.
+
+Previews open through `MainActivity`'s overlay: every screen calls
+`onOpenPreview(url, filename, onDelete?)` → `PreviewRequest`. Files passes a
+delete+reload callback, chat shared-links derive one via
+`SharedApi.relativeFromUrl`, memories delete via `ClaudeApi.deleteMemory`,
+skills pass `null`.
+
+## Claude manager (claude/)
+
+`ClaudeScreen` is the hub (sidebar item with the Claude logo):
+
+- **CLI group**: version row (red alert icon when `CliOutdated`) + official
+  Claude Code changelog sheet (`ClaudeChangelogSheet`, also reused by
+  Settings), plus inline source controls (system/bundled/custom path +
+  Save/Update with progress) — no dialogs.
+- **User prompt**: multiline editor for the backend's `USER.md`.
+- **Extensions group**: rows with chevrons → `ClaudeDetailScreen(kind)`.
+
+`ClaudeDetailScreen` (one screen, `enum ClaudeKind`):
+
+- **Plugins**: rows `marketplace • version • scope`; dialog with compact
+  Switch (enable/disable) in the title, description + `Version x` in an
+  `OutlinedPanel`, and Update/Uninstall `ActionButton`s with inline progress.
+  Top-bar `CirclePlus` opens the **catalog sheet** (`AppBottomSheet` with
+  `dismissible=false`): search field with clear `X`, marketplace picker
+  (Store icon dropdown), install confirmation dialog with description+version.
+- **Marketplaces**: Update/Remove action buttons per entry; add by repo.
+- **Mcp**: list (`type • detail`); add dialog (name + stdio/http/sse +
+  command/URL); remove.
+- **Skills**: tap opens the SKILL.md in FilePreview.
+- **Memories**: project selector (full paths, same list as the sidebar
+  selector); global + project memories; tap opens the file in FilePreview with
+  delete wired.
+
+After any action the screen reloads and re-resolves the open dialog's plugin
+so toggles/versions reflect immediately.
+
+## Version compatibility & updates
+
+- `ChatViewModel.evaluateCompat` compares `versionName` vs `supported_app`,
+  `BuildConfig.SUPPORTED_SERVER` vs server `version`, and `cli_version` vs
+  `supported_cli` (`data/AppCompat.kt` parses the `>=x.y.z` ranges) →
+  `CompatStatus` (AppOutdated / ServerOutdated / CliOutdated) rendered as
+  `NoticeCard`s over the composer; plus an update-available notice from
+  GitHub.
+- Notice actions navigate to Settings with a **highlight** target (`"about"`
+  or `"cli"`): the list auto-scrolls and the row flashes twice (0.1 alpha,
+  220ms each).
+- `GitHubApi` disk cache: app changelog cached per app version, owner profile
+  cached forever, Claude Code changelog (raw `CHANGELOG.md` from the official
+  repo, 30 sections) cached per CLI version, `latestRelease` fetched on app
+  open only + manual "Check for updates" button in Settings. Unauthenticated
+  GitHub API allows 60 req/h — the cache keeps usage near zero.
+
 ## Markdown rendering (`ui/MarkdownText.kt`)
 
 - CommonMark + GFM (tables, strikethrough, task lists, footnotes, autolink, ins).
@@ -186,6 +306,12 @@ filled on demand:
   when it's already inside the list's. The new Compose text context menu is on
   (`ComposeFoundationFlags.isNewContextMenuEnabled`), adding Translate / Search /
   Share via the system's PROCESS_TEXT actions.
+- **Unified link handling** — `LocalUriHandler` is overridden inside every
+  `MarkdownText`: `/api/shared/...` links go to the `onSharedLink` callback
+  (chat opens `SharedLinkActionsDialog`: View / Save / Save as / Share);
+  **every other link shows the external-link ConfirmDialog before opening the
+  browser** — built in, so every markdown surface (chat, previews, changelogs)
+  behaves identically with no per-screen wiring.
 - Inline code uses `addStringAnnotation(INLINE_CODE_TAG, ...)` instead of
   `SpanStyle.background`; `MdText` then reads the `TextLayoutResult` in
   `Modifier.drawBehind` and paints rounded boxes per line. This keeps Compose's
@@ -193,9 +319,6 @@ filled on demand:
 - Fenced code blocks share `surfaceContainerHigh` with inline code. The header
   shows the language + a copy button that briefly switches to `Lucide.Check`
   tinted with the primary color for ~1s.
-- `/api/shared/...` links are intercepted: `LocalUriHandler` is overridden so a
-  click opens `SharedLinkActionsDialog` (Save / Save as / Share) instead of the
-  browser. The download/save/share paths all carry the active Bearer header.
 
 ## Code edits as diffs
 
@@ -207,6 +330,14 @@ icon; the expanded body paints each `DiffLine` using `Palette.green/red/blue/
 gray` and their `*Bg` containers (light/dark adapted), plus a `+`/`-` prefix on
 `ADD`/`DEL`. The same shape is re-emitted from the resume endpoint so live and
 resumed sessions render identically.
+
+## Rewind
+
+Opened from the chat top bar: `RewindSheet` lists checkpoints (one per user
+prompt); picking one opens `RewindDialog` with the message preview and a live
+dry-run diff (`+N −M • files changed`, loading state) from
+`SessionsApi.rewindPreview`, plus the choice of rewinding code+conversation or
+conversation only. Confirm calls the backend and reloads the branched session.
 
 ## Theme and colors (`ui/theme/`)
 
@@ -224,7 +355,7 @@ resumed sessions render identically.
   hue. Brand colors (FA distro tints, accent presets) stay outside the palette
   because they don't have a light/dark counterpart.
 
-## Selection icons & visual conventions
+## Visual conventions
 
 - `Collapsible(label, text, icon?, running?)` — used for `THINKING` (Lightbulb
   icon) and `SUMMARY`. Layout: `[icon] [label] [flex] [spinner?] [chevron]`; the
@@ -238,11 +369,15 @@ resumed sessions render identically.
   - Resolved state shows `CustomIcons.PlayFilled` (filled right-triangle, same
     geometry as `Lucide.Play` but filled instead of stroked) + chosen label or
     free-text answer.
-- Custom-response send icon: `Lucide.SendHorizontal`.
-- Connections / language / theme dialogs use `DialogSelectItem` — a 20dp
-  outlined circle with a 10dp primary-color inner dot when selected. Connection
-  rows add `subtitle = profile.address` and edit/delete IconButtons (36dp) as
-  the trailing slot.
+- ` • ` (U+2022) is THE separator for joined facts in a line/subtitle
+  (`marketplace • version • scope`, `name • address`, `+N −M • files`).
+- Selection dialogs use `DialogSelectItem` — a 20dp outlined circle with a
+  10dp primary inner dot when selected.
+- Trailing chevron rows (`DetailLink`, SSH hosts) use the standard 24dp icon.
+- Keyboard: screens with inputs follow the ChatScreen pattern —
+  `padding(padding).consumeWindowInsets(padding)` + `imePadding()`, and
+  `WindowInsets.isImeVisible` → `clearFocus()` when the IME closes.
+- All user-facing delete actions say **Eliminar** (never "Borrar") in Spanish.
 
 ## Scrolling
 
@@ -289,11 +424,13 @@ flag in `MainActivity`).
 
 ## Build / Signing
 
-- Debug: `./gradlew :app:installDebug` (debug keystore, auto).
-- Release: `./gradlew :app:assembleRelease`. Signing config reads
-  `mobile/key.properties` (gitignored) which points at `mobile/keystore.jks`.
-  Output filename is `CConnect-<version>-release.apk`.
-- `versionCode` and `versionName` live in `app/build.gradle.kts`.
+- Debug: `./gradlew :app:installDebug`. Release: `./gradlew :app:installRelease`
+  / `:app:assembleRelease`. Signing config reads `mobile/key.properties`
+  (gitignored) which points at `mobile/keystore.jks`. Output filename is
+  `CConnect-<version>-release.apk`.
+- `versionCode`/`versionName` and the `SUPPORTED_SERVER` BuildConfig field live
+  in `app/build.gradle.kts` — keep them in step with the backend's
+  `[tool.cconnect]` table.
 - Release minifies via R8. `proguard-rules.pro` keeps `net.schmizz.sshj.**`,
   `com.hierynomus.**`, `org.bouncycastle.**`, `org.connectbot.**` — sshj
   resolves cipher/MAC/KEX factories by FQCN and BouncyCastle providers are
@@ -304,7 +441,9 @@ flag in `MainActivity`).
 1. **Backend is the source of truth.** Mirror its event shapes verbatim — when
    you add a field on one side, add it on the other.
 2. **Comments are WHY-only.** No noise, no comments restating what the code does.
-3. **Reusable shared components** (especially in `ui/`) shouldn't be deleted
+3. **No inline fully-qualified names.** Always import — `Icon(Lucide.X, ...)`,
+   never `androidx.compose.material3.Icon(...)` inline.
+4. **Reusable shared components** (especially in `ui/`) shouldn't be deleted
    even if temporarily unused — they keep porting across screens cheap.
-4. **Español neutro** for any user-facing Spanish strings (no regionalisms).
+5. **Español neutro** for any user-facing Spanish strings (no regionalisms).
    Material accent color names stay in English (`Accents.kt`).

@@ -71,27 +71,71 @@ of your plan's token limits. A **quick chat** button opens a side panel for a
 throwaway question — handy to ask something while a long task keeps running,
 without derailing it.
 
+**Attachments** travel with your message: tap the clip, pick any files or
+photos on the phone, and they land on the PC before the prompt runs. Images
+reach Claude as real vision input — it sees them, not a path — and other files
+arrive as mentions it can open directly.
+
+**Rewind** takes a conversation back to an earlier point. Pick the moment,
+preview exactly what would change on disk (`+added −removed • files`), and
+choose whether to roll back the conversation alone or code and conversation
+together.
+
 Model, effort, permission mode, how much of each turn you see, and which Claude
 CLI the backend drives are all set from the app and shared across every client
 that connects.
+
+## Files
+
+The shared folder grew into a full file manager. Browse `backend/shared/` from
+the phone: upload files (with per-file progress you can cancel), create
+folders, rename, and long-press to multi-select — then move, copy, share,
+delete, save to Downloads, or copy a file's PC path. Tap a file to preview it
+in place — images with zoom, HTML rendered in a real web view, SVG, Markdown,
+and source code — and delete it right from the preview if it's no longer
+needed.
+
+It works in both directions: drop a file into `backend/shared/` on the PC — or
+just ask Claude to write one there — and you get a tap-to-download link in the
+chat, served over the same authenticated connection.
+
+## Manage Claude Code itself
+
+The **Claude** screen is a remote manager for the Claude Code install on the
+PC:
+
+- See the active CLI version, switch where it comes from, update it, and read
+  the official changelog without leaving the app.
+- Browse any **marketplace** catalog and install **plugins** from the phone;
+  enable, disable, update, or uninstall the ones you have.
+- Add or remove **MCP servers** and marketplaces.
+- Read the **skills** your plugins provide, and view or delete Claude's
+  **memories**, globally or per project.
+- Keep your own standing instructions in a **user prompt** editable from the
+  app — it rides along every conversation, on top of the system conventions in
+  `backend/prompts/CCONNECT.md`.
 
 ## Built-in features
 
 On top of plain Claude Code, the backend ships a few helpers wired into the
 agent so they're available out of the box from the phone:
 
-- **Shared folder.** Drop a file into `backend/shared/` — or just ask Claude to
-  write one there — and you get a tap-to-download link in the chat. The phone
-  lets you save it to Downloads, save as somewhere else, or share to another
-  app, all over the same authenticated connection.
 - **Cross-project progress check.** Ask things like _"how's the README I left
   running in <other-project> going?"_ and Claude summarizes that other
   session's latest activity into Done / Pending / Files touched / Next step,
   without you having to open it.
-- **Editable system prompt.** `backend/prompts/agent.md` is auto-appended to
+- **Editable system prompt.** `backend/prompts/CCONNECT.md` is auto-appended to
   every chat — that's where the file-sharing and progress-check conventions
-  live. Edit it to teach Claude your own conventions or to add guidance for
-  new tools.
+  live. Your personal additions go in `USER.md`, edited straight from the
+  Claude screen.
+
+## Staying current
+
+The app and the backend declare which versions of each other — and of the
+Claude CLI — they support. When something falls behind, a notice in the chat
+takes you straight to the right place: the app's own update (with its
+changelog), the server requirement, or the CLI update button. Release notes
+for both CConnect and Claude Code are readable in the app.
 
 ## SSH client
 
