@@ -1,6 +1,9 @@
-- Added chat attachments — pick files with the paperclip button and they upload to the shared folder when you hit send, with per-file progress and cancel; images reach Claude natively so it sees them instantly, and attachments show as tappable chips in the message on both phone and PC
-- Added file management to Files — upload files, create folders and rename with duplicate checks, plus multi-select with drag marking to move, copy, share, delete or download several items at once, and a copy-path action
-- Added an in-app changelog viewer and a manual "Check for updates" button in Settings
-- Added image preview with zoom, and file types for the viewer are now detected by mimetype
-- Changed GitHub checks to be cached — the changelog refetches only after updating and update checks run once per launch, keeping API usage minimal
-- Fixed the file browser jumping back to the root folder after closing a preview
+- Added a Claude screen — a full manager for the Claude Code install on the PC: see the CLI version, switch where it comes from and update it, read its official changelog, and keep a personal prompt that rides along every conversation
+- Added plugin management — browse marketplace catalogs with search, install plugins and enable, disable, update or uninstall them with live progress; marketplaces and MCP servers can be added, updated or removed, skills are readable, and memories can be viewed or deleted globally or per project
+- Added HTML and SVG preview to the file viewer — pages render in a real web view with their styles and scripts working
+- Added a delete action to the file preview with confirmation, available from Files, chat links and memories
+- Added outdated-version alerts for Claude Code — the app warns when the PC's CLI is older than supported, and update notices now jump straight to the relevant Settings row with a brief highlight
+- Added a "Support development" link in Settings
+- Changed external links in markdown to ask for confirmation before opening, on every screen
+- Changed project selectors to show the full project path
+- Fixed the paperclip icon centering in the composer
