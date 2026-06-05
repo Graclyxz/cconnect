@@ -14,9 +14,9 @@ android {
         applicationId = "com.jahirtrap.cconnect"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "1.0.9"
-        val supportedServer = ">=1.0.9"
+        versionCode = 11
+        versionName = "1.1.0"
+        val supportedServer = ">=1.1.0"
         buildConfigField("String", "SUPPORTED_SERVER", "\"$supportedServer\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

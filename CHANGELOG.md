@@ -1,4 +1,6 @@
-- Added in-app updates — the app checks GitHub for new releases and can download and install them right from Settings, with download progress and cancel
-- Added an app–server compatibility check — both sides declare the version range they support, and dismissable notices on launch warn when either one should be updated to avoid issues
-- Added an About section in Settings — app version and update status, the creator's GitHub profile and a link to the repository
-- Added a file preview screen — shared markdown files open rendered like chat messages, from the file browser or a chat link, with save and share actions
+- Added chat attachments — pick files with the paperclip button and they upload to the shared folder when you hit send, with per-file progress and cancel; images reach Claude natively so it sees them instantly, and attachments show as tappable chips in the message on both phone and PC
+- Added file management to Files — upload files, create folders and rename with duplicate checks, plus multi-select with drag marking to move, copy, share, delete or download several items at once, and a copy-path action
+- Added an in-app changelog viewer and a manual "Check for updates" button in Settings
+- Added image preview with zoom, and file types for the viewer are now detected by mimetype
+- Changed GitHub checks to be cached — the changelog refetches only after updating and update checks run once per launch, keeping API usage minimal
+- Fixed the file browser jumping back to the root folder after closing a preview
