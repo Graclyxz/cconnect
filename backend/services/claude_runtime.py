@@ -13,15 +13,23 @@ from core.config import AI_WORKDIR, PORT, SHARED_DIR
 from mcps import build_cconnect_server
 from services import settings_store
 
-_AGENT_PROMPT_FILE = Path(__file__).resolve().parent.parent / "prompts" / "agent.md"
+_PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 _FILE_EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 
 
-def _agent_append(base_url: Optional[str]) -> str:
+def _system_append(base_url: Optional[str]) -> str:
     """Read on every call so the markdown can be edited without restarting the server."""
     try:
-        text = _AGENT_PROMPT_FILE.read_text(encoding="utf-8")
+        text = (_PROMPTS_DIR / "CCONNECT.md").read_text(encoding="utf-8")
     except OSError:
+        text = ""
+    try:
+        user = (_PROMPTS_DIR / "USER.md").read_text(encoding="utf-8").strip()
+    except OSError:
+        user = ""
+    if user:
+        text = f"{text.strip()}\n\n{user}" if text.strip() else user
+    if not text:
         return ""
     effective = base_url or f"http://localhost:{PORT}/api"
     text = text.replace("{{SHARED_DIR}}", SHARED_DIR).replace("{{BASE_URL}}", effective.rstrip("/"))
@@ -371,7 +379,7 @@ async def run_prompt(
         extra_args["resume-session-at"] = resume_at
 
     system_prompt: dict = {"type": "preset", "preset": "claude_code"}
-    append = _agent_append(base_url)
+    append = _system_append(base_url)
     if append:
         system_prompt["append"] = append
 

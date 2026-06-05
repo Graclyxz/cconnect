@@ -96,7 +96,47 @@ object GitHubApi {
         )
     }
 
-    // Fetched once and kept forever.
+    suspend fun claudeChangelog(context: Context, cliVersion: String?): List<ReleaseNotes>? {
+        val file = File(context.filesDir, "claude_changelog.json")
+        val cached = readCache(file)?.jsonObject
+        val cachedItems = cached?.get("items")?.jsonArray?.let(::notesOf)
+        if (cliVersion != null && cached?.get("version")?.jsonPrimitive?.contentOrNull == cliVersion && cachedItems != null) {
+            return cachedItems
+        }
+        val raw = fetchText("https://raw.githubusercontent.com/anthropics/claude-code/main/CHANGELOG.md")
+        if (raw != null) {
+            val parsed = parseClaudeChangelog(raw)
+            writeCache(file, buildJsonObject {
+                put("version", cliVersion.orEmpty())
+                putJsonArray("items") {
+                    parsed.forEach { note ->
+                        addJsonObject {
+                            put("tag_name", note.tag)
+                            put("body", note.body)
+                        }
+                    }
+                }
+            })
+            return parsed
+        }
+        return cachedItems
+    }
+
+    private fun parseClaudeChangelog(markdown: String): List<ReleaseNotes> =
+        markdown.split(Regex("(?m)^## ")).drop(1).take(30).mapNotNull { block ->
+            val lines = block.trim().lines()
+            val tag = lines.firstOrNull()?.trim()?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            ReleaseNotes(tag, lines.drop(1).joinToString("\n").trim())
+        }
+
+    private suspend fun fetchText(url: String): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
+                if (resp.isSuccessful) resp.body?.string() else null
+            }
+        }.getOrNull()
+    }
+
     suspend fun ownerProfile(context: Context): Profile? {
         val file = File(context.filesDir, "github_profile.json")
         readCache(file)?.jsonObject?.let(::profileOf)?.let { return it }

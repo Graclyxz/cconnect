@@ -98,6 +98,7 @@ import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.chat.ChatViewModel
 import com.jahirtrap.cconnect.chat.ConnectionState
+import com.jahirtrap.cconnect.claude.ClaudeChangelogSheet
 import coil3.compose.AsyncImage
 import com.jahirtrap.cconnect.BuildConfig
 import com.composables.icons.lucide.Github
@@ -282,6 +283,8 @@ fun SettingsScreen(
                         }
                     },
                 ) {
+                    var showCliChangelog by remember { mutableStateOf(false) }
+                    if (showCliChangelog) ClaudeChangelogSheet(cliVersion = cliInfo?.activeVersion, onDismiss = { showCliChangelog = false })
                     PreferenceRow(
                         CustomIcons.Claude,
                         stringResource(R.string.cli),
@@ -289,6 +292,11 @@ fun SettingsScreen(
                         enabled = serverReady,
                         alert = stringResource(R.string.compat_cli_outdated).takeIf { chatState.cliOutdated },
                         modifier = Modifier.background(MaterialTheme.colorScheme.onSurface.copy(alpha = cliFlashAlpha)),
+                        trailing = {
+                            TooltipIconButton(label = stringResource(R.string.changelog), onClick = { showCliChangelog = true }, enabled = serverReady) {
+                                Icon(Lucide.FileText, contentDescription = null)
+                            }
+                        },
                     ) { dialog = SettingsDialog.Cli }
                     PreferenceRow(Lucide.Sparkles, stringResource(R.string.generation), serverSummary("${caps.models.firstOrNull { it.id == model }?.label ?: model} • $effort"), enabled = serverReady) { dialog = SettingsDialog.Generation }
                     PreferenceRow(Lucide.Shield, stringResource(R.string.permissions), serverSummary(permissionLabel(caps, permissionMode)), enabled = serverReady) { dialog = SettingsDialog.Permissions }
@@ -469,7 +477,11 @@ fun SettingsScreen(
         )
 
         SettingsDialog.Cli -> cliInfo?.let { info ->
-            CliDialog(info = info, onChanged = { cliInfo = it }, onDismiss = { dialog = null })
+            CliDialog(
+                info = info,
+                onChanged = { cliInfo = it; chatVm.refreshVersionInfo() },
+                onDismiss = { dialog = null },
+            )
         } ?: run { dialog = null }
 
         SettingsDialog.Generation -> GenerationDialog(
@@ -538,7 +550,7 @@ private fun permissionLabel(caps: Capabilities, mode: String): String =
     caps.permissionModes.firstOrNull { it.id == mode }?.label ?: mode
 
 @Composable
-private fun SettingsGroup(
+fun SettingsGroup(
     label: String?,
     labelTrailing: (@Composable () -> Unit)? = null,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
@@ -571,7 +583,7 @@ private fun SettingsGroup(
 }
 
 @Composable
-private fun PreferenceRow(
+fun PreferenceRow(
     icon: ImageVector,
     title: String,
     summary: String?,
@@ -579,13 +591,13 @@ private fun PreferenceRow(
     enabled: Boolean = true,
     alert: String? = null,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
 ) {
     val alpha = if (enabled) 1f else 0.38f
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = onClick)
+            .then(if (onClick != null) Modifier.clickable(enabled = enabled, onClick = onClick) else Modifier)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

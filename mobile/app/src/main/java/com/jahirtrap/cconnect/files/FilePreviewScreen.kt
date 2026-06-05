@@ -1,5 +1,6 @@
 package com.jahirtrap.cconnect.files
 
+import android.content.Intent
 import android.webkit.MimeTypeMap
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -153,7 +154,7 @@ fun FilePreviewScreen(url: String, filename: String, onClose: () -> Unit) {
                                     menu = false
                                     scope.launch {
                                         FileTransfer.shareIntent(context, url, filename)?.let {
-                                            context.startActivity(android.content.Intent.createChooser(it, null))
+                                            context.startActivity(Intent.createChooser(it, null))
                                         }
                                     }
                                 },

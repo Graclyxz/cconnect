@@ -27,6 +27,7 @@ fun TooltipIconButton(
     label: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
     icon: @Composable () -> Unit,
 ) {
     TooltipBox(
@@ -34,7 +35,7 @@ fun TooltipIconButton(
         tooltip = { PlainTooltip { Text(label) } },
         state = rememberTooltipState(),
     ) {
-        IconButton(onClick = onClick, modifier = modifier.size(40.dp), content = { icon() })
+        IconButton(onClick = onClick, enabled = enabled, modifier = modifier.size(40.dp), content = { icon() })
     }
 }
 

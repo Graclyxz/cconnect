@@ -1,5 +1,6 @@
 package com.jahirtrap.cconnect.files
 
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -347,7 +348,7 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                         scope.launch {
                             val files = selectedEntries.map { SharedApi.downloadUrl(child(it.name)) to it.name }
                             FileTransfer.shareMultipleIntent(context, files)?.let {
-                                context.startActivity(android.content.Intent.createChooser(it, null))
+                                context.startActivity(Intent.createChooser(it, null))
                             }
                             exitSelection()
                         }

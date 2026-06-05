@@ -83,6 +83,18 @@
     <string name="up_to_date">You have the latest version</string>
     <string name="update_action">Update</string>
     <string name="check_updates">Check for updates</string>
+    <string name="claude">Claude</string>
+    <string name="user_prompt">Custom prompt</string>
+    <string name="user_prompt_summary">Extra instructions appended to the system prompt</string>
+    <string name="extensions">Extensions</string>
+    <string name="plugins">Plugins</string>
+    <string name="skills">Skills</string>
+    <string name="mcp_servers">MCP servers</string>
+    <string name="marketplaces">Marketplaces</string>
+    <plurals name="enabled_count">
+        <item quantity="one">%1$d/%2$d enabled</item>
+        <item quantity="other">%1$d/%2$d enabled</item>
+    </plurals>
     <string name="checking_updates">Checking</string>
     <string name="repository">Repository</string>
     <string name="changelog">Changelog</string>

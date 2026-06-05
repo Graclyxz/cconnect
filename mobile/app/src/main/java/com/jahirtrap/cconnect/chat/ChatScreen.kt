@@ -1,5 +1,6 @@
 package com.jahirtrap.cconnect.chat
 
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -88,6 +89,7 @@ import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.DropdownScrim
 import com.jahirtrap.cconnect.ui.EmptyState
+import com.jahirtrap.cconnect.ui.Claude
 import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.Stop
 import com.jahirtrap.cconnect.ui.theme.palette
@@ -212,6 +214,7 @@ import kotlinx.coroutines.launch
 fun ChatScreen(
     onOpenSettings: (highlight: String?) -> Unit,
     onOpenExplorer: () -> Unit,
+    onOpenClaude: () -> Unit,
     onOpenTerminal: () -> Unit,
     onOpenPreview: (url: String, filename: String) -> Unit,
     drawerState: DrawerState,
@@ -387,6 +390,9 @@ fun ChatScreen(
                     ) {
                         TooltipIconButton(label = stringResource(R.string.files), onClick = onOpenExplorer) {
                             Icon(Lucide.Folder, contentDescription = null)
+                        }
+                        TooltipIconButton(label = stringResource(R.string.claude), onClick = onOpenClaude) {
+                            Icon(CustomIcons.Claude, contentDescription = null)
                         }
                         TooltipIconButton(label = stringResource(R.string.terminal), onClick = onOpenTerminal) {
                             Icon(Lucide.SquareTerminal, contentDescription = null)
@@ -762,7 +768,7 @@ fun ChatScreen(
             onShare = {
                 scope.launch {
                     FileTransfer.shareIntent(context, url, filename)?.let {
-                        context.startActivity(android.content.Intent.createChooser(it, null))
+                        context.startActivity(Intent.createChooser(it, null))
                     }
                 }
             },

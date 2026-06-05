@@ -83,6 +83,18 @@
     <string name="up_to_date">Tienes la última versión</string>
     <string name="update_action">Actualizar</string>
     <string name="check_updates">Comprobar actualizaciones</string>
+    <string name="claude">Claude</string>
+    <string name="user_prompt">Prompt personalizado</string>
+    <string name="user_prompt_summary">Instrucciones extra añadidas al system prompt</string>
+    <string name="extensions">Extensiones</string>
+    <string name="plugins">Plugins</string>
+    <string name="skills">Skills</string>
+    <string name="mcp_servers">Servidores MCP</string>
+    <string name="marketplaces">Marketplaces</string>
+    <plurals name="enabled_count">
+        <item quantity="one">%1$d/%2$d habilitado</item>
+        <item quantity="other">%1$d/%2$d habilitados</item>
+    </plurals>
     <string name="checking_updates">Comprobando</string>
     <string name="repository">Repositorio</string>
     <string name="changelog">Novedades</string>

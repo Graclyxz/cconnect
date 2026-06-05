@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import com.jahirtrap.cconnect.chat.ChatScreen
+import com.jahirtrap.cconnect.claude.ClaudeScreen
 import com.jahirtrap.cconnect.files.FileExplorerScreen
 import com.jahirtrap.cconnect.files.FilePreviewScreen
 import com.jahirtrap.cconnect.data.Settings
@@ -61,6 +62,7 @@ private fun App() {
     var showSettings by remember { mutableStateOf(!settings.isConfigured) }
     var settingsHighlight by remember { mutableStateOf<String?>(null) }
     var showExplorer by remember { mutableStateOf(false) }
+    var showClaude by remember { mutableStateOf(false) }
     var previewFile by remember { mutableStateOf<Pair<String, String>?>(null) }  // url to filename
     var showTerminal by remember { mutableStateOf(false) }
     var terminalFromSettings by remember { mutableStateOf(false) }
@@ -109,6 +111,8 @@ private fun App() {
 
                 showExplorer -> FileExplorerScreen(onClose = { showExplorer = false }, onOpenPreview = { url, name -> previewFile = url to name })
 
+                showClaude -> ClaudeScreen(onClose = { showClaude = false })
+
                 showTerminal -> TerminalScreen(onClose = {
                     showTerminal = false
                     if (terminalFromSettings) {
@@ -120,6 +124,7 @@ private fun App() {
                 else -> ChatScreen(
                     onOpenSettings = { target -> settingsHighlight = target; showSettings = true },
                     onOpenExplorer = { showExplorer = true },
+                    onOpenClaude = { showClaude = true },
                     onOpenTerminal = { showTerminal = true },
                     onOpenPreview = { url, name -> previewFile = url to name },
                     drawerState = drawerState,

@@ -37,6 +37,7 @@ fun InputField(
     modifier: Modifier = Modifier,
     label: @Composable (() -> Unit)? = null,
     singleLine: Boolean = false,
+    minLines: Int = 1,
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     visualTransformation: VisualTransformation = VisualTransformation.None,
@@ -69,6 +70,7 @@ fun InputField(
                     .onFocusChanged { focused = it.isFocused }
                     .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
                 singleLine = singleLine,
+                minLines = minLines,
                 maxLines = maxLines,
                 keyboardOptions = keyboardOptions,
                 visualTransformation = visualTransformation,
