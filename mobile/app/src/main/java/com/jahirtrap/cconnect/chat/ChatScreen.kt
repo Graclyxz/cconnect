@@ -210,7 +210,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ChatScreen(
-    onOpenSettings: () -> Unit,
+    onOpenSettings: (highlight: String?) -> Unit,
     onOpenExplorer: () -> Unit,
     onOpenTerminal: () -> Unit,
     onOpenPreview: (url: String, filename: String) -> Unit,
@@ -398,7 +398,7 @@ fun ChatScreen(
                         TooltipIconButton(label = stringResource(R.string.theme), onClick = { showThemeDialog = true }) {
                             Icon(themeIcon(themeMode), contentDescription = null)
                         }
-                        TooltipIconButton(label = stringResource(R.string.settings), onClick = onOpenSettings) {
+                        TooltipIconButton(label = stringResource(R.string.settings), onClick = { onOpenSettings(null) }) {
                             Icon(Lucide.Settings, contentDescription = null)
                         }
                     }
@@ -418,10 +418,14 @@ fun ChatScreen(
                                         text = when (notice) {
                                             CompatStatus.AppOutdated -> stringResource(R.string.compat_app_outdated)
                                             CompatStatus.ServerOutdated -> stringResource(R.string.compat_server_outdated)
+                                            CompatStatus.CliOutdated -> stringResource(R.string.compat_cli_outdated)
                                             else -> stringResource(R.string.update_available, state.latestRelease?.tag.orEmpty())
                                         },
                                         actionLabel = stringResource(R.string.settings),
-                                        onAction = { vm.dismissNotice(notice); onOpenSettings() },
+                                        onAction = {
+                                            vm.dismissNotice(notice)
+                                            onOpenSettings(if (notice == CompatStatus.CliOutdated) "cli" else "about")
+                                        },
                                         onDismiss = { vm.dismissNotice(notice) },
                                     )
                                 }

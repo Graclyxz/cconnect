@@ -59,6 +59,7 @@ private fun App() {
     var accentIndex by remember { mutableStateOf(settings.accentIndex) }
     var language by remember { mutableStateOf(settings.language) }
     var showSettings by remember { mutableStateOf(!settings.isConfigured) }
+    var settingsHighlight by remember { mutableStateOf<String?>(null) }
     var showExplorer by remember { mutableStateOf(false) }
     var previewFile by remember { mutableStateOf<Pair<String, String>?>(null) }  // url to filename
     var showTerminal by remember { mutableStateOf(false) }
@@ -102,7 +103,8 @@ private fun App() {
                         showSettings = false
                         showTerminal = true
                     },
-                    onClose = { showSettings = false },
+                    highlight = settingsHighlight,
+                    onClose = { showSettings = false; settingsHighlight = null },
                 )
 
                 showExplorer -> FileExplorerScreen(onClose = { showExplorer = false }, onOpenPreview = { url, name -> previewFile = url to name })
@@ -116,7 +118,7 @@ private fun App() {
                 })
 
                 else -> ChatScreen(
-                    onOpenSettings = { showSettings = true },
+                    onOpenSettings = { target -> settingsHighlight = target; showSettings = true },
                     onOpenExplorer = { showExplorer = true },
                     onOpenTerminal = { showTerminal = true },
                     onOpenPreview = { url, name -> previewFile = url to name },

@@ -6,6 +6,7 @@ like ultracode), a custom path, or the bundled one, and update the system CLI in
 
 import platform
 import shutil
+import re
 import subprocess
 from pathlib import Path
 from typing import Optional
@@ -74,6 +75,26 @@ def cli_version(path: Optional[str]) -> Optional[str]:
     return result.stdout.strip() or None
 
 
+_version_cache: Optional[tuple[Optional[str], Optional[str]]] = None
+
+
+def active_version() -> Optional[str]:
+    global _version_cache
+    resolved = resolve_cli_path()
+    if _version_cache is not None and _version_cache[0] == resolved:
+        return _version_cache[1]
+    raw = cli_version(resolved) if resolved else bundled_version()
+    match = re.search(r"\d+(?:\.\d+)+", raw or "")
+    version = match.group() if match else None
+    _version_cache = (resolved, version)
+    return version
+
+
+def invalidate_version_cache() -> None:
+    global _version_cache
+    _version_cache = None
+
+
 def update_cli(source: Optional[str] = None, custom_path: Optional[str] = None) -> dict:
     """Self-update the resolved CLI in place (`claude update`). Bundled can't update.
 
@@ -88,6 +109,7 @@ def update_cli(source: Optional[str] = None, custom_path: Optional[str] = None) 
         result = subprocess.run([path, "update"], capture_output=True, text=True, timeout=180)
     except (OSError, subprocess.SubprocessError) as exc:
         return {"ok": False, "message": str(exc)}
+    invalidate_version_cache()
     output = (result.stdout + result.stderr).strip()
     return {"ok": result.returncode == 0, "message": output, "version": cli_version(path)}
 
@@ -97,6 +119,7 @@ def set_source(source: str, custom_path: Optional[str] = None) -> None:
         raise ValueError("custom source requires an existing path")
     settings_store.set("cli_source", source)  # validates against the registry's allowed set
     settings_store.set("cli_custom_path", custom_path)
+    invalidate_version_cache()
 
 
 def status() -> dict:

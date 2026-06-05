@@ -13,10 +13,21 @@ import kotlinx.serialization.json.jsonPrimitive
 
 object CapabilitiesApi {
 
-    suspend fun versionInfo(): Pair<String?, String?>? {
+    data class VersionInfo(
+        val serverVersion: String?,
+        val supportedApp: String?,
+        val cliVersion: String?,
+        val supportedCli: String?,
+    )
+
+    suspend fun versionInfo(): VersionInfo? {
         val data = Http.get("/health")?.jsonObject ?: return null
-        return data["version"]?.jsonPrimitive?.contentOrNull to
-            data["supported_app"]?.jsonPrimitive?.contentOrNull
+        return VersionInfo(
+            serverVersion = data["version"]?.jsonPrimitive?.contentOrNull,
+            supportedApp = data["supported_app"]?.jsonPrimitive?.contentOrNull,
+            cliVersion = data["cli_version"]?.jsonPrimitive?.contentOrNull,
+            supportedCli = data["supported_cli"]?.jsonPrimitive?.contentOrNull,
+        )
     }
 
     suspend fun capabilities(): Capabilities? {
@@ -56,6 +67,8 @@ object CapabilitiesApi {
             } ?: fallback.defaults,
             serverVersion = data["version"]?.jsonPrimitive?.contentOrNull,
             supportedApp = data["supported_app"]?.jsonPrimitive?.contentOrNull,
+            cliVersion = data["cli_version"]?.jsonPrimitive?.contentOrNull,
+            supportedCli = data["supported_cli"]?.jsonPrimitive?.contentOrNull,
         )
     }
 }

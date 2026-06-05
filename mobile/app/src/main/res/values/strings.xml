@@ -78,6 +78,7 @@
     <string name="update_available">Update available: %1$s</string>
     <string name="compat_app_outdated">Update the app to avoid issues with this server</string>
     <string name="compat_server_outdated">Update the server to avoid issues</string>
+    <string name="compat_cli_outdated">Update Claude Code on the server to avoid issues</string>
     <string name="creator">Creator</string>
     <string name="up_to_date">You have the latest version</string>
     <string name="update_action">Update</string>

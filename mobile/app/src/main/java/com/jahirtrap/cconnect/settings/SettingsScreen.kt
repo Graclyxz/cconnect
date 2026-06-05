@@ -1,6 +1,8 @@
 package com.jahirtrap.cconnect.settings
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,9 +47,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
@@ -87,6 +92,8 @@ import com.jahirtrap.cconnect.data.remote.SettingsApi
 import com.jahirtrap.cconnect.data.remote.AppImageLoader
 import com.jahirtrap.cconnect.data.remote.GitHubApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.chat.ChatViewModel
@@ -140,6 +147,7 @@ fun SettingsScreen(
     onLanguage: (String) -> Unit,
     onOpenSshHosts: () -> Unit,
     onClose: () -> Unit,
+    highlight: String? = null,
 ) {
     val context = LocalContext.current
     val settings = remember { Settings(context) }
@@ -191,6 +199,25 @@ fun SettingsScreen(
 
     var dialog by remember { mutableStateOf<SettingsDialog?>(null) }
 
+    val scrollState = rememberScrollState()
+    var aboutY by remember { mutableStateOf<Float?>(null) }
+    var serverY by remember { mutableStateOf<Float?>(null) }
+    val highlightFlash = remember { Animatable(0f) }
+    val aboutFlashAlpha = if (highlight == "about") 0.1f * highlightFlash.value else 0f
+    val cliFlashAlpha = if (highlight == "cli") 0.1f * highlightFlash.value else 0f
+    LaunchedEffect(highlight) {
+        val position = when (highlight) {
+            "about" -> snapshotFlow { aboutY }
+            "cli" -> snapshotFlow { serverY }
+            else -> return@LaunchedEffect
+        }
+        scrollState.animateScrollTo(position.filterNotNull().first().toInt())
+        repeat(2) {
+            highlightFlash.animateTo(1f, tween(220))
+            highlightFlash.animateTo(0f, tween(220))
+        }
+    }
+
     BackHandler(onBack = onClose)
 
     Scaffold(
@@ -213,7 +240,7 @@ fun SettingsScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scrollState)
                     .padding(horizontal = 16.dp),
             ) {
                 SettingsGroup(stringResource(R.string.settings_appearance)) {
@@ -244,6 +271,7 @@ fun SettingsScreen(
                 val loadingText = stringResource(R.string.connecting)
                 val offlineText = stringResource(R.string.server_unavailable)
                 fun serverSummary(real: String) = if (serverReady) real else if (loading) loadingText else offlineText
+                Box(modifier = Modifier.onGloballyPositioned { serverY = it.positionInParent().y }) {
                 SettingsGroup(
                     label = stringResource(R.string.settings_server),
                     labelTrailing = {
@@ -254,138 +282,149 @@ fun SettingsScreen(
                         }
                     },
                 ) {
-                    PreferenceRow(CustomIcons.Claude, stringResource(R.string.cli), serverSummary(cliInfo?.activeVersion ?: "—"), enabled = serverReady) { dialog = SettingsDialog.Cli }
+                    PreferenceRow(
+                        CustomIcons.Claude,
+                        stringResource(R.string.cli),
+                        serverSummary(cliInfo?.activeVersion ?: "—"),
+                        enabled = serverReady,
+                        alert = stringResource(R.string.compat_cli_outdated).takeIf { chatState.cliOutdated },
+                        modifier = Modifier.background(MaterialTheme.colorScheme.onSurface.copy(alpha = cliFlashAlpha)),
+                    ) { dialog = SettingsDialog.Cli }
                     PreferenceRow(Lucide.Sparkles, stringResource(R.string.generation), serverSummary("${caps.models.firstOrNull { it.id == model }?.label ?: model} • $effort"), enabled = serverReady) { dialog = SettingsDialog.Generation }
                     PreferenceRow(Lucide.Shield, stringResource(R.string.permissions), serverSummary(permissionLabel(caps, permissionMode)), enabled = serverReady) { dialog = SettingsDialog.Permissions }
                     PreferenceRow(Lucide.Eye, stringResource(R.string.visibility), serverSummary(stringResource(R.string.visibility_summary)), enabled = serverReady) { dialog = SettingsDialog.Visibility }
                 }
+                }
                 SettingsGroup(label = null) {
                     PreferenceRow(Lucide.History, stringResource(R.string.reset_settings), stringResource(R.string.reset_settings_summary)) { dialog = SettingsDialog.Reset }
                 }
-                SettingsGroup(stringResource(R.string.about)) {
-                    val uriHandler = LocalUriHandler.current
-                    var showChangelog by remember { mutableStateOf(false) }
-                    if (showChangelog) ChangelogSheet(onDismiss = { showChangelog = false })
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { uriHandler.openUri(chatState.latestRelease?.url ?: GitHubApi.RELEASES_URL) }
-                            .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        AppLogo()
-                        Spacer(Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(stringResource(R.string.app_name), style = MaterialTheme.typography.bodyLarge)
-                            Text(
-                                stringResource(R.string.version_label, BuildConfig.VERSION_NAME),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            if (chatState.appOutdated) Text(
-                                stringResource(R.string.compat_app_outdated),
-                                style = MaterialTheme.typography.bodySmall, color = palette.red,
-                            )
-                            if (chatState.serverOutdated) Text(
-                                stringResource(R.string.compat_server_outdated),
-                                style = MaterialTheme.typography.bodySmall, color = palette.red,
-                            )
-                            chatState.latestRelease?.let { release ->
+                Box(modifier = Modifier.onGloballyPositioned { aboutY = it.positionInParent().y }) {
+                    SettingsGroup(stringResource(R.string.about)) {
+                        val uriHandler = LocalUriHandler.current
+                        var showChangelog by remember { mutableStateOf(false) }
+                        if (showChangelog) ChangelogSheet(onDismiss = { showChangelog = false })
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { uriHandler.openUri(chatState.latestRelease?.url ?: GitHubApi.RELEASES_URL) }
+                                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = aboutFlashAlpha))
+                                .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            AppLogo()
+                            Spacer(Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.bodyLarge)
                                 Text(
-                                    stringResource(R.string.update_available, release.tag),
-                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                                    stringResource(R.string.version_label, BuildConfig.VERSION_NAME),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                if (chatState.appOutdated) Text(
+                                    stringResource(R.string.compat_app_outdated),
+                                    style = MaterialTheme.typography.bodySmall, color = palette.red,
+                                )
+                                if (chatState.serverOutdated) Text(
+                                    stringResource(R.string.compat_server_outdated),
+                                    style = MaterialTheme.typography.bodySmall, color = palette.red,
+                                )
+                                chatState.latestRelease?.let { release ->
+                                    Text(
+                                        stringResource(R.string.update_available, release.tag),
+                                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                                if (!chatState.appOutdated && !chatState.serverOutdated && chatState.latestRelease == null) Text(
+                                    stringResource(R.string.up_to_date),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            if (!chatState.appOutdated && !chatState.serverOutdated && chatState.latestRelease == null) Text(
-                                stringResource(R.string.up_to_date),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            TooltipIconButton(label = stringResource(R.string.changelog), onClick = { showChangelog = true }) {
+                                Icon(Lucide.FileText, contentDescription = null)
+                            }
+                        }
+                        val apkUrl = chatState.latestRelease?.apkUrl
+                        if (apkUrl != null) {
+                            var progress by remember { mutableStateOf<Float?>(null) }
+                            var downloadJob by remember { mutableStateOf<Job?>(null) }
+                            if (progress != null) {
+                                LinearProgressIndicator(
+                                    progress = { progress ?: 0f },
+                                    drawStopIndicator = {},
+                                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                                )
+                            }
+                            ActionButton(
+                                text = stringResource(if (progress != null) R.string.cancel else R.string.update_action),
+                                onClick = {
+                                    if (progress != null) {
+                                        downloadJob?.cancel()
+                                    } else {
+                                        progress = 0f
+                                        downloadJob = scope.launch {
+                                            try {
+                                                AppUpdater.downloadAndInstall(context, apkUrl) { progress = it }
+                                            } finally {
+                                                progress = null
+                                                downloadJob = null
+                                            }
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
                             )
-                        }
-                        TooltipIconButton(label = stringResource(R.string.changelog), onClick = { showChangelog = true }) {
-                            Icon(Lucide.FileText, contentDescription = null)
-                        }
-                    }
-                    val apkUrl = chatState.latestRelease?.apkUrl
-                    if (apkUrl != null) {
-                        var progress by remember { mutableStateOf<Float?>(null) }
-                        var downloadJob by remember { mutableStateOf<Job?>(null) }
-                        if (progress != null) {
-                            LinearProgressIndicator(
-                                progress = { progress ?: 0f },
-                                drawStopIndicator = {},
+                        } else {
+                            var checking by remember { mutableStateOf(false) }
+                            ActionButton(
+                                text = stringResource(if (checking) R.string.checking_updates else R.string.check_updates),
+                                enabled = !checking,
+                                onClick = {
+                                    scope.launch {
+                                        checking = true
+                                        chatVm.checkForUpdates()
+                                        checking = false
+                                    }
+                                },
                                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
                             )
                         }
-                        ActionButton(
-                            text = stringResource(if (progress != null) R.string.cancel else R.string.update_action),
-                            onClick = {
-                                if (progress != null) {
-                                    downloadJob?.cancel()
-                                } else {
-                                    progress = 0f
-                                    downloadJob = scope.launch {
-                                        try {
-                                            AppUpdater.downloadAndInstall(context, apkUrl) { progress = it }
-                                        } finally {
-                                            progress = null
-                                            downloadJob = null
-                                        }
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
-                        )
-                    } else {
-                        var checking by remember { mutableStateOf(false) }
-                        ActionButton(
-                            text = stringResource(if (checking) R.string.checking_updates else R.string.check_updates),
-                            enabled = !checking,
-                            onClick = {
-                                scope.launch {
-                                    checking = true
-                                    chatVm.checkForUpdates()
-                                    checking = false
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
-                        )
-                    }
-                    var profile by remember { mutableStateOf<GitHubApi.Profile?>(null) }
-                    LaunchedEffect(Unit) { profile = GitHubApi.ownerProfile(context) }
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = profile != null) { profile?.let { uriHandler.openUri(it.url) } }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        val avatar = profile?.avatarUrl
-                        if (avatar != null) {
-                            AsyncImage(
-                                model = avatar,
-                                imageLoader = AppImageLoader.get(context),
-                                contentDescription = null,
-                                modifier = Modifier.size(32.dp).clip(CircleShape),
-                            )
-                        } else {
-                            Box(Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant))
+                        var profile by remember { mutableStateOf<GitHubApi.Profile?>(null) }
+                        LaunchedEffect(Unit) { profile = GitHubApi.ownerProfile(context) }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = profile != null) { profile?.let { uriHandler.openUri(it.url) } }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            val avatar = profile?.avatarUrl
+                            if (avatar != null) {
+                                AsyncImage(
+                                    model = avatar,
+                                    imageLoader = AppImageLoader.get(context),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(32.dp).clip(CircleShape),
+                                )
+                            } else {
+                                Box(Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant))
+                            }
+                            Spacer(Modifier.width(16.dp))
+                            Column {
+                                Text(profile?.let { it.name ?: it.login } ?: "…", style = MaterialTheme.typography.bodyLarge)
+                                Text(
+                                    stringResource(R.string.creator),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
-                        Spacer(Modifier.width(16.dp))
-                        Column {
-                            Text(profile?.let { it.name ?: it.login } ?: "…", style = MaterialTheme.typography.bodyLarge)
-                            Text(
-                                stringResource(R.string.creator),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        PreferenceRow(
+                            Lucide.Github,
+                            stringResource(R.string.repository),
+                            GitHubApi.REPO_URL.removePrefix("https://"),
+                        ) { uriHandler.openUri(GitHubApi.REPO_URL) }
                     }
-                    PreferenceRow(
-                        Lucide.Github,
-                        stringResource(R.string.repository),
-                        GitHubApi.REPO_URL.removePrefix("https://"),
-                    ) { uriHandler.openUri(GitHubApi.REPO_URL) }
                 }
             }
         }
@@ -538,11 +577,13 @@ private fun PreferenceRow(
     summary: String?,
     trailing: (@Composable () -> Unit)? = null,
     enabled: Boolean = true,
+    alert: String? = null,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     val alpha = if (enabled) 1f else 0.38f
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
@@ -554,6 +595,9 @@ private fun PreferenceRow(
             Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha))
             if (summary != null) {
                 Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (alert != null) {
+                Text(alert, style = MaterialTheme.typography.bodySmall, color = palette.red.copy(alpha = alpha))
             }
         }
         if (trailing != null) {

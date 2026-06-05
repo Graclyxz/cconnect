@@ -95,6 +95,7 @@ data class ChatUiState(
     val latestRelease: GitHubApi.Release? = null,    // newer app release on GitHub, if any
     val appOutdated: Boolean = false,                // server doesn't support this app version
     val serverOutdated: Boolean = false,             // this app doesn't support the server version
+    val cliOutdated: Boolean = false,                // Claude Code on the server is older than required
     val versionNotices: List<CompatStatus> = emptyList(),  // dismissable startup notices
     val attachments: List<Attachment> = emptyList(), // files queued in the composer, uploaded on send
     val uploadingAttachments: Boolean = false,
@@ -108,7 +109,7 @@ data class Attachment(
     val progress: Float = 0f,
 )
 
-enum class CompatStatus { AppOutdated, ServerOutdated, UpdateAvailable }
+enum class CompatStatus { AppOutdated, ServerOutdated, CliOutdated, UpdateAvailable }
 
 class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private val appContext: Context = app
@@ -180,16 +181,24 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private fun pushNotice(notices: List<CompatStatus>, notice: CompatStatus): List<CompatStatus> =
         if (notice in dismissedNotices || notice in notices) notices else notices + notice
 
-    private fun evaluateCompat(serverVersion: String?, supportedApp: String?) {
+    private fun evaluateCompat(
+        serverVersion: String?,
+        supportedApp: String?,
+        cliVersion: String? = null,
+        supportedCli: String? = null,
+    ) {
         val appOutdated = !AppCompat.satisfies(BuildConfig.VERSION_NAME, supportedApp)
         val serverOutdated = !AppCompat.satisfies(serverVersion, AppCompat.SUPPORTED_SERVER)
+        val cliOutdated = cliVersion != null && !AppCompat.satisfies(cliVersion, supportedCli)
         if (!appOutdated) dismissedNotices.remove(CompatStatus.AppOutdated)
         if (!serverOutdated) dismissedNotices.remove(CompatStatus.ServerOutdated)
+        if (!cliOutdated) dismissedNotices.remove(CompatStatus.CliOutdated)
         _state.update {
             var notices = it.versionNotices
             notices = if (appOutdated) pushNotice(notices, CompatStatus.AppOutdated) else notices - CompatStatus.AppOutdated
             notices = if (serverOutdated) pushNotice(notices, CompatStatus.ServerOutdated) else notices - CompatStatus.ServerOutdated
-            it.copy(appOutdated = appOutdated, serverOutdated = serverOutdated, versionNotices = notices)
+            notices = if (cliOutdated) pushNotice(notices, CompatStatus.CliOutdated) else notices - CompatStatus.CliOutdated
+            it.copy(appOutdated = appOutdated, serverOutdated = serverOutdated, cliOutdated = cliOutdated, versionNotices = notices)
         }
     }
 
@@ -213,9 +222,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val caps = CapabilitiesApi.capabilities()
         if (caps != null) {
             _state.update { it.copy(capabilities = caps) }
-            evaluateCompat(caps.serverVersion, caps.supportedApp)
+            evaluateCompat(caps.serverVersion, caps.supportedApp, caps.cliVersion, caps.supportedCli)
         } else {
-            CapabilitiesApi.versionInfo()?.let { (version, supported) -> evaluateCompat(version, supported) }
+            CapabilitiesApi.versionInfo()?.let {
+                evaluateCompat(it.serverVersion, it.supportedApp, it.cliVersion, it.supportedCli)
+            }
         }
     }
 

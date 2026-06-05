@@ -3,7 +3,8 @@
 
 from fastapi import APIRouter
 
-from core.config import SERVER_VERSION, SUPPORTED_APP
+from core import cli_manager
+from core.config import SERVER_VERSION, SUPPORTED_APP, SUPPORTED_CLI
 from core.responses import api_response
 from core.sdk import sdk_status
 
@@ -16,4 +17,6 @@ def health():
         "sdk": sdk_status(),
         "version": SERVER_VERSION,
         "supported_app": SUPPORTED_APP,
+        "cli_version": cli_manager.active_version(),
+        "supported_cli": SUPPORTED_CLI,
     })

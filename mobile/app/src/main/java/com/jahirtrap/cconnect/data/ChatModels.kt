@@ -99,6 +99,8 @@ data class Capabilities(
     val defaults: CapabilitiesDefaults = CapabilitiesDefaults(),
     val serverVersion: String? = null,
     val supportedApp: String? = null,   // version range the server accepts, e.g. ">=1.0.8"
+    val cliVersion: String? = null,     // Claude Code version active on the server
+    val supportedCli: String? = null,   // Claude Code range this app's features expect
 )
 
 data class CapabilitiesDefaults(

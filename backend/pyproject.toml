@@ -6,6 +6,7 @@ requires-python = ">=3.11"
 
 [tool.cconnect]
 supported-app = ">=1.1.0"
+supported-cli = ">=2.1.162"
 
 dependencies = [
     "fastapi>=0.136.0",

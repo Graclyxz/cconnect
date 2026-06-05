@@ -23,6 +23,7 @@ def _pyproject() -> dict:
 _PYPROJECT = _pyproject()
 SERVER_VERSION = _PYPROJECT.get("project", {}).get("version", "1.0.0")
 SUPPORTED_APP = _PYPROJECT.get("tool", {}).get("cconnect", {}).get("supported-app", ">=1.0.0")
+SUPPORTED_CLI = _PYPROJECT.get("tool", {}).get("cconnect", {}).get("supported-cli", ">=0.0.0")
 
 CLAUDE_PROJECTS_DIR = os.environ.get(
     "CLAUDE_PROJECTS_DIR",
@@ -120,6 +121,7 @@ __all__ = [
     "PORT",
     "SERVER_VERSION",
     "SUPPORTED_APP",
+    "SUPPORTED_CLI",
     "CLAUDE_PROJECTS_DIR",
     "AI_WORKDIR",
     "SHARED_DIR",

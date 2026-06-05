@@ -78,6 +78,7 @@
     <string name="update_available">Actualización disponible: %1$s</string>
     <string name="compat_app_outdated">Actualiza la app para evitar fallos con este servidor</string>
     <string name="compat_server_outdated">Actualiza el servidor para evitar fallos</string>
+    <string name="compat_cli_outdated">Actualiza Claude Code en el servidor para evitar fallos</string>
     <string name="creator">Creador</string>
     <string name="up_to_date">Tienes la última versión</string>
     <string name="update_action">Actualizar</string>

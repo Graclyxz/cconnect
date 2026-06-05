@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 
+from core import cli_manager
 from core.config import (
     SERVER_VERSION,
     COLORS,
@@ -12,6 +13,7 @@ from core.config import (
     MODELS,
     PERMISSION_LABELS,
     SUPPORTED_APP,
+    SUPPORTED_CLI,
     ULTRACODE_EFFORT,
     effort_levels,
     permission_modes,
@@ -26,6 +28,8 @@ def get_capabilities():
     return api_response(data={
         "version": SERVER_VERSION,
         "supported_app": SUPPORTED_APP,
+        "cli_version": cli_manager.active_version(),
+        "supported_cli": SUPPORTED_CLI,
         "permission_modes": [{"id": m, "label": PERMISSION_LABELS.get(m, m)} for m in permission_modes()],
         "effort_levels": ["default"] + list(effort_levels()) + [ULTRACODE_EFFORT],
         "models": MODELS,
