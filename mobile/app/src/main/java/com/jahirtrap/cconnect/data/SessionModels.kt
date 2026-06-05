@@ -30,6 +30,7 @@ data class SessionMessage(
     val index: Int = -1,
     val labelOnly: Boolean = false,
     val result: String? = null,
+    val images: List<String>? = null,
 )
 
 data class SharedEntry(

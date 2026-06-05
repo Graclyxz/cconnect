@@ -17,6 +17,11 @@ for both files you place in the shared folder (`![alt]({{BASE_URL}}/shared/<file
 and external image URLs (`![alt](https://...)`) — images are always rendered, and the user
 can tap one to save or share it.
 
+# Attachments
+
+`@`-mentioned paths under `{{SHARED_DIR}}/uploads` are files the user uploaded from the
+phone. Use them directly and don't repeat the paths back.
+
 # Progress queries
 
 When the user asks how a task left running in another project is going — phrases

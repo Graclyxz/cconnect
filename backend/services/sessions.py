@@ -620,6 +620,14 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
             continue
         if not isinstance(content, list):
             continue
+        user_images = None
+        if role == "user":
+            refs = [
+                {"uuid": entry.get("uuid"), "index": j}
+                for j, b in enumerate(content)
+                if isinstance(b, dict) and b.get("type") == "image"
+            ]
+            user_images = refs or None
         for block in content:
             if not isinstance(block, dict):
                 continue
@@ -627,7 +635,11 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
             if btype == "text":
                 text = block.get("text", "").strip()
                 if text and not _COMMAND_META_RE.search(text) and not _INTERRUPT_RE.match(text):
-                    messages.append({"type": "text", "role": role, "text": text})
+                    item = {"type": "text", "role": role, "text": text}
+                    if user_images:
+                        item["images"] = user_images
+                        user_images = None
+                    messages.append(item)
             elif btype == "thinking":
                 if vis["thinking"] == "off":
                     continue
@@ -704,4 +716,32 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                     if result:
                         ev["result"] = result
                 messages.append(ev)
+        if user_images:
+            messages.append({"type": "text", "role": role, "text": "", "images": user_images})
     return messages
+
+
+def get_message_image(project_key: str, session_id: str, uuid: str, index: int) -> tuple[str, bytes] | None:
+    import base64
+
+    file = _session_file(project_key, session_id)
+    if not file.is_file():
+        return None
+    for entry in _iter_lines(file):
+        if entry.get("uuid") != uuid:
+            continue
+        content = (entry.get("message") or {}).get("content")
+        if not isinstance(content, list) or not (0 <= index < len(content)):
+            return None
+        block = content[index]
+        if not isinstance(block, dict) or block.get("type") != "image":
+            return None
+        source = block.get("source") or {}
+        data = source.get("data")
+        if not isinstance(data, str):
+            return None
+        try:
+            return source.get("media_type") or "image/png", base64.b64decode(data)
+        except Exception:
+            return None
+    return None

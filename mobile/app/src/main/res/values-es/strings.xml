@@ -99,6 +99,7 @@
     <string name="no_files">Sin archivos</string>
     <string name="delete_file_confirm">¿Eliminar «%1$s»?</string>
     <string name="upload_files">Subir archivos</string>
+    <string name="attach_files">Adjuntar archivos</string>
     <string name="uploads">Subidas</string>
     <string name="new_folder">Nueva carpeta</string>
     <string name="create">Crear</string>

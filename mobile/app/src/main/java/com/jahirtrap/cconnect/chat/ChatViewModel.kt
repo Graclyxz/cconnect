@@ -2,9 +2,11 @@ package com.jahirtrap.cconnect.chat
 
 import android.app.Application
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.jahirtrap.cconnect.BuildConfig
+import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.data.AppCompat
 import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.ChatMessage
@@ -24,13 +26,17 @@ import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.remote.GitHubApi
 import com.jahirtrap.cconnect.data.TodoItem
 import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
+import com.jahirtrap.cconnect.data.remote.Backend
 import com.jahirtrap.cconnect.data.remote.ChatSocket
 import com.jahirtrap.cconnect.data.remote.SessionsApi
 import com.jahirtrap.cconnect.data.remote.SettingsApi
+import com.jahirtrap.cconnect.data.remote.SharedApi
+import com.jahirtrap.cconnect.files.UploadManager
 import com.jahirtrap.cconnect.service.ConnectionService
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -90,6 +96,16 @@ data class ChatUiState(
     val appOutdated: Boolean = false,                // server doesn't support this app version
     val serverOutdated: Boolean = false,             // this app doesn't support the server version
     val versionNotices: List<CompatStatus> = emptyList(),  // dismissable startup notices
+    val attachments: List<Attachment> = emptyList(), // files queued in the composer, uploaded on send
+    val uploadingAttachments: Boolean = false,
+)
+
+data class Attachment(
+    val id: Long,
+    val uri: Uri,
+    val name: String,
+    val size: Long,
+    val progress: Float = 0f,
 )
 
 enum class CompatStatus { AppOutdated, ServerOutdated, UpdateAvailable }
@@ -219,10 +235,61 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     fun sendPrompt(text: String) {
         val trimmed = text.trim()
-        if (trimmed.isEmpty() || _state.value.streaming) return
-        // /compact shows a progress block.
-        val compacting = trimmed == "/compact" || trimmed.startsWith("/compact ")
-        if (!compacting) addMessage(Role.USER, trimmed)
+        val current = _state.value
+        if (current.streaming || current.uploadingAttachments) return
+        if (current.attachments.isEmpty()) {
+            dispatchPrompt(trimmed)
+            return
+        }
+        uploadJob = viewModelScope.launch {
+            _state.update { it.copy(uploadingAttachments = true) }
+            try {
+                val resolver = appContext.contentResolver
+                val saved = mutableListOf<String>()
+                for (attachment in _state.value.attachments) {
+                    val rel = SharedApi.upload(
+                        path = "uploads/${attachment.name}",
+                        length = attachment.size,
+                        open = { resolver.openInputStream(attachment.uri) },
+                    ) { p ->
+                        _state.update { st ->
+                            st.copy(attachments = st.attachments.map { a -> if (a.id == attachment.id) a.copy(progress = p) else a })
+                        }
+                    }
+                    if (rel == null) {
+                        _state.update {
+                            it.copy(
+                                uploadingAttachments = false,
+                                attachments = it.attachments.map { a -> a.copy(progress = 0f) },
+                                error = appContext.getString(R.string.connection_error),
+                                pendingInput = trimmed.ifEmpty { null },
+                            )
+                        }
+                        return@launch
+                    }
+                    saved += rel
+                }
+                _state.update { it.copy(attachments = emptyList(), uploadingAttachments = false) }
+                dispatchPrompt(trimmed, saved)
+            } catch (e: CancellationException) {
+                _state.update {
+                    it.copy(
+                        uploadingAttachments = false,
+                        attachments = it.attachments.map { a -> a.copy(progress = 0f) },
+                        pendingInput = trimmed.ifEmpty { null },
+                    )
+                }
+                throw e
+            } finally {
+                uploadJob = null
+            }
+        }
+    }
+
+    private fun dispatchPrompt(prompt: String, attachments: List<String> = emptyList()) {
+        if ((prompt.isEmpty() && attachments.isEmpty()) || _state.value.streaming) return
+        val compacting = prompt == "/compact" || prompt.startsWith("/compact ")
+        if (!compacting) addMessage(Role.USER, prompt, attachments = attachments.map { it.substringAfterLast('/') }.takeIf { it.isNotEmpty() })
         currentAssistantId = null
         currentThinkingId = null
         _state.update {
@@ -230,10 +297,32 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             resetToInitialWindow(it).copy(streaming = true, compacting = compacting, error = null, todos = todos)
         }
         ConnectionService.start(appContext)
-        client.sendPrompt(trimmed)
+        client.sendPrompt(prompt, attachments)
+    }
+
+    private var uploadJob: Job? = null
+    private var attachmentId = 0L
+
+    fun addAttachments(uris: List<Uri>) {
+        if (uris.isEmpty() || _state.value.uploadingAttachments) return
+        val resolver = appContext.contentResolver
+        val items = uris.map { uri ->
+            val (name, size) = UploadManager.metadataOf(resolver, uri)
+            Attachment(id = attachmentId++, uri = uri, name = name, size = size)
+        }
+        _state.update { it.copy(attachments = it.attachments + items) }
+    }
+
+    fun removeAttachment(id: Long) {
+        if (_state.value.uploadingAttachments) return
+        _state.update { it.copy(attachments = it.attachments.filterNot { a -> a.id == id }) }
     }
 
     fun stop() {
+        if (_state.value.uploadingAttachments) {
+            uploadJob?.cancel()
+            return
+        }
         if (_state.value.streaming) client.sendInterrupt()
     }
 
@@ -403,9 +492,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val projectKey = session.projectKey ?: return
         viewModelScope.launch {
             val page = SessionsApi.sessionMessages(session.sessionId, projectKey, limit = 100)
-            val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly }
+            val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly || !it.images.isNullOrEmpty() }
             val loaded = visible.mapIndexed { i, m ->
-                ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result)
+                ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, session.sessionId, projectKey))
             }
             nextId = loaded.size.toLong()
             currentAssistantId = null
@@ -496,9 +585,9 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val sid = s.sessionId ?: return
         val proj = currentProjectKey() ?: return
         val page = SessionsApi.sessionMessages(sid, proj, limit = 100)
-        val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly }
+        val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly || !it.images.isNullOrEmpty() }
         val loaded = visible.mapIndexed { i, m ->
-            ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result)
+            ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, sid, proj))
         }
         nextId = loaded.size.toLong()
         currentAssistantId = null
@@ -566,6 +655,11 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             it.copy(historySessions = it.historySessions.map { s -> if (s.sessionId == sessionId) s.copy(title = title) else s })
         }
     }
+
+    private fun imageUrls(m: SessionMessage, sessionId: String, projectKey: String?): List<String>? =
+        m.images?.map { ref ->
+            "${Backend.baseUrl}/sessions/$sessionId/images/$ref?project=${Uri.encode(projectKey.orEmpty())}"
+        }
 
     private fun SessionMessage.toRole(): Role = when (type) {
         "text" -> if (role == "assistant") Role.ASSISTANT else Role.USER
@@ -784,10 +878,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val older = event.items
-            .filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly }
+            .filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly || !it.images.isNullOrEmpty() }
         _state.update { st ->
             val prepended = older.mapIndexed { i, m ->
-                ChatMessage(nextId + i, m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result)
+                ChatMessage(nextId + i, m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, event.sessionId, st.activeProjectKey))
             }
             nextId += prepended.size
             st.copy(
@@ -869,9 +963,10 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         labelOnly: Boolean = false,
         result: String? = null,
         ephemeral: Boolean = false,
+        attachments: List<String>? = null,
     ) {
         _state.update {
-            applyTailCap(it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines, compact, labelOnly = labelOnly, result = result, ephemeral = ephemeral)))
+            applyTailCap(it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines, compact, labelOnly = labelOnly, result = result, ephemeral = ephemeral, attachments = attachments)))
         }
     }
 

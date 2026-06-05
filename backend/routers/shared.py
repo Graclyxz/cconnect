@@ -85,10 +85,10 @@ def copy_shared(body: TransferBody):
 @router.put("/shared/{path:path}")
 async def upload_shared(path: str, request: Request):
     try:
-        await shared_service.save_upload(path, request.stream())
+        saved = await shared_service.save_upload(path, request.stream())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return api_response()
+    return api_response(data={"path": saved})
 
 
 @router.get("/shared/{path:path}")

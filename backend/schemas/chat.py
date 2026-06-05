@@ -22,6 +22,7 @@ class StartMessage(BaseModel):
 class PromptMessage(BaseModel):
     type: Literal["prompt"]
     text: str
+    attachments: list[str] = []
 
 
 class SetPermissionMessage(BaseModel):

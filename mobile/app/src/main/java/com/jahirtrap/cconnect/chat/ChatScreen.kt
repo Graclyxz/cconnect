@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -69,6 +70,7 @@ import com.composables.icons.lucide.Languages
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Menu
 import com.composables.icons.lucide.MessagesSquare
+import com.composables.icons.lucide.Paperclip
 import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Slash
 import com.composables.icons.lucide.Sparkles
@@ -79,6 +81,7 @@ import com.composables.icons.lucide.SquarePen
 import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.ui.AppBottomSheet
 import com.jahirtrap.cconnect.ui.AppLogo
+import com.jahirtrap.cconnect.ui.AttachmentChip
 import com.jahirtrap.cconnect.ui.NoticeCard
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CustomIcons
@@ -96,6 +99,7 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Icon
@@ -599,6 +603,13 @@ fun ChatScreen(
                                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
                             ) {
                                 if (state.compacting) CompactProgress()
+                                if (!sideActive && state.attachments.isNotEmpty()) {
+                                    AttachmentsRow(
+                                        attachments = state.attachments,
+                                        uploading = state.uploadingAttachments,
+                                        onRemove = vm::removeAttachment,
+                                    )
+                                }
                                 ChatToolbar(
                                     ready = state.capabilitiesReady,
                                     disconnected = state.connection == ConnectionState.Disconnected,
@@ -659,6 +670,9 @@ fun ChatScreen(
                                 )
                             }
                         }
+                        val attachLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+                            vm.addAttachments(uris)
+                        }
                         Composer(
                             value = if (sideActive) sideDraft else mainDraft,
                             onValueChange = { if (sideActive) sideDraft = it else mainDraft = it },
@@ -672,6 +686,9 @@ fun ChatScreen(
                             commandsEnabled = state.sessionId != null && state.connection == ConnectionState.Connected,
                             focusRequester = composerFocus,
                             onCloseSide = if (sideActive) dismissSide else null,
+                            attachments = if (sideActive) emptyList() else state.attachments,
+                            uploading = !sideActive && state.uploadingAttachments,
+                            onAttach = if (sideActive) null else ({ attachLauncher.launch(arrayOf("*/*")) }),
                         )
                     }
                 }
@@ -1425,7 +1442,7 @@ private class AboveAnchorPositionProvider(private val gapPx: Int) : PopupPositio
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun Composer(
     value: String,
@@ -1441,6 +1458,9 @@ private fun Composer(
     commandsEnabled: Boolean = true,
     focusRequester: FocusRequester? = null,
     onCloseSide: (() -> Unit)? = null,
+    attachments: List<Attachment> = emptyList(),
+    uploading: Boolean = false,
+    onAttach: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(22.dp)
     val accent = sessionColorOf(sessionColor)
@@ -1478,25 +1498,41 @@ private fun Composer(
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             maxLines = 6,
             decorationBox = { innerTextField ->
-                Box(
+                Row(
                     modifier = Modifier
                         .clip(shape)
                         .border(if (accent != null) 2.dp else 1.dp, accent ?: MaterialTheme.colorScheme.outlineVariant, shape)
                         .padding(horizontal = 14.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (value.isEmpty()) {
-                        Text(
-                            stringResource(R.string.type_message),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (value.isEmpty()) {
+                            Text(
+                                stringResource(R.string.type_message),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        innerTextField()
+                    }
+                    if (onAttach != null) {
+                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            Lucide.Paperclip,
+                            contentDescription = stringResource(R.string.attach_files),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable(enabled = !uploading, onClick = onAttach)
+                                .size(22.dp)
+                                .padding(1.dp),
                         )
                     }
-                    innerTextField()
                 }
             },
         )
         Spacer(Modifier.width(6.dp))
-        if (streaming) {
+        if (streaming || uploading) {
             CircleActionButton(
                 icon = CustomIcons.Stop,
                 contentDescription = stringResource(R.string.stop),
@@ -1507,8 +1543,48 @@ private fun Composer(
             CircleActionButton(
                 icon = Lucide.ArrowUp,
                 contentDescription = stringResource(R.string.send),
-                enabled = value.isNotBlank() && canSend,
+                enabled = (value.isNotBlank() || attachments.isNotEmpty()) && canSend,
                 onClick = { onSend(value); onValueChange("") },
+            )
+        }
+    }
+}
+
+@Composable
+private fun AttachmentsRow(
+    attachments: List<Attachment>,
+    uploading: Boolean,
+    onRemove: (Long) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(start = 8.dp, end = 8.dp, top = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        attachments.forEach { attachment ->
+            AttachmentChip(
+                name = attachment.name,
+                trailing = {
+                    if (uploading) {
+                        CircularProgressIndicator(
+                            progress = { attachment.progress },
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(16.dp),
+                        )
+                    } else {
+                        Icon(
+                            Lucide.X,
+                            contentDescription = stringResource(R.string.delete),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .clickable { onRemove(attachment.id) }
+                                .size(16.dp),
+                        )
+                    }
+                },
             )
         }
     }

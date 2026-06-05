@@ -16,6 +16,8 @@ data class ChatMessage(
     val labelOnly: Boolean = false,
     val result: String? = null,
     val ephemeral: Boolean = false,
+    val attachments: List<String>? = null,
+    val images: List<String>? = null,
 )
 
 data class CompactData(

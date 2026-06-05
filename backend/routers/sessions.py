@@ -3,6 +3,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from core.config import COLORS
@@ -136,6 +137,18 @@ async def rewind_session(session_id: str, body: RewindBody):
             raise HTTPException(status_code=409, detail=result.get("error") or "cannot rewind files")
     rewind_service.set_pending(session_id, body.rewind_id)
     return api_response(data=result)
+
+
+@router.get("/sessions/{session_id}/images/{message_uuid}/{index}")
+def get_session_image(session_id: str, message_uuid: str, index: int, project: str):
+    try:
+        result = sessions_service.get_message_image(project, session_id, message_uuid, index)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if result is None:
+        raise HTTPException(status_code=404, detail="image not found")
+    media, data = result
+    return Response(content=data, media_type=media)
 
 
 @router.get("/sessions/{session_id}/messages")

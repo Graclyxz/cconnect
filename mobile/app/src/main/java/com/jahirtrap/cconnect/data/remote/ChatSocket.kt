@@ -148,10 +148,11 @@ class ChatSocket(private val scope: CoroutineScope) {
         })
     }
 
-    fun sendPrompt(text: String) {
+    fun sendPrompt(text: String, attachments: List<String> = emptyList()) {
         send(buildJsonObject {
             put("type", "prompt")
             put("text", text)
+            if (attachments.isNotEmpty()) putJsonArray("attachments") { attachments.forEach { add(it) } }
         })
     }
 

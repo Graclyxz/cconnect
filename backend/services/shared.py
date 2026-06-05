@@ -57,11 +57,12 @@ def absolute_paths(relpaths: list[str]) -> list[str]:
     return [str(_resolve(rel)) for rel in relpaths]
 
 
-async def save_upload(relpath: str, chunks) -> None:
+async def save_upload(relpath: str, chunks) -> str:
     path = _resolve(relpath)
     if path == _base().resolve() or path.is_dir():
         raise ValueError("invalid destination")
     path.parent.mkdir(parents=True, exist_ok=True)
+    path = _dedup_target(path.parent, path.name)
     tmp = path.parent / f".{path.name}.part"
     try:
         with tmp.open("wb") as fh:
@@ -70,6 +71,7 @@ async def save_upload(relpath: str, chunks) -> None:
         tmp.replace(path)
     finally:
         tmp.unlink(missing_ok=True)
+    return path.relative_to(_base().resolve()).as_posix()
 
 
 def create_folder(relpath: str) -> None:

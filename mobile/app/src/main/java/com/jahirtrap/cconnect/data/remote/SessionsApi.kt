@@ -114,6 +114,12 @@ object SessionsApi {
             index = o["index"]?.jsonPrimitive?.intOrNull ?: -1,
             labelOnly = o["label"]?.jsonPrimitive?.booleanOrNull == true,
             result = o["result"]?.jsonPrimitive?.contentOrNull,
+            images = o["images"]?.jsonArray?.mapNotNull { ref ->
+                val r = ref.jsonObject
+                val uuid = r["uuid"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                val index = r["index"]?.jsonPrimitive?.intOrNull ?: return@mapNotNull null
+                "$uuid/$index"
+            }?.takeIf { it.isNotEmpty() },
         )
     }
 

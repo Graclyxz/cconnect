@@ -12,6 +12,7 @@ import okhttp3.Request
 import okhttp3.RequestBody
 import okio.BufferedSink
 import com.jahirtrap.cconnect.data.SharedEntry
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
@@ -72,7 +73,7 @@ object SharedApi {
         length: Long,
         open: () -> InputStream?,
         onProgress: (Float) -> Unit,
-    ): Boolean = withContext(Dispatchers.IO) {
+    ): String? = withContext(Dispatchers.IO) {
         runCatching {
             val body = object : RequestBody() {
                 override fun contentType() = OCTET_STREAM
@@ -97,8 +98,12 @@ object SharedApi {
             }.build()
             val call = uploadClient.newCall(request)
             coroutineContext.job.invokeOnCompletion { if (it is CancellationException) call.cancel() }
-            call.execute().use { it.isSuccessful }
-        }.getOrDefault(false)
+            call.execute().use { resp ->
+                if (!resp.isSuccessful) return@use null
+                Json.parseToJsonElement(resp.body?.string().orEmpty())
+                    .jsonObject["data"]?.jsonObject?.get("path")?.jsonPrimitive?.contentOrNull
+            }
+        }.getOrNull()
     }
 
     suspend fun fetchText(url: String): String? = withContext(Dispatchers.IO) {

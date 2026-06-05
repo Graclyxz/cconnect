@@ -59,6 +59,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jahirtrap.cconnect.R
+import com.jahirtrap.cconnect.data.remote.SharedApi
+import com.jahirtrap.cconnect.files.PreviewKind
+import com.jahirtrap.cconnect.files.previewKindOf
+import com.jahirtrap.cconnect.ui.AttachmentChip
 import com.composables.icons.lucide.Archive
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ChevronRight
@@ -94,6 +98,50 @@ import kotlinx.coroutines.launch
 private val BIG = 16.dp
 private val SMALL = 6.dp
 
+private data class UserContent(
+    val body: String,
+    val attachments: List<Pair<String, String>>,
+)
+
+private val IMAGE_MARKER_REGEX = Regex("""\[Image #\d+\]""")
+
+private fun userContent(message: ChatMessage): UserContent {
+    val media = mutableListOf<Pair<String, String>>()
+    val files = mutableListOf<Pair<String, String>>()
+    var body = message.text
+
+    if (message.attachments != null) {
+        message.attachments.forEach { name ->
+            val url = SharedApi.downloadUrl("uploads/$name")
+            if (previewKindOf(name) == PreviewKind.Image) media += url to name else files += url to name
+        }
+    } else {
+        val imageNames = mutableListOf<String>()
+        if (body.contains('@')) {
+            body = body.lines().filter { line ->
+                val mentionLine = line.startsWith("@") &&
+                    (line.contains("shared/uploads/") || line.contains("shared\\uploads\\"))
+                if (mentionLine) {
+                    line.split(" @").forEach { raw ->
+                        val name = raw.removePrefix("@").substringAfterLast('/').substringAfterLast('\\')
+                        if (previewKindOf(name) == PreviewKind.Image) imageNames += name
+                        else files += SharedApi.downloadUrl("uploads/$name") to name
+                    }
+                }
+                !mentionLine
+            }.joinToString("\n")
+        }
+        message.images?.forEachIndexed { i, url ->
+            media += url to (imageNames.getOrNull(i) ?: "image-${i + 1}.png")
+        }
+        val unembedded = if (message.images == null) imageNames else imageNames.drop(message.images.size)
+        unembedded.forEach { files += SharedApi.downloadUrl("uploads/$it") to it }
+    }
+
+    body = body.replace(IMAGE_MARKER_REGEX, "").trim()
+    return UserContent(body, media + files)
+}
+
 @Composable
 fun ChatMessageItem(
     message: ChatMessage,
@@ -118,7 +166,22 @@ fun ChatMessageItem(
     ) {
         when (message.role) {
             Role.USER -> Band(MaterialTheme.colorScheme.surfaceVariant) {
-                Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                val content = remember(message.text, message.attachments, message.images) { userContent(message) }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (content.body.isNotEmpty()) {
+                        Text(content.body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    if (content.attachments.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            content.attachments.forEach { (url, name) ->
+                                AttachmentChip(name = name, onClick = { onSharedLink?.invoke(url, name) })
+                            }
+                        }
+                    }
+                }
             }
 
             Role.ASSISTANT -> Plain {

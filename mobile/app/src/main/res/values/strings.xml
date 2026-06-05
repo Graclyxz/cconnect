@@ -99,6 +99,7 @@
     <string name="no_files">No files</string>
     <string name="delete_file_confirm">Delete \"%1$s\"?</string>
     <string name="upload_files">Upload files</string>
+    <string name="attach_files">Attach files</string>
     <string name="uploads">Uploads</string>
     <string name="new_folder">New folder</string>
     <string name="create">Create</string>

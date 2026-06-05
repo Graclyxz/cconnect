@@ -1,5 +1,6 @@
 package com.jahirtrap.cconnect.files
 
+import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -33,9 +34,8 @@ object UploadManager {
     private val nextId = AtomicLong()
     private val jobs = ConcurrentHashMap<Long, Job>()
 
-    fun enqueue(context: Context, uri: Uri, dir: String) {
-        val resolver = context.applicationContext.contentResolver
-        val (name, length) = resolver.query(uri, null, null, null, null)?.use { cursor ->
+    fun metadataOf(resolver: ContentResolver, uri: Uri): Pair<String, Long> =
+        resolver.query(uri, null, null, null, null)?.use { cursor ->
             if (!cursor.moveToFirst()) return@use null
             val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
             val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
@@ -44,14 +44,18 @@ object UploadManager {
             (name ?: uri.lastPathSegment ?: "file") to size
         } ?: ((uri.lastPathSegment ?: "file") to -1L)
 
+    fun enqueue(context: Context, uri: Uri, dir: String) {
+        val resolver = context.applicationContext.contentResolver
+        val (name, length) = metadataOf(resolver, uri)
+
         val id = nextId.incrementAndGet()
         _uploads.value += Upload(id, name, dir)
         jobs[id] = scope.launch {
             val path = if (dir.isEmpty()) name else "$dir/$name"
-            val ok = SharedApi.upload(path, length, { resolver.openInputStream(uri) }) { p ->
+            val saved = SharedApi.upload(path, length, { resolver.openInputStream(uri) }) { p ->
                 patch(id) { it.copy(progress = p) }
             }
-            patch(id) { it.copy(progress = 1f, status = if (ok) Status.Done else Status.Failed) }
+            patch(id) { it.copy(progress = 1f, status = if (saved != null) Status.Done else Status.Failed) }
         }.also { job -> job.invokeOnCompletion { jobs.remove(id) } }
     }
 

@@ -47,7 +47,7 @@ class _Session:
         self.base_url: str | None = None
 
 
-def _build_turn_runner(state: _Session, text: str):
+def _build_turn_runner(state: _Session, text: str, attachments: list[str] | None = None):
     """Build the async-gen factory the LiveSession runs for one prompt. It wraps
     the run_prompt loop plus the post-turn session bookkeeping; the LiveSession
     appends the trailing ``done`` event itself."""
@@ -66,10 +66,15 @@ def _build_turn_runner(state: _Session, text: str):
                 sessions_service.local_command_count(state.cwd, state.session_id)
                 if is_local_cmd and state.cwd and state.session_id else 0
             )
+            prompt_text, prompt_images = text, None
+            if attachments:
+                from services import attachments as attachments_service
+                prompt_text, prompt_images = attachments_service.compose_prompt(text, attachments)
             resumed_sid = state.session_id
             resume_at = rewind_service.get_pending(resumed_sid)
             async for event in run_prompt(
-                prompt=text,
+                prompt=prompt_text,
+                images=prompt_images,
                 cwd=state.cwd,
                 permission_mode=state.permission_mode,
                 resume=state.session_id,
@@ -90,7 +95,7 @@ def _build_turn_runner(state: _Session, text: str):
                     if resume_at and not event.get("is_error"):
                         rewind_service.clear_pending(resumed_sid)
                     if state.cwd:
-                        sessions_service.record_prompt_history(state.cwd, state.session_id, text)
+                        sessions_service.record_prompt_history(state.cwd, state.session_id, prompt_text)
                 yield event
             if state.cwd and state.session_id:
                 sessions_service.normalize_session_entrypoint(state.cwd, state.session_id)
@@ -237,7 +242,7 @@ async def chat_ws(ws: WebSocket):
                 except ValidationError as exc:
                     await send({"type": "error", "message": exc.errors()})
                     continue
-                if not session.start(_build_turn_runner(session.state, msg.text)):
+                if not session.start(_build_turn_runner(session.state, msg.text, msg.attachments)):
                     await send({"type": "error", "message": "busy: a prompt is already running"})
 
             elif mtype == "set_permission_mode":

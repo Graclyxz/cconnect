@@ -339,6 +339,7 @@ async def _keep_stream_open(input_data, tool_use_id, context):
 async def run_prompt(
     prompt: str,
     cwd: str,
+    images: Optional[list[dict]] = None,
     permission_mode: str = "default",
     resume: Optional[str] = None,
     resume_at: Optional[str] = None,
@@ -397,9 +398,11 @@ async def run_prompt(
         options_kwargs["hooks"] = {"PreToolUse": [HookMatcher(matcher=None, hooks=[_keep_stream_open])]}
     options = ClaudeAgentOptions(**options_kwargs)
 
+    content = [{"type": "text", "text": prompt}, *images] if images else prompt
+
     async def _prompt_stream():
-        yield {"type": "user", "message": {"role": "user", "content": prompt}}
-    prompt_arg = _prompt_stream() if ask_user is not None else prompt
+        yield {"type": "user", "message": {"role": "user", "content": content}}
+    prompt_arg = _prompt_stream() if (ask_user is not None or images) else prompt
 
     hidden_tool_ids: set[str] = set()
     first_chunk_pending: set[int] = set()
