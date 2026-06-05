@@ -108,6 +108,7 @@ import com.jahirtrap.cconnect.chat.ChatViewModel
 import com.jahirtrap.cconnect.chat.ConnectionState
 import com.jahirtrap.cconnect.data.SharedEntry
 import com.jahirtrap.cconnect.data.remote.SharedApi
+import com.jahirtrap.cconnect.ui.AbovePopupMenu
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CenteredProgress
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
@@ -705,7 +706,7 @@ private fun SelectionToolbar(
                         onClick = { menu = true },
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    AbovePopupMenu(expanded = menu, onDismiss = { menu = false }) {
                         if (onView != null) {
                             CompactDropdownItem(
                                 text = stringResource(R.string.view),

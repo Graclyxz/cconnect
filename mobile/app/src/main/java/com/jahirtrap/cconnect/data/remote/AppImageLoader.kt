@@ -4,6 +4,7 @@ import android.content.Context
 import coil3.ImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
+import coil3.svg.SvgDecoder
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Response
@@ -23,7 +24,10 @@ object AppImageLoader {
             .addInterceptor(AuthInterceptor)
             .build()
         return ImageLoader.Builder(context)
-            .components { add(OkHttpNetworkFetcherFactory(callFactory = { client })) }
+            .components {
+                add(OkHttpNetworkFetcherFactory(callFactory = { client }))
+                add(SvgDecoder.Factory())
+            }
             .crossfade(true)
             .build()
     }

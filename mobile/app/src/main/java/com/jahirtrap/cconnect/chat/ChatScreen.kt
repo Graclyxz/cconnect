@@ -79,6 +79,7 @@ import com.composables.icons.lucide.SquareCheckBig
 import com.composables.icons.lucide.SquareTerminal
 import com.composables.icons.lucide.SquarePen
 import com.composables.icons.lucide.X
+import com.jahirtrap.cconnect.ui.AbovePopupMenu
 import com.jahirtrap.cconnect.ui.AppBottomSheet
 import com.jahirtrap.cconnect.ui.AppLogo
 import com.jahirtrap.cconnect.ui.AttachmentChip
@@ -1368,45 +1369,9 @@ private fun CommandMenuButton(
                 modifier = Modifier.size(20.dp),
             )
         }
-        if (open) DropdownScrim { open = false }
-        val expanded = remember { MutableTransitionState(false) }
-        expanded.targetState = open
-        if (expanded.currentState || expanded.targetState) {
-            val gap = with(LocalDensity.current) { 4.dp.roundToPx() }
-            Popup(
-                popupPositionProvider = remember(gap) { AboveAnchorPositionProvider(gap) },
-                onDismissRequest = { open = false },
-                properties = PopupProperties(focusable = false),
-            ) {
-                val transition = rememberTransition(expanded, "DropDownMenu")
-                val scale by transition.animateFloat(
-                    transitionSpec = { MaterialTheme.motionScheme.fastSpatialSpec() },
-                ) { if (it) 1f else 0.8f }
-                val alpha by transition.animateFloat(
-                    transitionSpec = { MaterialTheme.motionScheme.fastEffectsSpec() },
-                ) { if (it) 1f else 0f }
-                Surface(
-                    modifier = Modifier.graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        this.alpha = alpha
-                        transformOrigin = TransformOrigin(0f, 1f)
-                    },
-                    shape = MenuDefaults.shape,
-                    color = MenuDefaults.containerColor,
-                    tonalElevation = MenuDefaults.TonalElevation,
-                    shadowElevation = MenuDefaults.ShadowElevation,
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .padding(vertical = 8.dp)
-                            .width(IntrinsicSize.Max),
-                    ) {
-                        commands.forEach { cmd ->
-                            CommandMenuItem(cmd) { open = false; onCommand(cmd) }
-                        }
-                    }
-                }
+        AbovePopupMenu(expanded = open, onDismiss = { open = false }) {
+            commands.forEach { cmd ->
+                CommandMenuItem(cmd) { open = false; onCommand(cmd) }
             }
         }
     }
@@ -1426,19 +1391,6 @@ private fun CommandMenuItem(cmd: CommandOption, enabled: Boolean = true, onClick
         if (cmd.description.isNotBlank()) {
             Text(cmd.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha))
         }
-    }
-}
-
-private class AboveAnchorPositionProvider(private val gapPx: Int) : PopupPositionProvider {
-    override fun calculatePosition(
-        anchorBounds: IntRect,
-        windowSize: IntSize,
-        layoutDirection: LayoutDirection,
-        popupContentSize: IntSize,
-    ): IntOffset {
-        val y = (anchorBounds.top - popupContentSize.height - gapPx).coerceAtLeast(0)
-        val maxX = (windowSize.width - popupContentSize.width).coerceAtLeast(0)
-        return IntOffset(anchorBounds.left.coerceIn(0, maxX), y)
     }
 }
 

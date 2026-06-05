@@ -101,6 +101,7 @@ dependencies {
     implementation(libs.commonmark.ext.ins)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.coil.svg)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

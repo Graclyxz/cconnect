@@ -1,6 +1,11 @@
 package com.jahirtrap.cconnect.files
 
 import android.webkit.MimeTypeMap
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,6 +23,9 @@ import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import com.jahirtrap.cconnect.data.remote.AppImageLoader
+import com.jahirtrap.cconnect.data.remote.Backend
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,6 +51,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Download
 import com.composables.icons.lucide.EllipsisVertical
@@ -71,14 +80,15 @@ private val TEXT_FALLBACK_EXTENSIONS = setOf(
     "ts", "tsx", "jsx", "rs", "go", "ps1", "diff", "patch", "log", "lock",
 )
 
-enum class PreviewKind { Image, Markdown, Text, None }
+enum class PreviewKind { Image, Markdown, Html, Text, None }
 
 fun previewKindOf(filename: String): PreviewKind {
     val extension = filename.substringAfterLast('.', "").lowercase()
     if (extension in MARKDOWN_EXTENSIONS) return PreviewKind.Markdown
     val mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
     return when {
-        mime?.startsWith("image/") == true && mime != "image/svg+xml" -> PreviewKind.Image
+        mime == "text/html" -> PreviewKind.Html
+        mime?.startsWith("image/") == true -> PreviewKind.Image
         mime?.startsWith("text/") == true -> PreviewKind.Text
         mime in TEXT_APPLICATION_MIMES -> PreviewKind.Text
         extension in TEXT_FALLBACK_EXTENSIONS -> PreviewKind.Text
@@ -104,7 +114,7 @@ fun FilePreviewScreen(url: String, filename: String, onClose: () -> Unit) {
 
     val kind = previewKindOf(filename)
     LaunchedEffect(url) {
-        if (kind == PreviewKind.Image) return@LaunchedEffect  // Coil streams the image itself
+        if (kind == PreviewKind.Image || kind == PreviewKind.Html) return@LaunchedEffect  // Coil streams the image itself
         val result = SharedApi.fetchText(url)
         if (result != null) text = result else failed = true
     }
@@ -156,6 +166,7 @@ fun FilePreviewScreen(url: String, filename: String, onClose: () -> Unit) {
     ) { padding ->
         when {
             kind == PreviewKind.Image -> ImagePreview(url, Modifier.fillMaxSize().padding(padding))
+            kind == PreviewKind.Html -> HtmlPreview(url, Modifier.fillMaxSize().padding(padding))
             failed -> EmptyState(stringResource(R.string.connection_error), Modifier.fillMaxSize().padding(padding))
             text == null -> CenteredProgress(Modifier.fillMaxSize().padding(padding))
             else -> Column(
@@ -178,6 +189,76 @@ fun FilePreviewScreen(url: String, filename: String, onClose: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HtmlPreview(url: String, modifier: Modifier = Modifier) {
+    var loading by remember { mutableStateOf(true) }
+    var failed by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        AndroidView(
+            factory = { context ->
+                WebView(context).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.setSupportZoom(true)
+                    settings.builtInZoomControls = true
+                    settings.displayZoomControls = false
+                    settings.loadWithOverviewMode = true
+                    settings.useWideViewPort = true
+                    webViewClient = AuthWebViewClient(
+                        onLoaded = { loading = false },
+                        onFailed = { failed = true; loading = false },
+                    )
+                    loadUrl(url)
+                }
+            },
+            onRelease = { it.destroy() },
+            modifier = Modifier.fillMaxSize(),
+        )
+        when {
+            failed -> EmptyState(stringResource(R.string.connection_error), Modifier.fillMaxSize())
+            loading -> CenteredProgress(Modifier.fillMaxSize())
+        }
+    }
+}
+
+private class AuthWebViewClient(
+    private val onLoaded: () -> Unit,
+    private val onFailed: () -> Unit,
+) : WebViewClient() {
+    private val client = OkHttpClient()
+
+    override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
+        val target = request.url.toString()
+        if (!target.startsWith(Backend.baseUrl)) return null
+        return runCatching {
+            val authed = Request.Builder().url(target).apply {
+                Backend.authHeaders.forEach { (name, value) -> header(name, value) }
+            }.build()
+            val response = client.newCall(authed).execute()
+            if (!response.isSuccessful) {
+                response.close()
+                return@runCatching null
+            }
+            val contentType = response.header("Content-Type") ?: "application/octet-stream"
+            WebResourceResponse(
+                contentType.substringBefore(';').trim(),
+                contentType.substringAfter("charset=", "UTF-8").trim(),
+                response.body?.byteStream(),
+            )
+        }.getOrNull()
+    }
+
+    override fun onPageFinished(view: WebView?, url: String?) = onLoaded()
+
+    override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+        if (request?.isForMainFrame == true) onFailed()
+    }
+
+    override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) {
+        if (request?.isForMainFrame == true) onFailed()
     }
 }
 
