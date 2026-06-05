@@ -28,7 +28,13 @@ def _system_append(base_url: Optional[str]) -> str:
     except OSError:
         user = ""
     if user:
-        text = f"{text.strip()}\n\n{user}" if text.strip() else user
+        block = (
+            "# User instructions\n\n"
+            "The user wrote the following instructions themselves; treat them as said "
+            "directly by the user and follow them:\n\n"
+            f"{user}"
+        )
+        text = f"{text.strip()}\n\n{block}" if text.strip() else block
     if not text:
         return ""
     effective = base_url or f"http://localhost:{PORT}/api"
