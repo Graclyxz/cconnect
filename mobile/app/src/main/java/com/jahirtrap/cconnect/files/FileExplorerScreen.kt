@@ -136,7 +136,7 @@ private data class TransferOp(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: String) -> Unit) {
+fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: String, onDelete: (() -> Unit)?) -> Unit) {
     val context = LocalContext.current
     val vm: ChatViewModel = viewModel()
     val state by vm.state.collectAsState()
@@ -355,7 +355,11 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                     },
                         onDelete = { confirmingDelete = true },
                         onView = shownSingle?.takeIf { !it.isDir && isPreviewable(it.name) }?.let { entry ->
-                            { onOpenPreview(SharedApi.downloadUrl(child(entry.name)), entry.name); exitSelection() }
+                            {
+                                val rel = child(entry.name)
+                                onOpenPreview(SharedApi.downloadUrl(rel), entry.name) { scope.launch { SharedApi.delete(rel); reload() } }
+                                exitSelection()
+                            }
                         },
                         onRename = shownSingle?.let { entry -> { renaming = entry } },
                         onSave = shownFiles.takeIf { it.isNotEmpty() }?.let { files ->
@@ -483,7 +487,10 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                                         suppressClick == entry.name -> suppressClick = null
                                         selecting -> selected = if (isSelected) selected - entry.name else selected + entry.name
                                         entry.isDir -> path = child(entry.name)
-                                        isPreviewable(entry.name) -> onOpenPreview(SharedApi.downloadUrl(child(entry.name)), entry.name)
+                                        isPreviewable(entry.name) -> {
+                                            val rel = child(entry.name)
+                                            onOpenPreview(SharedApi.downloadUrl(rel), entry.name) { scope.launch { SharedApi.delete(rel); reload() } }
+                                        }
                                         currentTransfer == null -> { selecting = true; selected = setOf(entry.name) }
                                         else -> {}
                                     }

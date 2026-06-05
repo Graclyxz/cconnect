@@ -91,6 +91,16 @@
     <string name="skills">Skills</string>
     <string name="mcp_servers">Servidores MCP</string>
     <string name="marketplaces">Marketplaces</string>
+    <string name="memories">Memorias</string>
+    <string name="search">Buscar</string>
+    <string name="memory_global">Global</string>
+    <string name="install">Instalar</string>
+    <string name="uninstall">Desinstalar</string>
+    <string name="enable">Habilitar</string>
+    <string name="disable">Deshabilitar</string>
+    <string name="add">Agregar</string>
+    <string name="transport">Transporte</string>
+    <string name="command_or_url">Comando o URL</string>
     <plurals name="enabled_count">
         <item quantity="one">%1$d/%2$d habilitado</item>
         <item quantity="other">%1$d/%2$d habilitados</item>

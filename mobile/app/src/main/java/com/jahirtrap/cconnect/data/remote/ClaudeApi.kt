@@ -1,5 +1,8 @@
 package com.jahirtrap.cconnect.data.remote
 
+import android.net.Uri
+import kotlinx.serialization.json.JsonElement
+
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -16,20 +19,36 @@ object ClaudeApi {
         val version: String?,
         val scope: String?,
         val enabled: Boolean,
+        val description: String? = null,
     )
 
     data class Marketplace(val name: String, val repo: String?)
 
     data class Skill(
         val name: String,
+        val id: String,
         val description: String?,
         val plugin: String?,
+        val pluginName: String?,
         val enabled: Boolean,
     )
 
     data class McpServer(val name: String, val type: String?, val detail: String?)
 
     data class Extensions(val plugins: List<Plugin>, val marketplaces: List<Marketplace>)
+
+    data class CatalogPlugin(
+        val name: String,
+        val description: String?,
+        val version: String?,
+        val installed: Boolean,
+    )
+
+    data class Memory(val scope: String, val name: String, val description: String?)
+
+    data class Memories(val global: List<Memory>, val project: List<Memory>)
+
+    data class ActionResult(val ok: Boolean, val message: String)
 
     suspend fun userPrompt(): String? =
         Http.get("/claude/prompt")?.jsonObject?.get("text")?.jsonPrimitive?.contentOrNull
@@ -47,6 +66,7 @@ object ClaudeApi {
                 version = o["version"]?.jsonPrimitive?.contentOrNull,
                 scope = o["scope"]?.jsonPrimitive?.contentOrNull,
                 enabled = o["enabled"]?.jsonPrimitive?.booleanOrNull ?: true,
+                description = o["description"]?.jsonPrimitive?.contentOrNull,
             )
         } ?: emptyList()
         val marketplaces = data["marketplaces"]?.jsonArray?.mapNotNull { el ->
@@ -63,11 +83,17 @@ object ClaudeApi {
         val o = el.jsonObject
         Skill(
             name = o["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+            id = o["id"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
             description = o["description"]?.jsonPrimitive?.contentOrNull,
             plugin = o["plugin"]?.jsonPrimitive?.contentOrNull,
+            pluginName = o["plugin_name"]?.jsonPrimitive?.contentOrNull,
             enabled = o["enabled"]?.jsonPrimitive?.booleanOrNull ?: true,
         )
     }
+
+    fun skillFileUrl(plugin: String?, skillId: String): String =
+        "${Backend.baseUrl}/claude/skills/file?skill=${Uri.encode(skillId)}" +
+            (plugin?.let { "&plugin=${Uri.encode(it)}" } ?: "")
 
     suspend fun mcp(): List<McpServer>? = Http.get("/claude/mcp")?.jsonArray?.mapNotNull { el ->
         val o = el.jsonObject
@@ -77,4 +103,70 @@ object ClaudeApi {
             detail = o["detail"]?.jsonPrimitive?.contentOrNull,
         )
     }
+
+    private fun actionResult(data: JsonElement?): ActionResult {
+        val o = data?.jsonObject ?: return ActionResult(false, "")
+        return ActionResult(
+            ok = o["ok"]?.jsonPrimitive?.booleanOrNull ?: false,
+            message = o["message"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+        )
+    }
+
+    suspend fun pluginAction(action: String, plugin: String): ActionResult =
+        actionResult(Http.post("/claude/plugins/action", buildJsonObject {
+            put("action", action)
+            put("plugin", plugin)
+        }))
+
+    suspend fun marketplaceAction(action: String, target: String): ActionResult =
+        actionResult(Http.post("/claude/marketplaces/action", buildJsonObject {
+            put("action", action)
+            put("target", target)
+        }))
+
+    suspend fun catalog(marketplace: String): List<CatalogPlugin>? =
+        Http.get("/claude/marketplaces/${Uri.encode(marketplace)}/catalog")?.jsonArray?.mapNotNull { el ->
+            val o = el.jsonObject
+            CatalogPlugin(
+                name = o["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                description = o["description"]?.jsonPrimitive?.contentOrNull,
+                version = o["version"]?.jsonPrimitive?.contentOrNull,
+                installed = o["installed"]?.jsonPrimitive?.booleanOrNull ?: false,
+            )
+        }
+
+    suspend fun mcpAdd(name: String, target: String, transport: String): ActionResult =
+        actionResult(Http.post("/claude/mcp", buildJsonObject {
+            put("name", name)
+            put("target", target)
+            put("transport", transport)
+        }))
+
+    suspend fun mcpRemove(name: String): ActionResult =
+        actionResult(Http.delete("/claude/mcp/${Uri.encode(name)}"))
+
+    suspend fun memories(project: String?): Memories? {
+        val query = if (project.isNullOrEmpty()) emptyMap() else mapOf("project" to project)
+        val data = Http.get("/claude/memories", query)?.jsonObject ?: return null
+        fun parse(key: String) = data[key]?.jsonArray?.mapNotNull { el ->
+            val o = el.jsonObject
+            Memory(
+                scope = o["scope"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                name = o["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                description = o["description"]?.jsonPrimitive?.contentOrNull,
+            )
+        } ?: emptyList()
+        return Memories(global = parse("global"), project = parse("project"))
+    }
+
+    fun memoryUrl(scope: String, project: String?, name: String): String =
+        "${Backend.baseUrl}/claude/memories/file?scope=${Uri.encode(scope)}" +
+            "&name=${Uri.encode(name)}&project=${Uri.encode(project.orEmpty())}"
+
+    suspend fun deleteMemory(scope: String, project: String?, name: String): Boolean =
+        Http.delete("/claude/memories", mapOf(
+            "scope" to scope,
+            "name" to name,
+            "project" to project.orEmpty(),
+        )) != null
 }

@@ -3,21 +3,19 @@ package com.jahirtrap.cconnect.claude
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -42,11 +40,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Blocks
+import com.composables.icons.lucide.Brain
+import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.FilePen
 import com.composables.icons.lucide.FileText
 import com.composables.icons.lucide.Lucide
@@ -82,7 +81,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun ClaudeScreen(onClose: () -> Unit) {
+fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: String, onDelete: (() -> Unit)?) -> Unit) {
     val vm: ChatViewModel = viewModel()
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
@@ -100,8 +99,9 @@ fun ClaudeScreen(onClose: () -> Unit) {
     var loaded by remember { mutableStateOf(false) }
     var refreshing by remember { mutableStateOf(false) }
     var envMenu by remember { mutableStateOf(false) }
-    var sheet by remember { mutableStateOf<ClaudeSheet?>(null) }
+    var showChangelog by remember { mutableStateOf(false) }
     var editingPrompt by remember { mutableStateOf(false) }
+    var detail by remember { mutableStateOf<ClaudeKind?>(null) }
     val activeName = state.environments.firstOrNull { it.id == state.activeEnvironmentId }?.name
     val serverReady = Backend.isConfigured && state.connection == ConnectionState.Connected
 
@@ -116,6 +116,18 @@ fun ClaudeScreen(onClose: () -> Unit) {
     }
     LaunchedEffect(state.activeEnvironmentId) { loaded = false; load() }
     LaunchedEffect(state.connection) { if (state.connection == ConnectionState.Connected) load() }
+
+    detail?.let { kind ->
+        ClaudeDetailScreen(
+            kind = kind,
+            onClose = {
+                detail = null
+                scope.launch { load() }
+            },
+            onOpenPreview = onOpenPreview,
+        )
+        return
+    }
 
     BackHandler(onBack = onClose)
 
@@ -169,7 +181,7 @@ fun ClaudeScreen(onClose: () -> Unit) {
                             enabled = serverReady,
                             alert = stringResource(R.string.compat_cli_outdated).takeIf { state.cliOutdated },
                             trailing = {
-                                TooltipIconButton(label = stringResource(R.string.changelog), onClick = { sheet = ClaudeSheet.Changelog }, enabled = serverReady) {
+                                TooltipIconButton(label = stringResource(R.string.changelog), onClick = { showChangelog = true }, enabled = serverReady) {
                                     Icon(Lucide.FileText, contentDescription = null)
                                 }
                             },
@@ -192,32 +204,38 @@ fun ClaudeScreen(onClose: () -> Unit) {
                     SettingsGroup(stringResource(R.string.extensions)) {
                         val pluginList = extensions?.plugins
                         val enabledCount = pluginList?.count { it.enabled } ?: 0
-                        PreferenceRow(
+                        DetailLink(
                             Lucide.Blocks,
                             stringResource(R.string.plugins),
                             if (pluginList != null) {
                                 pluralStringResource(R.plurals.enabled_count, enabledCount, enabledCount, pluginList.size)
                             } else "—",
                             enabled = serverReady,
-                        ) { sheet = ClaudeSheet.Plugins }
-                        PreferenceRow(
+                        ) { detail = ClaudeKind.Plugins }
+                        DetailLink(
                             Lucide.Wand,
                             stringResource(R.string.skills),
                             skills?.size?.toString() ?: "—",
                             enabled = serverReady,
-                        ) { sheet = ClaudeSheet.Skills }
-                        PreferenceRow(
+                        ) { detail = ClaudeKind.Skills }
+                        DetailLink(
                             Lucide.Unplug,
                             stringResource(R.string.mcp_servers),
                             mcpServers?.size?.toString() ?: "—",
                             enabled = serverReady,
-                        ) { sheet = ClaudeSheet.Mcp }
-                        PreferenceRow(
+                        ) { detail = ClaudeKind.Mcp }
+                        DetailLink(
                             Lucide.Store,
                             stringResource(R.string.marketplaces),
                             extensions?.marketplaces?.size?.toString() ?: "—",
                             enabled = serverReady,
-                        ) { sheet = ClaudeSheet.Marketplaces }
+                        ) { detail = ClaudeKind.Marketplaces }
+                        DetailLink(
+                            Lucide.Brain,
+                            stringResource(R.string.memories),
+                            state.activeProjectKey ?: "—",
+                            enabled = serverReady,
+                        ) { detail = ClaudeKind.Memories }
                     }
                 }
             }
@@ -237,48 +255,37 @@ fun ClaudeScreen(onClose: () -> Unit) {
         )
     }
 
-    when (sheet) {
-        ClaudeSheet.Changelog -> ClaudeChangelogSheet(
+    if (showChangelog) {
+        ClaudeChangelogSheet(
             cliVersion = cliInfo?.activeVersion,
-            onDismiss = { sheet = null },
+            onDismiss = { showChangelog = false },
         )
-        ClaudeSheet.Plugins -> ListSheet(stringResource(R.string.plugins), onDismiss = { sheet = null }) {
-            items(extensions?.plugins.orEmpty(), key = { "${it.name}@${it.marketplace}" }) { plugin ->
-                SheetRow(
-                    title = plugin.name,
-                    subtitle = listOfNotNull(plugin.marketplace, plugin.version, plugin.scope).joinToString(" • "),
-                    enabled = plugin.enabled,
-                )
-            }
-        }
-        ClaudeSheet.Skills -> ListSheet(stringResource(R.string.skills), onDismiss = { sheet = null }) {
-            items(skills.orEmpty(), key = { "${it.plugin}/${it.name}" }) { skill ->
-                SheetRow(
-                    title = skill.name,
-                    subtitle = skill.description ?: skill.plugin,
-                    enabled = skill.enabled,
-                )
-            }
-        }
-        ClaudeSheet.Mcp -> ListSheet(stringResource(R.string.mcp_servers), onDismiss = { sheet = null }) {
-            items(mcpServers.orEmpty(), key = { it.name }) { server ->
-                SheetRow(
-                    title = server.name,
-                    subtitle = listOfNotNull(server.type, server.detail).joinToString(" • "),
-                    enabled = true,
-                )
-            }
-        }
-        ClaudeSheet.Marketplaces -> ListSheet(stringResource(R.string.marketplaces), onDismiss = { sheet = null }) {
-            items(extensions?.marketplaces.orEmpty(), key = { it.name }) { market ->
-                SheetRow(title = market.name, subtitle = market.repo, enabled = true)
-            }
-        }
-        null -> {}
     }
 }
 
-private enum class ClaudeSheet { Changelog, Plugins, Skills, Mcp, Marketplaces }
+@Composable
+private fun DetailLink(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    summary: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    PreferenceRow(
+        icon,
+        title,
+        summary,
+        enabled = enabled,
+        trailing = {
+            Icon(
+                Lucide.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        },
+        onClick = onClick,
+    )
+}
 
 @Composable
 private fun CliInlineControls(
@@ -357,46 +364,7 @@ private fun CliInlineControls(
 }
 
 @Composable
-private fun ListSheet(
-    title: String,
-    onDismiss: () -> Unit,
-    content: LazyListScope.() -> Unit,
-) {
-    AppBottomSheet(onDismiss = onDismiss, title = title, showClose = true) {
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            content = content,
-        )
-    }
-}
-
-@Composable
-private fun SheetRow(title: String, subtitle: String?, enabled: Boolean) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-            if (!subtitle.isNullOrBlank()) {
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        Spacer(Modifier.width(12.dp))
-        StatusDot(if (enabled) palette.green else MaterialTheme.colorScheme.outlineVariant, box = 16.dp, dot = 10.dp)
-    }
-}
-
-@Composable
-private fun PromptDialog(
+internal fun PromptDialog(
     initial: String,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,

@@ -83,6 +83,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import android.net.Uri
+import androidx.compose.ui.res.stringResource
+import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.data.remote.AppImageLoader
 import com.jahirtrap.cconnect.data.remote.Backend
 import org.commonmark.ext.autolink.AutolinkExtension
@@ -140,13 +142,13 @@ fun MarkdownText(
     modifier: Modifier = Modifier,
     selectable: Boolean = true,
     onSharedLink: ((url: String, filename: String) -> Unit)? = null,
-    onExternalLink: ((url: String) -> Unit)? = null,
 ) {
     val root = remember(markdown) { parser.parse(markdown) }
     val codeBg = MaterialTheme.colorScheme.surfaceContainerHigh
     val linkColor = MaterialTheme.colorScheme.primary
     val defaultHandler = LocalUriHandler.current
-    val uriHandler = remember(onSharedLink, onExternalLink, defaultHandler) {
+    var externalLink by remember { mutableStateOf<String?>(null) }
+    val uriHandler = remember(onSharedLink) {
         object : UriHandler {
             override fun openUri(uri: String) {
                 val prefix = Backend.baseUrl + "/shared/"
@@ -154,13 +156,23 @@ fun MarkdownText(
                     val raw = uri.substring(prefix.length).substringBefore('?').substringBefore('#')
                     val filename = Uri.decode(raw.substringAfterLast('/')) ?: raw
                     onSharedLink(uri, filename)
-                } else if (onExternalLink != null) {
-                    onExternalLink(uri)
                 } else {
-                    defaultHandler.openUri(uri)
+                    externalLink = uri
                 }
             }
         }
+    }
+    externalLink?.let { link ->
+        ConfirmDialog(
+            title = stringResource(R.string.open_external_link),
+            text = stringResource(R.string.open_external_link_message, link),
+            confirmLabel = stringResource(R.string.open),
+            onConfirm = {
+                defaultHandler.openUri(link)
+                externalLink = null
+            },
+            onDismiss = { externalLink = null },
+        )
     }
     CompositionLocalProvider(
         LocalUriHandler provides uriHandler,

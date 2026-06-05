@@ -146,7 +146,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -187,6 +186,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import com.composables.icons.lucide.History
 import com.jahirtrap.cconnect.data.remote.SessionsApi
+import com.jahirtrap.cconnect.data.remote.SharedApi
 import com.jahirtrap.cconnect.ui.ColorDialog
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmSelectDialog
@@ -216,7 +216,7 @@ fun ChatScreen(
     onOpenExplorer: () -> Unit,
     onOpenClaude: () -> Unit,
     onOpenTerminal: () -> Unit,
-    onOpenPreview: (url: String, filename: String) -> Unit,
+    onOpenPreview: (url: String, filename: String, onDelete: (() -> Unit)?) -> Unit,
     drawerState: DrawerState,
     themeMode: String,
     onThemeMode: (String) -> Unit,
@@ -232,7 +232,6 @@ fun ChatScreen(
     val expandedState = remember { mutableStateMapOf<Long, Boolean>() }
 
     val context = LocalContext.current
-    val uriHandler = LocalUriHandler.current
     var renameTarget by remember { mutableStateOf<SessionInfo?>(null) }
     var deleteTarget by remember { mutableStateOf<SessionInfo?>(null) }
     var colorTarget by remember { mutableStateOf<SessionInfo?>(null) }
@@ -240,7 +239,6 @@ fun ChatScreen(
     var showThemeDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var sharedLinkAction by remember { mutableStateOf<Pair<String, String>?>(null) }
-    var externalLink by remember { mutableStateOf<String?>(null) }
     var showRewindSheet by remember { mutableStateOf(false) }
     var pendingSaveAsUrl by remember { mutableStateOf<String?>(null) }
     val saveAsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
@@ -544,7 +542,6 @@ fun ChatScreen(
                                                 onSubmitQuestions = vm::submitQuestions,
                                                 onChatQuestions = vm::chatQuestions,
                                                 onSharedLink = { url, filename -> sharedLinkAction = url to filename },
-                                                onExternalLink = { externalLink = it },
                                             )
                                         }
                                     }
@@ -671,7 +668,6 @@ fun ChatScreen(
                                     onSubmitQuestions = vm::submitQuestions,
                                     onChatQuestions = vm::chatQuestions,
                                     onSharedLink = { url, filename -> sharedLinkAction = url to filename },
-                                    onExternalLink = { externalLink = it },
                                     topCorner = (20 * (1f - dockT)).dp,
                                     modifier = Modifier
                                         .align(Alignment.BottomCenter)
@@ -762,7 +758,11 @@ fun ChatScreen(
         val viewable = isPreviewable(filename)
         SharedLinkActionsDialog(
             filename = filename,
-            onView = if (viewable) ({ onOpenPreview(url, filename) }) else null,
+            onView = if (viewable) ({
+                onOpenPreview(url, filename, SharedApi.relativeFromUrl(url)?.let { rel ->
+                    { scope.launch { SharedApi.delete(rel) } }
+                })
+            }) else null,
             onSave = { FileTransfer.enqueueToDownloads(context, url, filename) },
             onSaveAs = { pendingSaveAsUrl = url; saveAsLauncher.launch(filename) },
             onShare = {
@@ -773,18 +773,6 @@ fun ChatScreen(
                 }
             },
             onDismiss = { sharedLinkAction = null },
-        )
-    }
-    externalLink?.let { url ->
-        ConfirmDialog(
-            title = stringResource(R.string.open_external_link),
-            text = stringResource(R.string.open_external_link_message, url),
-            confirmLabel = stringResource(R.string.open),
-            onConfirm = {
-                uriHandler.openUri(url)
-                externalLink = null
-            },
-            onDismiss = { externalLink = null },
         )
     }
     if (showRewindSheet) {
@@ -929,7 +917,6 @@ private fun SidePanel(
     onSubmitQuestions: ((String) -> Unit)? = null,
     onChatQuestions: ((String) -> Unit)? = null,
     onSharedLink: ((String, String) -> Unit)? = null,
-    onExternalLink: ((String) -> Unit)? = null,
     topCorner: Dp = 20.dp,
     modifier: Modifier = Modifier,
 ) {
@@ -1051,7 +1038,6 @@ private fun SidePanel(
                                 onSubmitQuestions = onSubmitQuestions,
                                 onChatQuestions = onChatQuestions,
                                 onSharedLink = onSharedLink,
-                                onExternalLink = onExternalLink,
                             )
                         }
                     }
@@ -1426,6 +1412,9 @@ private fun Composer(
 ) {
     val shape = RoundedCornerShape(22.dp)
     val accent = sessionColorOf(sessionColor)
+    val textStyle = MaterialTheme.typography.bodyLarge
+    val density = LocalDensity.current
+    var lineHeight by remember { mutableStateOf(with(density) { textStyle.lineHeight.toDp() }) }
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
@@ -1456,16 +1445,19 @@ private fun Composer(
             value = value,
             onValueChange = onValueChange,
             modifier = Modifier.weight(1f).then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
-            textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+            textStyle = textStyle.copy(color = MaterialTheme.colorScheme.onSurface),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             maxLines = 6,
+            onTextLayout = { layout ->
+                lineHeight = with(density) { (layout.getLineBottom(0) - layout.getLineTop(0)).toDp() }
+            },
             decorationBox = { innerTextField ->
                 Row(
                     modifier = Modifier
                         .clip(shape)
                         .border(if (accent != null) 2.dp else 1.dp, accent ?: MaterialTheme.colorScheme.outlineVariant, shape)
                         .padding(horizontal = 14.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                    verticalAlignment = Alignment.Bottom,
                 ) {
                     Box(modifier = Modifier.weight(1f)) {
                         if (value.isEmpty()) {
@@ -1479,16 +1471,18 @@ private fun Composer(
                     }
                     if (onAttach != null) {
                         Spacer(Modifier.width(8.dp))
-                        Icon(
-                            Lucide.Paperclip,
-                            contentDescription = stringResource(R.string.attach_files),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .clickable(enabled = !uploading, onClick = onAttach)
-                                .size(22.dp)
-                                .padding(1.dp),
-                        )
+                        Box(modifier = Modifier.height(lineHeight), contentAlignment = Alignment.Center) {
+                            Icon(
+                                Lucide.Paperclip,
+                                contentDescription = stringResource(R.string.attach_files),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .clickable(enabled = !uploading, onClick = onAttach)
+                                    .size(22.dp)
+                                    .padding(1.dp),
+                            )
+                        }
                     }
                 }
             },
@@ -1661,8 +1655,7 @@ private fun ProjectSelector(projects: List<ProjectInfo>, selected: String?, onSe
     }
 }
 
-private fun projectLabel(p: ProjectInfo): String =
-    p.path?.substringAfterLast('\\')?.substringAfterLast('/')?.ifBlank { null } ?: p.path ?: p.projectKey
+private fun projectLabel(p: ProjectInfo): String = p.path ?: p.projectKey
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable

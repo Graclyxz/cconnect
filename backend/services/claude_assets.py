@@ -50,15 +50,31 @@ def list_marketplaces() -> list[dict]:
     return items
 
 
+def _catalog_descriptions(marketplace: str) -> dict[str, str]:
+    known = _read_json(_CLAUDE_DIR / "plugins" / "known_marketplaces.json")
+    location = (known.get(marketplace) or {}).get("installLocation")
+    if not location:
+        return {}
+    data = _read_json(Path(location) / ".claude-plugin" / "marketplace.json")
+    return {
+        p["name"]: p.get("description")
+        for p in data.get("plugins", [])
+        if isinstance(p, dict) and p.get("name") and p.get("description")
+    }
+
+
 def list_plugins() -> list[dict]:
     installed = _read_json(_CLAUDE_DIR / "plugins" / "installed_plugins.json").get("plugins", {})
     enabled = _enabled_plugins()
+    descriptions: dict[str, dict[str, str]] = {}
     items = []
     for key, installs in installed.items():
         if not isinstance(installs, list) or not installs:
             continue
         name, _, marketplace = key.partition("@")
         info = installs[0]
+        if marketplace not in descriptions:
+            descriptions[marketplace] = _catalog_descriptions(marketplace)
         items.append({
             "name": name,
             "marketplace": marketplace,
@@ -66,6 +82,7 @@ def list_plugins() -> list[dict]:
             "scope": info.get("scope"),
             "enabled": bool(enabled.get(key, True)),
             "install_path": info.get("installPath"),
+            "description": descriptions[marketplace].get(name),
         })
     items.sort(key=lambda p: (not p["enabled"], p["name"]))
     return items
@@ -105,8 +122,10 @@ def list_skills() -> list[dict]:
             seen.add(key)
             items.append({
                 "name": name,
+                "id": skill_file.parent.name,
                 "description": meta.get("description"),
-                "plugin": plugin["name"],
+                "plugin": f"{plugin['name']}@{plugin['marketplace']}",
+                "plugin_name": plugin["name"],
                 "enabled": plugin["enabled"],
             })
     personal = _CLAUDE_DIR / "skills"
@@ -115,12 +134,124 @@ def list_skills() -> list[dict]:
             meta = _skill_meta(skill_file) or {}
             items.append({
                 "name": meta.get("name") or skill_file.parent.name,
+                "id": skill_file.parent.name,
                 "description": meta.get("description"),
                 "plugin": None,
+                "plugin_name": None,
                 "enabled": True,
             })
     items.sort(key=lambda s: (not s["enabled"], s["name"]))
     return items
+
+
+_SKILL_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def read_skill(plugin: str | None, skill_id: str) -> str | None:
+    if not _SKILL_ID_RE.match(skill_id or ""):
+        raise ValueError("invalid skill id")
+    if plugin:
+        installed = _read_json(_CLAUDE_DIR / "plugins" / "installed_plugins.json").get("plugins", {})
+        installs = installed.get(plugin)
+        if not isinstance(installs, list) or not installs:
+            raise ValueError("unknown plugin")
+        base = Path(installs[0].get("installPath") or "")
+    else:
+        base = _CLAUDE_DIR / "skills"
+    path = base / "skills" / skill_id / "SKILL.md" if plugin else base / skill_id / "SKILL.md"
+    return path.read_text(encoding="utf-8") if path.is_file() else None
+
+
+def marketplace_catalog(name: str) -> list[dict]:
+    known = _read_json(_CLAUDE_DIR / "plugins" / "known_marketplaces.json")
+    info = known.get(name)
+    if not isinstance(info, dict):
+        raise ValueError("unknown marketplace")
+    location = info.get("installLocation")
+    if not location:
+        return []
+    data = _read_json(Path(location) / ".claude-plugin" / "marketplace.json")
+    installed = {(p["name"], p["marketplace"]) for p in list_plugins()}
+    items = []
+    for plugin in data.get("plugins", []):
+        if not isinstance(plugin, dict) or not plugin.get("name"):
+            continue
+        items.append({
+            "name": plugin["name"],
+            "description": plugin.get("description"),
+            "version": plugin.get("version"),
+            "installed": (plugin["name"], name) in installed,
+        })
+    items.sort(key=lambda p: (not p["installed"], p["name"]))
+    return items
+
+
+def _project_path(project_key: str) -> Path | None:
+    from services import sessions
+    for project in sessions.list_projects():
+        if project.get("project_key") == project_key and project.get("path"):
+            return Path(project["path"])
+    return None
+
+
+_MEMORY_NAME_RE = re.compile(r"^[\w.\- ]+\.md$")
+
+
+def _memory_file(scope: str, project_key: str, name: str) -> Path:
+    if scope == "global":
+        return _CLAUDE_DIR / "CLAUDE.md"
+    if scope == "repo":
+        root = _project_path(project_key)
+        if root is None:
+            raise ValueError("unknown project")
+        return root / "CLAUDE.md"
+    if scope == "memory":
+        if not re.match(r"^[A-Za-z0-9._-]+$", project_key or "") or set(project_key) == {"."}:
+            raise ValueError("invalid project key")
+        if not _MEMORY_NAME_RE.match(name or ""):
+            raise ValueError("invalid memory name")
+        return _CLAUDE_DIR / "projects" / project_key / "memory" / name
+    raise ValueError("invalid scope")
+
+
+def list_memories(project_key: str | None) -> dict:
+    out: dict = {"global": [], "project": []}
+    if (_CLAUDE_DIR / "CLAUDE.md").is_file():
+        out["global"].append({"scope": "global", "name": "CLAUDE.md", "description": None})
+    if project_key:
+        root = _project_path(project_key)
+        if root is not None and (root / "CLAUDE.md").is_file():
+            out["project"].append({"scope": "repo", "name": "CLAUDE.md", "description": str(root / "CLAUDE.md")})
+        memory_dir = _CLAUDE_DIR / "projects" / project_key / "memory"
+        if memory_dir.is_dir():
+            for file in sorted(memory_dir.glob("*.md")):
+                meta = _skill_meta(file)
+                out["project"].append({
+                    "scope": "memory",
+                    "name": file.name,
+                    "description": meta.get("description") if meta else None,
+                })
+    return out
+
+
+def read_memory(scope: str, project_key: str, name: str) -> str | None:
+    path = _memory_file(scope, project_key, name)
+    return path.read_text(encoding="utf-8") if path.is_file() else None
+
+
+def delete_memory(scope: str, project_key: str, name: str) -> bool:
+    path = _memory_file(scope, project_key, name)
+    if not path.is_file():
+        return False
+    path.unlink()
+    if scope == "memory" and path.name != "MEMORY.md":
+        index = path.parent / "MEMORY.md"
+        if index.is_file():
+            lines = index.read_text(encoding="utf-8").splitlines()
+            kept = [line for line in lines if f"({path.name})" not in line]
+            if len(kept) != len(lines):
+                index.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    return True
 
 
 def list_mcp_servers() -> list[dict]:

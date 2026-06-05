@@ -64,6 +64,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.History
 import com.composables.icons.lucide.Languages
@@ -266,6 +267,13 @@ fun SettingsScreen(
                         Lucide.SquareTerminal,
                         stringResource(R.string.ssh_hosts),
                         stringResource(R.string.ssh_hosts_summary),
+                        trailing = {
+                            Icon(
+                                Lucide.ChevronRight,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        },
                         onClick = onOpenSshHosts,
                     )
                 }
@@ -621,7 +629,9 @@ fun PreferenceRow(
 
 @Composable
 private fun AccentDot(color: Color) {
-    Box(modifier = Modifier.size(24.dp).background(color, CircleShape).border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape))
+    Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(24.dp).background(color, CircleShape))
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

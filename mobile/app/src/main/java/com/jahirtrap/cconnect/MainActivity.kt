@@ -63,7 +63,7 @@ private fun App() {
     var settingsHighlight by remember { mutableStateOf<String?>(null) }
     var showExplorer by remember { mutableStateOf(false) }
     var showClaude by remember { mutableStateOf(false) }
-    var previewFile by remember { mutableStateOf<Pair<String, String>?>(null) }  // url to filename
+    var previewFile by remember { mutableStateOf<PreviewRequest?>(null) }
     var showTerminal by remember { mutableStateOf(false) }
     var terminalFromSettings by remember { mutableStateOf(false) }
     // Hoisted so the open/closed state survives navigating to settings and back.
@@ -109,9 +109,12 @@ private fun App() {
                     onClose = { showSettings = false; settingsHighlight = null },
                 )
 
-                showExplorer -> FileExplorerScreen(onClose = { showExplorer = false }, onOpenPreview = { url, name -> previewFile = url to name })
+                showExplorer -> FileExplorerScreen(onClose = { showExplorer = false }, onOpenPreview = { url, name, onDelete -> previewFile = PreviewRequest(url, name, onDelete) })
 
-                showClaude -> ClaudeScreen(onClose = { showClaude = false })
+                showClaude -> ClaudeScreen(
+                    onClose = { showClaude = false },
+                    onOpenPreview = { url, name, onDelete -> previewFile = PreviewRequest(url, name, onDelete) },
+                )
 
                 showTerminal -> TerminalScreen(onClose = {
                     showTerminal = false
@@ -126,7 +129,7 @@ private fun App() {
                     onOpenExplorer = { showExplorer = true },
                     onOpenClaude = { showClaude = true },
                     onOpenTerminal = { showTerminal = true },
-                    onOpenPreview = { url, name -> previewFile = url to name },
+                    onOpenPreview = { url, name, onDelete -> previewFile = PreviewRequest(url, name, onDelete) },
                     drawerState = drawerState,
                     themeMode = themeMode,
                     onThemeMode = { themeMode = it; settings.themeMode = it },
@@ -134,9 +137,20 @@ private fun App() {
                     onLanguage = { language = it; settings.language = it },
                 )
             }
-            previewFile?.let { (url, name) ->
-                FilePreviewScreen(url = url, filename = name, onClose = { previewFile = null })
+            previewFile?.let { request ->
+                FilePreviewScreen(
+                    url = request.url,
+                    filename = request.name,
+                    onClose = { previewFile = null },
+                    onDelete = request.onDelete,
+                )
             }
         }
     }
 }
+
+private data class PreviewRequest(
+    val url: String,
+    val name: String,
+    val onDelete: (() -> Unit)?,
+)

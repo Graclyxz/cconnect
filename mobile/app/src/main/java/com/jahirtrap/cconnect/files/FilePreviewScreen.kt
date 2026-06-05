@@ -59,11 +59,13 @@ import com.composables.icons.lucide.EllipsisVertical
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Save
 import com.composables.icons.lucide.Share2
+import com.composables.icons.lucide.Trash
 import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.data.remote.SharedApi
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CenteredProgress
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
+import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.EmptyState
 import com.jahirtrap.cconnect.ui.MarkdownText
 import com.jahirtrap.cconnect.ui.TooltipIconButton
@@ -100,12 +102,18 @@ fun previewKindOf(filename: String): PreviewKind {
 fun isPreviewable(filename: String): Boolean = previewKindOf(filename) != PreviewKind.None
 
 @Composable
-fun FilePreviewScreen(url: String, filename: String, onClose: () -> Unit) {
+fun FilePreviewScreen(
+    url: String,
+    filename: String,
+    onClose: () -> Unit,
+    onDelete: (() -> Unit)? = null,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var text by remember(url) { mutableStateOf<String?>(null) }
     var failed by remember(url) { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
+    var confirmingDelete by remember { mutableStateOf(false) }
     var pendingSaveUrl by remember { mutableStateOf<String?>(null) }
     val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
         val pending = pendingSaveUrl
@@ -120,6 +128,20 @@ fun FilePreviewScreen(url: String, filename: String, onClose: () -> Unit) {
         if (result != null) text = result else failed = true
     }
     BackHandler(onBack = onClose)
+
+    if (confirmingDelete && onDelete != null) {
+        ConfirmDialog(
+            title = stringResource(R.string.delete),
+            text = stringResource(R.string.delete_file_confirm, filename),
+            confirmLabel = stringResource(R.string.delete),
+            onConfirm = {
+                confirmingDelete = false
+                onDelete()
+                onClose()
+            },
+            onDismiss = { confirmingDelete = false },
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -159,6 +181,13 @@ fun FilePreviewScreen(url: String, filename: String, onClose: () -> Unit) {
                                     }
                                 },
                             )
+                            if (onDelete != null) {
+                                CompactDropdownItem(
+                                    text = stringResource(R.string.delete),
+                                    leadingIcon = { Icon(Lucide.Trash, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                                    onClick = { menu = false; confirmingDelete = true },
+                                )
+                            }
                         }
                     }
                 },

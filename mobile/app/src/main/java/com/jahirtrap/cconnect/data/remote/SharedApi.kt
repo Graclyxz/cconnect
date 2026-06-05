@@ -124,6 +124,13 @@ object SharedApi {
 
     fun downloadUrl(path: String): String = "${Backend.baseUrl}/shared/${encode(path)}"
 
+    fun relativeFromUrl(url: String): String? {
+        val prefix = "${Backend.baseUrl}/shared/"
+        if (!url.startsWith(prefix)) return null
+        return url.removePrefix(prefix).substringBefore('?')
+            .split("/").joinToString("/") { Uri.decode(it) }
+    }
+
     private fun encode(path: String): String =
         path.split("/").filter { it.isNotEmpty() }.joinToString("/") { Uri.encode(it) }
 }
