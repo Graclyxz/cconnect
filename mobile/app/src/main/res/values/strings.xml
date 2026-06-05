@@ -107,6 +107,7 @@
     </plurals>
     <string name="checking_updates">Checking</string>
     <string name="repository">Repository</string>
+    <string name="support_creator">Support development</string>
     <string name="changelog">Changelog</string>
 
     <!-- Chat -->

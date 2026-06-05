@@ -65,6 +65,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.Coffee
+import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.History
 import com.composables.icons.lucide.Languages
@@ -135,6 +137,8 @@ import com.jahirtrap.cconnect.ui.theme.accentAt
 import com.jahirtrap.cconnect.ui.theme.accentNameAt
 import com.jahirtrap.cconnect.ui.theme.dynamicAccent
 import java.util.UUID
+
+private const val KOFI_URL = "https://ko-fi.com/jahirtrap"
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -426,7 +430,7 @@ fun SettingsScreen(
                                 Box(Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant))
                             }
                             Spacer(Modifier.width(16.dp))
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(profile?.let { it.name ?: it.login } ?: "…", style = MaterialTheme.typography.bodyLarge)
                                 Text(
                                     stringResource(R.string.creator),
@@ -434,11 +438,20 @@ fun SettingsScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
+                            Spacer(Modifier.width(12.dp))
+                            ExternalIndicator()
                         }
+                        PreferenceRow(
+                            Lucide.Coffee,
+                            stringResource(R.string.support_creator),
+                            KOFI_URL.removePrefix("https://"),
+                            trailing = { ExternalIndicator() },
+                        ) { uriHandler.openUri(KOFI_URL) }
                         PreferenceRow(
                             Lucide.Github,
                             stringResource(R.string.repository),
                             GitHubApi.REPO_URL.removePrefix("https://"),
+                            trailing = { ExternalIndicator() },
                         ) { uriHandler.openUri(GitHubApi.REPO_URL) }
                     }
                 }
@@ -625,6 +638,15 @@ fun PreferenceRow(
             trailing()
         }
     }
+}
+
+@Composable
+private fun ExternalIndicator() {
+    Icon(
+        Lucide.ExternalLink,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 @Composable
