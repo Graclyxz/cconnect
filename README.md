@@ -114,14 +114,20 @@ PC:
 - Keep your own standing instructions in a **user prompt** editable from the
   app — it rides along every conversation, on top of the system conventions in
   `backend/prompts/CCONNECT.md`.
+- See your **plan usage** at a glance — your subscription tier (Pro, Max 5x,
+  Max 20x) and a bar per limit window: current session, all models, and the
+  per-model weekly caps, each with its reset time.
 
 ## Watch the PC
 
 The **Monitor** screen shows what the machine is doing while Claude works:
 CPU, GPU and memory as live graphs (VRAM and temperature included when
-there's an NVIDIA card), storage per disk, and the server's own logs
-streaming in as they happen. Swipe between resources and logs, and switch
-servers right from the top bar to check on any machine you have saved.
+there's an NVIDIA card), storage per disk, the server's own logs streaming
+in over a dedicated WebSocket, and a device card — OS with its brand icon,
+hostname, uptime, CPU/GPU models. Swipe between resources and logs, switch
+servers right from the top bar, and **restart the backend remotely** — one
+confirmation, the server relaunches itself and the app reconnects on its
+own.
 
 ## Built-in features
 

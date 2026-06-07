@@ -1,3 +1,5 @@
-- Added a Monitor screen — live graphs of the PC's CPU, GPU, memory, VRAM and per-disk storage, plus the server's own logs streaming in real time, with swipeable Resources/Logs pages and a server selector to watch any environment
+- Added a Monitor screen — live graphs of the PC's CPU, GPU, memory, VRAM and per-disk storage over a dedicated WebSocket, the server's own logs streaming in real time, and a device card with the OS icon, hostname, uptime and hardware details, with swipeable Resources/Logs pages and a server selector to watch any environment
+- Added a remote server restart — one tap from the Monitor, the backend relaunches itself and the app reconnects on its own
+- Added plan usage to the Claude screen — your subscription tier (Pro, Max 5x/20x) and a bar per limit window with its reset time, straight from your account
 - Changed the personal prompt to carry explicit user authorship, so Claude follows it as something you said directly
 - Changed project selectors to show each project's folder name instead of its raw path

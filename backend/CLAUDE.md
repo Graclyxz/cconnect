@@ -40,7 +40,7 @@ marketplaces, MCP servers, skills, memories) and a shared-folder file manager.
 ```
 backend/
 ├── main.py                  # FastAPI app; lifespan ensures auth + SDK; router auto-discovery; catch-all 404; GZipMiddleware(minimum_size=512)
-├── run.py                   # Uvicorn launcher; --expose tailscale brings up Funnel + token + QR
+├── run.py                   # Supervisor launcher: runs uvicorn as a child and relaunches it on restart requests; --expose tailscale brings up Funnel + token + QR
 ├── pyproject.toml           # version + [tool.cconnect] supported-app / supported-cli (the version contract)
 ├── Dockerfile
 ├── .env.example
@@ -82,7 +82,7 @@ backend/
     ├── claude_manage.py     # Mutations via `claude` CLI subprocess: plugin/marketplace actions, MCP add/remove
     ├── settings_store.py    # Read/write the KV settings; visibility_mode() per block type
     ├── system_monitor.py    # psutil/NVML snapshots + shared on-disk server log (see System monitor)
-    ├── usage.py             # Plan token usage (5h/weekly) from the CLI's OAuth credentials
+    ├── usage.py             # Plan token usage from the CLI's OAuth creds: structured usage_data() (plan tier + windows) for the app, usage_markdown() for the chat's /usage
     └── shared.py            # List / upload (dedup) / download / mkdir / rename / move / copy / delete under backend/shared/
 ```
 
@@ -176,8 +176,10 @@ Every REST endpoint returns `core.responses.api_response()` —
 | GET | `/api/claude/memories?project=` | Memories: global + per-project (description from frontmatter) |
 | GET | `/api/claude/memories/file?scope=&name=&project=` | A memory file (text/markdown) |
 | DELETE | `/api/claude/memories` | Delete a memory (also prunes its MEMORY.md index line) |
-| GET | `/api/system` | Resource snapshot: hostname, os, uptime, cpu (percent/cores), memory, gpu (NVML; null without NVIDIA), disks |
+| GET | `/api/claude/usage` | Structured plan usage: `plan` ("Max (20x)", from the CLI credentials' subscriptionType + rateLimitTier) + `windows` (id/percent/resets_at per limit window) |
+| GET | `/api/system` | Resource snapshot: hostname, os, os_id, arch, cpu_name, uptime, cpu (percent/cores), memory, gpu (NVML; null without NVIDIA), disks |
 | GET | `/api/system/logs?after=&limit=` | Server log entries past byte offset `after` (0 = tail window); returns `{items, offset}` |
+| POST | `/api/system/restart` | Replies, then exits with the restart code + flag file; run.py's supervisor relaunches the server |
 | WS | `/api/system/ws` | Live monitor stream (what the app uses): pushes `{type:"system",...}` every 2s and `{type:"logs",items}` as entries land (server-side 0.5s file tail). Bearer checked on handshake via `middleware.public_auth.ws_bearer_ok` (shared with chat). |
 
 ## WebSocket protocol (`/api/chat/ws`)
@@ -299,6 +301,21 @@ Two services with a strict split:
 - **Cursor = byte offset.** The endpoint reads from `after` to EOF (capped to
   a 64KB tail window on first call), drops a trailing partial line and returns
   the offset after the last complete one — safe against concurrent writers.
+- **Static identity** is computed once (`lru_cache`): `os_id`
+  (windows/darwin/`freedesktop_os_release` ID — maps to the app's OS brand
+  icons), `arch`, and `cpu_name` (Windows registry / `/proc/cpuinfo` /
+  `sysctl`, best-effort).
+
+## Server restart
+
+`run.py` is a **supervisor**: it launches uvicorn as a child process and
+relaunches it when the child exits with `RESTART_EXIT_CODE` **or** the
+`RESTART_FLAG` file exists (both declared in `core/config`; the flag covers
+reload/multi-worker managers that swallow the child's exit code). Ctrl+C still
+tears everything down and the Funnel cleanup stays in the supervisor, which
+never dies. `POST /api/system/restart` replies, touches the flag and
+`os._exit`s — the app's sockets drop and reconnect on their own. Works the
+same on Windows and Linux.
 
 ## Settings & visibility
 

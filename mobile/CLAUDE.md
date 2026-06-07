@@ -54,7 +54,7 @@ mobile/app/src/main/java/com/jahirtrap/cconnect/
 │       ├── SessionsApi.kt       # projects/sessions/messages + rename/color/delete + rewind points/preview/confirm
 │       ├── SharedApi.kt         # list/delete/mkdir/rename/move/copy/absolutePaths + streamed upload(progress) + downloadUrl/relativeFromUrl
 │       ├── ClaudeApi.kt         # /api/claude/*: userPrompt, extensions, catalog, pluginAction, marketplaceAction, skills, mcp, memories
-│       ├── SystemApi.kt         # /api/system + /api/system/logs (offset cursor)
+│       ├── SystemApi.kt         # Monitor WS stream (system/logs events) + restart()
 │       ├── CliApi.kt            # /api/cli: status/setSource/update
 │       ├── CapabilitiesApi.kt, SettingsApi.kt
 │       ├── GitHubApi.kt         # Releases + changelogs + profile, disk-cached (see below)
@@ -81,6 +81,7 @@ mobile/app/src/main/java/com/jahirtrap/cconnect/
     ├── PopupMenu.kt             # AbovePopupMenu + position provider (popup anchored above, scrim, animation) — chat command menu + Files "More"
     ├── AttachmentChip.kt        # File chip (icon + name + optional remove) — composer + message bubbles
     ├── NoticeCard.kt            # Alert card with action + dismiss (version notices)
+    ├── Metrics.kt               # MetricHeader + MetricBar (title/subtitle/% + progress bar, red ≥90%) — Monitor disks & Claude usage
     ├── InputField.kt / SelectField (Menus.kt) / ActionButton.kt / OutlinedPanel.kt / ListRow.kt
     ├── AppTopBar.kt / AppLogo.kt / AppOptions.kt / ColorSwatch.kt / DropdownScrim.kt
     ├── EmptyState.kt / Loading.kt (CenteredProgress, StatusDot) / ScrollIndicator.kt
@@ -257,11 +258,13 @@ active = primary 0.18 container + primary text, `outlineVariant` borders, no
 check icon, slim `contentPadding` — never force a fixed height, it clips the
 label):
 
-- **Resources**: CPU and GPU side by side (GPU only when the server reports
-  one), Memory and VRAM — each with a `Sparkline` (Canvas; right-anchored so
-  the line grows leftwards, 90 samples ≈ 3min, 2dp vertical inset so 0%/100%
-  stay visible); Storage as bars inside a rounded group panel (16dp inner
-  padding). GPU subtitle = name (sans "NVIDIA GeForce ") `•` temp.
+- **Resources** (most-dynamic first): CPU and GPU side by side (GPU only when
+  the server reports one), Memory and VRAM — each with a `Sparkline` (Canvas;
+  right-anchored so the line grows leftwards, 90 samples ≈ 3min, 2dp vertical
+  inset so 0%/100% stay visible); then Storage bars and an **Information**
+  panel (OS brand icon via `terminal/OsIcons` + `os_id`, hostname `•` uptime,
+  CPU/GPU names, RAM/VRAM totals, arch), both in rounded group panels (16dp
+  inner padding). GPU graph subtitle = name (sans "NVIDIA GeForce ") `•` temp.
 - **Logs**: full-page panel (surfaceContainerHigh, monospace rows, ERROR red /
   WARNING yellow) with the thin `verticalScrollIndicator`. Auto-scroll: a
   `snapshotFlow { scroll.maxValue }` + `collectLatest { animateScrollTo }`
@@ -273,10 +276,12 @@ label):
   `system` snapshot every 2s and `logs` entries as they land. The
   `LaunchedEffect(state.activeEnvironmentId)` collects the stream and
   reconnects with a 3s backoff; changing the environment resets everything
-  and reconnects to the new server. Top bar:
-  environment selector action (Files pattern) and a `LoadingIndicator` +
-  "Cargando" subtitle until the first snapshot (red `StatusDot` on failure);
-  then `hostname • os • uptime`.
+  and reconnects to the new server.
+- Top bar follows the standard connection pattern: subtitle = active
+  environment name, red `StatusDot` + "Servidor no disponible" while down.
+  Actions: **restart server** (RotateCw + ConfirmDialog →
+  `SystemApi.restart()`; the stream drops and reconnects by itself) and the
+  environment selector (Files pattern).
 
 ## Claude manager (claude/)
 
@@ -286,7 +291,12 @@ label):
   Claude Code changelog sheet (`ClaudeChangelogSheet`, also reused by
   Settings), plus inline source controls (system/bundled/custom path +
   Save/Update with progress) — no dialogs.
-- **User prompt**: multiline editor for the backend's `USER.md`.
+- **User prompt**: multiline editor for the backend's `USER.md` (clear button
+  in the dialog header just empties the field; Save/Cancel confirm).
+- **Usage group** (below CLI): plan tier ("Max (20x)") trailing the label and
+  a `MetricBar` per limit window from `ClaudeApi.usage()` — session / all
+  models / per-model weekly — with "Se restablece en Xh Ym" (or weekday+time
+  when >24h) subtitles.
 - **Extensions group**: rows with chevrons → `ClaudeDetailScreen(kind)`.
 
 `ClaudeDetailScreen` (one screen, `enum ClaudeKind`):
