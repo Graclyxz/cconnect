@@ -54,6 +54,7 @@ mobile/app/src/main/java/com/jahirtrap/cconnect/
 │       ├── SessionsApi.kt       # projects/sessions/messages + rename/color/delete + rewind points/preview/confirm
 │       ├── SharedApi.kt         # list/delete/mkdir/rename/move/copy/absolutePaths + streamed upload(progress) + downloadUrl/relativeFromUrl
 │       ├── ClaudeApi.kt         # /api/claude/*: userPrompt, extensions, catalog, pluginAction, marketplaceAction, skills, mcp, memories
+│       ├── SystemApi.kt         # /api/system + /api/system/logs (offset cursor)
 │       ├── CliApi.kt            # /api/cli: status/setSource/update
 │       ├── CapabilitiesApi.kt, SettingsApi.kt
 │       ├── GitHubApi.kt         # Releases + changelogs + profile, disk-cached (see below)
@@ -63,6 +64,8 @@ mobile/app/src/main/java/com/jahirtrap/cconnect/
 │   ├── FilePreviewScreen.kt     # Typed preview + optional delete (see below)
 │   ├── FileTransfer.kt          # DownloadManager + OkHttp save-as / share (with auth headers)
 │   └── UploadManager.kt         # Upload queue state (progress ring data, cancel)
+├── monitor/
+│   └── MonitorScreen.kt         # Live PC monitor: resource graphs + server logs (see below)
 ├── service/ConnectionService.kt # Keeps the chat connection alive in background
 ├── settings/
 │   ├── SettingsScreen.kt        # Preferences; SettingsGroup/PreferenceRow are public (reused by claude/); highlight targets
@@ -246,6 +249,31 @@ delete+reload callback, chat shared-links derive one via
 `SharedApi.relativeFromUrl`, memories delete via `ClaudeApi.deleteMemory`,
 skills pass `null`.
 
+## Monitor (monitor/MonitorScreen.kt)
+
+Sidebar item (Activity icon, between Claude and Terminal). Two pages in a
+`HorizontalPager` switched by an outlined `SegmentedButton` row (theme colors:
+active = primary 0.18 container + primary text, `outlineVariant` borders, no
+check icon, slim `contentPadding` — never force a fixed height, it clips the
+label):
+
+- **Resources**: CPU and GPU side by side (GPU only when the server reports
+  one), Memory and VRAM — each with a `Sparkline` (Canvas; right-anchored so
+  the line grows leftwards, 90 samples ≈ 3min, 2dp vertical inset so 0%/100%
+  stay visible); Storage as bars inside a rounded group panel (16dp inner
+  padding). GPU subtitle = name (sans "NVIDIA GeForce ") `•` temp.
+- **Logs**: full-page panel (surfaceContainerHigh, monospace rows, ERROR red /
+  WARNING yellow) with the thin `verticalScrollIndicator`. Auto-scroll: a
+  `snapshotFlow { scroll.maxValue }` + `collectLatest { animateScrollTo }`
+  reacts after layout (no delays/guesses); `followLogs` is sampled right
+  before each append so user scroll-up pauses following; on page entry a
+  `first { maxValue > 0 }` lands at the tail instantly.
+- Polling every 2s in a `LaunchedEffect(state.activeEnvironmentId)` — changing
+  the environment resets everything and repolls the new server. Top bar:
+  environment selector action (Files pattern) and a `LoadingIndicator` +
+  "Cargando" subtitle until the first snapshot (red `StatusDot` on failure);
+  then `hostname • os • uptime`.
+
 ## Claude manager (claude/)
 
 `ClaudeScreen` is the hub (sidebar item with the Claude logo):
@@ -269,9 +297,10 @@ skills pass `null`.
 - **Mcp**: list (`type • detail`); add dialog (name + stdio/http/sse +
   command/URL); remove.
 - **Skills**: tap opens the SKILL.md in FilePreview.
-- **Memories**: project selector (full paths, same list as the sidebar
-  selector); global + project memories; tap opens the file in FilePreview with
-  delete wired.
+- **Memories**: project selector (folder names from the server's `name` field,
+  same as the sidebar selector; the top-bar subtitle shows the full path);
+  global + project memories; tap opens the file in FilePreview with delete
+  wired.
 
 After any action the screen reloads and re-resolves the open dialog's plugin
 so toggles/versions reflect immediately.

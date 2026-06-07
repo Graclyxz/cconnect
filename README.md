@@ -115,6 +115,14 @@ PC:
   app — it rides along every conversation, on top of the system conventions in
   `backend/prompts/CCONNECT.md`.
 
+## Watch the PC
+
+The **Monitor** screen shows what the machine is doing while Claude works:
+CPU, GPU and memory as live graphs (VRAM and temperature included when
+there's an NVIDIA card), storage per disk, and the server's own logs
+streaming in as they happen. Swipe between resources and logs, and switch
+servers right from the top bar to check on any machine you have saved.
+
 ## Built-in features
 
 On top of plain Claude Code, the backend ships a few helpers wired into the

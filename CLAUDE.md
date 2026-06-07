@@ -7,8 +7,9 @@ the user's PC — sessions, files, projects, file edits, interactive permission
 prompts, chat attachments, rewind — over HTTP/WS, reachable either locally via
 Tailscale or publicly via Tailscale Funnel. It also remote-manages the Claude
 Code installation itself (CLI version/updates, plugins, marketplaces, MCP
-servers, skills, memories, user prompt) and ships a full file manager over the
-backend's shared folder.
+servers, skills, memories, user prompt), ships a full file manager over the
+backend's shared folder, and a live PC monitor (CPU/GPU/memory/disks + server
+logs).
 
 The mobile app also bundles a standalone SSH client (saved hosts, embedded
 terminal, OS auto-detection) — see `mobile/CLAUDE.md`.

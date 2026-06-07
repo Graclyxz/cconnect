@@ -67,6 +67,7 @@ backend/
 │   ├── sessions.py          # Projects, sessions, transcript slices, rename/color/delete, checkpoints + rewind, transcript images
 │   ├── shared.py            # File manager API over backend/shared/
 │   ├── claude.py            # Claude install manager: prompt, plugins, marketplaces, catalog, skills, MCP, memories
+│   ├── system.py            # PC resource snapshot + server logs (monitor screen)
 │   └── chat.py              # WS /api/chat/ws
 ├── schemas/
 │   └── chat.py              # Inbound WebSocket message models
@@ -80,6 +81,7 @@ backend/
     ├── claude_assets.py     # Read-only views of ~/.claude: plugins, marketplaces + catalogs, skills, MCP servers, memories, USER.md
     ├── claude_manage.py     # Mutations via `claude` CLI subprocess: plugin/marketplace actions, MCP add/remove
     ├── settings_store.py    # Read/write the KV settings; visibility_mode() per block type
+    ├── system_monitor.py    # psutil/NVML snapshots + shared on-disk server log (see System monitor)
     ├── usage.py             # Plan token usage (5h/weekly) from the CLI's OAuth credentials
     └── shared.py            # List / upload (dedup) / download / mkdir / rename / move / copy / delete under backend/shared/
 ```
@@ -144,7 +146,7 @@ Every REST endpoint returns `core.responses.api_response()` —
 | POST | `/api/settings/reset` | Restore settings to defaults |
 | GET / POST | `/api/cli` | Read / set the active Claude CLI (system, bundled, or custom path) |
 | POST | `/api/cli/update` | Update the bundled/system CLI (invalidates the version cache) |
-| GET | `/api/projects` | Claude Code projects under `~/.claude/projects` |
+| GET | `/api/projects` | Claude Code projects under `~/.claude/projects` (each carries `path` + display `name` = last path segment) |
 | GET | `/api/sessions?project=<key>` | Sessions in a project (or all when omitted) |
 | GET | `/api/sessions/{id}/messages?project=<key>&limit=200&before_index=N` | Cursor-based transcript slice. Without `before_index` returns the most recent `limit` items. Each item carries its `index`; clients pass the smallest index they have to pull the slice before it. Response: `{items, total, start_index, has_more}`. |
 | GET | `/api/sessions/{id}/checkpoints` | Rewind points (one per user prompt on the active branch) |
@@ -174,6 +176,8 @@ Every REST endpoint returns `core.responses.api_response()` —
 | GET | `/api/claude/memories?project=` | Memories: global + per-project (description from frontmatter) |
 | GET | `/api/claude/memories/file?scope=&name=&project=` | A memory file (text/markdown) |
 | DELETE | `/api/claude/memories` | Delete a memory (also prunes its MEMORY.md index line) |
+| GET | `/api/system` | Resource snapshot: hostname, os, uptime, cpu (percent/cores), memory, gpu (NVML; null without NVIDIA), disks |
+| GET | `/api/system/logs?after=&limit=` | Server log entries past byte offset `after` (0 = tail window); returns `{items, offset}` |
 
 ## WebSocket protocol (`/api/chat/ws`)
 
@@ -276,6 +280,25 @@ Two services with a strict split:
   http and sse (`--transport`), at user scope; there is no enable/disable or
   restart for user-scope MCP servers.
 
+## System monitor (`services/system_monitor.py`)
+
+- **Snapshots** via psutil (CPU percent uses `interval=None` — average since
+  the previous poll, never blocks) + NVML (`nvidia-ml-py`) for the GPU. NVML
+  init failure marks the GPU absent permanently; **read** failures are
+  transient (laptop dGPUs power-gate while idle) and fall back to the last
+  known identity at 0% so the panel never flickers away. Linux: `squashfs`
+  pseudo-disks (snaps) are filtered out.
+- **Server logs are a shared JSONL file** (`backend/logs/server.jsonl`,
+  gitignored), not process memory — with `--production` multi-workers every
+  process appends to the same file, so any worker can serve the full log.
+  `run.py` truncates it once per run (master process). A loguru sink writes
+  the entries; an `_InterceptHandler` routes stdlib/uvicorn logging through
+  loguru, skipping the monitor's own `/api/system` access lines so polling
+  doesn't flood the log.
+- **Cursor = byte offset.** The endpoint reads from `after` to EOF (capped to
+  a 64KB tail window on first call), drops a trailing partial line and returns
+  the offset after the last complete one — safe against concurrent writers.
+
 ## Settings & visibility
 
 Model, effort, permission mode, streaming, CLI source and per-block visibility
@@ -323,7 +346,9 @@ read fresh on every turn:
   always work for whichever device issued the prompt).
 - **`USER.md`** — the user's own standing instructions, edited from the app
   via `/api/claude/prompt`. Gitignored. The file is **never deleted** — saving
-  empty content writes an empty file.
+  empty content writes an empty file. It's appended wrapped in a
+  user-attribution frame ("the user wrote these instructions themselves...")
+  so the model follows it as the user's voice, not as more system conventions.
 
 ### Bundled tools
 
