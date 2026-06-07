@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -41,6 +42,9 @@ object SystemApi {
     data class SystemInfo(
         val hostname: String,
         val os: String,
+        val osId: String,
+        val arch: String,
+        val cpuName: String?,
         val uptime: Double,
         val cpuPercent: Float,
         val cpuCores: Int,
@@ -61,6 +65,8 @@ object SystemApi {
         data class Info(val info: SystemInfo) : Event
         data class Logs(val items: List<LogEntry>) : Event
     }
+
+    suspend fun restart(): Boolean = Http.post("/system/restart", buildJsonObject {}) != null
 
     fun stream(): Flow<Event> = callbackFlow {
         val request = Request.Builder().url(Backend.systemWsUrl).apply {
@@ -92,6 +98,9 @@ object SystemApi {
         return SystemInfo(
             hostname = o["hostname"]?.jsonPrimitive?.contentOrNull.orEmpty(),
             os = o["os"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+            osId = o["os_id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+            arch = o["arch"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+            cpuName = o["cpu_name"]?.jsonPrimitive?.contentOrNull,
             uptime = o["uptime"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
             cpuPercent = cpu?.get("percent")?.jsonPrimitive?.floatOrNull ?: 0f,
             cpuCores = cpu?.get("cores")?.jsonPrimitive?.intOrNull ?: 0,

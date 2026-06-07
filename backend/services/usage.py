@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -24,12 +25,61 @@ _WINDOWS = (
 _BAR_WIDTH = 20
 
 
-def _oauth_token() -> str | None:
+def _oauth(field: str) -> str | None:
     try:
         data = json.loads(_CREDENTIALS.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
-    return (data.get("claudeAiOauth") or {}).get("accessToken")
+    return (data.get("claudeAiOauth") or {}).get(field)
+
+
+def _plan_label() -> str | None:
+    subscription = _oauth("subscriptionType")
+    if not subscription:
+        return None
+    label = subscription.capitalize()
+    match = re.search(r"(\d+x)$", _oauth("rateLimitTier") or "")
+    return f"{label} ({match.group(1)})" if match else label
+
+
+async def _fetch() -> dict:
+    token = _oauth("accessToken")
+    if not token:
+        return {"error": "No Claude token found (are you signed in to the CLI?)"}
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "anthropic-beta": "oauth-2025-04-20",
+        "anthropic-version": "2023-06-01",
+        "User-Agent": "cconnect",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get(_USAGE_URL, headers=headers)
+        resp.raise_for_status()
+        return resp.json()
+    except httpx.HTTPStatusError as exc:
+        code = exc.response.status_code
+        hint = " (sign in to the CLI again)" if code in (401, 403) else ""
+        return {"error": f"Couldn't fetch usage: {code}{hint}"}
+    except (httpx.HTTPError, json.JSONDecodeError) as exc:
+        logger.debug(f"usage fetch failed: {type(exc).__name__}: {exc}")
+        return {"error": f"Couldn't fetch usage: {type(exc).__name__}"}
+
+
+async def usage_data() -> dict:
+    data = await _fetch()
+    if "error" in data:
+        return {"error": data["error"]}
+    windows = []
+    for key, _label in _WINDOWS:
+        win = data.get(key)
+        if not isinstance(win, dict):
+            continue
+        pct = win.get("utilization")
+        if not isinstance(pct, (int, float)):
+            continue
+        windows.append({"id": key, "percent": float(pct), "resets_at": win.get("resets_at")})
+    return {"plan": _plan_label(), "windows": windows}
 
 
 def _bar(pct: float) -> str:
@@ -76,28 +126,9 @@ def _window_md(label: str, win: dict) -> str | None:
 
 async def usage_markdown() -> str:
     """Fetch plan usage and render it as markdown with per-window utilization bars."""
-    token = _oauth_token()
-    if not token:
-        return "_No Claude token found (are you signed in to the CLI?)._"
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "anthropic-beta": "oauth-2025-04-20",
-        "anthropic-version": "2023-06-01",
-        "User-Agent": "cconnect",
-    }
-    try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            resp = await client.get(_USAGE_URL, headers=headers)
-        resp.raise_for_status()
-        data = resp.json()
-    except httpx.HTTPStatusError as exc:
-        code = exc.response.status_code
-        hint = " (sign in to the CLI again)" if code in (401, 403) else ""
-        return f"_Couldn't fetch usage: {code}{hint}._"
-    except (httpx.HTTPError, json.JSONDecodeError) as exc:
-        logger.debug(f"usage fetch failed: {type(exc).__name__}: {exc}")
-        return f"_Couldn't fetch usage: {type(exc).__name__}._"
-
+    data = await _fetch()
+    if "error" in data:
+        return f"_{data['error']}._"
     rows = [md for key, label in _WINDOWS if (md := _window_md(label, data.get(key))) is not None]
     if not rows:
         return "_The server returned no usage data._"

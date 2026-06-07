@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -49,6 +50,26 @@ object ClaudeApi {
     data class Memories(val global: List<Memory>, val project: List<Memory>)
 
     data class ActionResult(val ok: Boolean, val message: String)
+
+    data class UsageWindow(val id: String, val percent: Float, val resetsAt: String?)
+
+    data class Usage(val plan: String?, val windows: List<UsageWindow>, val error: String?)
+
+    suspend fun usage(): Usage? {
+        val o = Http.get("/claude/usage")?.jsonObject ?: return null
+        return Usage(
+            plan = o["plan"]?.jsonPrimitive?.contentOrNull,
+            windows = o["windows"]?.jsonArray?.map { el ->
+                val w = el.jsonObject
+                UsageWindow(
+                    id = w["id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    percent = w["percent"]?.jsonPrimitive?.floatOrNull ?: 0f,
+                    resetsAt = w["resets_at"]?.jsonPrimitive?.contentOrNull,
+                )
+            }.orEmpty(),
+            error = o["error"]?.jsonPrimitive?.contentOrNull,
+        )
+    }
 
     suspend fun userPrompt(): String? =
         Http.get("/claude/prompt")?.jsonObject?.get("text")?.jsonPrimitive?.contentOrNull

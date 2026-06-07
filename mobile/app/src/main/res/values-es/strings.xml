@@ -107,6 +107,17 @@
     </plurals>
     <string name="monitor">Monitor</string>
     <string name="resources">Recursos</string>
+    <string name="information">Información</string>
+    <string name="usage">Uso</string>
+    <string name="usage_session">Sesión actual</string>
+    <string name="usage_all_models">Todos los modelos</string>
+    <string name="usage_opus">Solo Opus</string>
+    <string name="usage_sonnet">Solo Sonnet</string>
+    <string name="resets_in">Se restablece en %1$s</string>
+    <string name="resets_on">Se restablece el %1$s</string>
+    <string name="architecture">Arquitectura</string>
+    <string name="restart_server">Reiniciar servidor</string>
+    <string name="restart_server_confirm">El servidor se reiniciará y la app se reconectará automáticamente.</string>
     <string name="memory">Memoria</string>
     <string name="storage">Almacenamiento</string>
     <string name="server_logs">Logs del servidor</string>

@@ -13,9 +13,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import qrcode
-import uvicorn
 
-from core.config import PORT
+from core.config import PORT, RESTART_EXIT_CODE, RESTART_FLAG
 from services import system_monitor
 
 _ENV_PATH = Path(__file__).resolve().parent / ".env"
@@ -141,13 +140,23 @@ def main():
     reload = not args.production and not is_windows
     workers = int(os.environ.get("WEB_CONCURRENCY", "2")) if (args.production and not is_windows) else 1
 
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=PORT,
-        reload=reload,
-        workers=workers,
-    )
+    cmd = [sys.executable, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", str(PORT)]
+    if reload:
+        cmd.append("--reload")
+    elif workers > 1:
+        cmd += ["--workers", str(workers)]
+
+    RESTART_FLAG.unlink(missing_ok=True)
+    while True:
+        try:
+            code = subprocess.run(cmd, cwd=Path(__file__).resolve().parent).returncode
+        except KeyboardInterrupt:
+            break
+        if RESTART_FLAG.exists():
+            RESTART_FLAG.unlink(missing_ok=True)
+            continue
+        if code != RESTART_EXIT_CODE:
+            break
 
 
 if __name__ == "__main__":

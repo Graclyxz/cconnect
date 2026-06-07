@@ -37,6 +37,10 @@ AI_WORKDIR = os.environ.get("AI_WORKDIR", str(Path(__file__).resolve().parent.pa
 # Drop folder served download-only to the phone.
 SHARED_DIR = str(Path(__file__).resolve().parent.parent / "shared")
 
+# Restart contract between run.py (supervisor) and POST /api/system/restart.
+RESTART_EXIT_CODE = 42
+RESTART_FLAG = Path(__file__).resolve().parent.parent / ".restart"
+
 # Fallback cwd when the mobile starts a chat without picking a directory and the
 # active connection has none. Defaults to the parent of the backend folder.
 DEFAULT_CWD = os.environ.get("DEFAULT_CWD", str(Path(__file__).resolve().parent.parent.parent))

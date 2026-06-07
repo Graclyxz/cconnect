@@ -6,8 +6,14 @@ from pydantic import BaseModel
 
 from core.responses import api_response
 from services import claude_assets, claude_manage
+from services import usage as usage_service
 
 router = APIRouter(tags=["Claude"])
+
+
+@router.get("/claude/usage")
+async def get_usage():
+    return api_response(data=await usage_service.usage_data())
 
 
 class PromptBody(BaseModel):

@@ -48,20 +48,27 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.RotateCw
 import com.composables.icons.lucide.Server
 import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.chat.ChatViewModel
 import com.jahirtrap.cconnect.data.remote.SystemApi
 import com.jahirtrap.cconnect.files.formatSize
+import com.jahirtrap.cconnect.terminal.colorForOs
+import com.jahirtrap.cconnect.terminal.iconForOs
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CenteredProgress
+import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.EmptyState
 import com.jahirtrap.cconnect.ui.EnvironmentSelectDialog
+import com.jahirtrap.cconnect.ui.MetricBar
+import com.jahirtrap.cconnect.ui.MetricHeader
 import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.theme.palette
@@ -94,7 +101,10 @@ fun MonitorScreen(onClose: () -> Unit) {
     var logs by remember { mutableStateOf<List<LogItem>>(emptyList()) }
     var followLogs by remember { mutableStateOf(true) }
     var envMenu by remember { mutableStateOf(false) }
+    var confirmingRestart by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val logScroll = rememberScrollState()
+    val activeName = state.environments.firstOrNull { it.id == state.activeEnvironmentId }?.name
 
     LaunchedEffect(state.activeEnvironmentId) {
         info = null
@@ -110,11 +120,11 @@ fun MonitorScreen(onClose: () -> Unit) {
         while (isActive) {
             runCatching {
                 SystemApi.stream().collect { event ->
+                    failed = false
                     when (event) {
                         is SystemApi.Event.Info -> {
                             val snapshot = event.info
                             info = snapshot
-                            failed = false
                             cpuHistory = (cpuHistory + snapshot.cpuPercent).takeLast(HISTORY_CAP)
                             memHistory = (memHistory + snapshot.memoryPercent).takeLast(HISTORY_CAP)
                             snapshot.gpu?.let {
@@ -131,7 +141,7 @@ fun MonitorScreen(onClose: () -> Unit) {
                     }
                 }
             }
-            if (info == null) failed = true
+            failed = true
             delay(RECONNECT_MS)
         }
     }
@@ -148,17 +158,19 @@ fun MonitorScreen(onClose: () -> Unit) {
         topBar = {
             AppTopBar(
                 title = stringResource(R.string.monitor),
-                subtitle = info?.let { "${it.hostname} • ${it.os} • ${formatUptime(it.uptime)}" }
-                    ?: stringResource(R.string.loading),
-                subtitleLeading = if (info == null) ({
-                    if (failed) StatusDot(palette.red) else LoadingIndicator(modifier = Modifier.size(16.dp))
-                }) else null,
+                subtitle = if (failed) stringResource(R.string.server_unavailable) else activeName,
+                subtitleLeading = if (failed) ({ StatusDot(palette.red) }) else null,
                 navigationIcon = {
                     TooltipIconButton(label = stringResource(R.string.back), onClick = onClose) {
                         Icon(Lucide.ArrowLeft, contentDescription = null)
                     }
                 },
                 actions = {
+                    TooltipIconButton(
+                        label = stringResource(R.string.restart_server),
+                        onClick = { confirmingRestart = true },
+                        enabled = !failed && info != null,
+                    ) { Icon(Lucide.RotateCw, contentDescription = null) }
                     TooltipIconButton(label = stringResource(R.string.environment), onClick = { envMenu = true }) {
                         Icon(Lucide.Server, contentDescription = null)
                     }
@@ -174,13 +186,24 @@ fun MonitorScreen(onClose: () -> Unit) {
                 onDismiss = { envMenu = false },
             )
         }
+        if (confirmingRestart) {
+            ConfirmDialog(
+                title = stringResource(R.string.restart_server),
+                text = stringResource(R.string.restart_server_confirm),
+                confirmLabel = stringResource(R.string.confirm),
+                onConfirm = {
+                    confirmingRestart = false
+                    scope.launch { SystemApi.restart() }
+                },
+                onDismiss = { confirmingRestart = false },
+            )
+        }
         val current = info
         when {
             current == null && failed -> EmptyState(stringResource(R.string.connection_error), Modifier.fillMaxSize().padding(padding))
             current == null -> CenteredProgress(Modifier.fillMaxSize().padding(padding))
             else -> Column(modifier = Modifier.fillMaxSize().padding(padding)) {
                 val pagerState = rememberPagerState(pageCount = { 2 })
-                val scope = rememberCoroutineScope()
                 val labels = listOf(stringResource(R.string.resources), stringResource(R.string.server_logs))
                 SingleChoiceSegmentedButtonRow(
                     modifier = Modifier
@@ -286,12 +309,51 @@ private fun ResourcesPage(
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 current.disks.forEach { disk ->
-                    BarMetric(
+                    MetricBar(
                         title = disk.mount,
                         subtitle = "${formatSize(disk.used)} / ${formatSize(disk.total)}",
                         percent = disk.percent,
                     )
                 }
+            }
+        }
+        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+            Text(
+                stringResource(R.string.information),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
+            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        iconForOs(current.osId),
+                        contentDescription = null,
+                        tint = colorForOs(current.osId) ?: MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(34.dp),
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Column {
+                        Text(current.os, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "${current.hostname} • ${formatUptime(current.uptime)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+                current.cpuName?.let { InfoRow("CPU", it) }
+                gpu?.let { InfoRow("GPU", it.name) }
+                InfoRow(stringResource(R.string.memory), formatSize(current.memoryTotal))
+                gpu?.let { InfoRow("VRAM", formatSize(it.memTotal)) }
+                if (current.arch.isNotBlank()) InfoRow(stringResource(R.string.architecture), current.arch)
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -325,23 +387,19 @@ private fun LogsPage(logs: List<LogItem>, scroll: ScrollState) {
 }
 
 @Composable
-private fun MetricHeader(title: String, subtitle: String, percent: Float) {
+private fun InfoRow(label: String, value: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         Spacer(Modifier.width(12.dp))
         Text(
-            "%.1f%%".format(percent),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            value,
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f),
         )
     }
 }
@@ -358,21 +416,6 @@ private fun GraphMetric(title: String, subtitle: String, percent: Float, history
                 .height(64.dp)
                 .clip(RoundedCornerShape(6.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-        )
-    }
-}
-
-@Composable
-private fun BarMetric(title: String, subtitle: String, percent: Float) {
-    val barColor = if (percent >= 90f) palette.red else MaterialTheme.colorScheme.primary
-    Column(modifier = Modifier.fillMaxWidth()) {
-        MetricHeader(title, subtitle, percent)
-        Spacer(Modifier.height(8.dp))
-        LinearProgressIndicator(
-            progress = { (percent / 100f).coerceIn(0f, 1f) },
-            color = barColor,
-            drawStopIndicator = {},
-            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

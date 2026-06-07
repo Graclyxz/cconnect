@@ -7,7 +7,10 @@ multi-worker runs still expose every worker's output through any of them.
 import json
 import logging
 import platform
+import subprocess
+import sys
 import time
+from functools import lru_cache
 from pathlib import Path
 
 import psutil
@@ -137,6 +140,40 @@ def _gpu() -> dict | None:
         return None
 
 
+@lru_cache(maxsize=1)
+def _os_id() -> str:
+    if sys.platform == "win32":
+        return "windows"
+    if sys.platform == "darwin":
+        return "darwin"
+    try:
+        return platform.freedesktop_os_release().get("ID", "linux")
+    except OSError:
+        return "linux"
+
+
+@lru_cache(maxsize=1)
+def _cpu_name() -> str | None:
+    try:
+        if sys.platform == "win32":
+            import winreg
+            key_path = r"HARDWARE\DESCRIPTION\System\CentralProcessor\0"
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path) as key:
+                return winreg.QueryValueEx(key, "ProcessorNameString")[0].strip() or None
+        if sys.platform == "darwin":
+            result = subprocess.run(
+                ["sysctl", "-n", "machdep.cpu.brand_string"],
+                capture_output=True, text=True, timeout=5,
+            )
+            return result.stdout.strip() or None
+        for line in Path("/proc/cpuinfo").read_text(encoding="utf-8").splitlines():
+            if line.lower().startswith("model name"):
+                return line.split(":", 1)[1].strip() or None
+    except Exception:
+        pass
+    return None
+
+
 def snapshot() -> dict:
     memory = psutil.virtual_memory()
     disks = []
@@ -156,6 +193,9 @@ def snapshot() -> dict:
     return {
         "hostname": platform.node(),
         "os": f"{platform.system()} {platform.release()}",
+        "os_id": _os_id(),
+        "arch": platform.machine(),
+        "cpu_name": _cpu_name(),
         "uptime": time.time() - psutil.boot_time(),
         "cpu": {
             "percent": psutil.cpu_percent(interval=None),

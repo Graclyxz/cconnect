@@ -1,10 +1,12 @@
-"""PC resource usage and server logs."""
+"""PC resource usage, server logs and server restart."""
 
 import asyncio
+import os
 import time
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
+from core.config import RESTART_EXIT_CODE, RESTART_FLAG
 from core.responses import api_response
 from middleware.public_auth import ws_bearer_ok
 from services import system_monitor
@@ -23,6 +25,17 @@ def get_system():
 @router.get("/system/logs")
 def get_system_logs(after: int = Query(0, ge=0), limit: int = Query(200, ge=1, le=500)):
     return api_response(data=system_monitor.logs(after, limit))
+
+
+@router.post("/system/restart")
+async def restart_server():
+    async def _exit_soon():
+        await asyncio.sleep(0.5)
+        RESTART_FLAG.touch()
+        os._exit(RESTART_EXIT_CODE)
+
+    asyncio.get_running_loop().create_task(_exit_soon())
+    return api_response()
 
 
 @router.websocket("/system/ws")

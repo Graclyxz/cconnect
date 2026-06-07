@@ -1,9 +1,3 @@
-- Added a Claude screen — a full manager for the Claude Code install on the PC: see the CLI version, switch where it comes from and update it, read its official changelog, and keep a personal prompt that rides along every conversation
-- Added plugin management — browse marketplace catalogs with search, install plugins and enable, disable, update or uninstall them with live progress; marketplaces and MCP servers can be added, updated or removed, skills are readable, and memories can be viewed or deleted globally or per project
-- Added HTML and SVG preview to the file viewer — pages render in a real web view with their styles and scripts working
-- Added a delete action to the file preview with confirmation, available from Files, chat links and memories
-- Added outdated-version alerts for Claude Code — the app warns when the PC's CLI is older than supported, and update notices now jump straight to the relevant Settings row with a brief highlight
-- Added a "Support development" link in Settings
-- Changed external links in markdown to ask for confirmation before opening, on every screen
-- Changed project selectors to show the full project path
-- Fixed the paperclip icon centering in the composer
+- Added a Monitor screen — live graphs of the PC's CPU, GPU, memory, VRAM and per-disk storage, plus the server's own logs streaming in real time, with swipeable Resources/Logs pages and a server selector to watch any environment
+- Changed the personal prompt to carry explicit user authorship, so Claude follows it as something you said directly
+- Changed project selectors to show each project's folder name instead of its raw path

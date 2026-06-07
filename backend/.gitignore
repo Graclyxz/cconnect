@@ -9,5 +9,8 @@ rewind_pending.json
 # Server log for the monitor screen (one per run)
 logs/
 
+# Restart request flag (runtime state)
+.restart
+
 # User custom prompt
 prompts/USER.md

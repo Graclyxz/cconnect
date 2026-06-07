@@ -107,6 +107,17 @@
     </plurals>
     <string name="monitor">Monitor</string>
     <string name="resources">Resources</string>
+    <string name="information">Information</string>
+    <string name="usage">Usage</string>
+    <string name="usage_session">Current session</string>
+    <string name="usage_all_models">All models</string>
+    <string name="usage_opus">Opus only</string>
+    <string name="usage_sonnet">Sonnet only</string>
+    <string name="resets_in">Resets in %1$s</string>
+    <string name="resets_on">Resets %1$s</string>
+    <string name="architecture">Architecture</string>
+    <string name="restart_server">Restart server</string>
+    <string name="restart_server_confirm">The server will restart and the app will reconnect automatically.</string>
     <string name="memory">Memory</string>
     <string name="storage">Storage</string>
     <string name="server_logs">Server logs</string>
