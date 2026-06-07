@@ -105,6 +105,16 @@
         <item quantity="one">%1$d/%2$d enabled</item>
         <item quantity="other">%1$d/%2$d enabled</item>
     </plurals>
+    <string name="monitor">Monitor</string>
+    <string name="resources">Resources</string>
+    <string name="memory">Memory</string>
+    <string name="storage">Storage</string>
+    <string name="server_logs">Server logs</string>
+    <string name="no_logs">No logs yet</string>
+    <plurals name="cores_count">
+        <item quantity="one">%1$d core</item>
+        <item quantity="other">%1$d cores</item>
+    </plurals>
     <string name="checking_updates">Checking</string>
     <string name="repository">Repository</string>
     <string name="support_creator">Support development</string>

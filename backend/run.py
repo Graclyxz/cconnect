@@ -16,6 +16,7 @@ import qrcode
 import uvicorn
 
 from core.config import PORT
+from services import system_monitor
 
 _ENV_PATH = Path(__file__).resolve().parent / ".env"
 _TOKEN_VAR = "PUBLIC_ACCESS_TOKEN"
@@ -132,6 +133,7 @@ def main():
 
     is_windows = sys.platform == "win32"
 
+    system_monitor.reset_log_file()
     if args.expose:
         _expose(args.expose, PORT)
 

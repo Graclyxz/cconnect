@@ -13,7 +13,7 @@ from core.db import init_db
 from core.rate_limit import limiter
 from core.responses import api_response
 from core.sdk import ensure_sdk_installed, ensure_subscription_auth
-from services import settings_store
+from services import settings_store, system_monitor
 from middleware.error_handler import register_error_handlers
 from middleware.public_auth import register_public_auth_middleware
 from middleware.security import register_security_middleware
@@ -24,6 +24,7 @@ import routers as routers_pkg
 async def lifespan(app: FastAPI):
     init_db()
     settings_store.load()
+    system_monitor.setup_log_capture()
     ensure_subscription_auth()
     await ensure_sdk_installed()
     yield

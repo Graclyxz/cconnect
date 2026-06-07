@@ -6,5 +6,8 @@ cconnect.db-shm
 # Pending conversation-rewind anchors (runtime state)
 rewind_pending.json
 
+# Server log for the monitor screen (one per run)
+logs/
+
 # User custom prompt
 prompts/USER.md

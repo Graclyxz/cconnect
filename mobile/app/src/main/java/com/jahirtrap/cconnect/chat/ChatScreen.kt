@@ -57,6 +57,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
+import com.composables.icons.lucide.Activity
 import com.composables.icons.lucide.Archive
 import com.composables.icons.lucide.ArrowUp
 import com.composables.icons.lucide.Check
@@ -67,7 +68,6 @@ import com.composables.icons.lucide.Eraser
 import com.composables.icons.lucide.Folder
 import com.composables.icons.lucide.FolderOpen
 import com.composables.icons.lucide.Gauge
-import com.composables.icons.lucide.Languages
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Menu
 import com.composables.icons.lucide.MessagesSquare
@@ -189,22 +189,15 @@ import com.jahirtrap.cconnect.data.remote.SessionsApi
 import com.jahirtrap.cconnect.data.remote.SharedApi
 import com.jahirtrap.cconnect.ui.ColorDialog
 import com.jahirtrap.cconnect.ui.CompactDialog
-import com.jahirtrap.cconnect.ui.ConfirmSelectDialog
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.CenteredProgress
 import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.DialogSelectItem
 import com.jahirtrap.cconnect.ui.EnvironmentSelectDialog
-import com.jahirtrap.cconnect.ui.LANGUAGE_TAGS
 import com.jahirtrap.cconnect.ui.RenameDialog
-import com.jahirtrap.cconnect.ui.SelectDialog
 import com.jahirtrap.cconnect.ui.SharedLinkActionsDialog
-import com.jahirtrap.cconnect.ui.THEME_MODES
 import com.jahirtrap.cconnect.ui.OutlinedPanel
 import com.jahirtrap.cconnect.ui.TooltipIconButton
-import com.jahirtrap.cconnect.ui.languageLabel
-import com.jahirtrap.cconnect.ui.themeIcon
-import com.jahirtrap.cconnect.ui.themeLabel
 import com.jahirtrap.cconnect.ui.theme.sessionColorOf
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -215,13 +208,10 @@ fun ChatScreen(
     onOpenSettings: (highlight: String?) -> Unit,
     onOpenExplorer: () -> Unit,
     onOpenClaude: () -> Unit,
+    onOpenMonitor: () -> Unit,
     onOpenTerminal: () -> Unit,
     onOpenPreview: (url: String, filename: String, onDelete: (() -> Unit)?) -> Unit,
     drawerState: DrawerState,
-    themeMode: String,
-    onThemeMode: (String) -> Unit,
-    language: String,
-    onLanguage: (String) -> Unit,
 ) {
     val vm: ChatViewModel = viewModel()
     val state by vm.state.collectAsState()
@@ -236,8 +226,6 @@ fun ChatScreen(
     var deleteTarget by remember { mutableStateOf<SessionInfo?>(null) }
     var colorTarget by remember { mutableStateOf<SessionInfo?>(null) }
     var confirmCommand by remember { mutableStateOf<CommandOption?>(null) }
-    var showThemeDialog by remember { mutableStateOf(false) }
-    var showLanguageDialog by remember { mutableStateOf(false) }
     var sharedLinkAction by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showRewindSheet by remember { mutableStateOf(false) }
     var pendingSaveAsUrl by remember { mutableStateOf<String?>(null) }
@@ -392,16 +380,13 @@ fun ChatScreen(
                         TooltipIconButton(label = stringResource(R.string.claude), onClick = onOpenClaude) {
                             Icon(CustomIcons.Claude, contentDescription = null)
                         }
+                        TooltipIconButton(label = stringResource(R.string.monitor), onClick = onOpenMonitor) {
+                            Icon(Lucide.Activity, contentDescription = null)
+                        }
                         TooltipIconButton(label = stringResource(R.string.terminal), onClick = onOpenTerminal) {
                             Icon(Lucide.SquareTerminal, contentDescription = null)
                         }
                         Spacer(Modifier.weight(1f))
-                        TooltipIconButton(label = stringResource(R.string.language), onClick = { showLanguageDialog = true }) {
-                            Icon(Lucide.Languages, contentDescription = null)
-                        }
-                        TooltipIconButton(label = stringResource(R.string.theme), onClick = { showThemeDialog = true }) {
-                            Icon(themeIcon(themeMode), contentDescription = null)
-                        }
                         TooltipIconButton(label = stringResource(R.string.settings), onClick = { onOpenSettings(null) }) {
                             Icon(Lucide.Settings, contentDescription = null)
                         }
@@ -734,24 +719,6 @@ fun ChatScreen(
             confirmLabel = stringResource(R.string.confirm),
             onConfirm = { vm.runCommand(cmd); confirmCommand = null },
             onDismiss = { confirmCommand = null },
-        )
-    }
-    if (showThemeDialog) {
-        SelectDialog(
-            title = stringResource(R.string.theme),
-            options = THEME_MODES.map { it to themeLabel(it) },
-            selected = themeMode,
-            onSelect = onThemeMode,
-            onDismiss = { showThemeDialog = false },
-        )
-    }
-    if (showLanguageDialog) {
-        ConfirmSelectDialog(
-            title = stringResource(R.string.language),
-            options = LANGUAGE_TAGS.map { it to languageLabel(it) },
-            selected = language,
-            onConfirm = { onLanguage(it); showLanguageDialog = false },
-            onDismiss = { showLanguageDialog = false },
         )
     }
     sharedLinkAction?.let { (url, filename) ->

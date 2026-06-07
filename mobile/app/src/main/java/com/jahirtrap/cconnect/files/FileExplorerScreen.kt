@@ -891,7 +891,7 @@ private fun UploadRow(upload: UploadManager.Upload) {
     )
 }
 
-private fun formatSize(bytes: Long): String {
+internal fun formatSize(bytes: Long): String {
     if (bytes < 1024) return "$bytes B"
     val units = listOf("KB", "MB", "GB", "TB")
     var value = bytes / 1024.0

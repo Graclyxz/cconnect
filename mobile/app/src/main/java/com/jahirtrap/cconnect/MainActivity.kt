@@ -23,6 +23,7 @@ import com.jahirtrap.cconnect.chat.ChatScreen
 import com.jahirtrap.cconnect.claude.ClaudeScreen
 import com.jahirtrap.cconnect.files.FileExplorerScreen
 import com.jahirtrap.cconnect.files.FilePreviewScreen
+import com.jahirtrap.cconnect.monitor.MonitorScreen
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.settings.SettingsScreen
 import com.jahirtrap.cconnect.terminal.TerminalScreen
@@ -63,6 +64,7 @@ private fun App() {
     var settingsHighlight by remember { mutableStateOf<String?>(null) }
     var showExplorer by remember { mutableStateOf(false) }
     var showClaude by remember { mutableStateOf(false) }
+    var showMonitor by remember { mutableStateOf(false) }
     var previewFile by remember { mutableStateOf<PreviewRequest?>(null) }
     var showTerminal by remember { mutableStateOf(false) }
     var terminalFromSettings by remember { mutableStateOf(false) }
@@ -116,6 +118,8 @@ private fun App() {
                     onOpenPreview = { url, name, onDelete -> previewFile = PreviewRequest(url, name, onDelete) },
                 )
 
+                showMonitor -> MonitorScreen(onClose = { showMonitor = false })
+
                 showTerminal -> TerminalScreen(onClose = {
                     showTerminal = false
                     if (terminalFromSettings) {
@@ -128,13 +132,10 @@ private fun App() {
                     onOpenSettings = { target -> settingsHighlight = target; showSettings = true },
                     onOpenExplorer = { showExplorer = true },
                     onOpenClaude = { showClaude = true },
+                    onOpenMonitor = { showMonitor = true },
                     onOpenTerminal = { showTerminal = true },
                     onOpenPreview = { url, name, onDelete -> previewFile = PreviewRequest(url, name, onDelete) },
                     drawerState = drawerState,
-                    themeMode = themeMode,
-                    onThemeMode = { themeMode = it; settings.themeMode = it },
-                    language = language,
-                    onLanguage = { language = it; settings.language = it },
                 )
             }
             previewFile?.let { request ->
