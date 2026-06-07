@@ -8,14 +8,14 @@ still-pending permission prompt re-emitted.
 """
 
 import asyncio
-import hmac
 import json
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from loguru import logger
 from pydantic import ValidationError
 
-from core.config import DEFAULT_CWD, PUBLIC_ACCESS_TOKEN, permission_modes
+from core.config import DEFAULT_CWD, permission_modes
+from middleware.public_auth import ws_bearer_ok
 from schemas.chat import PromptMessage, SetPermissionMessage, StartMessage
 from services import rewind as rewind_service
 from services import sessions as sessions_service
@@ -152,17 +152,9 @@ async def _run_usage(send):
         logger.debug(f"usage report ended: {type(exc).__name__}: {exc}")
 
 
-def _ws_bearer_ok(ws: WebSocket) -> bool:
-    """Validate the WS handshake's Authorization header. No-op when no token is set."""
-    if PUBLIC_ACCESS_TOKEN is None:
-        return True
-    scheme, _, value = ws.headers.get("authorization", "").partition(" ")
-    return scheme.lower() == "bearer" and hmac.compare_digest(value.strip(), PUBLIC_ACCESS_TOKEN)
-
-
 @router.websocket("/chat/ws")
 async def chat_ws(ws: WebSocket):
-    if not _ws_bearer_ok(ws):
+    if not ws_bearer_ok(ws):
         # Close before accept() so the handshake is rejected at the HTTP layer.
         await ws.close(code=1008)
         return

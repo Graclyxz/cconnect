@@ -35,7 +35,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -76,7 +75,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-private const val POLL_MS = 2000L
+private const val RECONNECT_MS = 3000L
 private const val LOG_CAP = 300
 private const val HISTORY_CAP = 90
 
@@ -93,7 +92,6 @@ fun MonitorScreen(onClose: () -> Unit) {
     var memHistory by remember { mutableStateOf<List<Float>>(emptyList()) }
     var vramHistory by remember { mutableStateOf<List<Float>>(emptyList()) }
     var logs by remember { mutableStateOf<List<LogItem>>(emptyList()) }
-    var logOffset by remember { mutableLongStateOf(0L) }
     var followLogs by remember { mutableStateOf(true) }
     var envMenu by remember { mutableStateOf(false) }
     val logScroll = rememberScrollState()
@@ -107,32 +105,34 @@ fun MonitorScreen(onClose: () -> Unit) {
         memHistory = emptyList()
         vramHistory = emptyList()
         logs = emptyList()
-        logOffset = 0L
         followLogs = true
         var nextId = 0L
         while (isActive) {
-            val snapshot = SystemApi.info()
-            if (snapshot != null) {
-                info = snapshot
-                failed = false
-                cpuHistory = (cpuHistory + snapshot.cpuPercent).takeLast(HISTORY_CAP)
-                memHistory = (memHistory + snapshot.memoryPercent).takeLast(HISTORY_CAP)
-                snapshot.gpu?.let {
-                    gpu = it
-                    gpuHistory = (gpuHistory + it.percent).takeLast(HISTORY_CAP)
-                    vramHistory = (vramHistory + it.memPercent).takeLast(HISTORY_CAP)
+            runCatching {
+                SystemApi.stream().collect { event ->
+                    when (event) {
+                        is SystemApi.Event.Info -> {
+                            val snapshot = event.info
+                            info = snapshot
+                            failed = false
+                            cpuHistory = (cpuHistory + snapshot.cpuPercent).takeLast(HISTORY_CAP)
+                            memHistory = (memHistory + snapshot.memoryPercent).takeLast(HISTORY_CAP)
+                            snapshot.gpu?.let {
+                                gpu = it
+                                gpuHistory = (gpuHistory + it.percent).takeLast(HISTORY_CAP)
+                                vramHistory = (vramHistory + it.memPercent).takeLast(HISTORY_CAP)
+                            }
+                        }
+
+                        is SystemApi.Event.Logs -> {
+                            followLogs = logScroll.value >= logScroll.maxValue - 24
+                            logs = (logs + event.items.map { LogItem(nextId++, it) }).takeLast(LOG_CAP)
+                        }
+                    }
                 }
-            } else if (info == null) {
-                failed = true
             }
-            SystemApi.logs(logOffset)?.let { chunk ->
-                logOffset = chunk.offset
-                if (chunk.items.isNotEmpty()) {
-                    followLogs = logScroll.value >= logScroll.maxValue - 24
-                    logs = (logs + chunk.items.map { LogItem(nextId++, it) }).takeLast(LOG_CAP)
-                }
-            }
-            delay(POLL_MS)
+            if (info == null) failed = true
+            delay(RECONNECT_MS)
         }
     }
 

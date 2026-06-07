@@ -178,6 +178,7 @@ Every REST endpoint returns `core.responses.api_response()` —
 | DELETE | `/api/claude/memories` | Delete a memory (also prunes its MEMORY.md index line) |
 | GET | `/api/system` | Resource snapshot: hostname, os, uptime, cpu (percent/cores), memory, gpu (NVML; null without NVIDIA), disks |
 | GET | `/api/system/logs?after=&limit=` | Server log entries past byte offset `after` (0 = tail window); returns `{items, offset}` |
+| WS | `/api/system/ws` | Live monitor stream (what the app uses): pushes `{type:"system",...}` every 2s and `{type:"logs",items}` as entries land (server-side 0.5s file tail). Bearer checked on handshake via `middleware.public_auth.ws_bearer_ok` (shared with chat). |
 
 ## WebSocket protocol (`/api/chat/ws`)
 

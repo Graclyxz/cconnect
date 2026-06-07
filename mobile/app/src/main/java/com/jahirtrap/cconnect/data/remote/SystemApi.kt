@@ -1,5 +1,10 @@
 package com.jahirtrap.cconnect.data.remote
 
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -9,6 +14,11 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
 
 object SystemApi {
 
@@ -47,10 +57,36 @@ object SystemApi {
         val message: String,
     )
 
-    data class LogsChunk(val items: List<LogEntry>, val offset: Long)
+    sealed interface Event {
+        data class Info(val info: SystemInfo) : Event
+        data class Logs(val items: List<LogEntry>) : Event
+    }
 
-    suspend fun info(): SystemInfo? {
-        val o = Http.get("/system")?.jsonObject ?: return null
+    fun stream(): Flow<Event> = callbackFlow {
+        val request = Request.Builder().url(Backend.systemWsUrl).apply {
+            Backend.authHeaders.forEach { (name, value) -> header(name, value) }
+        }.build()
+        val socket = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onMessage(webSocket: WebSocket, text: String) {
+                val o = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return
+                when (o["type"]?.jsonPrimitive?.contentOrNull) {
+                    "system" -> trySend(Event.Info(parseInfo(o)))
+                    "logs" -> trySend(Event.Logs(o["items"]?.jsonArray?.map { parseLog(it.jsonObject) }.orEmpty()))
+                }
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                close(t)
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                close()
+            }
+        })
+        awaitClose { socket.cancel() }
+    }
+
+    private fun parseInfo(o: JsonObject): SystemInfo {
         val cpu = o["cpu"]?.jsonObject
         val memory = o["memory"]?.jsonObject
         return SystemInfo(
@@ -84,19 +120,11 @@ object SystemApi {
         )
     }
 
-    suspend fun logs(after: Long = 0): LogsChunk? {
-        val query = mapOf("after" to after.toString())
-        val o = Http.get("/system/logs", query)?.jsonObject ?: return null
-        return LogsChunk(
-            items = o["items"]?.jsonArray?.map { el ->
-                val entry = el.jsonObject
-                LogEntry(
-                    ts = entry["ts"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
-                    level = entry["level"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                    message = entry["message"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                )
-            }.orEmpty(),
-            offset = o["offset"]?.jsonPrimitive?.longOrNull ?: after,
-        )
-    }
+    private fun parseLog(o: JsonObject): LogEntry = LogEntry(
+        ts = o["ts"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+        level = o["level"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+        message = o["message"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+    )
+
+    private val client = OkHttpClient.Builder().pingInterval(15, TimeUnit.SECONDS).build()
 }

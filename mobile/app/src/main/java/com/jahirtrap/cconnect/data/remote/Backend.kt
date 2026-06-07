@@ -24,6 +24,7 @@ object Backend {
 
     val baseUrl: String get() = "${if (secure) "https" else "http"}://$host$portSuffix/api"
     val wsUrl: String get() = "${if (secure) "wss" else "ws"}://$host$portSuffix/api/chat/ws"
+    val systemWsUrl: String get() = "${if (secure) "wss" else "ws"}://$host$portSuffix/api/system/ws"
     val isConfigured: Boolean get() = host.isNotBlank()
 
     private val authorizationHeader: String?

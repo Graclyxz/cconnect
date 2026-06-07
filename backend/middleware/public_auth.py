@@ -2,7 +2,7 @@
 
 import hmac
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from core.config import PUBLIC_ACCESS_TOKEN
@@ -10,6 +10,13 @@ from core.responses import api_response
 
 # Open so the mobile app can probe connectivity before it has a token.
 _OPEN_PATHS = frozenset({"/api/health"})
+
+
+def ws_bearer_ok(ws: WebSocket) -> bool:
+    if PUBLIC_ACCESS_TOKEN is None:
+        return True
+    scheme, _, value = ws.headers.get("authorization", "").partition(" ")
+    return scheme.lower() == "bearer" and hmac.compare_digest(value.strip(), PUBLIC_ACCESS_TOKEN)
 
 
 def _extract_bearer(request: Request) -> str | None:

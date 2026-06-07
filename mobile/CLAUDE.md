@@ -268,8 +268,12 @@ label):
   reacts after layout (no delays/guesses); `followLogs` is sampled right
   before each append so user scroll-up pauses following; on page entry a
   `first { maxValue > 0 }` lands at the tail instantly.
-- Polling every 2s in a `LaunchedEffect(state.activeEnvironmentId)` — changing
-  the environment resets everything and repolls the new server. Top bar:
+- Data arrives over a dedicated **WebSocket** (`SystemApi.stream()` →
+  `Backend.systemWsUrl`, OkHttp + `callbackFlow`): the server pushes a
+  `system` snapshot every 2s and `logs` entries as they land. The
+  `LaunchedEffect(state.activeEnvironmentId)` collects the stream and
+  reconnects with a 3s backoff; changing the environment resets everything
+  and reconnects to the new server. Top bar:
   environment selector action (Files pattern) and a `LoadingIndicator` +
   "Cargando" subtitle until the first snapshot (red `StatusDot` on failure);
   then `hostname • os • uptime`.
