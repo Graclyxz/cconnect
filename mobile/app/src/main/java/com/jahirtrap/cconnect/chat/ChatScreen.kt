@@ -1655,7 +1655,7 @@ private fun ProjectSelector(projects: List<ProjectInfo>, selected: String?, onSe
     }
 }
 
-private fun projectLabel(p: ProjectInfo): String = p.path ?: p.projectKey
+private fun projectLabel(p: ProjectInfo): String = p.name ?: p.path ?: p.projectKey
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable

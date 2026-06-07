@@ -3,6 +3,7 @@ package com.jahirtrap.cconnect.data
 data class ProjectInfo(
     val projectKey: String,
     val path: String?,
+    val name: String?,
     val sessionCount: Int,
     val lastActive: Double?,
 )

@@ -46,6 +46,7 @@ import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Blocks
 import com.composables.icons.lucide.Brain
 import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.Eraser
 import com.composables.icons.lucide.FilePen
 import com.composables.icons.lucide.FileText
 import com.composables.icons.lucide.Lucide
@@ -373,6 +374,11 @@ internal fun PromptDialog(
     CompactDialog(
         onDismiss = onDismiss,
         title = stringResource(R.string.user_prompt),
+        titleTrailing = {
+            TooltipIconButton(label = stringResource(R.string.clear), onClick = { text = "" }, enabled = text.isNotEmpty()) {
+                Icon(Lucide.Eraser, contentDescription = null)
+            }
+        },
         buttons = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
             TextButton(onClick = { onConfirm(text) }) { Text(stringResource(R.string.save)) }

@@ -29,6 +29,7 @@ object SessionsApi {
             ProjectInfo(
                 projectKey = o["project_key"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                 path = o["path"]?.jsonPrimitive?.contentOrNull,
+                name = o["name"]?.jsonPrimitive?.contentOrNull,
                 sessionCount = o["session_count"]?.jsonPrimitive?.intOrNull ?: 0,
                 lastActive = o["last_active"]?.jsonPrimitive?.doubleOrNull,
             )

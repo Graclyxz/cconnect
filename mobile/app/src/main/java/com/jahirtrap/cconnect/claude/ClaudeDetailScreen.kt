@@ -192,7 +192,7 @@ fun ClaudeDetailScreen(
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             if (kind == ClaudeKind.Memories) {
-                val projects = state.historyProjects.map { it.projectKey to (it.path ?: it.projectKey) }
+                val projects = state.historyProjects.map { it.projectKey to (it.name ?: it.path ?: it.projectKey) }
                 if (projects.isNotEmpty()) {
                     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
                         SelectField(stringResource(R.string.all_projects), memoriesProject.orEmpty(), projects) { key ->

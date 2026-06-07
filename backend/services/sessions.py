@@ -146,6 +146,12 @@ def _session_meta(path: Path) -> tuple[Optional[str], Optional[str], Optional[st
     return cwd, preview, title or ai_title, color, entrypoint, has_content
 
 
+def _project_name(path: str | None) -> str | None:
+    if not path:
+        return None
+    return path.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1] or None
+
+
 def list_projects() -> list[dict]:
     base = _base()
     if not base.is_dir():
@@ -155,9 +161,11 @@ def list_projects() -> list[dict]:
         if not directory.is_dir() or directory.name == _AI_PROJECT_KEY:
             continue
         sessions = sorted(directory.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+        path = _read_cwd(sessions[0]) if sessions else None
         projects.append({
             "project_key": directory.name,
-            "path": _read_cwd(sessions[0]) if sessions else None,
+            "path": path,
+            "name": _project_name(path),
             "session_count": len(sessions),
             "last_active": sessions[0].stat().st_mtime if sessions else None,
         })
