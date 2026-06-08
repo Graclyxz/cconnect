@@ -68,6 +68,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -83,7 +84,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.composables.icons.lucide.ArrowDown
+import com.composables.icons.lucide.ArrowDownUp
 import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.ArrowUp
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.ClipboardCopy
@@ -107,6 +111,7 @@ import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.chat.ChatViewModel
 import com.jahirtrap.cconnect.chat.ConnectionState
+import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.SharedEntry
 import com.jahirtrap.cconnect.data.remote.SharedApi
 import com.jahirtrap.cconnect.ui.AbovePopupMenu
@@ -134,6 +139,29 @@ private data class TransferOp(
     val folders: List<String>,
 )
 
+private enum class SortField(val key: String, val label: Int) {
+    Name("name", R.string.sort_name),
+    Date("date", R.string.sort_date),
+    Type("type", R.string.sort_type),
+    Size("size", R.string.sort_size);
+
+    companion object {
+        fun from(key: String): SortField = entries.firstOrNull { it.key == key } ?: Name
+    }
+}
+
+private fun sortEntries(entries: List<SharedEntry>, field: SortField, ascending: Boolean): List<SharedEntry> {
+    val comparator: Comparator<SharedEntry> = when (field) {
+        SortField.Name -> compareBy(String.CASE_INSENSITIVE_ORDER) { it.name }
+        SortField.Date -> compareBy { it.modified }
+        SortField.Type -> compareBy({ it.name.substringAfterLast('.', "").lowercase() }, { it.name.lowercase() })
+        SortField.Size -> compareBy { if (it.isDir) it.items.toLong() else it.size }
+    }
+    val directed = if (ascending) comparator else comparator.reversed()
+    // folders always lead, regardless of direction
+    return entries.sortedWith(compareByDescending<SharedEntry> { it.isDir }.then(directed))
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: String, onDelete: (() -> Unit)?) -> Unit) {
@@ -160,7 +188,12 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
     var pendingSaveUrl by remember { mutableStateOf<String?>(null) }
     var envMenu by remember { mutableStateOf(false) }
     var barMenu by remember { mutableStateOf(false) }
+    var sortMenu by remember { mutableStateOf(false) }
+    val settings = remember { Settings(context) }
+    var sortField by remember { mutableStateOf(SortField.from(settings.fileSortField)) }
+    var sortAscending by remember { mutableStateOf(settings.fileSortAscending) }
     val activeName = state.environments.firstOrNull { it.id == state.activeEnvironmentId }?.name
+    val ordered = remember(entries, sortField, sortAscending) { sortEntries(entries, sortField, sortAscending) }
 
     val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
         val url = pendingSaveUrl
@@ -284,10 +317,38 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                                 }
                                 DropdownMenu(expanded = barMenu, onDismissRequest = { barMenu = false }) {
                                     CompactDropdownItem(
+                                        text = stringResource(R.string.sort_by),
+                                        leadingIcon = { Icon(Lucide.ArrowDownUp, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                                        onClick = { barMenu = false; sortMenu = true },
+                                    )
+                                    CompactDropdownItem(
                                         text = stringResource(R.string.new_folder),
                                         leadingIcon = { Icon(Lucide.FolderPlus, contentDescription = null, modifier = Modifier.size(20.dp)) },
                                         onClick = { barMenu = false; creatingFolder = true },
                                     )
+                                }
+                                DropdownMenu(expanded = sortMenu, onDismissRequest = { sortMenu = false }) {
+                                    SortField.entries.forEach { field ->
+                                        val active = field == sortField
+                                        CompactDropdownItem(
+                                            text = stringResource(field.label),
+                                            trailing = {
+                                                Box(modifier = Modifier.size(20.dp)) {
+                                                    if (active) Icon(
+                                                        if (sortAscending) Lucide.ArrowUp else Lucide.ArrowDown,
+                                                        contentDescription = null,
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                    )
+                                                }
+                                            },
+                                            color = if (active) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                                            onClick = {
+                                                if (active) sortAscending = !sortAscending else { sortField = field; sortAscending = true }
+                                                settings.fileSortField = sortField.key
+                                                settings.fileSortAscending = sortAscending
+                                            },
+                                        )
+                                    }
                                 }
                             }
                         },
@@ -451,7 +512,7 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                         marking = true
                                         selecting = true
-                                        entries.getOrNull(idx)?.let {
+                                        ordered.getOrNull(idx)?.let {
                                             selected = base + it.name
                                             suppressClick = it.name
                                         }
@@ -462,7 +523,7 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                                     suppressClick = null
                                     itemIndexAt(change.position.y)?.let { idx ->
                                         val range = if (idx >= anchor) anchor..idx else idx..anchor
-                                        selected = base + range.mapNotNull { entries.getOrNull(it)?.name }
+                                        selected = base + range.mapNotNull { ordered.getOrNull(it)?.name }
                                     }
                                     val edge = 96.dp.toPx()
                                     when {
@@ -476,7 +537,7 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                         },
                 ) {
                     when {
-                        entries.isNotEmpty() -> items(entries, key = { it.name }) { entry ->
+                        ordered.isNotEmpty() -> items(ordered, key = { it.name }) { entry ->
                             val isSelected = entry.name in selected
                             EntryRow(
                                 entry = entry,

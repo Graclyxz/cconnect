@@ -147,6 +147,11 @@
     <string name="attach_files">Adjuntar archivos</string>
     <string name="uploads">Subidas</string>
     <string name="new_folder">Nueva carpeta</string>
+    <string name="sort_by">Ordenar</string>
+    <string name="sort_name">Nombre</string>
+    <string name="sort_date">Fecha</string>
+    <string name="sort_type">Tipo</string>
+    <string name="sort_size">Tamaño</string>
     <string name="create">Crear</string>
     <string name="more_options">Más opciones</string>
     <string name="move">Mover</string>

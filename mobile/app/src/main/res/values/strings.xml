@@ -147,6 +147,11 @@
     <string name="attach_files">Attach files</string>
     <string name="uploads">Uploads</string>
     <string name="new_folder">New folder</string>
+    <string name="sort_by">Sort by</string>
+    <string name="sort_name">Name</string>
+    <string name="sort_date">Date</string>
+    <string name="sort_type">Type</string>
+    <string name="sort_size">Size</string>
     <string name="create">Create</string>
     <string name="more_options">More options</string>
     <string name="move">Move</string>

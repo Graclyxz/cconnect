@@ -1,5 +1,7 @@
 package com.jahirtrap.cconnect.terminal
 
+import android.content.Context
+import android.net.wifi.WifiManager
 import com.jahirtrap.cconnect.data.SshProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -9,6 +11,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import net.schmizz.keepalive.KeepAliveProvider
+import net.schmizz.sshj.DefaultConfig
 import net.schmizz.sshj.SSHClient
 import net.schmizz.sshj.connection.channel.direct.Session
 import net.schmizz.sshj.transport.verification.PromiscuousVerifier
@@ -17,6 +21,7 @@ import java.io.OutputStream
 class SshConnection(
     private val profile: SshProfile,
     private val scope: CoroutineScope,
+    context: Context,
     private val onOsDetected: ((String) -> Unit)? = null,
 ) {
     private var client: SSHClient? = null
@@ -28,6 +33,10 @@ class SshConnection(
     @Volatile private var lastCols = 0
     @Volatile private var lastRows = 0
 
+    private val wifiLock = (context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager)
+        ?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "cconnect:ssh")
+        ?.apply { setReferenceCounted(false) }
+
     private val _output = MutableSharedFlow<ByteArray>(extraBufferCapacity = 64)
     val output: SharedFlow<ByteArray> = _output
 
@@ -37,10 +46,13 @@ class SshConnection(
     suspend fun connect(cols: Int = 80, rows: Int = 24) = withContext(Dispatchers.IO) {
         _state.emit(State.Connecting)
         try {
-            val ssh = SSHClient().apply {
+            runCatching { wifiLock?.acquire() }
+            val config = DefaultConfig().apply { keepAliveProvider = KeepAliveProvider.KEEP_ALIVE }
+            val ssh = SSHClient(config).apply {
                 // MVP: no known_hosts verification. Mark in UI as such.
                 addHostKeyVerifier(PromiscuousVerifier())
                 connect(profile.host, profile.port)
+                connection.keepAlive.keepAliveInterval = 15
                 authPassword(profile.user, profile.password)
             }
             runCatching { probeOs(ssh) }.getOrNull()?.let { onOsDetected?.invoke(it) }
@@ -127,6 +139,7 @@ class SshConnection(
         runCatching { shell?.close() }
         runCatching { session?.close() }
         runCatching { client?.disconnect() }
+        runCatching { if (wifiLock?.isHeld == true) wifiLock.release() }
         shell = null
         session = null
         client = null

@@ -237,7 +237,8 @@ private fun TerminalSession(
     onOsDetected: (String) -> Unit,
 ) {
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val connection = remember { SshConnection(profile, scope, onOsDetected) }
+    val context = LocalContext.current
+    val connection = remember { SshConnection(profile, scope, context, onOsDetected) }
     val state by connection.state.collectAsState(initial = SshConnection.State.Idle)
 
     val emulator: TerminalEmulator = remember {

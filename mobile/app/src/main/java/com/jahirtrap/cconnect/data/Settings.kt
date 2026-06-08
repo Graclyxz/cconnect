@@ -40,6 +40,14 @@ class Settings(context: Context) {
     val activeEnvironment: EnvironmentProfile?
         get() = environments.let { list -> list.firstOrNull { it.id == activeEnvironmentId } ?: list.firstOrNull() }
 
+    var fileSortField: String
+        get() = prefs.getString("file_sort_field", "date") ?: "date"
+        set(value) = prefs.edit { putString("file_sort_field", value) }
+
+    var fileSortAscending: Boolean
+        get() = prefs.getBoolean("file_sort_ascending", false)
+        set(value) = prefs.edit { putBoolean("file_sort_ascending", value) }
+
     fun upsertEnvironment(profile: EnvironmentProfile) {
         val list = environments.toMutableList()
         val i = list.indexOfFirst { it.id == profile.id }

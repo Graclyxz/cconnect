@@ -153,6 +153,17 @@ def _os_id() -> str:
 
 
 @lru_cache(maxsize=1)
+def _os_name() -> str:
+    if sys.platform == "win32":
+        try:
+            build = sys.getwindowsversion().build
+            return f"Windows {'11' if build >= 22000 else '10'}"
+        except Exception:
+            pass
+    return f"{platform.system()} {platform.release()}"
+
+
+@lru_cache(maxsize=1)
 def _cpu_name() -> str | None:
     try:
         if sys.platform == "win32":
@@ -192,7 +203,7 @@ def snapshot() -> dict:
         })
     return {
         "hostname": platform.node(),
-        "os": f"{platform.system()} {platform.release()}",
+        "os": _os_name(),
         "os_id": _os_id(),
         "arch": platform.machine(),
         "cpu_name": _cpu_name(),
