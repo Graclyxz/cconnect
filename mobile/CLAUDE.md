@@ -220,6 +220,13 @@ File manager over `backend/shared/`:
   dropdown like the tasks footer, with a real cancel `X` per file.
 - **New folder / rename**: dialogs with duplicate validation, autofocus, and
   extension preserved on rename (`RenameDialog` with `errorOf`/`suffix`).
+- **Sort** ("More" menu → Ordenar): a second `DropdownMenu` with the four
+  `SortField`s (name/date/type/size); the active field shows an up/down arrow,
+  re-tapping it flips the direction, tapping another switches field (asc). The
+  arrow slot is reserved on every item so the menu width doesn't jump.
+  Persisted in `Settings` (`fileSortField`/`fileSortAscending`, default
+  date-descending); folders always lead. `ordered` (the sorted list) is what
+  the LazyColumn and drag-select index against.
 - **Multi-select** (Samsung style): long-press enters selection; drag after
   long-press marks ranges (with haptics; `suppressClick` kills the ghost click
   on release); top bar gets select-all dot + count + close; a bottom toolbar
@@ -450,6 +457,11 @@ flag in `MainActivity`).
 
 - **Transport**: `sshj` over password auth, no `known_hosts` (MVP, uses
   `PromiscuousVerifier`). Renderer is `connectbot/termlib` (libvterm).
+- **Connection stability**: `KeepAliveProvider.KEEP_ALIVE` (15s interval) plus
+  a `WIFI_MODE_FULL_HIGH_PERF` `WifiLock` held while the session is open keep
+  the connection from dropping when the screen suspends. The lock releases in
+  `close()`. (Plain SSH can't recover a shell after a real network change —
+  this only keeps a live connection alive, it doesn't reconnect state.)
 - **Crypto**: Android ships a stripped BouncyCastle; `MainActivity.onCreate`
   swaps it for the full `bcprov-jdk18on` so modern OpenSSH defaults
   (curve25519, ed25519, chacha20-poly1305) work.

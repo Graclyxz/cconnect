@@ -89,11 +89,11 @@ that connects.
 
 The shared folder grew into a full file manager. Browse `backend/shared/` from
 the phone: upload files (with per-file progress you can cancel), create
-folders, rename, and long-press to multi-select — then move, copy, share,
-delete, save to Downloads, or copy a file's PC path. Tap a file to preview it
-in place — images with zoom, HTML rendered in a real web view, SVG, Markdown,
-and source code — and delete it right from the preview if it's no longer
-needed.
+folders, rename, sort by name/date/type/size, and long-press to multi-select —
+then move, copy, share, delete, save to Downloads, or copy a file's PC path.
+Tap a file to preview it in place — images with zoom, HTML rendered in a real
+web view, SVG, Markdown, and source code — and delete it right from the
+preview if it's no longer needed.
 
 It works in both directions: drop a file into `backend/shared/` on the PC — or
 just ask Claude to write one there — and you get a tap-to-download link in the
@@ -158,7 +158,8 @@ hosts to save a target — its address, the SSH port (`22` unless the server
 listens somewhere else), and the credentials you log in with — then tap it
 to open an embedded terminal. On Linux that's your shell user + password;
 on Windows hosts running OpenSSH it's your account password. Password auth
-must be enabled on the target.
+must be enabled on the target. A keepalive and a Wi-Fi lock keep the session
+connected when the screen turns off.
 
 ### Local
 

@@ -59,6 +59,8 @@ ULTRACODE_EFFORT = "ultracode"
 # that always resolve to the latest matching model; "default" lets the CLI pick.
 MODELS = [
     {"id": "default", "label": "Default"},
+    {"id": "fable", "label": "Fable 5"},
+    {"id": "fable[1m]", "label": "Fable 5 (1M)"},
     {"id": "opus", "label": "Opus 4.8"},
     {"id": "opus[1m]", "label": "Opus 4.8 (1M)"},
     {"id": "sonnet", "label": "Sonnet 4.6"},

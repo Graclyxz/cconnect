@@ -48,7 +48,7 @@ backend/
 │   ├── CCONNECT.md          # System conventions appended to every turn ({{SHARED_DIR}}/{{BASE_URL}} placeholders)
 │   └── USER.md              # User's own prompt (gitignored, edited from the app; never deleted — emptied instead)
 ├── core/
-│   ├── config.py            # PORT (8723), CLAUDE_PROJECTS_DIR, SHARED_DIR, AUTO_UPDATE_SDK, PUBLIC_ACCESS_TOKEN, COMMANDS, defaults; reads pyproject for SERVER_VERSION / SUPPORTED_APP / SUPPORTED_CLI
+│   ├── config.py            # PORT (8723), CLAUDE_PROJECTS_DIR, SHARED_DIR, AUTO_UPDATE_SDK, PUBLIC_ACCESS_TOKEN, COMMANDS, MODELS (CLI aliases — fable/opus/sonnet/haiku, with [1m] variants), defaults; reads pyproject for SERVER_VERSION / SUPPORTED_APP / SUPPORTED_CLI
 │   ├── settings_defs.py     # KV settings registry — default, type, allowed values per key
 │   ├── db.py / models.py    # SQLite-backed store for the runtime settings
 │   ├── cli_manager.py       # Resolve/select the Claude CLI (system, bundled, custom) + update it; active_version() is cached per resolved path, invalidated on update/set_source
