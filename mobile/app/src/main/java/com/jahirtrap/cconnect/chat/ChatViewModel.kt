@@ -15,6 +15,7 @@ import com.jahirtrap.cconnect.data.CommandOption
 import com.jahirtrap.cconnect.data.CompactData
 import com.jahirtrap.cconnect.data.DiffLine
 import com.jahirtrap.cconnect.data.InteractionData
+import com.jahirtrap.cconnect.data.InteractionOption
 import com.jahirtrap.cconnect.data.pending
 import com.jahirtrap.cconnect.data.QuestionDraft
 import com.jahirtrap.cconnect.data.ProjectInfo
@@ -32,7 +33,7 @@ import com.jahirtrap.cconnect.data.remote.SessionsApi
 import com.jahirtrap.cconnect.data.remote.SettingsApi
 import com.jahirtrap.cconnect.data.remote.SharedApi
 import com.jahirtrap.cconnect.files.UploadManager
-import com.jahirtrap.cconnect.service.ConnectionService
+import com.jahirtrap.cconnect.service.Notifier
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -140,6 +141,8 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private val foregroundObserver = object : DefaultLifecycleObserver {
         override fun onStart(owner: LifecycleOwner) {
+            Notifier.cancel(appContext, Notifier.Kind.TaskDone)
+            Notifier.cancel(appContext, Notifier.Kind.Interaction)
             if (_state.value.connection == ConnectionState.Disconnected) connect()
         }
     }
@@ -307,7 +310,6 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             val todos = if (it.todos.all { t -> t.status == "completed" }) emptyList() else it.todos
             resetToInitialWindow(it).copy(streaming = true, compacting = compacting, error = null, todos = todos)
         }
-        ConnectionService.start(appContext)
         client.sendPrompt(prompt, attachments)
     }
 
@@ -692,7 +694,6 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             }
             is ServerEvent.Open -> startSession(_state.value.sessionId)
             is ServerEvent.Ready -> {
-                if (event.running) ConnectionService.start(appContext) else ConnectionService.stop(appContext)
                 historyLoaded = false
                 _state.update {
                     val sid = event.sessionId ?: it.sessionId
@@ -784,7 +785,17 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     st.copy(sessionId = sid, sideChat = st.sideChat.promote(sid))
                 }
             }
-            is ServerEvent.Done -> resetStreaming()
+            is ServerEvent.Done -> {
+                if (_state.value.streaming && settings.notifyTaskDone) {
+                    Notifier.notify(
+                        appContext, Notifier.Kind.TaskDone,
+                        appContext.getString(R.string.notif_task_done),
+                        _state.value.messages.lastOrNull { it.role == Role.ASSISTANT }?.text
+                            ?.lineSequence()?.firstOrNull { it.isNotBlank() }?.take(120),
+                    )
+                }
+                resetStreaming()
+            }
             is ServerEvent.Interrupted -> {
                 resetStreaming()
                 dismissPendingInteractions()
@@ -803,13 +814,27 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         val cleaned = if (tuid != null) st.messages.filterNot { it.role == Role.TOOL && it.toolUseId == tuid } else st.messages
                         st.copy(messages = cleaned + ChatMessage(nextId++, Role.INTERACTION, event.input.orEmpty(), event.toolName, tuid, data))
                     }
+                    if (settings.notifyInteraction) {
+                        val question = event.kind == "questions"
+                        val actions = if (question) emptyList() else event.options
+                            .filter { it.id != "different" }
+                            .mapNotNull { opt -> notificationOptionLabel(opt)?.let { Notifier.Action(it, event.requestId, opt.id) } }
+                        Notifier.notify(
+                            appContext, Notifier.Kind.Interaction,
+                            appContext.getString(if (question) R.string.notif_question else R.string.notif_permission),
+                            if (question) event.questions.firstOrNull()?.question?.take(120) else event.toolName,
+                            actions,
+                        )
+                    }
                 }
+            }
+            is ServerEvent.InteractionResolved -> updateInteraction(event.requestId) {
+                if (it.resolved == null) it.copy(resolved = event.optionId ?: "") else it
             }
             is ServerEvent.Closed -> {
                 currentAssistantId = null
                 currentThinkingId = null
                 currentSideAssistantId = null
-                ConnectionService.stop(appContext)
                 _state.update {
                     it.copy(
                         connection = ConnectionState.Disconnected,
@@ -922,10 +947,17 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private fun notificationOptionLabel(opt: InteractionOption): String? = when {
+        !opt.label.isNullOrBlank() -> opt.label
+        opt.id == "allow" -> appContext.getString(R.string.permission_allow)
+        opt.id == "allow_always" -> appContext.getString(R.string.permission_allow_always)
+        opt.id == "deny" -> appContext.getString(R.string.permission_deny)
+        else -> null
+    }
+
     private fun resetStreaming() {
         currentAssistantId = null
         currentThinkingId = null
-        ConnectionService.stop(appContext)
         _state.update { it.copy(streaming = false, compacting = false, pendingToolIds = emptySet()) }
     }
 
@@ -1092,7 +1124,6 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         ProcessLifecycleOwner.get().lifecycle.removeObserver(foregroundObserver)
-        ConnectionService.stop(appContext)
         client.close()
     }
 }

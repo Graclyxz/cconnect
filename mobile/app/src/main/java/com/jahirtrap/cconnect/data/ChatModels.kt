@@ -148,4 +148,5 @@ sealed interface ServerEvent {
         val options: List<InteractionOption>,
         val questions: List<InteractionQuestion> = emptyList(),
     ) : ServerEvent
+    data class InteractionResolved(val requestId: String, val optionId: String?) : ServerEvent
 }

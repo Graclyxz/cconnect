@@ -36,6 +36,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -49,6 +50,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -60,7 +62,9 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Save
 import com.composables.icons.lucide.Share2
 import com.composables.icons.lucide.Trash
+import com.composables.icons.lucide.Type
 import com.jahirtrap.cconnect.R
+import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.remote.SharedApi
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CenteredProgress
@@ -110,6 +114,10 @@ fun FilePreviewScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) { keyboard?.hide() }
+    val settings = remember { Settings(context) }
+    var formatted by remember { mutableStateOf(settings.markdownPreviewFormatted) }
     var text by remember(url) { mutableStateOf<String?>(null) }
     var failed by remember(url) { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
@@ -154,6 +162,20 @@ fun FilePreviewScreen(
                     }
                 },
                 actions = {
+                    if (kind == PreviewKind.Markdown) {
+                        TooltipIconButton(
+                            label = stringResource(R.string.formatted_view),
+                            onClick = {
+                                formatted = !formatted
+                                settings.markdownPreviewFormatted = formatted
+                            },
+                        ) {
+                            Icon(
+                                Lucide.Type, contentDescription = null,
+                                tint = if (formatted) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                            )
+                        }
+                    }
                     Box {
                         TooltipIconButton(label = stringResource(R.string.files), onClick = { menu = true }) {
                             Icon(Lucide.EllipsisVertical, contentDescription = null)
@@ -206,7 +228,7 @@ fun FilePreviewScreen(
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp),
             ) {
-                if (kind == PreviewKind.Markdown) {
+                if (kind == PreviewKind.Markdown && formatted) {
                     MarkdownText(text.orEmpty(), modifier = Modifier.fillMaxWidth())
                 } else {
                     SelectionContainer {

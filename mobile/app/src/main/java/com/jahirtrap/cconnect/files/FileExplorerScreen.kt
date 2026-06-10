@@ -25,9 +25,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -40,12 +42,14 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -64,11 +68,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -97,13 +104,16 @@ import com.composables.icons.lucide.EllipsisVertical
 import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.File
 import com.composables.icons.lucide.Folder
+import com.composables.icons.lucide.FolderArchive
 import com.composables.icons.lucide.FolderInput
 import com.composables.icons.lucide.FolderPlus
 import com.composables.icons.lucide.House
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.PackageOpen
 import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.Save
+import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Server
 import com.composables.icons.lucide.Share2
 import com.composables.icons.lucide.Trash
@@ -127,6 +137,7 @@ import com.jahirtrap.cconnect.ui.SelectionDot
 import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.theme.palette
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -193,7 +204,20 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
     var sortField by remember { mutableStateOf(SortField.from(settings.fileSortField)) }
     var sortAscending by remember { mutableStateOf(settings.fileSortAscending) }
     val activeName = state.environments.firstOrNull { it.id == state.activeEnvironmentId }?.name
-    val ordered = remember(entries, sortField, sortAscending) { sortEntries(entries, sortField, sortAscending) }
+    var searching by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf<List<SharedEntry>?>(null) }
+    LaunchedEffect(searchQuery, path, searching) {
+        if (!searching || searchQuery.isBlank()) {
+            searchResults = null
+            return@LaunchedEffect
+        }
+        delay(300)
+        searchResults = SharedApi.search(path, searchQuery.trim())
+    }
+    val ordered = remember(entries, sortField, sortAscending, searchResults) {
+        sortEntries(searchResults ?: entries, sortField, sortAscending)
+    }
 
     val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
         val url = pendingSaveUrl
@@ -308,6 +332,18 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                         },
                         actions = {
                             UploadIndicator()
+                            TooltipIconButton(
+                                label = stringResource(R.string.search),
+                                onClick = {
+                                    searching = !searching
+                                    if (!searching) searchQuery = ""
+                                },
+                            ) {
+                                Icon(
+                                    Lucide.Search, contentDescription = null,
+                                    tint = if (searching) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                                )
+                            }
                             TooltipIconButton(label = stringResource(R.string.environment), onClick = { envMenu = true }) {
                                 Icon(Lucide.Server, contentDescription = null)
                             }
@@ -451,6 +487,26 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                                 }
                             }
                         },
+                        onCompress = shownSelection.takeIf { it.isNotEmpty() }?.let { sel ->
+                            {
+                                scope.launch {
+                                    SharedApi.zip(sel.map { child(it.name) })
+                                    exitSelection()
+                                    reload()
+                                }
+                            }
+                        },
+                        onExtract = shownSingle
+                            ?.takeIf { !it.isDir && it.name.endsWith(".zip", ignoreCase = true) }
+                            ?.let { entry ->
+                                {
+                                    scope.launch {
+                                        SharedApi.unzip(child(entry.name))
+                                        exitSelection()
+                                        reload()
+                                    }
+                                }
+                            },
                     )
                 }
             }
@@ -487,8 +543,17 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                 onDismiss = { envMenu = false },
             )
         }
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            Breadcrumb(path = path, onNavigate = { path = it })
+        Column(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
+            if (searching) {
+                BackHandler { searching = false; searchQuery = "" }
+                SearchBar(
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    onClear = { searchQuery = "" },
+                )
+            } else {
+                Breadcrumb(path = path, onNavigate = { path = it })
+            }
             PullToRefreshBox(
                 isRefreshing = refreshing,
                 onRefresh = { refreshing = true; reload() },
@@ -547,7 +612,11 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                                     when {
                                         suppressClick == entry.name -> suppressClick = null
                                         selecting -> selected = if (isSelected) selected - entry.name else selected + entry.name
-                                        entry.isDir -> path = child(entry.name)
+                                        entry.isDir -> {
+                                            path = child(entry.name)
+                                            searching = false
+                                            searchQuery = ""
+                                        }
                                         isPreviewable(entry.name) -> {
                                             val rel = child(entry.name)
                                             onOpenPreview(SharedApi.downloadUrl(rel), entry.name) { scope.launch { SharedApi.delete(rel); reload() } }
@@ -633,6 +702,56 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
             },
             onDismiss = { creatingFolder = false },
         )
+    }
+}
+
+@Composable
+private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onClear: () -> Unit) {
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .height(44.dp)
+            .padding(start = 14.dp, end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Lucide.Search,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Box(modifier = Modifier.weight(1f)) {
+            if (query.isEmpty()) {
+                Text(
+                    stringResource(R.string.search),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+            )
+        }
+        if (query.isNotEmpty()) {
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                Lucide.X,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.clip(CircleShape).clickable(onClick = onClear).padding(2.dp).size(18.dp),
+            )
+        }
     }
 }
 
@@ -753,6 +872,8 @@ private fun SelectionToolbar(
     onSave: (() -> Unit)?,
     onSaveAs: (() -> Unit)?,
     onCopyPath: (() -> Unit)?,
+    onCompress: (() -> Unit)?,
+    onExtract: (() -> Unit)?,
 ) {
     var menu by remember { mutableStateOf(false) }
     Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
@@ -809,6 +930,20 @@ private fun SelectionToolbar(
                                 text = stringResource(R.string.copy_path),
                                 leadingIcon = { Icon(Lucide.ClipboardCopy, contentDescription = null, modifier = Modifier.size(20.dp)) },
                                 onClick = { menu = false; onCopyPath() },
+                            )
+                        }
+                        if (onCompress != null) {
+                            CompactDropdownItem(
+                                text = stringResource(R.string.compress),
+                                leadingIcon = { Icon(Lucide.FolderArchive, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                                onClick = { menu = false; onCompress() },
+                            )
+                        }
+                        if (onExtract != null) {
+                            CompactDropdownItem(
+                                text = stringResource(R.string.extract),
+                                leadingIcon = { Icon(Lucide.PackageOpen, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                                onClick = { menu = false; onExtract() },
                             )
                         }
                     }

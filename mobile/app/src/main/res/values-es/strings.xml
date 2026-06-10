@@ -107,6 +107,26 @@
     </plurals>
     <string name="monitor">Monitor</string>
     <string name="resources">Recursos</string>
+    <string name="background_group">Segundo plano</string>
+    <string name="notifications">Notificaciones</string>
+    <string name="notifications_state">%1$d de 2 activadas</string>
+    <string name="notifications_disabled">Desactivadas en el sistema</string>
+    <string name="notifications_disabled_hint">Las notificaciones están desactivadas para la app.</string>
+    <string name="enable_notifications">Activar notificaciones</string>
+    <string name="formatted_view">Vista formateada</string>
+    <string name="disabled_state">Desactivado</string>
+    <string name="contributor">Contribuidor</string>
+    <string name="notify_task_done">Tarea terminada</string>
+    <string name="notify_task_done_summary">Notificar al terminar de trabajar en segundo plano</string>
+    <string name="notify_interaction">Permisos y preguntas</string>
+    <string name="notify_interaction_summary">Notificar cuando Claude espere una respuesta en segundo plano</string>
+    <string name="channel_task_done">Tareas terminadas</string>
+    <string name="channel_interaction">Permisos y preguntas</string>
+    <string name="notif_task_done">Claude terminó la tarea</string>
+    <string name="notif_question">Claude tiene una pregunta</string>
+    <string name="notif_permission">Claude solicita permiso</string>
+    <string name="battery_optimization">Desactivar optimizaciones de batería</string>
+    <string name="battery_optimization_summary">Mejora el funcionamiento en segundo plano y las notificaciones</string>
     <string name="information">Información</string>
     <string name="usage">Uso</string>
     <string name="usage_session">Sesión actual</string>
@@ -152,6 +172,8 @@
     <string name="sort_date">Fecha</string>
     <string name="sort_type">Tipo</string>
     <string name="sort_size">Tamaño</string>
+    <string name="compress">Comprimir</string>
+    <string name="extract">Descomprimir</string>
     <string name="create">Crear</string>
     <string name="more_options">Más opciones</string>
     <string name="move">Mover</string>
@@ -189,8 +211,6 @@
     <string name="color_none">Ninguno</string>
     <string name="delete">Eliminar</string>
     <string name="cancel">Cancelar</string>
-    <string name="session_channel">Sesión activa</string>
-    <string name="session_active">Sesión activa</string>
     <string name="delete_conversation_confirm">¿Eliminar la conversación «%1$s»?</string>
     <string name="type_message">Escribe un mensaje…</string>
     <string name="commands">Comandos</string>

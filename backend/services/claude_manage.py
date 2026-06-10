@@ -74,3 +74,44 @@ def mcp_remove(name: str) -> dict:
     if not name:
         return {"ok": False, "message": "name is required"}
     return _run(["mcp", "remove", name])
+
+
+_MCP_DISABLED = Path(__file__).resolve().parent.parent / "mcp_disabled.json"
+
+
+def _disabled_store() -> dict:
+    try:
+        return json.loads(_MCP_DISABLED.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def disabled_mcp_servers() -> dict:
+    return _disabled_store()
+
+
+def mcp_set_enabled(name: str, enabled: bool) -> dict:
+    if not name:
+        return {"ok": False, "message": "name is required"}
+    store = _disabled_store()
+    if enabled:
+        cfg = store.get(name)
+        if cfg is None:
+            return {"ok": False, "message": "server is not disabled"}
+        result = _run(["mcp", "add-json", "-s", "user", name, json.dumps(cfg)])
+        if result["ok"]:
+            store.pop(name, None)
+            _MCP_DISABLED.write_text(json.dumps(store, indent=2), encoding="utf-8")
+        return result
+    try:
+        servers = json.loads((Path.home() / ".claude.json").read_text(encoding="utf-8")).get("mcpServers", {})
+    except (OSError, json.JSONDecodeError):
+        servers = {}
+    cfg = servers.get(name)
+    if not isinstance(cfg, dict):
+        return {"ok": False, "message": "server not found"}
+    result = _run(["mcp", "remove", name])
+    if result["ok"]:
+        store[name] = cfg
+        _MCP_DISABLED.write_text(json.dumps(store, indent=2), encoding="utf-8")
+    return result

@@ -66,7 +66,7 @@ mobile/app/src/main/java/com/jahirtrap/cconnect/
 │   └── UploadManager.kt         # Upload queue state (progress ring data, cancel)
 ├── monitor/
 │   └── MonitorScreen.kt         # Live PC monitor: resource graphs + server logs (see below)
-├── service/ConnectionService.kt # Keeps the chat connection alive in background
+├── service/                     # Notifier (background notifications) + NotificationActionReceiver (action buttons)
 ├── settings/
 │   ├── SettingsScreen.kt        # Preferences; SettingsGroup/PreferenceRow are public (reused by claude/); highlight targets
 │   └── QrScanner.kt             # play-services-code-scanner wrapper (no camera permission)

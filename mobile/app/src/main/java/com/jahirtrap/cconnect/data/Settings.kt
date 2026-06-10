@@ -40,6 +40,22 @@ class Settings(context: Context) {
     val activeEnvironment: EnvironmentProfile?
         get() = environments.let { list -> list.firstOrNull { it.id == activeEnvironmentId } ?: list.firstOrNull() }
 
+    var notifyTaskDone: Boolean
+        get() = prefs.getBoolean("notify_task_done", false)
+        set(value) = prefs.edit { putBoolean("notify_task_done", value) }
+
+    var notifyInteraction: Boolean
+        get() = prefs.getBoolean("notify_interaction", true)
+        set(value) = prefs.edit { putBoolean("notify_interaction", value) }
+
+    var notifPermissionRequested: Boolean
+        get() = prefs.getBoolean("notif_permission_requested", false)
+        set(value) = prefs.edit { putBoolean("notif_permission_requested", value) }
+
+    var markdownPreviewFormatted: Boolean
+        get() = prefs.getBoolean("markdown_preview_formatted", true)
+        set(value) = prefs.edit { putBoolean("markdown_preview_formatted", value) }
+
     var fileSortField: String
         get() = prefs.getString("file_sort_field", "date") ?: "date"
         set(value) = prefs.edit { putString("file_sort_field", value) }

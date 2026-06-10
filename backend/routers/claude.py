@@ -36,6 +36,11 @@ class McpAddBody(BaseModel):
     transport: str = "stdio"
 
 
+class McpToggleBody(BaseModel):
+    name: str
+    enabled: bool
+
+
 @router.get("/claude/prompt")
 def get_user_prompt():
     return api_response(data={"text": claude_assets.get_user_prompt()})
@@ -97,6 +102,11 @@ def get_mcp():
 @router.post("/claude/mcp")
 def add_mcp(body: McpAddBody):
     return api_response(data=claude_manage.mcp_add(body.name, body.target, body.transport))
+
+
+@router.post("/claude/mcp/toggle")
+def toggle_mcp(body: McpToggleBody):
+    return api_response(data=claude_manage.mcp_set_enabled(body.name, body.enabled))
 
 
 @router.delete("/claude/mcp/{name}")

@@ -107,6 +107,26 @@
     </plurals>
     <string name="monitor">Monitor</string>
     <string name="resources">Resources</string>
+    <string name="background_group">Background</string>
+    <string name="notifications">Notifications</string>
+    <string name="notifications_state">%1$d of 2 enabled</string>
+    <string name="notifications_disabled">Disabled in the system</string>
+    <string name="notifications_disabled_hint">Notifications are disabled for the app.</string>
+    <string name="enable_notifications">Enable notifications</string>
+    <string name="formatted_view">Formatted view</string>
+    <string name="disabled_state">Disabled</string>
+    <string name="contributor">Contributor</string>
+    <string name="notify_task_done">Task finished</string>
+    <string name="notify_task_done_summary">Notify when work finishes in the background</string>
+    <string name="notify_interaction">Permissions and questions</string>
+    <string name="notify_interaction_summary">Notify when Claude awaits a response in the background</string>
+    <string name="channel_task_done">Finished tasks</string>
+    <string name="channel_interaction">Permissions and questions</string>
+    <string name="notif_task_done">Claude finished the task</string>
+    <string name="notif_question">Claude has a question</string>
+    <string name="notif_permission">Claude requests permission</string>
+    <string name="battery_optimization">Disable battery optimizations</string>
+    <string name="battery_optimization_summary">Improves background reliability and notifications</string>
     <string name="information">Information</string>
     <string name="usage">Usage</string>
     <string name="usage_session">Current session</string>
@@ -152,6 +172,8 @@
     <string name="sort_date">Date</string>
     <string name="sort_type">Type</string>
     <string name="sort_size">Size</string>
+    <string name="compress">Compress</string>
+    <string name="extract">Extract</string>
     <string name="create">Create</string>
     <string name="more_options">More options</string>
     <string name="move">Move</string>
@@ -189,8 +211,6 @@
     <string name="color_none">None</string>
     <string name="delete">Delete</string>
     <string name="cancel">Cancel</string>
-    <string name="session_channel">Active session</string>
-    <string name="session_active">Session active</string>
     <string name="delete_conversation_confirm">Delete the conversation \"%1$s\"?</string>
     <string name="type_message">Type a message…</string>
     <string name="commands">Commands</string>

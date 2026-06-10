@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,15 +25,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.unit.Dp
-import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -65,6 +59,7 @@ import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.EmptyState
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
+import com.jahirtrap.cconnect.ui.CompactSwitch
 import com.jahirtrap.cconnect.ui.InputField
 import com.jahirtrap.cconnect.ui.OutlinedPanel
 import com.jahirtrap.cconnect.ui.RenameDialog
@@ -111,6 +106,7 @@ fun ClaudeDetailScreen(
     var catalog by remember { mutableStateOf<List<ClaudeApi.CatalogPlugin>?>(null) }
     var installCandidate by remember { mutableStateOf<ClaudeApi.CatalogPlugin?>(null) }
     var mcpMenu by remember { mutableStateOf<ClaudeApi.McpServer?>(null) }
+    var confirmMcpRemove by remember { mutableStateOf<ClaudeApi.McpServer?>(null) }
     var addingMcp by remember { mutableStateOf(false) }
 
     suspend fun load() {
@@ -140,6 +136,7 @@ fun ClaudeDetailScreen(
             pluginMenu = pluginMenu?.let { current ->
                 extensions?.plugins?.firstOrNull { it.name == current.name && it.marketplace == current.marketplace }
             }
+            mcpMenu = mcpMenu?.let { current -> mcpServers?.firstOrNull { it.name == current.name } }
             dialogBusy = null
             busy = false
         }
@@ -226,7 +223,11 @@ fun ClaudeDetailScreen(
                         ClaudeKind.Mcp -> items(mcpServers.orEmpty(), key = { it.name }) { server ->
                             DetailRow(
                                 title = server.name,
-                                subtitle = listOfNotNull(server.type, server.detail).joinToString(" • "),
+                                subtitle = listOfNotNull(
+                                    stringResource(R.string.disabled_state).takeIf { !server.enabled },
+                                    server.type,
+                                    server.detail,
+                                ).joinToString(" • "),
                                 enabled = true,
                                 onClick = { mcpMenu = server },
                             )
@@ -342,16 +343,9 @@ fun ClaudeDetailScreen(
             onDismiss = { if (dialogBusy == null) pluginMenu = null },
             title = plugin.name,
             titleTrailing = {
-                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
-                    Switch(
-                        checked = plugin.enabled,
-                        onCheckedChange = {
-                            dialogBusy = "toggle"
-                            runAction { ClaudeApi.pluginAction(if (plugin.enabled) "disable" else "enable", key) }
-                        },
-                        enabled = dialogBusy == null,
-                        modifier = Modifier.scale(0.75f).requiredHeight(24.dp),
-                    )
+                CompactSwitch(plugin.enabled, enabled = dialogBusy == null) {
+                    dialogBusy = "toggle"
+                    runAction { ClaudeApi.pluginAction(if (plugin.enabled) "disable" else "enable", key) }
                 }
             },
             buttons = {
@@ -515,15 +509,50 @@ fun ClaudeDetailScreen(
     }
 
     mcpMenu?.let { server ->
+        CompactDialog(
+            onDismiss = { if (dialogBusy == null) mcpMenu = null },
+            title = server.name,
+            titleTrailing = {
+                CompactSwitch(server.enabled, enabled = dialogBusy == null) { enabled ->
+                    dialogBusy = "toggle"
+                    runAction { ClaudeApi.mcpToggle(server.name, enabled) }
+                }
+            },
+            buttons = {
+                TextButton(onClick = { mcpMenu = null }, enabled = dialogBusy == null) {
+                    Text(stringResource(R.string.close))
+                }
+            },
+        ) {
+            server.detail?.let {
+                OutlinedPanel(modifier = Modifier.fillMaxWidth()) {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.height(12.dp))
+            }
+            if (dialogBusy == "toggle") {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp))
+            }
+            ActionButton(
+                text = stringResource(R.string.delete),
+                enabled = dialogBusy == null,
+                onClick = { confirmMcpRemove = server },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+
+    confirmMcpRemove?.let { server ->
         ConfirmDialog(
             title = stringResource(R.string.delete),
             text = stringResource(R.string.delete_file_confirm, server.name),
             confirmLabel = stringResource(R.string.delete),
             onConfirm = {
+                confirmMcpRemove = null
                 mcpMenu = null
                 runAction { ClaudeApi.mcpRemove(server.name) }
             },
-            onDismiss = { mcpMenu = null },
+            onDismiss = { confirmMcpRemove = null },
         )
     }
 

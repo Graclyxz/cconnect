@@ -342,6 +342,10 @@ class ChatSocket(private val scope: CoroutineScope) {
                     )
                 } ?: emptyList(),
             )
+            "interaction_resolved" -> ServerEvent.InteractionResolved(
+                requestId = str("id").orEmpty(),
+                optionId = str("option_id"),
+            )
             else -> null
         }
         if (event is ServerEvent.AskSession) sideResume = event.sessionId

@@ -1,6 +1,16 @@
 package com.jahirtrap.cconnect.settings
 
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings as AndroidSettings
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -40,6 +50,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -63,7 +74,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.BatteryCharging
+import com.composables.icons.lucide.Bell
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Coffee
 import com.composables.icons.lucide.ExternalLink
@@ -113,6 +130,7 @@ import com.jahirtrap.cconnect.ui.ActionButton
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CenteredProgress
 import com.jahirtrap.cconnect.ui.ColorSwatch
+import com.jahirtrap.cconnect.ui.CompactSwitch
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
@@ -204,6 +222,12 @@ fun SettingsScreen(
     }
 
     var dialog by remember { mutableStateOf<SettingsDialog?>(null) }
+    var notifyTaskDone by remember { mutableStateOf(settings.notifyTaskDone) }
+    var notifyInteraction by remember { mutableStateOf(settings.notifyInteraction) }
+    var notificationsEnabled by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
+    var ignoringBattery by remember {
+        mutableStateOf((context.getSystemService(Context.POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(context.packageName))
+    }
 
     val scrollState = rememberScrollState()
     var aboutY by remember { mutableStateOf<Float?>(null) }
@@ -259,6 +283,48 @@ fun SettingsScreen(
                         else accentNameAt(accentIndex),
                         trailing = { AccentDot(if (dynamicColor) MaterialTheme.colorScheme.primary else accentAt(accentIndex)) },
                     ) { dialog = SettingsDialog.Accent }
+                }
+                SettingsGroup(stringResource(R.string.background_group)) {
+                    val power = remember { context.getSystemService(Context.POWER_SERVICE) as PowerManager }
+                    val lifecycleOwner = LocalLifecycleOwner.current
+                    DisposableEffect(lifecycleOwner) {
+                        val observer = LifecycleEventObserver { _, event ->
+                            if (event == Lifecycle.Event.ON_RESUME) {
+                                notificationsEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
+                                ignoringBattery = power.isIgnoringBatteryOptimizations(context.packageName)
+                            }
+                        }
+                        lifecycleOwner.lifecycle.addObserver(observer)
+                        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+                    }
+                    val activeCount = listOf(notifyInteraction, notifyTaskDone).count { it }
+                    PreferenceRow(
+                        Lucide.Bell,
+                        stringResource(R.string.notifications),
+                        if (notificationsEnabled) stringResource(R.string.notifications_state, activeCount)
+                        else stringResource(R.string.notifications_disabled),
+                    ) { dialog = SettingsDialog.Notifications }
+                    fun toggleBatteryOptimization() {
+                        runCatching {
+                            context.startActivity(
+                                if (!ignoringBattery) Intent(
+                                    AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                                    Uri.parse("package:${context.packageName}"),
+                                )
+                                else Intent(
+                                    AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.parse("package:${context.packageName}"),
+                                )
+                            )
+                        }
+                    }
+                    PreferenceRow(
+                        Lucide.BatteryCharging,
+                        stringResource(R.string.battery_optimization),
+                        stringResource(R.string.battery_optimization_summary),
+                        trailing = { CompactSwitch(ignoringBattery) { toggleBatteryOptimization() } },
+                        onClick = ::toggleBatteryOptimization,
+                    )
                 }
                 SettingsGroup(stringResource(R.string.settings_connectivity)) {
                     PreferenceRow(
@@ -409,38 +475,14 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
                             )
                         }
-                        var profile by remember { mutableStateOf<GitHubApi.Profile?>(null) }
-                        LaunchedEffect(Unit) { profile = GitHubApi.ownerProfile(context) }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(enabled = profile != null) { profile?.let { uriHandler.openUri(it.url) } }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            val avatar = profile?.avatarUrl
-                            if (avatar != null) {
-                                AsyncImage(
-                                    model = avatar,
-                                    imageLoader = AppImageLoader.get(context),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(32.dp).clip(CircleShape),
-                                )
-                            } else {
-                                Box(Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant))
-                            }
-                            Spacer(Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(profile?.let { it.name ?: it.login } ?: "…", style = MaterialTheme.typography.bodyLarge)
-                                Text(
-                                    stringResource(R.string.creator),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            ExternalIndicator()
+                        var ownerProfile by remember { mutableStateOf<GitHubApi.Profile?>(null) }
+                        var contributorProfile by remember { mutableStateOf<GitHubApi.Profile?>(null) }
+                        LaunchedEffect(Unit) {
+                            ownerProfile = GitHubApi.ownerProfile(context)
+                            contributorProfile = GitHubApi.contributorProfile(context)
                         }
+                        ProfileRow(ownerProfile, stringResource(R.string.creator)) { uriHandler.openUri(it) }
+                        ProfileRow(contributorProfile, stringResource(R.string.contributor)) { uriHandler.openUri(it) }
                         PreferenceRow(
                             Lucide.Coffee,
                             stringResource(R.string.support_creator),
@@ -460,6 +502,72 @@ fun SettingsScreen(
     }
 
     when (dialog) {
+        SettingsDialog.Notifications -> {
+            val activity = LocalActivity.current
+            val couldAsk = remember { mutableStateOf(false) }
+            val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                notificationsEnabled = granted
+                val canAskAgain = activity?.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) == true
+                if (!granted && !canAskAgain && !couldAsk.value) runCatching {
+                    context.startActivity(
+                        Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra(AndroidSettings.EXTRA_APP_PACKAGE, context.packageName)
+                    )
+                }
+            }
+            CompactDialog(
+                onDismiss = { dialog = null },
+                title = stringResource(R.string.notifications),
+                contentPadding = PaddingValues(0.dp),
+                buttons = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.close)) } },
+            ) {
+                if (!notificationsEnabled) {
+                    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        Text(
+                            stringResource(R.string.notifications_disabled_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        ActionButton(
+                            text = stringResource(R.string.enable_notifications),
+                            onClick = {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    couldAsk.value = activity?.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) == true
+                                    permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                } else runCatching {
+                                    context.startActivity(
+                                        Intent(AndroidSettings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                            .putExtra(AndroidSettings.EXTRA_APP_PACKAGE, context.packageName)
+                                    )
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(12.dp))
+                    }
+                }
+                SwitchRow(
+                    title = stringResource(R.string.notify_interaction),
+                    summary = stringResource(R.string.notify_interaction_summary),
+                    checked = notifyInteraction,
+                    enabled = notificationsEnabled,
+                ) {
+                    notifyInteraction = it
+                    settings.notifyInteraction = it
+                }
+                SwitchRow(
+                    title = stringResource(R.string.notify_task_done),
+                    summary = stringResource(R.string.notify_task_done_summary),
+                    checked = notifyTaskDone,
+                    enabled = notificationsEnabled,
+                ) {
+                    notifyTaskDone = it
+                    settings.notifyTaskDone = it
+                }
+            }
+        }
+
         SettingsDialog.Theme -> SelectDialog(
             title = stringResource(R.string.theme),
             options = THEME_MODES.map { it to themeLabel(it) },
@@ -564,7 +672,7 @@ fun SettingsScreen(
     }
 }
 
-private enum class SettingsDialog { Theme, Language, Accent, Environments, Cli, Generation, Permissions, Visibility, Reset }
+private enum class SettingsDialog { Theme, Language, Accent, Environments, Cli, Generation, Permissions, Visibility, Notifications, Reset }
 
 @Composable
 private fun permissionLabel(caps: Capabilities, mode: String): String =
@@ -586,6 +694,8 @@ fun SettingsGroup(
                     label,
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
                 labelTrailing?.invoke()
@@ -625,7 +735,7 @@ fun PreferenceRow(
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary.copy(alpha = alpha), modifier = Modifier.size(24.dp))
         Spacer(Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha))
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha), maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (summary != null) {
                 Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -637,6 +747,72 @@ fun PreferenceRow(
             Spacer(Modifier.width(12.dp))
             trailing()
         }
+    }
+}
+
+@Composable
+private fun SwitchRow(
+    title: String,
+    summary: String,
+    checked: Boolean,
+    enabled: Boolean,
+    onChange: (Boolean) -> Unit,
+) {
+    val alpha = if (enabled) 1f else 0.38f
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(enabled = enabled) { onChange(!checked) }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
+            )
+            Text(
+                summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        CompactSwitch(checked, enabled = enabled, onCheckedChange = onChange)
+    }
+}
+
+@Composable
+private fun ProfileRow(profile: GitHubApi.Profile?, role: String, onOpen: (String) -> Unit) {
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = profile != null) { profile?.let { onOpen(it.url) } }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val avatar = profile?.avatarUrl
+        if (avatar != null) {
+            AsyncImage(
+                model = avatar,
+                imageLoader = AppImageLoader.get(context),
+                contentDescription = null,
+                modifier = Modifier.size(32.dp).clip(CircleShape),
+            )
+        } else {
+            Box(Modifier.size(32.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant))
+        }
+        Spacer(Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(profile?.let { it.name ?: it.login } ?: "…", style = MaterialTheme.typography.bodyLarge)
+            Text(role, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(12.dp))
+        ExternalIndicator()
     }
 }
 

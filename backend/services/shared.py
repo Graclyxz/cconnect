@@ -1,6 +1,7 @@
 """File serving from the shared drop folder (PC <-> phone), with subfolders."""
 
 import shutil
+import zipfile
 from pathlib import Path
 from typing import Optional
 
@@ -164,3 +165,58 @@ def delete_entry(relpath: str) -> bool:
         path.unlink()
         return True
     return False
+
+
+def zip_entries(relpaths: list[str]) -> Optional[str]:
+    sources = [p for p in (_resolve(rel) for rel in relpaths) if p.exists() and p != _base().resolve()]
+    if not sources:
+        return None
+    parent = sources[0].parent
+    base_name = sources[0].stem if len(sources) == 1 else parent.name or "shared"
+    target = _dedup_target(parent, f"{base_name}.zip")
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
+        for src in sources:
+            if src.is_dir():
+                for child in sorted(src.rglob("*")):
+                    if child.is_file():
+                        archive.write(child, child.relative_to(src.parent))
+            else:
+                archive.write(src, src.name)
+    return str(target.relative_to(_base().resolve())).replace("\\", "/")
+
+
+def unzip_entry(relpath: str) -> Optional[str]:
+    src = _resolve(relpath)
+    if not src.is_file() or not zipfile.is_zipfile(src):
+        return None
+    dest = _dedup_target(src.parent, src.stem)
+    dest.mkdir(parents=True)
+    with zipfile.ZipFile(src) as archive:
+        for member in archive.infolist():
+            extracted = (dest / member.filename).resolve()
+            if not extracted.is_relative_to(dest.resolve()):
+                continue
+            archive.extract(member, dest)
+    return str(dest.relative_to(_base().resolve())).replace("\\", "/")
+
+
+def search_entries(relpath: str, query: str, limit: int = 200) -> list[dict]:
+    base = _resolve(relpath)
+    needle = query.strip().lower()
+    if not base.is_dir() or not needle:
+        return []
+    results = []
+    for child in sorted(base.rglob("*")):
+        if needle not in child.name.lower():
+            continue
+        stat = child.stat()
+        results.append({
+            "name": str(child.relative_to(base)).replace("\\", "/"),
+            "is_dir": child.is_dir(),
+            "size": 0 if child.is_dir() else stat.st_size,
+            "modified": stat.st_mtime,
+            "items": _count_children(child) if child.is_dir() else 0,
+        })
+        if len(results) >= limit:
+            break
+    return results

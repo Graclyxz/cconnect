@@ -82,6 +82,36 @@ def copy_shared(body: TransferBody):
     return api_response(data={"count": count})
 
 
+@router.get("/shared-search")
+def search_shared(q: str, path: str = ""):
+    try:
+        return api_response(data=shared_service.search_entries(path, q))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/shared/zip")
+def zip_shared(body: PathsBody):
+    try:
+        rel = shared_service.zip_entries(body.paths)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if rel is None:
+        raise HTTPException(status_code=400, detail="nothing to compress")
+    return api_response(data={"path": rel})
+
+
+@router.post("/shared/unzip")
+def unzip_shared(body: FolderBody):
+    try:
+        rel = shared_service.unzip_entry(body.path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if rel is None:
+        raise HTTPException(status_code=400, detail="not a zip archive")
+    return api_response(data={"path": rel})
+
+
 @router.put("/shared/{path:path}")
 async def upload_shared(path: str, request: Request):
     try:

@@ -22,6 +22,7 @@ import java.io.File
 
 object GitHubApi {
     private const val OWNER = "jahirxtrap"
+    private const val CONTRIBUTOR = "DiegoFernandoLojanTenesaca"
     private const val REPO = "cconnect"
     const val REPO_URL = "https://github.com/$OWNER/$REPO"
     const val RELEASES_URL = "$REPO_URL/releases"
@@ -137,26 +138,31 @@ object GitHubApi {
         }.getOrNull()
     }
 
-    suspend fun ownerProfile(context: Context): Profile? {
-        val file = File(context.filesDir, "github_profile.json")
-        readCache(file)?.jsonObject?.let(::profileOf)?.let { return it }
-        val o = fetch("https://api.github.com/users/$OWNER")?.jsonObject ?: return null
-        val profile = profileOf(o) ?: return null
+    suspend fun ownerProfile(context: Context): Profile? = profile(context, OWNER, "github_profile.json")
+
+    suspend fun contributorProfile(context: Context): Profile? =
+        profile(context, CONTRIBUTOR, "github_profile_contributor.json")
+
+    private suspend fun profile(context: Context, login: String, cacheName: String): Profile? {
+        val file = File(context.filesDir, cacheName)
+        readCache(file)?.jsonObject?.let { profileOf(it, login) }?.let { return it }
+        val o = fetch("https://api.github.com/users/$login")?.jsonObject ?: return null
+        val result = profileOf(o, login) ?: return null
         writeCache(file, buildJsonObject {
-            put("login", profile.login)
-            profile.name?.let { put("name", it) }
-            put("avatar_url", profile.avatarUrl)
-            put("html_url", profile.url)
+            put("login", result.login)
+            result.name?.let { put("name", it) }
+            put("avatar_url", result.avatarUrl)
+            put("html_url", result.url)
         })
-        return profile
+        return result
     }
 
-    private fun profileOf(o: JsonObject): Profile? {
+    private fun profileOf(o: JsonObject, login: String): Profile? {
         return Profile(
-            login = o["login"]?.jsonPrimitive?.contentOrNull ?: OWNER,
+            login = o["login"]?.jsonPrimitive?.contentOrNull ?: login,
             name = o["name"]?.jsonPrimitive?.contentOrNull,
             avatarUrl = o["avatar_url"]?.jsonPrimitive?.contentOrNull ?: return null,
-            url = o["html_url"]?.jsonPrimitive?.contentOrNull ?: "https://github.com/$OWNER",
+            url = o["html_url"]?.jsonPrimitive?.contentOrNull ?: "https://github.com/$login",
         )
     }
 }

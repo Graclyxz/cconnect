@@ -10,11 +10,12 @@ still-pending permission prompt re-emitted.
 import asyncio
 import json
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from loguru import logger
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from core.config import DEFAULT_CWD, permission_modes
+from core.responses import api_response
 from middleware.public_auth import ws_bearer_ok
 from schemas.chat import PromptMessage, SetPermissionMessage, StartMessage
 from services import rewind as rewind_service
@@ -24,6 +25,22 @@ from services.claude_runtime import run_prompt
 from services.live_sessions import registry
 
 router = APIRouter(tags=["Chat"])
+
+
+class InteractionAnswer(BaseModel):
+    id: str
+    option_id: str | None = None
+    free_text: str | None = None
+
+
+@router.post("/chat/interaction")
+async def answer_interaction(body: InteractionAnswer):
+    payload = {"option_id": body.option_id, "free_text": body.free_text, "answers": None, "chat": None}
+    session = registry.resolve_interaction(body.id, payload)
+    if session is None:
+        raise HTTPException(status_code=404, detail="interaction not pending")
+    await session.announce_resolved(body.id, body.option_id)
+    return api_response()
 
 
 def _resolve_model(model: str | None) -> str | None:

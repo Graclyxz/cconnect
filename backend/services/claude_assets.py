@@ -5,6 +5,8 @@ import json
 import re
 from pathlib import Path
 
+from services import claude_manage
+
 _CLAUDE_DIR = Path.home() / ".claude"
 _USER_PROMPT = Path(__file__).resolve().parent.parent / "prompts" / "USER.md"
 
@@ -257,11 +259,17 @@ def delete_memory(scope: str, project_key: str, name: str) -> bool:
 def list_mcp_servers() -> list[dict]:
     servers = _read_json(Path.home() / ".claude.json").get("mcpServers", {})
     items = []
-    for name, cfg in servers.items():
-        if not isinstance(cfg, dict):
-            continue
+
+    def entry(name, cfg, enabled):
         kind = cfg.get("type") or ("http" if cfg.get("url") else "stdio")
         detail = cfg.get("url") or " ".join([cfg.get("command", ""), *cfg.get("args", [])]).strip()
-        items.append({"name": name, "type": kind, "detail": detail or None})
+        return {"name": name, "type": kind, "detail": detail or None, "enabled": enabled}
+
+    for name, cfg in servers.items():
+        if isinstance(cfg, dict):
+            items.append(entry(name, cfg, True))
+    for name, cfg in claude_manage.disabled_mcp_servers().items():
+        if isinstance(cfg, dict) and not any(i["name"] == name for i in items):
+            items.append(entry(name, cfg, False))
     items.sort(key=lambda s: s["name"])
     return items

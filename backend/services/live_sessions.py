@@ -102,6 +102,9 @@ class LiveSession:
         entry["future"].set_result(response)
         return True
 
+    async def announce_resolved(self, rid, option_id):
+        await self._emit({"type": "interaction_resolved", "id": rid, "option_id": option_id})
+
     def start(self, runner_factory):
         if self.running:
             return False
@@ -162,6 +165,12 @@ class SessionRegistry:
             return None
         for session in self._sessions.values():
             if session.state.session_id == session_id:
+                return session
+        return None
+
+    def resolve_interaction(self, rid, response):
+        for session in self._sessions.values():
+            if session.resolve(rid, response):
                 return session
         return None
 

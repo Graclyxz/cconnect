@@ -47,6 +47,18 @@ object SharedApi {
 
     suspend fun delete(path: String): Boolean = Http.delete("/shared/${encode(path)}") != null
 
+    suspend fun search(path: String, query: String): List<SharedEntry>? =
+        Http.get("/shared-search", mapOf("q" to query, "path" to path))?.jsonArray?.map { el ->
+            val o = el.jsonObject
+            SharedEntry(
+                name = o["name"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                isDir = o["is_dir"]?.jsonPrimitive?.booleanOrNull ?: false,
+                size = o["size"]?.jsonPrimitive?.longOrNull ?: 0L,
+                modified = o["modified"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+                items = o["items"]?.jsonPrimitive?.intOrNull ?: 0,
+            )
+        }
+
     suspend fun mkdir(path: String): Boolean =
         Http.post("/shared/folder", buildJsonObject { put("path", path) }) != null
 
@@ -67,6 +79,12 @@ object SharedApi {
         putJsonArray("paths") { paths.forEach { add(it) } }
         put("dest", dest)
     }
+
+    suspend fun zip(paths: List<String>): Boolean =
+        Http.post("/shared/zip", buildJsonObject { putJsonArray("paths") { paths.forEach { add(it) } } }) != null
+
+    suspend fun unzip(path: String): Boolean =
+        Http.post("/shared/unzip", buildJsonObject { put("path", path) }) != null
 
     suspend fun upload(
         path: String,

@@ -34,7 +34,7 @@ object ClaudeApi {
         val enabled: Boolean,
     )
 
-    data class McpServer(val name: String, val type: String?, val detail: String?)
+    data class McpServer(val name: String, val type: String?, val detail: String?, val enabled: Boolean = true)
 
     data class Extensions(val plugins: List<Plugin>, val marketplaces: List<Marketplace>)
 
@@ -122,8 +122,13 @@ object ClaudeApi {
             name = o["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
             type = o["type"]?.jsonPrimitive?.contentOrNull,
             detail = o["detail"]?.jsonPrimitive?.contentOrNull,
+            enabled = o["enabled"]?.jsonPrimitive?.booleanOrNull ?: true,
         )
     }
+
+    suspend fun mcpToggle(name: String, enabled: Boolean): ActionResult = actionResult(
+        Http.post("/claude/mcp/toggle", buildJsonObject { put("name", name); put("enabled", enabled) })
+    )
 
     private fun actionResult(data: JsonElement?): ActionResult {
         val o = data?.jsonObject ?: return ActionResult(false, "")
