@@ -1,4 +1,7 @@
-- Added file sorting in Files — order by name, date, type or size with an ascending/descending toggle; the choice sticks, folders always lead, and it defaults to most-recent first
-- Added Claude Fable 5 to the model picker — the new top-tier model, with its 1M-context variant
-- Changed SSH sessions to survive the screen turning off — a keepalive and a Wi-Fi lock keep the connection from dropping on suspend
-- Fixed the Monitor reporting Windows 11 machines as Windows 10
+- Added background notifications — permission prompts, questions and finished tasks notify you while the app is in the background, and tapping one opens the chat
+- Added quick actions on permission notifications — Allow, Allow always or Deny right from the notification, without opening the app
+- Added search in Files — find files by name across subfolders, with results you can open, preview and select like any listing
+- Added zip support in Files — compress a selection or extract a .zip from the selection menu
+- Added an enable/disable switch for MCP servers — turning one off keeps its configuration for when it comes back
+- Added a formatted view toggle when previewing Markdown files — switch between rendered and plain text, and the choice sticks
+- Added a Background settings group — choose which notifications you get and disable battery optimizations for reliable delivery
