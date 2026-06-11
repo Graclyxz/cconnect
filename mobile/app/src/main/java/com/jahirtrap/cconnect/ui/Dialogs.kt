@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Download
 import com.composables.icons.lucide.Eye
+import com.composables.icons.lucide.FolderArchive
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Save
 import com.composables.icons.lucide.Share2
@@ -283,6 +284,7 @@ fun SharedLinkActionsDialog(
     onShare: () -> Unit,
     onDismiss: () -> Unit,
     onView: (() -> Unit)? = null,
+    onOpenInFiles: (() -> Unit)? = null,
 ) {
     CompactDialog(
         onDismiss = onDismiss,
@@ -291,6 +293,7 @@ fun SharedLinkActionsDialog(
         buttons = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     ) {
         if (onView != null) DialogActionItem(stringResource(R.string.view), Lucide.Eye) { onDismiss(); onView() }
+        if (onOpenInFiles != null) DialogActionItem(stringResource(R.string.open_in_files), Lucide.FolderArchive) { onDismiss(); onOpenInFiles() }
         DialogActionItem(stringResource(R.string.save), Lucide.Download) { onDismiss(); onSave() }
         DialogActionItem(stringResource(R.string.save_as), Lucide.Save) { onDismiss(); onSaveAs() }
         DialogActionItem(stringResource(R.string.share), Lucide.Share2) { onDismiss(); onShare() }

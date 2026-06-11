@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.data.remote.SharedApi
 import com.jahirtrap.cconnect.files.PreviewKind
+import com.jahirtrap.cconnect.files.isArchive
 import com.jahirtrap.cconnect.files.previewKindOf
 import com.jahirtrap.cconnect.ui.AttachmentChip
 import com.composables.icons.lucide.Archive
@@ -68,7 +69,9 @@ import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.CircleQuestionMark
 import com.composables.icons.lucide.CornerDownRight
+import com.composables.icons.lucide.File
 import com.composables.icons.lucide.FilePen
+import com.composables.icons.lucide.FolderArchive
 import com.composables.icons.lucide.Bot
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Lightbulb
@@ -176,7 +179,11 @@ fun ChatMessageItem(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             content.attachments.forEach { (url, name) ->
-                                AttachmentChip(name = name, onClick = { onSharedLink?.invoke(url, name) })
+                                AttachmentChip(
+                                    name = name,
+                                    icon = if (isArchive(name)) Lucide.FolderArchive else Lucide.File,
+                                    onClick = { onSharedLink?.invoke(url, name) },
+                                )
                             }
                         }
                     }

@@ -1,7 +1,9 @@
 """Browse, download, upload and manage files in the backend's shared/ folder from the mobile app."""
 
+from urllib.parse import quote
+
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from core.responses import api_response
@@ -90,10 +92,29 @@ def search_shared(q: str, path: str = ""):
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@router.post("/shared/zip")
-def zip_shared(body: PathsBody):
+class CompressBody(BaseModel):
+    paths: list[str]
+    format: str = "zip"
+    name: str | None = None
+
+
+class ExtractBody(BaseModel):
+    path: str
+    dest: str | None = None
+    into_folder: bool = True
+    members: list[str] | None = None
+    base: str = ""
+
+
+@router.get("/shared-capabilities")
+def shared_capabilities():
+    return api_response(data=shared_service.capabilities())
+
+
+@router.post("/shared/compress")
+def compress_shared(body: CompressBody):
     try:
-        rel = shared_service.zip_entries(body.paths)
+        rel = shared_service.compress_entries(body.paths, body.format, body.name)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     if rel is None:
@@ -101,15 +122,38 @@ def zip_shared(body: PathsBody):
     return api_response(data={"path": rel})
 
 
-@router.post("/shared/unzip")
-def unzip_shared(body: FolderBody):
+@router.post("/shared/extract")
+def extract_shared(body: ExtractBody):
     try:
-        rel = shared_service.unzip_entry(body.path)
+        rel = shared_service.extract_entry(body.path, body.dest, body.into_folder, body.members, body.base)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     if rel is None:
-        raise HTTPException(status_code=400, detail="not a zip archive")
+        raise HTTPException(status_code=400, detail="not a supported archive")
     return api_response(data={"path": rel})
+
+
+@router.get("/shared-archive")
+def list_archive(path: str, inner: str = ""):
+    try:
+        return api_response(data=shared_service.archive_entries(path, inner))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/shared-archive-file")
+def archive_file(path: str, inner: str):
+    try:
+        result = shared_service.archive_member_stream(path, inner)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if result is None:
+        raise HTTPException(status_code=404, detail="member not found")
+    chunks, filename, size = result
+    headers = {"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
+    if size:
+        headers["Content-Length"] = str(size)
+    return StreamingResponse(chunks, headers=headers, media_type="application/octet-stream")
 
 
 @router.put("/shared/{path:path}")

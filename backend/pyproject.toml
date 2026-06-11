@@ -21,6 +21,8 @@ dependencies = [
     "pillow>=10.0.0",
     "psutil>=5.9.0",
     "nvidia-ml-py>=12.0.0",
+    "py7zr>=1.0.0",
+    "rarfile>=4.2",
 ]
 
 [project.optional-dependencies]

@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.File
@@ -25,6 +26,7 @@ import com.composables.icons.lucide.Lucide
 fun AttachmentChip(
     name: String,
     modifier: Modifier = Modifier,
+    icon: ImageVector = Lucide.File,
     onClick: (() -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
@@ -38,7 +40,7 @@ fun AttachmentChip(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            Lucide.File,
+            icon,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(16.dp),

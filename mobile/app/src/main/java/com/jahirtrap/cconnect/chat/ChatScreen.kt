@@ -65,7 +65,9 @@ import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.CircleDot
 import com.composables.icons.lucide.EllipsisVertical
 import com.composables.icons.lucide.Eraser
+import com.composables.icons.lucide.File
 import com.composables.icons.lucide.Folder
+import com.composables.icons.lucide.FolderArchive
 import com.composables.icons.lucide.FolderOpen
 import com.composables.icons.lucide.Gauge
 import com.composables.icons.lucide.Lucide
@@ -174,6 +176,7 @@ import com.jahirtrap.cconnect.data.pending
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.TodoItem
 import com.jahirtrap.cconnect.files.FileTransfer
+import com.jahirtrap.cconnect.files.isArchive
 import com.jahirtrap.cconnect.files.isPreviewable
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
@@ -206,7 +209,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ChatScreen(
     onOpenSettings: (highlight: String?) -> Unit,
-    onOpenExplorer: () -> Unit,
+    onOpenExplorer: (archive: String?) -> Unit,
     onOpenClaude: () -> Unit,
     onOpenMonitor: () -> Unit,
     onOpenTerminal: () -> Unit,
@@ -374,7 +377,7 @@ fun ChatScreen(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TooltipIconButton(label = stringResource(R.string.files), onClick = onOpenExplorer) {
+                        TooltipIconButton(label = stringResource(R.string.files), onClick = { onOpenExplorer(null) }) {
                             Icon(Lucide.Folder, contentDescription = null)
                         }
                         TooltipIconButton(label = stringResource(R.string.claude), onClick = onOpenClaude) {
@@ -723,6 +726,7 @@ fun ChatScreen(
     }
     sharedLinkAction?.let { (url, filename) ->
         val viewable = isPreviewable(filename)
+        val archiveRel = SharedApi.relativeFromUrl(url).takeIf { isArchive(filename) }
         SharedLinkActionsDialog(
             filename = filename,
             onView = if (viewable) ({
@@ -730,6 +734,7 @@ fun ChatScreen(
                     { scope.launch { SharedApi.delete(rel) } }
                 })
             }) else null,
+            onOpenInFiles = archiveRel?.let { rel -> { onOpenExplorer(rel) } },
             onSave = { FileTransfer.enqueueToDownloads(context, url, filename) },
             onSaveAs = { pendingSaveAsUrl = url; saveAsLauncher.launch(filename) },
             onShare = {
@@ -1489,6 +1494,7 @@ private fun AttachmentsRow(
         attachments.forEach { attachment ->
             AttachmentChip(
                 name = attachment.name,
+                icon = if (isArchive(attachment.name)) Lucide.FolderArchive else Lucide.File,
                 trailing = {
                     if (uploading) {
                         CircularProgressIndicator(

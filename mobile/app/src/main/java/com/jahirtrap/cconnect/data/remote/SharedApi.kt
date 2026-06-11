@@ -13,6 +13,7 @@ import okhttp3.RequestBody
 import okio.BufferedSink
 import com.jahirtrap.cconnect.data.SharedEntry
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
@@ -33,31 +34,30 @@ object SharedApi {
 
     suspend fun list(path: String = ""): List<SharedEntry>? {
         val query = if (path.isEmpty()) emptyMap() else mapOf("path" to path)
-        return Http.get("/shared", query)?.jsonArray?.map { el ->
-            val o = el.jsonObject
-            SharedEntry(
-                name = o["name"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                isDir = o["is_dir"]?.jsonPrimitive?.booleanOrNull ?: false,
-                size = o["size"]?.jsonPrimitive?.longOrNull ?: 0L,
-                modified = o["modified"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
-                items = o["items"]?.jsonPrimitive?.intOrNull ?: 0,
-            )
-        }
+        return Http.get("/shared", query)?.jsonArray?.map(::parseEntry)
     }
 
     suspend fun delete(path: String): Boolean = Http.delete("/shared/${encode(path)}") != null
 
     suspend fun search(path: String, query: String): List<SharedEntry>? =
-        Http.get("/shared-search", mapOf("q" to query, "path" to path))?.jsonArray?.map { el ->
-            val o = el.jsonObject
-            SharedEntry(
-                name = o["name"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                isDir = o["is_dir"]?.jsonPrimitive?.booleanOrNull ?: false,
-                size = o["size"]?.jsonPrimitive?.longOrNull ?: 0L,
-                modified = o["modified"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
-                items = o["items"]?.jsonPrimitive?.intOrNull ?: 0,
-            )
-        }
+        Http.get("/shared-search", mapOf("q" to query, "path" to path))?.jsonArray?.map(::parseEntry)
+
+    suspend fun archiveList(path: String, inner: String = ""): List<SharedEntry>? =
+        Http.get("/shared-archive", mapOf("path" to path, "inner" to inner))?.jsonArray?.map(::parseEntry)
+
+    fun archiveFileUrl(path: String, inner: String): String =
+        "${Backend.baseUrl}/shared-archive-file?path=${Uri.encode(path)}&inner=${Uri.encode(inner)}"
+
+    private fun parseEntry(el: JsonElement): SharedEntry {
+        val o = el.jsonObject
+        return SharedEntry(
+            name = o["name"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+            isDir = o["is_dir"]?.jsonPrimitive?.booleanOrNull ?: false,
+            size = o["size"]?.jsonPrimitive?.longOrNull ?: 0L,
+            modified = o["modified"]?.jsonPrimitive?.doubleOrNull ?: 0.0,
+            items = o["items"]?.jsonPrimitive?.intOrNull ?: 0,
+        )
+    }
 
     suspend fun mkdir(path: String): Boolean =
         Http.post("/shared/folder", buildJsonObject { put("path", path) }) != null
@@ -80,11 +80,30 @@ object SharedApi {
         put("dest", dest)
     }
 
-    suspend fun zip(paths: List<String>): Boolean =
-        Http.post("/shared/zip", buildJsonObject { putJsonArray("paths") { paths.forEach { add(it) } } }) != null
+    suspend fun compressFormats(): List<String>? =
+        Http.get("/shared-capabilities")?.jsonObject?.get("compress_formats")
+            ?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }
 
-    suspend fun unzip(path: String): Boolean =
-        Http.post("/shared/unzip", buildJsonObject { put("path", path) }) != null
+    suspend fun compress(paths: List<String>, format: String = "zip", name: String? = null): Boolean =
+        Http.post("/shared/compress", buildJsonObject {
+            putJsonArray("paths") { paths.forEach { add(it) } }
+            put("format", format)
+            if (name != null) put("name", name)
+        }) != null
+
+    suspend fun extract(
+        path: String,
+        dest: String? = null,
+        intoFolder: Boolean = true,
+        members: List<String>? = null,
+        base: String = "",
+    ): Boolean = Http.post("/shared/extract", buildJsonObject {
+        put("path", path)
+        if (dest != null) put("dest", dest)
+        put("into_folder", intoFolder)
+        if (members != null) putJsonArray("members") { members.forEach { add(it) } }
+        if (base.isNotEmpty()) put("base", base)
+    }) != null
 
     suspend fun upload(
         path: String,

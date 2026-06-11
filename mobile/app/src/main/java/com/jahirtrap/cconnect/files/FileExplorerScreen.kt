@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -56,6 +57,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -127,8 +129,12 @@ import com.jahirtrap.cconnect.data.remote.SharedApi
 import com.jahirtrap.cconnect.ui.AbovePopupMenu
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CenteredProgress
+import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.ConfirmDialog
+import com.jahirtrap.cconnect.ui.DialogActionItem
+import com.jahirtrap.cconnect.ui.InputField
+import com.jahirtrap.cconnect.ui.SelectField
 import com.jahirtrap.cconnect.ui.EmptyState
 import com.jahirtrap.cconnect.ui.EnvironmentSelectDialog
 import com.jahirtrap.cconnect.ui.ListRow
@@ -143,12 +149,33 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+private enum class TransferKind { Move, Copy, Extract }
+
 private data class TransferOp(
-    val move: Boolean,
+    val kind: TransferKind,
     val paths: List<String>,
     val sourceDir: String,
     val folders: List<String>,
+    val members: List<String>? = null,
+    val base: String = "",
 )
+
+private data class ExtractRequest(
+    val archive: String,
+    val members: List<String>?,
+    val base: String,
+    val stem: String,
+)
+
+private val ARCHIVE_SUFFIXES = listOf(".zip", ".7z", ".rar", ".tar", ".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz")
+
+fun isArchive(name: String): Boolean = ARCHIVE_SUFFIXES.any { name.lowercase().endsWith(it) }
+
+private fun archiveStem(name: String): String {
+    val low = name.lowercase()
+    val suffix = ARCHIVE_SUFFIXES.sortedByDescending { it.length }.firstOrNull { low.endsWith(it) } ?: return name
+    return name.dropLast(suffix.length)
+}
 
 private enum class SortField(val key: String, val label: Int) {
     Name("name", R.string.sort_name),
@@ -169,13 +196,16 @@ private fun sortEntries(entries: List<SharedEntry>, field: SortField, ascending:
         SortField.Size -> compareBy { if (it.isDir) it.items.toLong() else it.size }
     }
     val directed = if (ascending) comparator else comparator.reversed()
-    // folders always lead, regardless of direction
     return entries.sortedWith(compareByDescending<SharedEntry> { it.isDir }.then(directed))
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: String, onDelete: (() -> Unit)?) -> Unit) {
+fun FileExplorerScreen(
+    onClose: () -> Unit,
+    onOpenPreview: (url: String, filename: String, onDelete: (() -> Unit)?) -> Unit,
+    initialArchive: String? = null,
+) {
     val context = LocalContext.current
     val vm: ChatViewModel = viewModel()
     val state by vm.state.collectAsState()
@@ -184,7 +214,11 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
     val haptics = LocalHapticFeedback.current
     val clipboard = LocalClipboardManager.current
 
-    var path by remember { mutableStateOf("") }
+    var path by remember { mutableStateOf(initialArchive?.substringBeforeLast('/', "") ?: "") }
+    var archive by remember { mutableStateOf(initialArchive) }
+    var archiveDir by remember { mutableStateOf("") }
+    var extractRequest by remember { mutableStateOf<ExtractRequest?>(null) }
+    var compressing by remember { mutableStateOf<List<String>?>(null) }
     var entries by remember { mutableStateOf<List<SharedEntry>>(emptyList()) }
     var loaded by remember { mutableStateOf(false) }
     var refreshing by remember { mutableStateOf(false) }
@@ -236,6 +270,7 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
     }
 
     fun child(name: String) = if (path.isEmpty()) name else "$path/$name"
+    fun innerChild(name: String) = if (archiveDir.isEmpty()) name else "$archiveDir/$name"
 
     fun exitSelection() {
         selecting = false
@@ -244,14 +279,16 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
 
     fun reload() {
         scope.launch {
-            val result = runCatching { SharedApi.list(path) }.getOrNull()
-            failed = result == null
+            val result = runCatching {
+                archive?.let { SharedApi.archiveList(it, archiveDir) } ?: SharedApi.list(path)
+            }.getOrNull()
+            failed = result == null && archive == null
             entries = result ?: emptyList()
             loaded = true
             refreshing = false
         }
     }
-    LaunchedEffect(state.activeEnvironmentId, path) { exitSelection(); loaded = false; entries = emptyList(); reload() }
+    LaunchedEffect(state.activeEnvironmentId, path, archive, archiveDir) { exitSelection(); loaded = false; entries = emptyList(); reload() }
     LaunchedEffect(state.activeEnvironmentId) { transfer = null }
     LaunchedEffect(state.connection) { if (state.connection == ConnectionState.Connected) reload() }
     LaunchedEffect(path) {
@@ -265,7 +302,12 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
     }
 
     fun goUp() {
-        if (path.isEmpty()) onClose() else path = path.substringBeforeLast('/', "")
+        when {
+            archive != null && archiveDir.isNotEmpty() -> archiveDir = archiveDir.substringBeforeLast('/', "")
+            archive != null -> { archive = null; archiveDir = "" }
+            path.isEmpty() -> onClose()
+            else -> path = path.substringBeforeLast('/', "")
+        }
     }
     BackHandler(
         onBack = {
@@ -282,9 +324,9 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
     val canShare = selectedEntries.isNotEmpty() && selectedEntries.none { it.isDir }
     val allSelected = entries.isNotEmpty() && selected.size == entries.size
     val currentTransfer = transfer
-    val transferAllowed = currentTransfer != null &&
+    val transferAllowed = currentTransfer != null && archive == null &&
         currentTransfer.folders.none { path == it || path.startsWith("$it/") } &&
-        (!currentTransfer.move || path != currentTransfer.sourceDir)
+        (currentTransfer.kind != TransferKind.Move || path != currentTransfer.sourceDir)
 
     var shownCount by remember { mutableStateOf(0) }
     var shownSingle by remember { mutableStateOf<SharedEntry?>(null) }
@@ -332,7 +374,7 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                         },
                         actions = {
                             UploadIndicator()
-                            TooltipIconButton(
+                            if (archive == null) TooltipIconButton(
                                 label = stringResource(R.string.search),
                                 onClick = {
                                     searching = !searching
@@ -357,7 +399,7 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                                         leadingIcon = { Icon(Lucide.ArrowDownUp, contentDescription = null, modifier = Modifier.size(20.dp)) },
                                         onClick = { barMenu = false; sortMenu = true },
                                     )
-                                    CompactDropdownItem(
+                                    if (archive == null) CompactDropdownItem(
                                         text = stringResource(R.string.new_folder),
                                         leadingIcon = { Icon(Lucide.FolderPlus, contentDescription = null, modifier = Modifier.size(20.dp)) },
                                         onClick = { barMenu = false; creatingFolder = true },
@@ -402,13 +444,19 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                 ) {
                     shownTransfer?.let { op ->
                         TransferBar(
-                            move = op.move,
+                            kind = op.kind,
                             enabled = transferAllowed,
                             onCancel = { transfer = null },
                             onConfirm = {
                                 scope.launch {
-                                    if (op.move) SharedApi.move(op.paths, path)
-                                    else SharedApi.copy(op.paths, path)
+                                    when (op.kind) {
+                                        TransferKind.Move -> SharedApi.move(op.paths, path)
+                                        TransferKind.Copy -> SharedApi.copy(op.paths, path)
+                                        TransferKind.Extract -> SharedApi.extract(
+                                            op.paths.first(), dest = path, intoFolder = false,
+                                            members = op.members, base = op.base,
+                                        )
+                                    }
                                     transfer = null
                                     reload()
                                 }
@@ -417,7 +465,38 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                     }
                 }
                 AnimatedVisibility(
-                    visible = currentTransfer == null && selecting && selected.isNotEmpty() && !marking,
+                    visible = currentTransfer == null && selecting && selected.isNotEmpty() && !marking && archive != null,
+                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+                ) {
+                    val currentArchive = archive
+                    ArchiveSelectionToolbar(
+                        onExtract = {
+                            if (currentArchive != null) extractRequest = ExtractRequest(
+                                archive = currentArchive,
+                                members = shownSelection.map { innerChild(it.name) },
+                                base = archiveDir,
+                                stem = archiveStem(currentArchive.substringAfterLast('/')),
+                            )
+                        },
+                        onView = shownSingle?.takeIf { !it.isDir && isPreviewable(it.name) }?.let { entry ->
+                            {
+                                if (currentArchive != null) onOpenPreview(SharedApi.archiveFileUrl(currentArchive, innerChild(entry.name)), entry.name, null)
+                                exitSelection()
+                            }
+                        },
+                        onSave = shownSelection.takeIf { sel -> sel.isNotEmpty() && sel.none { it.isDir } }?.let { files ->
+                            {
+                                if (currentArchive != null) files.forEach {
+                                    FileTransfer.enqueueToDownloads(context, SharedApi.archiveFileUrl(currentArchive, innerChild(it.name)), it.name)
+                                }
+                                exitSelection()
+                            }
+                        },
+                    )
+                }
+                AnimatedVisibility(
+                    visible = currentTransfer == null && selecting && selected.isNotEmpty() && !marking && archive == null,
                     enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
                     exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
                 ) {
@@ -425,7 +504,7 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                         canShare = shownCanShare,
                     onMove = {
                         transfer = TransferOp(
-                            move = true,
+                            kind = TransferKind.Move,
                             paths = selectedEntries.map { child(it.name) },
                             sourceDir = path,
                             folders = selectedEntries.filter { it.isDir }.map { child(it.name) },
@@ -434,7 +513,7 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                     },
                     onCopy = {
                         transfer = TransferOp(
-                            move = false,
+                            kind = TransferKind.Copy,
                             paths = selectedEntries.map { child(it.name) },
                             sourceDir = path,
                             folders = selectedEntries.filter { it.isDir }.map { child(it.name) },
@@ -488,23 +567,18 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                             }
                         },
                         onCompress = shownSelection.takeIf { it.isNotEmpty() }?.let { sel ->
-                            {
-                                scope.launch {
-                                    SharedApi.zip(sel.map { child(it.name) })
-                                    exitSelection()
-                                    reload()
-                                }
-                            }
+                            { compressing = sel.map { child(it.name) } }
                         },
                         onExtract = shownSingle
-                            ?.takeIf { !it.isDir && it.name.endsWith(".zip", ignoreCase = true) }
+                            ?.takeIf { !it.isDir && isArchive(it.name) }
                             ?.let { entry ->
                                 {
-                                    scope.launch {
-                                        SharedApi.unzip(child(entry.name))
-                                        exitSelection()
-                                        reload()
-                                    }
+                                    extractRequest = ExtractRequest(
+                                        archive = child(entry.name),
+                                        members = null,
+                                        base = "",
+                                        stem = archiveStem(entry.name),
+                                    )
                                 }
                             },
                     )
@@ -513,7 +587,7 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
         },
         floatingActionButton = {
             AnimatedVisibility(
-                visible = !selecting && currentTransfer == null,
+                visible = !selecting && currentTransfer == null && archive == null,
                 enter = scaleIn() + fadeIn(),
                 exit = scaleOut() + fadeOut(),
             ) {
@@ -552,7 +626,17 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                     onClear = { searchQuery = "" },
                 )
             } else {
-                Breadcrumb(path = path, onNavigate = { path = it })
+                val displayPath = archive?.let { listOf(it, archiveDir).filter { s -> s.isNotEmpty() }.joinToString("/") } ?: path
+                Breadcrumb(path = displayPath, onNavigate = { target ->
+                    val current = archive
+                    if (current != null && (target == current || target.startsWith("$current/"))) {
+                        archiveDir = target.removePrefix(current).trim('/')
+                    } else {
+                        archive = null
+                        archiveDir = ""
+                        path = target
+                    }
+                })
             }
             PullToRefreshBox(
                 isRefreshing = refreshing,
@@ -565,7 +649,7 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                     state = listState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .pointerInput(Unit) {
+                        .pointerInput(ordered) {
                             var anchor = -1
                             var base = emptySet<String>()
                             detectDragGesturesAfterLongPress(
@@ -613,7 +697,24 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
                                         suppressClick == entry.name -> suppressClick = null
                                         selecting -> selected = if (isSelected) selected - entry.name else selected + entry.name
                                         entry.isDir -> {
-                                            path = child(entry.name)
+                                            if (archive != null) {
+                                                archiveDir = innerChild(entry.name)
+                                            } else {
+                                                path = child(entry.name)
+                                                searching = false
+                                                searchQuery = ""
+                                            }
+                                        }
+                                        archive != null -> {
+                                            if (isPreviewable(entry.name)) {
+                                                onOpenPreview(SharedApi.archiveFileUrl(archive!!, innerChild(entry.name)), entry.name, null)
+                                            } else if (currentTransfer == null) {
+                                                selecting = true; selected = setOf(entry.name)
+                                            }
+                                        }
+                                        isArchive(entry.name) -> {
+                                            archive = child(entry.name)
+                                            archiveDir = ""
                                             searching = false
                                             searchQuery = ""
                                         }
@@ -702,6 +803,59 @@ fun FileExplorerScreen(onClose: () -> Unit, onOpenPreview: (url: String, filenam
             },
             onDismiss = { creatingFolder = false },
         )
+    }
+
+    compressing?.let { paths ->
+        CompressDialog(
+            defaultName = if (paths.size == 1) archiveStem(paths.first().substringAfterLast('/'))
+            else path.substringAfterLast('/', "").ifEmpty { stringResource(R.string.files).lowercase() },
+            onConfirm = { name, format ->
+                compressing = null
+                scope.launch {
+                    SharedApi.compress(paths, format, name)
+                    exitSelection()
+                    reload()
+                }
+            },
+            onDismiss = { compressing = null },
+        )
+    }
+
+    extractRequest?.let { request ->
+        CompactDialog(
+            onDismiss = { extractRequest = null },
+            title = stringResource(R.string.extract),
+            contentPadding = PaddingValues(0.dp),
+            buttons = { TextButton(onClick = { extractRequest = null }) { Text(stringResource(R.string.cancel)) } },
+        ) {
+            fun run(intoFolder: Boolean) {
+                extractRequest = null
+                scope.launch {
+                    SharedApi.extract(request.archive, intoFolder = intoFolder, members = request.members, base = request.base)
+                    exitSelection()
+                    if (archive != null) { archive = null; archiveDir = "" } else reload()
+                }
+            }
+            DialogActionItem(stringResource(R.string.extract_to_folder, request.stem), Lucide.Folder) { run(intoFolder = true) }
+            DialogActionItem(stringResource(R.string.extract_here), Lucide.PackageOpen) { run(intoFolder = false) }
+            DialogActionItem(stringResource(R.string.extract_to), Lucide.FolderInput) {
+                extractRequest = null
+                transfer = TransferOp(
+                    kind = TransferKind.Extract,
+                    paths = listOf(request.archive),
+                    sourceDir = path,
+                    folders = emptyList(),
+                    members = request.members,
+                    base = request.base,
+                )
+                if (archive != null) {
+                    path = request.archive.substringBeforeLast('/', "")
+                    archive = null
+                    archiveDir = ""
+                }
+                exitSelection()
+            }
+        }
     }
 }
 
@@ -821,7 +975,11 @@ private fun EntryRow(
     val detail = if (entry.isDir) pluralStringResource(R.plurals.item_count, entry.items, entry.items) else formatSize(entry.size)
     val slot by animateFloatAsState(if (selecting) 1f else 0f, label = "selection-slot")
     ListRow(
-        icon = if (entry.isDir) Lucide.Folder else Lucide.File,
+        icon = when {
+            entry.isDir -> Lucide.Folder
+            isArchive(entry.name) -> Lucide.FolderArchive
+            else -> Lucide.File
+        },
         title = entry.name,
         subtitle = formatDate(entry.modified),
         leading = if (slot > 0f) ({
@@ -843,7 +1001,7 @@ private fun EntryRow(
 }
 
 @Composable
-private fun TransferBar(move: Boolean, enabled: Boolean, onCancel: () -> Unit, onConfirm: () -> Unit) {
+private fun TransferBar(kind: TransferKind, enabled: Boolean, onCancel: () -> Unit, onConfirm: () -> Unit) {
     Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
         Row(
             modifier = Modifier
@@ -854,8 +1012,71 @@ private fun TransferBar(move: Boolean, enabled: Boolean, onCancel: () -> Unit, o
         ) {
             OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.cancel)) }
             Button(onClick = onConfirm, enabled = enabled, modifier = Modifier.weight(1f)) {
-                Text(stringResource(if (move) R.string.move_here else R.string.copy_here))
+                Text(
+                    stringResource(
+                        when (kind) {
+                            TransferKind.Move -> R.string.move_here
+                            TransferKind.Copy -> R.string.copy_here
+                            TransferKind.Extract -> R.string.extract_here
+                        }
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun CompressDialog(defaultName: String, onConfirm: (String, String) -> Unit, onDismiss: () -> Unit) {
+    var name by remember { mutableStateOf(defaultName) }
+    var format by remember { mutableStateOf("zip") }
+    var formats by remember { mutableStateOf(listOf("zip")) }
+    LaunchedEffect(Unit) { SharedApi.compressFormats()?.let { formats = it } }
+    CompactDialog(
+        onDismiss = onDismiss,
+        title = stringResource(R.string.compress),
+        buttons = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+            TextButton(onClick = { onConfirm(name.trim(), format) }, enabled = name.isNotBlank()) {
+                Text(stringResource(R.string.compress))
+            }
+        },
+    ) {
+        InputField(
+            value = name,
+            onValueChange = { name = it },
+            singleLine = true,
+            label = { Text(stringResource(R.string.name)) },
+        )
+        Spacer(Modifier.height(12.dp))
+        SelectField(
+            label = stringResource(R.string.format),
+            selected = format,
+            options = formats.map { it to it.uppercase() },
+            onSelect = { format = it },
+        )
+    }
+}
+
+@Composable
+private fun ArchiveSelectionToolbar(
+    onExtract: () -> Unit,
+    onView: (() -> Unit)?,
+    onSave: (() -> Unit)?,
+) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ToolbarAction(Lucide.PackageOpen, stringResource(R.string.extract), onClick = onExtract, modifier = Modifier.weight(1f))
+            ToolbarAction(Lucide.Eye, stringResource(R.string.view), onClick = onView ?: {}, enabled = onView != null, modifier = Modifier.weight(1f))
+            ToolbarAction(Lucide.Download, stringResource(R.string.save), onClick = onSave ?: {}, enabled = onSave != null, modifier = Modifier.weight(1f))
         }
     }
 }

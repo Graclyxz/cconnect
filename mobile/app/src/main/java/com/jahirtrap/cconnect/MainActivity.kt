@@ -90,6 +90,7 @@ private fun App() {
     var showSettings by remember { mutableStateOf(!settings.isConfigured) }
     var settingsHighlight by remember { mutableStateOf<String?>(null) }
     var showExplorer by remember { mutableStateOf(false) }
+    var explorerArchive by remember { mutableStateOf<String?>(null) }
     var showClaude by remember { mutableStateOf(false) }
     var showMonitor by remember { mutableStateOf(false) }
     var previewFile by remember { mutableStateOf<PreviewRequest?>(null) }
@@ -150,7 +151,11 @@ private fun App() {
                     onClose = { showSettings = false; settingsHighlight = null },
                 )
 
-                showExplorer -> FileExplorerScreen(onClose = { showExplorer = false }, onOpenPreview = { url, name, onDelete -> previewFile = PreviewRequest(url, name, onDelete) })
+                showExplorer -> FileExplorerScreen(
+                    onClose = { showExplorer = false; explorerArchive = null },
+                    onOpenPreview = { url, name, onDelete -> previewFile = PreviewRequest(url, name, onDelete) },
+                    initialArchive = explorerArchive,
+                )
 
                 showClaude -> ClaudeScreen(
                     onClose = { showClaude = false },
@@ -169,7 +174,7 @@ private fun App() {
 
                 else -> ChatScreen(
                     onOpenSettings = { target -> settingsHighlight = target; showSettings = true },
-                    onOpenExplorer = { showExplorer = true },
+                    onOpenExplorer = { target -> explorerArchive = target; showExplorer = true },
                     onOpenClaude = { showClaude = true },
                     onOpenMonitor = { showMonitor = true },
                     onOpenTerminal = { showTerminal = true },

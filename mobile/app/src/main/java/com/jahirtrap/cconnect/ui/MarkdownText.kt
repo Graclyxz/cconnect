@@ -38,6 +38,8 @@ import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Copy
 import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.File
+import com.composables.icons.lucide.FolderArchive
+import com.jahirtrap.cconnect.files.isArchive
 import com.composables.icons.lucide.ImageOff
 import com.composables.icons.lucide.Lucide
 import androidx.compose.runtime.Composable
@@ -571,7 +573,10 @@ private fun AnnotatedString.Builder.appendNode(n: Node, linkColor: Color, codeBg
             if (url.isNotEmpty()) {
                 val shared = url.startsWith(Backend.baseUrl + "/shared/")
                 withLink(LinkAnnotation.Url(url = url, styles = TextLinkStyles(style = style))) {
-                    if (shared) { appendInlineContent(SHARED_FILE_TAG, "📄"); append("⁠") }
+                    if (shared) {
+                        appendInlineContent(if (isArchive(url.substringAfterLast('/'))) SHARED_ARCHIVE_TAG else SHARED_FILE_TAG, "📄")
+                        append("⁠")
+                    }
                     appendInline(n, linkColor, codeBg)
                     if (!shared) { append("⁠"); appendInlineContent(EXT_LINK_TAG, "↗") }
                 }
@@ -624,6 +629,7 @@ private val SUMMARY_RE = Regex("<summary>(.*?)</summary>", RegexOption.IGNORE_CA
 private const val INLINE_CODE_TAG = "inline_code"
 private const val EXT_LINK_TAG = "ext_link"
 private const val SHARED_FILE_TAG = "shared_file"
+private const val SHARED_ARCHIVE_TAG = "shared_archive"
 
 @Composable
 private fun MdText(
@@ -641,6 +647,16 @@ private fun MdText(
             ) {
                 Icon(
                     imageVector = Lucide.File,
+                    contentDescription = null,
+                    tint = linkColor,
+                    modifier = Modifier.fillMaxSize().padding(end = 2.dp),
+                )
+            },
+            SHARED_ARCHIVE_TAG to InlineTextContent(
+                Placeholder(width = 1.05.em, height = 1.05.em, placeholderVerticalAlign = PlaceholderVerticalAlign.Center)
+            ) {
+                Icon(
+                    imageVector = Lucide.FolderArchive,
                     contentDescription = null,
                     tint = linkColor,
                     modifier = Modifier.fillMaxSize().padding(end = 2.dp),
