@@ -1,7 +1,5 @@
-- Added background notifications — permission prompts, questions and finished tasks notify you while the app is in the background, and tapping one opens the chat
-- Added quick actions on permission notifications — Allow, Allow always or Deny right from the notification, without opening the app
-- Added search in Files — find files by name across subfolders, with results you can open, preview and select like any listing
-- Added zip support in Files — compress a selection or extract a .zip from the selection menu
-- Added an enable/disable switch for MCP servers — turning one off keeps its configuration for when it comes back
-- Added a formatted view toggle when previewing Markdown files — switch between rendered and plain text, and the choice sticks
-- Added a Background settings group — choose which notifications you get and disable battery optimizations for reliable delivery
+- Added archive browsing in Files — tap a zip, rar, 7z or tar to navigate inside like a folder, preview its files, and extract or save just what you pick
+- Added compression formats — choose a name and format when compressing: zip, 7z, tar.gz, tar.xz, plus rar when the server has the RAR CLI available
+- Added extract options — unpack into a folder named after the archive, right where it is, or pick any destination
+- Added an "Open in Files" action for shared archives in the chat, and archives now show their own icon everywhere
+- Fixed drag-select marking the wrong files in subfolders
