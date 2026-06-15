@@ -12,6 +12,8 @@ import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -35,7 +37,12 @@ fun TooltipIconButton(
         tooltip = { PlainTooltip { Text(label) } },
         state = rememberTooltipState(),
     ) {
-        IconButton(onClick = onClick, enabled = enabled, modifier = modifier.size(40.dp), content = { icon() })
+        IconButton(
+            onClick = onClick,
+            enabled = enabled,
+            modifier = modifier.size(40.dp).then(if (enabled) Modifier.pointerHoverIcon(PointerIcon.Hand) else Modifier),
+            content = { icon() },
+        )
     }
 }
 

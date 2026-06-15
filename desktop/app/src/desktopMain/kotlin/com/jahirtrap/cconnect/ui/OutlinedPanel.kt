@@ -1,7 +1,7 @@
 package com.jahirtrap.cconnect.ui
 
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import com.jahirtrap.cconnect.ui.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.padding

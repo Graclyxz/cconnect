@@ -4,7 +4,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import com.jahirtrap.cconnect.ui.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,15 +28,15 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.jahirtrap.cconnect.ui.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.LoadingIndicator
+import com.jahirtrap.cconnect.ui.AppPullToRefresh
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.jahirtrap.cconnect.ui.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -72,6 +72,7 @@ import com.composables.icons.lucide.Languages
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Palette
 import com.composables.icons.lucide.Pencil
+import com.composables.icons.lucide.RotateCw
 import com.composables.icons.lucide.FileText
 import com.composables.icons.lucide.Server
 import com.composables.icons.lucide.SquareTerminal
@@ -124,6 +125,7 @@ import com.jahirtrap.cconnect.ui.SelectDialog
 import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.EmptyState
+import com.jahirtrap.cconnect.ui.LocalRefreshTick
 import com.jahirtrap.cconnect.ui.MarkdownText
 import com.jahirtrap.cconnect.ui.SelectField
 import com.jahirtrap.cconnect.ui.languageLabel
@@ -201,6 +203,8 @@ fun SettingsScreen(
             else -> {}
         }
     }
+    val refreshTick = LocalRefreshTick.current
+    LaunchedEffect(refreshTick) { if (refreshTick > 0) { refreshing = true; loadServerSettings(); refreshing = false } }
 
     var dialog by remember { mutableStateOf<SettingsDialog?>(null) }
     var notifyTaskDone by remember { mutableStateOf(settings.notifyTaskDone) }
@@ -235,10 +239,16 @@ fun SettingsScreen(
                         Icon(Lucide.ArrowLeft, contentDescription = null)
                     }
                 },
+                actions = {
+                    TooltipIconButton(
+                        label = stringResource(Res.string.refresh),
+                        onClick = { scope.launch { refreshing = true; loadServerSettings(); refreshing = false } },
+                    ) { Icon(Lucide.RotateCw, contentDescription = null) }
+                },
             )
         },
     ) { padding ->
-        PullToRefreshBox(
+        AppPullToRefresh(
             isRefreshing = refreshing,
             onRefresh = { scope.launch { refreshing = true; loadServerSettings(); refreshing = false } },
             modifier = Modifier.fillMaxSize().padding(padding),
@@ -297,7 +307,7 @@ fun SettingsScreen(
                     label = stringResource(Res.string.settings_server),
                     labelTrailing = {
                         when {
-                            loading -> CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                            loading -> LoadingIndicator(modifier = Modifier.size(20.dp))
                             serverReady -> StatusDot(palette.green, box = 20.dp, dot = 12.dp)
                             else -> StatusDot(palette.red, box = 20.dp, dot = 12.dp)
                         }
@@ -416,6 +426,7 @@ fun SettingsScreen(
                         ) { uriHandler.openUri(GitHubApi.REPO_URL) }
                     }
                 }
+                Spacer(Modifier.height(16.dp))
             }
         }
     }

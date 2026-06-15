@@ -1,8 +1,8 @@
 package com.jahirtrap.cconnect.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
+import com.jahirtrap.cconnect.ui.clickable
+import com.jahirtrap.cconnect.ui.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope

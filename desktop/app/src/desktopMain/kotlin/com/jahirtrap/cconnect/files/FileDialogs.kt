@@ -1,9 +1,9 @@
 package com.jahirtrap.cconnect.files
 
+import org.lwjgl.util.tinyfd.TinyFileDialogs
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
-import javax.swing.JFileChooser
 
 object FileDialogs {
     fun openMultiple(): List<File> {
@@ -22,8 +22,6 @@ object FileDialogs {
         return File(dir, chosen)
     }
 
-    fun chooseDirectory(): File? {
-        val chooser = JFileChooser().apply { fileSelectionMode = JFileChooser.DIRECTORIES_ONLY }
-        return if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) chooser.selectedFile else null
-    }
+    fun chooseDirectory(): File? =
+        TinyFileDialogs.tinyfd_selectFolderDialog("Select folder", "")?.let { File(it) }
 }

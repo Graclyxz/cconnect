@@ -33,8 +33,13 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.Velocity
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -68,6 +73,12 @@ fun AppBottomSheet(
         closing = true
         scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
     }
+    val blockSheetScroll = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset = available
+            override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity = available
+        }
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -77,7 +88,7 @@ fun AppBottomSheet(
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
         dragHandle = null,
     ) {
-        Column(modifier = Modifier.height(sheetHeight).navigationBarsPadding()) {
+        Column(modifier = Modifier.height(sheetHeight).navigationBarsPadding().nestedScroll(blockSheetScroll)) {
             if (dismissible) {
                 Box(
                     modifier = Modifier.fillMaxWidth().padding(top = 10.dp, bottom = 2.dp),

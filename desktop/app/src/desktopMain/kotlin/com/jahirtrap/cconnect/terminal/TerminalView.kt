@@ -1,18 +1,27 @@
 package com.jahirtrap.cconnect.terminal
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -20,6 +29,7 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -27,7 +37,9 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.rememberTextMeasurer
+import kotlinx.coroutines.delay
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,18 +64,14 @@ fun Terminal(
     val cell = remember(style) { measurer.measure("M", style).size }
     val density = LocalDensity.current
     val listState = rememberLazyListState()
+    var input by remember { mutableStateOf(TextFieldValue("")) }
 
-    LaunchedEffect(showSoftKeyboard) { if (showSoftKeyboard) runCatching { focusRequester.requestFocus() } }
+    LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
 
     BoxWithConstraints(
         modifier = modifier
             .background(backgroundColor)
-            .focusRequester(focusRequester)
-            .focusable()
-            .onPreviewKeyEvent { event ->
-                if (!keyboardEnabled) return@onPreviewKeyEvent false
-                keyToBytes(event)?.let { terminalEmulator.send(it); true } ?: false
-            },
+            .pointerInput(Unit) { detectTapGestures { runCatching { focusRequester.requestFocus() } } },
     ) {
         val cols = (constraints.maxWidth / cell.width).coerceAtLeast(1)
         val rows = (constraints.maxHeight / cell.height).coerceAtLeast(1)
@@ -74,18 +82,51 @@ fun Terminal(
         LaunchedEffect(snapshot.lines.size, frame) {
             if (snapshot.lines.isNotEmpty()) listState.scrollToItem(snapshot.lines.lastIndex)
         }
-        val rowHeight = with(density) { cell.height.toDp() }
+        var cursorOn by remember { mutableStateOf(true) }
+        LaunchedEffect(frame) {
+            cursorOn = true
+            while (true) {
+                delay(530)
+                cursorOn = !cursorOn
+            }
+        }
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
             items(snapshot.lines.size) { index ->
-                val cursorCol = if (index == snapshot.cursorRow) snapshot.cursorCol else -1
+                val cursorCol = if (index == snapshot.cursorRow) snapshot.cursorCol.coerceAtMost(snapshot.columns - 1) else -1
                 Text(
-                    text = buildLine(snapshot.lines[index], cursorCol, backgroundColor, foregroundColor, selectionBackgroundColor, selectionForegroundColor),
+                    text = buildLine(snapshot.lines[index], cursorCol, backgroundColor, foregroundColor),
                     style = style,
                     softWrap = false,
                     maxLines = 1,
+                    modifier = if (cursorCol >= 0) Modifier.drawWithContent {
+                        drawContent()
+                        if (cursorOn) {
+                            drawRect(
+                                color = selectionBackgroundColor.copy(alpha = 0.6f),
+                                topLeft = Offset(cursorCol * cell.width.toFloat(), 0f),
+                                size = Size(cell.width.toFloat(), size.height),
+                            )
+                        }
+                    } else Modifier,
                 )
             }
         }
+        BasicTextField(
+            value = input,
+            onValueChange = { value ->
+                if (value.text.isNotEmpty()) terminalEmulator.send(value.text.toByteArray(Charsets.UTF_8))
+                input = TextFieldValue("")
+            },
+            enabled = keyboardEnabled,
+            textStyle = TextStyle(color = Color.Transparent),
+            cursorBrush = SolidColor(Color.Transparent),
+            modifier = Modifier
+                .size(1.dp)
+                .focusRequester(focusRequester)
+                .onPreviewKeyEvent { event ->
+                    specialKeyToBytes(event)?.let { terminalEmulator.send(it); true } ?: false
+                },
+        )
     }
 }
 
@@ -94,8 +135,6 @@ private fun buildLine(
     cursorCol: Int,
     backgroundColor: Color,
     foregroundColor: Color,
-    selectionBackgroundColor: Color,
-    selectionForegroundColor: Color,
 ): AnnotatedString {
     var end = cells.size
     while (end > 0) {
@@ -108,20 +147,17 @@ private fun buildLine(
         val limit = maxOf(end, if (cursorCol >= 0) cursorCol + 1 else 0)
         while (i < limit) {
             val cell = cells.getOrNull(i) ?: TerminalCell(' ', foregroundColor, backgroundColor, false)
-            val cursor = i == cursorCol
-            val fg = if (cursor) selectionForegroundColor else cell.fg
-            val bg = if (cursor) selectionBackgroundColor else cell.bg
+            val fg = cell.fg
+            val bg = cell.bg
             val bold = cell.bold
             var run = cell.char.toString()
             var j = i + 1
-            if (!cursor) {
-                while (j < limit && j != cursorCol) {
-                    val next = cells.getOrNull(j) ?: break
-                    if (next.fg == fg && next.bg == bg && next.bold == bold) {
-                        run += next.char
-                        j++
-                    } else break
-                }
+            while (j < limit) {
+                val next = cells.getOrNull(j) ?: break
+                if (next.fg == fg && next.bg == bg && next.bold == bold) {
+                    run += next.char
+                    j++
+                } else break
             }
             withStyle(SpanStyle(color = fg, background = bg, fontWeight = if (bold) FontWeight.Bold else null)) {
                 append(run)
@@ -131,31 +167,26 @@ private fun buildLine(
     }
 }
 
-private fun keyToBytes(event: KeyEvent): ByteArray? {
+private fun specialKeyToBytes(event: KeyEvent): ByteArray? {
     if (event.type != KeyEventType.KeyDown) return null
-    when (event.key) {
-        Key.Enter, Key.NumPadEnter -> return byteArrayOf(0x0D)
-        Key.Backspace -> return byteArrayOf(0x7F)
-        Key.Tab -> return byteArrayOf(0x09)
-        Key.Escape -> return byteArrayOf(0x1B)
-        Key.DirectionUp -> return "[A".toByteArray()
-        Key.DirectionDown -> return "[B".toByteArray()
-        Key.DirectionRight -> return "[C".toByteArray()
-        Key.DirectionLeft -> return "[D".toByteArray()
-        Key.MoveHome -> return "[H".toByteArray()
-        Key.MoveEnd -> return "[F".toByteArray()
-        Key.PageUp -> return "[5~".toByteArray()
-        Key.PageDown -> return "[6~".toByteArray()
-        Key.Delete -> return "[3~".toByteArray()
+    if (event.isCtrlPressed) {
+        val code = (event.nativeKeyEvent as? java.awt.event.KeyEvent)?.keyCode ?: 0
+        if (code in 65..90) return byteArrayOf((code - 64).toByte())
     }
-    val awt = event.nativeKeyEvent as? java.awt.event.KeyEvent ?: return null
-    val ch = awt.keyChar
-    if (ch == java.awt.event.KeyEvent.CHAR_UNDEFINED) return null
-    val code = ch.code
-    return when {
-        event.isCtrlPressed && code in 1..31 -> byteArrayOf(code.toByte())
-        event.isCtrlPressed && ch.uppercaseChar() in 'A'..'Z' -> byteArrayOf((ch.uppercaseChar().code - 64).toByte())
-        code >= 0x20 -> ch.toString().toByteArray(Charsets.UTF_8)
+    return when (event.key) {
+        Key.Enter, Key.NumPadEnter -> byteArrayOf(0x0D)
+        Key.Backspace -> byteArrayOf(0x7F)
+        Key.Tab -> byteArrayOf(0x09)
+        Key.Escape -> byteArrayOf(0x1B)
+        Key.DirectionUp -> byteArrayOf(0x1B, 0x5B, 0x41)
+        Key.DirectionDown -> byteArrayOf(0x1B, 0x5B, 0x42)
+        Key.DirectionRight -> byteArrayOf(0x1B, 0x5B, 0x43)
+        Key.DirectionLeft -> byteArrayOf(0x1B, 0x5B, 0x44)
+        Key.MoveHome -> byteArrayOf(0x1B, 0x5B, 0x48)
+        Key.MoveEnd -> byteArrayOf(0x1B, 0x5B, 0x46)
+        Key.PageUp -> byteArrayOf(0x1B, 0x5B, 0x35, 0x7E)
+        Key.PageDown -> byteArrayOf(0x1B, 0x5B, 0x36, 0x7E)
+        Key.Delete -> byteArrayOf(0x1B, 0x5B, 0x33, 0x7E)
         else -> null
     }
 }

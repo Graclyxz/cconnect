@@ -1,6 +1,6 @@
 package com.jahirtrap.cconnect.ui
 
-import androidx.compose.foundation.clickable
+import com.jahirtrap.cconnect.ui.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -27,6 +28,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 
@@ -47,6 +49,7 @@ fun InputField(
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(8.dp)
     val borderColor = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+    val lineHeightDp = with(LocalDensity.current) { MaterialTheme.typography.bodyMedium.lineHeight.toDp() }
     Column(modifier) {
         if (label != null) {
             CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
@@ -67,6 +70,7 @@ fun InputField(
                 onValueChange = onValueChange,
                 modifier = Modifier
                     .weight(1f)
+                    .then(if (singleLine) Modifier.height(lineHeightDp) else Modifier.heightIn(min = lineHeightDp * minLines))
                     .onFocusChanged { focused = it.isFocused }
                     .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
                 singleLine = singleLine,

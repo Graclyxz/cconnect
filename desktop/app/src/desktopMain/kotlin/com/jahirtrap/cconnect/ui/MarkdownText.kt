@@ -2,7 +2,7 @@ package com.jahirtrap.cconnect.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import com.jahirtrap.cconnect.ui.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,7 +26,7 @@ import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.jahirtrap.cconnect.ui.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -225,6 +225,7 @@ private fun RenderNode(node: Node, codeBg: Color, linkColor: Color, depth: Int) 
         is Heading -> MdText(
             text = inline(node, linkColor, codeBg),
             codeBg = codeBg,
+            modifier = Modifier.fillMaxWidth(),
             style = (when (node.level) {
                 1 -> MaterialTheme.typography.titleLarge
                 2 -> MaterialTheme.typography.titleMedium
@@ -258,7 +259,7 @@ private fun ParagraphBlock(node: Node, codeBg: Color, linkColor: Color) {
         buildList { var c = node.firstChild; while (c != null) { add(c); c = c.next } }
     }
     if (children.none { imageOf(it) != null }) {
-        MdText(inline(node, linkColor, codeBg), codeBg, style = MaterialTheme.typography.bodyMedium)
+        MdText(inline(node, linkColor, codeBg), codeBg, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodyMedium)
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -268,7 +269,7 @@ private fun ParagraphBlock(node: Node, codeBg: Color, linkColor: Color) {
             if (image != null) {
                 if (run.isNotEmpty()) {
                     val text = inlineOf(run, linkColor, codeBg)
-                    if (text.isNotBlank()) MdText(text, codeBg, style = MaterialTheme.typography.bodyMedium)
+                    if (text.isNotBlank()) MdText(text, codeBg, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodyMedium)
                     run.clear()
                 }
                 MarkdownImage(url = image.first, alt = image.second)
@@ -276,7 +277,7 @@ private fun ParagraphBlock(node: Node, codeBg: Color, linkColor: Color) {
         }
         if (run.isNotEmpty()) {
             val text = inlineOf(run, linkColor, codeBg)
-            if (text.isNotBlank()) MdText(text, codeBg, style = MaterialTheme.typography.bodyMedium)
+            if (text.isNotBlank()) MdText(text, codeBg, modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.bodyMedium)
         }
     }
 }
@@ -680,7 +681,10 @@ private fun MdText(
         style = style,
         inlineContent = linkIcons,
         onTextLayout = { layout = it },
-        modifier = modifier.drawBehind {
+        modifier = modifier.textHoverCursor(
+            layout = { layout },
+            isLink = { offset -> text.getLinkAnnotations(offset, (offset + 1).coerceAtMost(text.length)).isNotEmpty() },
+        ).drawBehind {
             val result = layout ?: return@drawBehind
             val padX = 3.dp.toPx()
             val padY = 1.dp.toPx()

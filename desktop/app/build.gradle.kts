@@ -10,6 +10,18 @@ plugins {
 val appVersionName = "1.1.5"
 val supportedServerRange = ">=1.1.5"
 
+val lwjglVersion = libs.versions.lwjgl.get()
+val lwjglNatives = run {
+    val name = System.getProperty("os.name").lowercase()
+    val arch = System.getProperty("os.arch").lowercase()
+    val arm = arch.contains("aarch64") || arch.contains("arm")
+    when {
+        name.contains("win") -> "natives-windows"
+        name.contains("mac") || name.contains("darwin") -> if (arm) "natives-macos-arm64" else "natives-macos"
+        else -> if (arm) "natives-linux-arm64" else "natives-linux"
+    }
+}
+
 val generateBuildConfig by tasks.registering {
     val outDir = layout.buildDirectory.dir("generated/buildConfig/kotlin")
     val versionName = appVersionName
@@ -43,7 +55,7 @@ kotlin {
             dependencies {
                 implementation(compose.runtime)
                 implementation(compose.foundation)
-                implementation(compose.material3)
+                implementation(libs.material3)
                 implementation(compose.ui)
                 implementation(compose.components.resources)
                 implementation(compose.desktop.currentOs)
@@ -73,6 +85,11 @@ kotlin {
 
                 implementation(libs.sshj)
                 implementation(libs.bouncycastle)
+
+                implementation(libs.lwjgl.core)
+                implementation(libs.lwjgl.tinyfd)
+                runtimeOnly("org.lwjgl:lwjgl:$lwjglVersion:$lwjglNatives")
+                runtimeOnly("org.lwjgl:lwjgl-tinyfd:$lwjglVersion:$lwjglNatives")
             }
         }
     }

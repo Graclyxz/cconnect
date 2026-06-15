@@ -10,8 +10,11 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.PointerMatcher
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.onClick
+import com.jahirtrap.cconnect.ui.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
@@ -40,7 +43,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
+import com.jahirtrap.cconnect.ui.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -52,8 +55,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import com.jahirtrap.cconnect.ui.TextButton
+import com.jahirtrap.cconnect.ui.AppPullToRefresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -77,6 +80,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -109,6 +115,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.PackageOpen
 import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.Plus
+import com.composables.icons.lucide.RotateCw
 import com.composables.icons.lucide.Save
 import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Server
@@ -134,6 +141,7 @@ import com.jahirtrap.cconnect.ui.SelectField
 import com.jahirtrap.cconnect.ui.EmptyState
 import com.jahirtrap.cconnect.ui.EnvironmentSelectDialog
 import com.jahirtrap.cconnect.ui.ListRow
+import com.jahirtrap.cconnect.ui.LocalRefreshTick
 import com.jahirtrap.cconnect.ui.RenameDialog
 import com.jahirtrap.cconnect.ui.SelectionDot
 import com.jahirtrap.cconnect.ui.StatusDot
@@ -281,6 +289,8 @@ fun FileExplorerScreen(
             if (fresh.any { it.dir == path && it.status == UploadManager.Status.Done }) reload()
         }
     }
+    val refreshTick = LocalRefreshTick.current
+    LaunchedEffect(refreshTick) { if (refreshTick > 0) { refreshing = true; reload() } }
 
     fun goUp() {
         when {
@@ -399,6 +409,9 @@ fun FileExplorerScreen(
                                         )
                                     }
                                 }
+                            }
+                            TooltipIconButton(label = stringResource(Res.string.refresh), onClick = { refreshing = true; reload() }) {
+                                Icon(Lucide.RotateCw, contentDescription = null)
                             }
                         },
                     )
@@ -569,7 +582,7 @@ fun FileExplorerScreen(
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.onBackground,
                     shadowElevation = 4.dp,
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(48.dp).pointerHoverIcon(PointerIcon.Hand),
                 ) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Icon(
@@ -610,7 +623,7 @@ fun FileExplorerScreen(
                     }
                 })
             }
-            PullToRefreshBox(
+            AppPullToRefresh(
                 isRefreshing = refreshing,
                 onRefresh = { refreshing = true; reload() },
                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -664,6 +677,12 @@ fun FileExplorerScreen(
                                 entry = entry,
                                 selecting = selecting,
                                 selected = isSelected,
+                                onSecondaryClick = {
+                                    if (currentTransfer == null) {
+                                        selecting = true
+                                        selected = if (isSelected) selected - entry.name else selected + entry.name
+                                    }
+                                },
                                 onClick = {
                                     when {
                                         suppressClick == entry.name -> suppressClick = null
@@ -937,16 +956,19 @@ private fun Breadcrumb(path: String, onNavigate: (String) -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun EntryRow(
     entry: SharedEntry,
     selecting: Boolean,
     selected: Boolean,
     onClick: () -> Unit,
+    onSecondaryClick: () -> Unit,
 ) {
     val detail = if (entry.isDir) pluralStringResource(Res.plurals.item_count, entry.items, entry.items) else formatSize(entry.size)
     val slot by animateFloatAsState(if (selecting) 1f else 0f, label = "selection-slot")
     ListRow(
+        modifier = Modifier.onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary), onClick = onSecondaryClick),
         icon = when {
             entry.isDir -> Lucide.Folder
             isArchive(entry.name) -> Lucide.FolderArchive
@@ -982,7 +1004,7 @@ private fun TransferBar(kind: TransferKind, enabled: Boolean, onCancel: () -> Un
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f)) { Text(stringResource(Res.string.cancel)) }
+            OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f).pointerHoverIcon(PointerIcon.Hand)) { Text(stringResource(Res.string.cancel)) }
             Button(onClick = onConfirm, enabled = enabled, modifier = Modifier.weight(1f)) {
                 Text(
                     stringResource(

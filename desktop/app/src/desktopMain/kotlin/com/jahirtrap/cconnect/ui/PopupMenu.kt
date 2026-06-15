@@ -3,12 +3,13 @@ package com.jahirtrap.cconnect.ui
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.rememberTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -27,6 +28,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AbovePopupMenu(
     expanded: Boolean,
@@ -41,14 +43,14 @@ fun AbovePopupMenu(
         Popup(
             popupPositionProvider = remember(gap) { AboveAnchorPositionProvider(gap) },
             onDismissRequest = onDismiss,
-            properties = PopupProperties(focusable = false),
+            properties = PopupProperties(focusable = true),
         ) {
             val transition = rememberTransition(state, "AbovePopupMenu")
             val scale by transition.animateFloat(
-                transitionSpec = { tween(durationMillis = 150) },
+                transitionSpec = { MaterialTheme.motionScheme.fastSpatialSpec() },
             ) { if (it) 1f else 0.8f }
             val alpha by transition.animateFloat(
-                transitionSpec = { tween(durationMillis = 150) },
+                transitionSpec = { MaterialTheme.motionScheme.fastEffectsSpec() },
             ) { if (it) 1f else 0f }
             Surface(
                 modifier = Modifier.graphicsLayer {

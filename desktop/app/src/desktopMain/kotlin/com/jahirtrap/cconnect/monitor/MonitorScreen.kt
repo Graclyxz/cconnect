@@ -50,7 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Lucide
-import com.composables.icons.lucide.RotateCw
+import com.composables.icons.lucide.ServerCog
 import com.composables.icons.lucide.Server
 import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
@@ -166,7 +166,7 @@ fun MonitorScreen(onClose: () -> Unit) {
                         label = stringResource(Res.string.restart_server),
                         onClick = { confirmingRestart = true },
                         enabled = !failed && info != null,
-                    ) { Icon(Lucide.RotateCw, contentDescription = null) }
+                    ) { Icon(Lucide.ServerCog, contentDescription = null) }
                     TooltipIconButton(label = stringResource(Res.string.environment), onClick = { envMenu = true }) {
                         Icon(Lucide.Server, contentDescription = null)
                     }

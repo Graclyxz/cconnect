@@ -161,6 +161,8 @@
     <string name="open">Open</string>
     <string name="open_external_link">Open external link</string>
     <string name="open_external_link_message">This will open an external link:\n%1$s</string>
+    <string name="html_preview_unavailable">HTML preview is not available here</string>
+    <string name="open_in_browser">Open in browser</string>
     <string name="no_files">No files</string>
     <string name="delete_file_confirm">Delete \"%1$s\"?</string>
     <string name="upload_files">Upload files</string>
@@ -190,15 +192,15 @@
     <string name="already_exists">An item with that name already exists</string>
     <string name="delete_items_confirm">Delete %1$d items?</string>
     <plurals name="item_count">
-        <item quantity="one">%d item</item>
-        <item quantity="other">%d items</item>
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
     </plurals>
     <string name="more">More</string>
     <string name="copy_path">Copy path</string>
     <string name="upload">Upload</string>
     <plurals name="upload_confirm">
-        <item quantity="one">%d file will be uploaded</item>
-        <item quantity="other">%d files will be uploaded</item>
+        <item quantity="one">%1$d file will be uploaded</item>
+        <item quantity="other">%1$d files will be uploaded</item>
     </plurals>
     <string name="new_session">New session</string>
     <string name="new_chat">New chat</string>
@@ -258,4 +260,5 @@
     <string name="connecting">Connecting</string>
     <string name="disconnected">Disconnected</string>
     <string name="waiting_user">Waiting for a reply</string>
+    <string name="refresh">Refresh</string>
 </resources>

@@ -1,6 +1,7 @@
 package com.jahirtrap.cconnect.chat
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
@@ -10,8 +11,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
+import com.jahirtrap.cconnect.ui.clickable
+import com.jahirtrap.cconnect.ui.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.DragInteraction
@@ -64,6 +65,9 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Menu
 import com.composables.icons.lucide.MessagesSquare
 import com.composables.icons.lucide.Paperclip
+import com.composables.icons.lucide.PanelLeftOpen
+import com.composables.icons.lucide.PanelRightOpen
+import com.composables.icons.lucide.RotateCw
 import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Slash
 import com.composables.icons.lucide.Sparkles
@@ -75,12 +79,14 @@ import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.ui.AbovePopupMenu
 import com.jahirtrap.cconnect.ui.AppBottomSheet
 import com.jahirtrap.cconnect.ui.AppLogo
+import com.jahirtrap.cconnect.ui.selectionTextCursor
 import com.jahirtrap.cconnect.ui.AttachmentChip
 import com.jahirtrap.cconnect.ui.NoticeCard
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.DropdownScrim
 import com.jahirtrap.cconnect.ui.EmptyState
+import com.jahirtrap.cconnect.ui.LocalRefreshTick
 import com.jahirtrap.cconnect.ui.Claude
 import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.Stop
@@ -93,14 +99,15 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.jahirtrap.cconnect.ui.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import com.jahirtrap.cconnect.ui.AppPullToRefresh
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -130,6 +137,19 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -165,7 +185,7 @@ import com.jahirtrap.cconnect.files.isArchive
 import com.jahirtrap.cconnect.files.isPreviewable
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
-import androidx.compose.material3.TextButton
+import com.jahirtrap.cconnect.ui.TextButton
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -199,7 +219,8 @@ fun ChatScreen(
     onOpenMonitor: () -> Unit,
     onOpenTerminal: () -> Unit,
     onOpenPreview: (url: String, filename: String, onDelete: (() -> Unit)?) -> Unit,
-    drawerState: DrawerState,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
 ) {
     val vm: ChatViewModel = viewModel()
     val state by vm.state.collectAsState()
@@ -215,8 +236,8 @@ fun ChatScreen(
     var confirmCommand by remember { mutableStateOf<CommandOption?>(null) }
     var sharedLinkAction by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showRewindSheet by remember { mutableStateOf(false) }
-    LaunchedEffect(drawerState.targetValue) {
-        if (drawerState.targetValue == DrawerValue.Open) {
+    LaunchedEffect(expanded) {
+        if (expanded) {
             focusManager.clearFocus()
             vm.refreshEnvironments()
             vm.ensureHistoryLoaded()
@@ -249,6 +270,8 @@ fun ChatScreen(
     }
 
     LaunchedEffect(Unit) { vm.connect() }
+    val refreshTick = LocalRefreshTick.current
+    LaunchedEffect(refreshTick) { if (refreshTick > 0) vm.loadHistory() }
 
     // A user drag stops the follow immediately so streaming can't fight the gesture.
     LaunchedEffect(listState) {
@@ -290,10 +313,14 @@ fun ChatScreen(
             listState.animateScrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
         }
     }
-    ModalNavigationDrawer(
-            drawerState = drawerState,
-            drawerContent = {
-                ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surface) {
+    Row(modifier = Modifier.fillMaxSize()) {
+        val sidebarWidth by animateDpAsState(if (expanded) 300.dp else 64.dp, label = "sidebar")
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxHeight().width(sidebarWidth),
+        ) {
+            Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+                if (expanded) {
                     Row(
                         modifier = Modifier.fillMaxWidth().height(56.dp).padding(start = 8.dp, end = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -306,19 +333,28 @@ fun ChatScreen(
                         )
                         TooltipIconButton(
                             label = stringResource(Res.string.new_session),
-                            onClick = { vm.newSession(); scope.launch { drawerState.close() } },
+                            onClick = { vm.newSession() },
                         ) { Icon(Lucide.SquarePen, contentDescription = null) }
+                        TooltipIconButton(label = stringResource(Res.string.menu), onClick = { onExpandedChange(false) }) {
+                            Icon(Lucide.PanelRightOpen, contentDescription = null)
+                        }
                     }
-                    ProjectSelector(
-                        projects = state.historyProjects,
-                        selected = state.historyProjectKey,
-                        onSelect = vm::selectHistoryProject,
-                    )
+                    Row(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        ProjectSelector(
+                            projects = state.historyProjects,
+                            selected = state.historyProjectKey,
+                            onSelect = vm::selectHistoryProject,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TooltipIconButton(label = stringResource(Res.string.refresh), onClick = { vm.loadHistory() }) {
+                            Icon(Lucide.RotateCw, contentDescription = null)
+                        }
+                    }
                     val drawerListState = rememberLazyListState()
                     LaunchedEffect(state.historySessions.size) {
                         if (state.historySessions.isNotEmpty()) drawerListState.scrollToItem(0)
                     }
-                    PullToRefreshBox(
+                    AppPullToRefresh(
                         isRefreshing = state.historyLoading,
                         onRefresh = { vm.loadHistory() },
                         modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -333,7 +369,7 @@ fun ChatScreen(
                                     ConversationRow(
                                         title = s.title ?: s.preview ?: s.sessionId.take(8),
                                         selected = s.sessionId == state.sessionId,
-                                        onOpen = { vm.openSession(s); scope.launch { drawerState.close() } },
+                                        onOpen = { vm.openSession(s) },
                                         onRename = { renameTarget = s },
                                         onAutoRename = { vm.autoRenameSession(s) },
                                         onColor = { colorTarget = s },
@@ -366,9 +402,35 @@ fun ChatScreen(
                             Icon(Lucide.Settings, contentDescription = null)
                         }
                     }
+                } else {
+                    Spacer(Modifier.height(8.dp))
+                    TooltipIconButton(label = stringResource(Res.string.menu), onClick = { onExpandedChange(true) }) {
+                        Icon(Lucide.PanelLeftOpen, contentDescription = null)
+                    }
+                    TooltipIconButton(label = stringResource(Res.string.new_session), onClick = { vm.newSession() }) {
+                        Icon(Lucide.SquarePen, contentDescription = null)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    TooltipIconButton(label = stringResource(Res.string.files), onClick = { onOpenExplorer(null) }) {
+                        Icon(Lucide.Folder, contentDescription = null)
+                    }
+                    TooltipIconButton(label = stringResource(Res.string.claude), onClick = onOpenClaude) {
+                        Icon(CustomIcons.Claude, contentDescription = null)
+                    }
+                    TooltipIconButton(label = stringResource(Res.string.monitor), onClick = onOpenMonitor) {
+                        Icon(Lucide.Activity, contentDescription = null)
+                    }
+                    TooltipIconButton(label = stringResource(Res.string.terminal), onClick = onOpenTerminal) {
+                        Icon(Lucide.SquareTerminal, contentDescription = null)
+                    }
+                    TooltipIconButton(label = stringResource(Res.string.settings), onClick = { onOpenSettings(null) }) {
+                        Icon(Lucide.Settings, contentDescription = null)
+                    }
+                    Spacer(Modifier.height(8.dp))
                 }
-            },
-        ) {
+            }
+        }
+        Box(modifier = Modifier.weight(1f)) {
                 Scaffold(
                     snackbarHost = {
                         Column(
@@ -399,9 +461,9 @@ fun ChatScreen(
                         val waitingUser = state.messages.any { it.role == Role.INTERACTION && it.interaction?.pending == true }
                         val statusLeading: (@Composable () -> Unit) = when {
                             state.connection == ConnectionState.Disconnected -> ({ StatusDot(palette.red) })
-                            state.connection == ConnectionState.Connecting -> ({ CircularProgressIndicator(modifier = Modifier.size(14.dp)) })
+                            state.connection == ConnectionState.Connecting -> ({ LoadingIndicator(modifier = Modifier.size(14.dp)) })
                             waitingUser -> ({ StatusDot(palette.orange) })
-                            state.streaming -> ({ CircularProgressIndicator(modifier = Modifier.size(14.dp)) })
+                            state.streaming -> ({ LoadingIndicator(modifier = Modifier.size(14.dp)) })
                             else -> ({ StatusDot(palette.green) })
                         }
                         val statusText = when {
@@ -415,12 +477,6 @@ fun ChatScreen(
                             title = stringResource(Res.string.app_name),
                             subtitle = statusText,
                             subtitleLeading = statusLeading,
-                            navigationIcon = {
-                                TooltipIconButton(
-                                    label = stringResource(Res.string.menu),
-                                    onClick = { scope.launch { drawerState.open() } },
-                                ) { Icon(Lucide.Menu, contentDescription = null) }
-                            },
                             actions = {
                                 TaskIndicator(todos = state.todos)
                                 if (state.sessionId != null && !state.streaming) {
@@ -465,17 +521,30 @@ fun ChatScreen(
                         }
                         Unit
                     }
-                    Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+                    Column(
+                        modifier = Modifier.fillMaxSize().padding(padding).onPreviewKeyEvent { e ->
+                            if (e.type == KeyEventType.KeyDown && e.key == Key.Escape && sideActive) {
+                                dismissSide(); true
+                            } else false
+                        },
+                    ) {
                         BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
                             val boxHeightPx = constraints.maxHeight.toFloat()
                             val toolbarReveal = (1f - expansion.value / peek).coerceIn(0f, 1f)
                             val panelH = expansion.value.coerceAtLeast(peek)
                             var toolbarHeightPx by remember { mutableStateOf(0) }
                             Box(modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().fillMaxHeight((1f - panelH * (1f - toolbarReveal)).coerceAtMost(1f - toolbarHeightPx / boxHeightPx).coerceIn(0.0001f, 1f)).clipToBounds()) {
-                                SelectionContainer(modifier = Modifier.fillMaxSize()) {
+                                SelectionContainer(modifier = Modifier.fillMaxSize().selectionTextCursor()) {
                                     LazyColumn(
                                         state = listState,
-                                        modifier = Modifier.fillMaxSize(),
+                                        modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+                                            awaitPointerEventScope {
+                                                while (true) {
+                                                    val e = awaitPointerEvent(PointerEventPass.Initial)
+                                                    if (e.type == PointerEventType.Scroll) followBottom = false
+                                                }
+                                            }
+                                        },
                                     ) {
                                         itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
                                             val running = when (message.role) {
@@ -545,7 +614,7 @@ fun ChatScreen(
                                         shape = CircleShape,
                                         color = MaterialTheme.colorScheme.onBackground,
                                         shadowElevation = 4.dp,
-                                        modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).size(40.dp),
+                                        modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).size(40.dp).pointerHoverIcon(PointerIcon.Hand),
                                     ) {
                                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                             Icon(
@@ -651,6 +720,7 @@ fun ChatScreen(
                         )
                     }
                 }
+            }
         }
 
     renameTarget?.let { s ->
@@ -791,7 +861,7 @@ private fun RewindDialog(
             if (both) Row(verticalAlignment = Alignment.CenterVertically) {
                 when {
                     preview == null -> {
-                        CircularProgressIndicator(modifier = Modifier.size(13.dp))
+                        LoadingIndicator(modifier = Modifier.size(13.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(stringResource(Res.string.loading), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -949,7 +1019,7 @@ private fun SidePanel(
                 }
             }
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                SelectionContainer(modifier = Modifier.fillMaxSize()) {
+                SelectionContainer(modifier = Modifier.fillMaxSize().selectionTextCursor()) {
                     LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                         itemsIndexed(sideChat.messages, key = { _, it -> it.id }) { index, message ->
                             ChatMessageItem(
@@ -1181,7 +1251,7 @@ private fun ToolbarLoadingChip(label: String = stringResource(Res.string.loading
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CircularProgressIndicator(modifier = Modifier.size(18.dp))
+        LoadingIndicator(modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(4.dp))
         Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
     }
@@ -1337,7 +1407,23 @@ private fun Composer(
     val accent = sessionColorOf(sessionColor)
     val textStyle = MaterialTheme.typography.bodyLarge
     val density = LocalDensity.current
-    var lineHeight by remember { mutableStateOf(with(density) { textStyle.lineHeight.toDp() }) }
+    val lineHeight = with(density) { textStyle.lineHeight.toDp() }
+    var field by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+    LaunchedEffect(value) { if (value != field.text) field = TextFieldValue(value, TextRange(value.length)) }
+
+    fun trySend(): Boolean {
+        if ((value.isBlank() && attachments.isEmpty()) || !canSend || streaming || uploading) return false
+        onSend(value)
+        onValueChange("")
+        return true
+    }
+
+    fun insertNewline() {
+        val sel = field.selection
+        val updated = field.text.substring(0, sel.min) + "\n" + field.text.substring(sel.max)
+        field = TextFieldValue(updated, TextRange(sel.min + 1))
+        onValueChange(updated)
+    }
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
@@ -1365,15 +1451,19 @@ private fun Composer(
             Spacer(Modifier.width(6.dp))
         }
         BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier.weight(1f).then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
+            value = field,
+            onValueChange = { field = it; onValueChange(it.text) },
+            modifier = Modifier.weight(1f)
+                .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+                .onPreviewKeyEvent { e ->
+                    if (e.type == KeyEventType.KeyDown && e.key == Key.Enter) {
+                        if (e.isCtrlPressed || e.isShiftPressed) insertNewline() else trySend()
+                        true
+                    } else false
+                },
             textStyle = textStyle.copy(color = MaterialTheme.colorScheme.onSurface),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             maxLines = 6,
-            onTextLayout = { layout ->
-                lineHeight = with(density) { (layout.getLineBottom(0) - layout.getLineTop(0)).toDp() }
-            },
             decorationBox = { innerTextField ->
                 Row(
                     modifier = Modifier
@@ -1548,17 +1638,16 @@ private fun EnvironmentSelector(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ProjectSelector(projects: List<ProjectInfo>, selected: String?, onSelect: (String?) -> Unit) {
+private fun ProjectSelector(projects: List<ProjectInfo>, selected: String?, onSelect: (String?) -> Unit, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
     var fieldWidth by remember { mutableStateOf(0.dp) }
     val density = LocalDensity.current
     val label = if (selected == null) stringResource(Res.string.all_projects)
     else projects.firstOrNull { it.projectKey == selected }?.let(::projectLabel) ?: selected
-    Box {
+    Box(modifier) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp)
                 .onSizeChanged { fieldWidth = with(density) { it.width.toDp() } }
                 .clip(RoundedCornerShape(8.dp))
                 .clickable { open = true }

@@ -161,6 +161,8 @@
     <string name="open">Abrir</string>
     <string name="open_external_link">Abrir enlace externo</string>
     <string name="open_external_link_message">Se abrirá un enlace externo:\n%1$s</string>
+    <string name="html_preview_unavailable">La vista previa de HTML no está disponible aquí</string>
+    <string name="open_in_browser">Abrir en el navegador</string>
     <string name="no_files">Sin archivos</string>
     <string name="delete_file_confirm">¿Eliminar «%1$s»?</string>
     <string name="upload_files">Subir archivos</string>
@@ -190,15 +192,15 @@
     <string name="already_exists">Ya existe un elemento con ese nombre</string>
     <string name="delete_items_confirm">¿Eliminar %1$d elementos?</string>
     <plurals name="item_count">
-        <item quantity="one">%d elemento</item>
-        <item quantity="other">%d elementos</item>
+        <item quantity="one">%1$d elemento</item>
+        <item quantity="other">%1$d elementos</item>
     </plurals>
     <string name="more">Más</string>
     <string name="copy_path">Copiar ruta</string>
     <string name="upload">Subir</string>
     <plurals name="upload_confirm">
-        <item quantity="one">Se subirá %d archivo</item>
-        <item quantity="other">Se subirán %d archivos</item>
+        <item quantity="one">Se subirá %1$d archivo</item>
+        <item quantity="other">Se subirán %1$d archivos</item>
     </plurals>
     <string name="new_session">Nueva sesión</string>
     <string name="new_chat">Nuevo chat</string>
@@ -258,4 +260,5 @@
     <string name="connecting">Conectando</string>
     <string name="disconnected">Desconectado</string>
     <string name="waiting_user">Esperando respuesta</string>
+    <string name="refresh">Recargar</string>
 </resources>

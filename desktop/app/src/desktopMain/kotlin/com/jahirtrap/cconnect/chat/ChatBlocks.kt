@@ -4,7 +4,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import com.jahirtrap.cconnect.ui.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -28,8 +28,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.CircularProgressIndicator
+import com.jahirtrap.cconnect.ui.IconButton
+import com.jahirtrap.cconnect.ui.textHoverCursor
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -48,8 +49,12 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -171,7 +176,7 @@ fun ChatMessageItem(
                 val content = remember(message.text, message.attachments, message.images) { userContent(message) }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (content.body.isNotEmpty()) {
-                        Text(content.body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                        SelectableText(content.body, MaterialTheme.typography.bodyMedium, MaterialTheme.colorScheme.onSurface)
                     }
                     if (content.attachments.isNotEmpty()) {
                         Row(
@@ -224,11 +229,11 @@ fun ChatMessageItem(
             Role.COMPACT -> message.compact?.let { CompactBlock(it, expanded = expanded, onToggle = onToggle) }
 
             Role.ERROR -> Band(MaterialTheme.colorScheme.errorContainer) {
-                Text(message.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onErrorContainer)
+                SelectableText(message.text, MaterialTheme.typography.bodyMedium, MaterialTheme.colorScheme.onErrorContainer)
             }
 
             Role.SYSTEM -> Plain {
-                Text(message.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                SelectableText(message.text, MaterialTheme.typography.bodySmall, MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -309,6 +314,18 @@ private fun Plain(content: @Composable () -> Unit) {
 }
 
 @Composable
+private fun SelectableText(text: String, style: TextStyle, color: Color, modifier: Modifier = Modifier) {
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    Text(
+        text,
+        style = style,
+        color = color,
+        onTextLayout = { layout = it },
+        modifier = modifier.fillMaxWidth().textHoverCursor(layout = { layout }),
+    )
+}
+
+@Composable
 private fun Collapsible(label: String, text: String, icon: ImageVector? = null, labelOnly: Boolean = false, running: Boolean = false, expanded: Boolean? = null, onToggle: (() -> Unit)? = null) {
     var localExpanded by rememberSaveable { mutableStateOf(false) }
     val isExpanded = expanded ?: localExpanded
@@ -334,7 +351,7 @@ private fun Collapsible(label: String, text: String, icon: ImageVector? = null, 
                 modifier = Modifier.weight(1f),
             )
             if (running) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.primary)
+                LoadingIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.primary)
                 if (!labelOnly) Spacer(Modifier.size(2.dp))
             }
             if (!labelOnly) {
@@ -347,7 +364,7 @@ private fun Collapsible(label: String, text: String, icon: ImageVector? = null, 
             }
         }
         if (isExpanded && !labelOnly) {
-            Text(
+            SelectableText(
                 text = text,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -396,7 +413,7 @@ private fun ToolBlock(name: String?, input: String, result: String? = null, runn
                 modifier = Modifier.weight(1f),
             )
             if (running) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.primary)
+                LoadingIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.size(2.dp))
             }
             Icon(
@@ -597,6 +614,7 @@ private fun InteractionBlock(
                     OutlinedButton(
                         onClick = { onAnswer?.invoke(data.requestId, opt.id, null) },
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
                     ) {
                         Text(optionLabel(opt), style = MaterialTheme.typography.bodyMedium)
                     }

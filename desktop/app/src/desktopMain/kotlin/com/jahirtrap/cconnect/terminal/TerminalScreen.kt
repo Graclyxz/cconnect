@@ -1,7 +1,7 @@
 package com.jahirtrap.cconnect.terminal
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import com.jahirtrap.cconnect.ui.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,13 +20,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.jahirtrap.cconnect.ui.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.jahirtrap.cconnect.ui.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -38,6 +38,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerType
+import androidx.compose.ui.input.pointer.pointerInput
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -242,9 +245,6 @@ private fun TerminalSession(
     }
 
     val focusRequester = remember { FocusRequester() }
-    fun showKeyboard() {
-        runCatching { focusRequester.requestFocus() }
-    }
 
     DisposableEffect(Unit) { onDispose { connection.close() } }
 
@@ -258,7 +258,7 @@ private fun TerminalSession(
         topBar = {
             val sshLeading: (@Composable () -> Unit)? = when (state) {
                 SshConnection.State.Idle, SshConnection.State.Connecting ->
-                    ({ CircularProgressIndicator(modifier = Modifier.size(14.dp)) })
+                    ({ LoadingIndicator(modifier = Modifier.size(14.dp)) })
                 SshConnection.State.Connected -> ({ StatusDot(palette.green) })
                 else -> ({ StatusDot(palette.red) })
             }
@@ -280,7 +280,21 @@ private fun TerminalSession(
             )
         },
     ) { pad ->
-        Column(modifier = Modifier.fillMaxSize().padding(pad).consumeWindowInsets(pad)) {
+        var touch by remember { mutableStateOf(false) }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(pad)
+                .consumeWindowInsets(pad)
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            touch = event.changes.any { it.type == PointerType.Touch }
+                        }
+                    }
+                },
+        ) {
             Terminal(
                 terminalEmulator = emulator,
                 modifier = Modifier.weight(1f).fillMaxWidth().background(Color.Black),
@@ -292,11 +306,13 @@ private fun TerminalSession(
                 showSoftKeyboard = true,
                 focusRequester = focusRequester,
             )
-            SoftKeyRow(
-                onKey = { connection.send(it) },
-                onShowKeyboard = ::showKeyboard,
-                modifier = Modifier.imePadding(),
-            )
+            if (touch) {
+                SoftKeyRow(
+                    onKey = { connection.send(it); runCatching { focusRequester.requestFocus() } },
+                    onShowKeyboard = { runCatching { focusRequester.requestFocus() } },
+                    modifier = Modifier.imePadding(),
+                )
+            }
         }
     }
 }

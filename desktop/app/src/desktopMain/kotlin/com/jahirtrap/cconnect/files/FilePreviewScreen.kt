@@ -17,9 +17,12 @@ import coil3.compose.AsyncImagePainter
 import com.jahirtrap.cconnect.data.remote.AppImageLoader
 import com.jahirtrap.cconnect.data.remote.Backend
 import java.net.URLConnection
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -45,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Download
 import com.composables.icons.lucide.EllipsisVertical
+import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Save
 import com.composables.icons.lucide.Share2
@@ -54,6 +58,7 @@ import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.remote.SharedApi
+import com.jahirtrap.cconnect.ui.ActionButton
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CenteredProgress
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
@@ -110,7 +115,7 @@ fun FilePreviewScreen(
 
     val kind = previewKindOf(filename)
     LaunchedEffect(url) {
-        if (kind == PreviewKind.Html) { FileTransfer.openExternally(url, filename); onClose(); return@LaunchedEffect }
+        if (kind == PreviewKind.Html) return@LaunchedEffect
         if (kind == PreviewKind.Image) return@LaunchedEffect  // Coil streams the image itself
         val result = SharedApi.fetchText(url)
         if (result != null) text = result else failed = true
@@ -190,6 +195,18 @@ fun FilePreviewScreen(
     ) { padding ->
         when {
             kind == PreviewKind.Image -> ImagePreview(url, Modifier.fillMaxSize().padding(padding))
+            kind == PreviewKind.Html -> Column(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                EmptyState(stringResource(Res.string.html_preview_unavailable))
+                ActionButton(
+                    text = stringResource(Res.string.open_in_browser),
+                    onClick = { scope.launch { FileTransfer.openExternally(url, filename) } },
+                    icon = Lucide.ExternalLink,
+                )
+            }
             failed -> EmptyState(stringResource(Res.string.connection_error), Modifier.fillMaxSize().padding(padding))
             text == null -> CenteredProgress(Modifier.fillMaxSize().padding(padding))
             else -> Column(

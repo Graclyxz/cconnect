@@ -24,8 +24,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import com.jahirtrap.cconnect.ui.TextButton
+import com.jahirtrap.cconnect.ui.AppPullToRefresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -49,6 +49,7 @@ import com.composables.icons.lucide.Eraser
 import com.composables.icons.lucide.FilePen
 import com.composables.icons.lucide.FileText
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.RotateCw
 import com.composables.icons.lucide.Server
 import com.composables.icons.lucide.Store
 import com.composables.icons.lucide.Unplug
@@ -72,6 +73,7 @@ import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.Claude
 import com.jahirtrap.cconnect.ui.EmptyState
 import com.jahirtrap.cconnect.ui.EnvironmentSelectDialog
+import com.jahirtrap.cconnect.ui.LocalRefreshTick
 import com.jahirtrap.cconnect.ui.InputField
 import com.jahirtrap.cconnect.ui.MarkdownText
 import com.jahirtrap.cconnect.ui.MetricBar
@@ -119,6 +121,8 @@ fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: Str
     }
     LaunchedEffect(state.activeEnvironmentId) { loaded = false; load() }
     LaunchedEffect(state.connection) { if (state.connection == ConnectionState.Connected) load() }
+    val refreshTick = LocalRefreshTick.current
+    LaunchedEffect(refreshTick) { if (refreshTick > 0) { refreshing = true; load() } }
 
     detail?.let { kind ->
         ClaudeDetailScreen(
@@ -148,6 +152,9 @@ fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: Str
                     TooltipIconButton(label = stringResource(Res.string.environment), onClick = { envMenu = true }) {
                         Icon(Lucide.Server, contentDescription = null)
                     }
+                    TooltipIconButton(label = stringResource(Res.string.refresh), onClick = { refreshing = true; scope.launch { load() } }) {
+                        Icon(Lucide.RotateCw, contentDescription = null)
+                    }
                 },
             )
         },
@@ -160,7 +167,7 @@ fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: Str
                 onDismiss = { envMenu = false },
             )
         }
-        PullToRefreshBox(
+        AppPullToRefresh(
             isRefreshing = refreshing,
             onRefresh = { refreshing = true; scope.launch { load() } },
             modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding),
