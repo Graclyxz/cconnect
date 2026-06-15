@@ -66,6 +66,8 @@ kotlin {
                 implementation(libs.coil.network.okhttp)
                 implementation(libs.coil.svg)
 
+                implementation(libs.lifecycle.viewmodel.compose)
+
                 implementation(libs.icons.lucide)
                 implementation(libs.icons.font.awesome.brands)
 

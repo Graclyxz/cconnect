@@ -6,6 +6,7 @@ okhttp = "4.12.0"
 kotlinxSerialization = "1.9.0"
 commonmark = "0.24.0"
 coil = "3.4.0"
+lifecycle = "2.9.6"
 composeIcons = "2.2.1"
 sshj = "0.40.0"
 bouncycastle = "1.78.1"
@@ -25,6 +26,7 @@ commonmark-ext-ins = { module = "org.commonmark:commonmark-ext-ins", version.ref
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 coil-svg = { module = "io.coil-kt.coil3:coil-svg", version.ref = "coil" }
+lifecycle-viewmodel-compose = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 icons-lucide = { module = "com.composables:icons-lucide-cmp", version.ref = "composeIcons" }
 icons-font-awesome-brands = { module = "com.composables:icons-font-awesome-brands-cmp", version.ref = "composeIcons" }
 sshj = { module = "com.hierynomus:sshj", version.ref = "sshj" }
