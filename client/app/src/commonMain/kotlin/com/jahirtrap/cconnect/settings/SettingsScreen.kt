@@ -71,6 +71,7 @@ import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.History
 import com.composables.icons.lucide.Languages
+import com.composables.icons.lucide.Smile
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Palette
 import com.composables.icons.lucide.Pencil
@@ -155,6 +156,8 @@ fun SettingsScreen(
     onDynamicColor: (Boolean) -> Unit,
     accentIndex: Int,
     onAccent: (Int) -> Unit,
+    emojiStyle: String,
+    onEmojiStyle: (String) -> Unit,
     language: String,
     onLanguage: (String) -> Unit,
     onOpenSshHosts: () -> Unit,
@@ -275,6 +278,13 @@ fun SettingsScreen(
                         else accentNameAt(accentIndex),
                         trailing = { AccentDot(if (dynamicColor) MaterialTheme.colorScheme.primary else accentAt(accentIndex)) },
                     ) { dialog = SettingsDialog.Accent }
+                    if (isWebPlatform) {
+                        PreferenceRow(
+                            Lucide.Smile,
+                            stringResource(Res.string.emoji_style),
+                            stringResource(if (emojiStyle == "color") Res.string.emoji_color else Res.string.emoji_flat),
+                        ) { dialog = SettingsDialog.EmojiStyle }
+                    }
                 }
                 SettingsGroup(stringResource(Res.string.background_group)) {
                     val activeCount = listOf(notifyInteraction, notifyTaskDone).count { it }
@@ -505,6 +515,17 @@ fun SettingsScreen(
             onDismiss = { dialog = null },
         )
 
+        SettingsDialog.EmojiStyle -> SelectDialog(
+            title = stringResource(Res.string.emoji_style),
+            options = listOf(
+                "flat" to stringResource(Res.string.emoji_flat),
+                "color" to stringResource(Res.string.emoji_color),
+            ),
+            selected = emojiStyle,
+            onSelect = onEmojiStyle,
+            onDismiss = { dialog = null },
+        )
+
         SettingsDialog.Accent -> AccentDialog(
             dynamic = dynamicColor,
             accentIndex = accentIndex,
@@ -593,7 +614,7 @@ fun SettingsScreen(
     }
 }
 
-private enum class SettingsDialog { Theme, Language, Accent, Environments, Cli, Generation, Permissions, Visibility, Notifications, Reset }
+private enum class SettingsDialog { Theme, Language, EmojiStyle, Accent, Environments, Cli, Generation, Permissions, Visibility, Notifications, Reset }
 
 @Composable
 private fun permissionLabel(caps: Capabilities, mode: String): String =

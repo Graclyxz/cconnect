@@ -13,8 +13,15 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.jahirtrap.cconnect.resources.Res
+import com.jahirtrap.cconnect.resources.app_font_color_bold
+import com.jahirtrap.cconnect.resources.app_font_color_regular
+import com.jahirtrap.cconnect.resources.app_font_flat_bold
+import com.jahirtrap.cconnect.resources.app_font_flat_regular
+import org.jetbrains.compose.resources.Font
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
@@ -33,6 +40,7 @@ fun CConnectTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     dynamicColor: Boolean = true,
     accent: Color = accentAt(4),
+    emojiStyle: String = "flat",
     content: @Composable () -> Unit,
 ) {
     val dark = when (themeMode) {
@@ -74,7 +82,7 @@ fun CConnectTheme(
         colorScheme = colorScheme,
         motionScheme = MotionScheme.expressive(),
         shapes = ExpressiveShapes,
-        typography = ExpressiveTypography,
+        typography = ExpressiveTypography.withFamily(rememberAppFontFamily(emojiStyle)),
     ) {
         CompositionLocalProvider(
             LocalPalette provides paletteFor(dark),
@@ -106,3 +114,30 @@ private val ExpressiveTypography: Typography = Typography().run {
         labelMedium = labelMedium.copy(fontWeight = FontWeight.SemiBold),
     )
 }
+
+@Composable
+private fun rememberAppFontFamily(emojiStyle: String): FontFamily {
+    val color = emojiStyle == "color"
+    return FontFamily(
+        Font(if (color) Res.font.app_font_color_regular else Res.font.app_font_flat_regular, FontWeight.Normal),
+        Font(if (color) Res.font.app_font_color_bold else Res.font.app_font_flat_bold, FontWeight.Bold),
+    )
+}
+
+private fun Typography.withFamily(family: FontFamily): Typography = copy(
+    displayLarge = displayLarge.copy(fontFamily = family),
+    displayMedium = displayMedium.copy(fontFamily = family),
+    displaySmall = displaySmall.copy(fontFamily = family),
+    headlineLarge = headlineLarge.copy(fontFamily = family),
+    headlineMedium = headlineMedium.copy(fontFamily = family),
+    headlineSmall = headlineSmall.copy(fontFamily = family),
+    titleLarge = titleLarge.copy(fontFamily = family),
+    titleMedium = titleMedium.copy(fontFamily = family),
+    titleSmall = titleSmall.copy(fontFamily = family),
+    bodyLarge = bodyLarge.copy(fontFamily = family),
+    bodyMedium = bodyMedium.copy(fontFamily = family),
+    bodySmall = bodySmall.copy(fontFamily = family),
+    labelLarge = labelLarge.copy(fontFamily = family),
+    labelMedium = labelMedium.copy(fontFamily = family),
+    labelSmall = labelSmall.copy(fontFamily = family),
+)

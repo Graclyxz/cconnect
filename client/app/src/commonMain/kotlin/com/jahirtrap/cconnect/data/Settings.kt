@@ -120,6 +120,10 @@ class Settings {
         get() = prefs.getInt("accent_index", 4)
         set(value) = prefs.edit { putInt("accent_index", value) }
 
+    var emojiStyle: String
+        get() = prefs.getString("emoji_style", "flat") ?: "flat"
+        set(value) = prefs.edit { putString("emoji_style", value) }
+
     val isConfigured: Boolean
         get() = activeEnvironment != null
 

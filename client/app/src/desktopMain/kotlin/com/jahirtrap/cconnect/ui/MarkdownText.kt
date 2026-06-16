@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -166,16 +167,18 @@ actual fun MarkdownText(
         }
     }
     externalLink?.let { link ->
-        ConfirmDialog(
-            title = stringResource(Res.string.open_external_link),
-            text = stringResource(Res.string.open_external_link_message, link),
-            confirmLabel = stringResource(Res.string.open),
-            onConfirm = {
-                defaultHandler.openUri(link)
-                externalLink = null
-            },
-            onDismiss = { externalLink = null },
-        )
+        DisableSelection {
+            ConfirmDialog(
+                title = stringResource(Res.string.open_external_link),
+                text = stringResource(Res.string.open_external_link_message, link),
+                confirmLabel = stringResource(Res.string.open),
+                onConfirm = {
+                    defaultHandler.openUri(link)
+                    externalLink = null
+                },
+                onDismiss = { externalLink = null },
+            )
+        }
     }
     CompositionLocalProvider(
         LocalUriHandler provides uriHandler,

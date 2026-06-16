@@ -75,6 +75,7 @@ kotlin {
                 implementation(libs.lifecycle.viewmodel.compose)
                 implementation(libs.kotlinx.coroutines.core)
                 implementation(libs.kotlinx.serialization.json)
+                implementation(libs.jetbrains.markdown)
             }
         }
         val desktopMain by getting {

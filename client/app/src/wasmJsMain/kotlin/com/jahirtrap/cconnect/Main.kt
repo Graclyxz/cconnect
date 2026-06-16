@@ -52,6 +52,7 @@ private fun App() {
     var themeMode by remember { mutableStateOf(settings.themeMode) }
     var dynamicColor by remember { mutableStateOf(settings.dynamicColor) }
     var accentIndex by remember { mutableStateOf(settings.accentIndex) }
+    var emojiStyle by remember { mutableStateOf(settings.emojiStyle) }
     var language by remember { mutableStateOf(settings.language) }
     var route by remember { mutableStateOf(if (settings.isConfigured) currentRoute() else "/settings") }
     var settingsHighlight by remember { mutableStateOf<String?>(null) }
@@ -83,6 +84,7 @@ private fun App() {
             themeMode = themeModeOf(themeMode),
             dynamicColor = dynamicColor,
             accent = accentAt(accentIndex),
+            emojiStyle = emojiStyle,
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 when (route) {
@@ -93,6 +95,8 @@ private fun App() {
                         onDynamicColor = { dynamicColor = it; settings.dynamicColor = it },
                         accentIndex = accentIndex,
                         onAccent = { accentIndex = it; settings.accentIndex = it },
+                        emojiStyle = emojiStyle,
+                        onEmojiStyle = { emojiStyle = it; settings.emojiStyle = it },
                         language = language,
                         onLanguage = { language = it; settings.language = it },
                         onOpenSshHosts = { navigate("/terminal") },
