@@ -81,10 +81,6 @@ import com.jahirtrap.cconnect.ui.SelectField
 import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.theme.palette
-import java.text.SimpleDateFormat
-import java.time.OffsetDateTime
-import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -454,7 +450,7 @@ private fun resetsLabel(resetsAt: String?): String {
     val millis = resetsAt?.let {
         com.jahirtrap.cconnect.data.parseIsoMillis(it)
     } ?: return "—"
-    val remaining = millis - System.currentTimeMillis()
+    val remaining = millis - com.jahirtrap.cconnect.data.nowMillis()
     if (remaining <= 0) return "—"
     return if (remaining < 24 * 3_600_000L) {
         val hours = remaining / 3_600_000

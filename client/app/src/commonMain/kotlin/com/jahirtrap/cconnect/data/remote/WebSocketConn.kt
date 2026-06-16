@@ -13,4 +13,9 @@ expect class WsConnection {
     fun close(code: Int, reason: String?)
 }
 
-expect fun openWebSocket(url: String, headers: List<Pair<String, String>>, listener: WsListener): WsConnection
+expect fun openWebSocket(
+    url: String,
+    headers: List<Pair<String, String>>,
+    listener: WsListener,
+    pingSeconds: Long = 20,
+): WsConnection

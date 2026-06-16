@@ -16,7 +16,6 @@ import coil3.compose.LocalPlatformContext
 import coil3.compose.AsyncImagePainter
 import com.jahirtrap.cconnect.data.remote.AppImageLoader
 import com.jahirtrap.cconnect.data.remote.Backend
-import java.net.URLConnection
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -57,7 +56,7 @@ import com.composables.icons.lucide.Type
 import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.data.Settings
-import com.jahirtrap.cconnect.data.remote.SharedApi
+import com.jahirtrap.cconnect.data.remote.fetchSharedText
 import com.jahirtrap.cconnect.ui.ActionButton
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CenteredProgress
@@ -67,36 +66,6 @@ import com.jahirtrap.cconnect.ui.EmptyState
 import com.jahirtrap.cconnect.ui.MarkdownText
 import com.jahirtrap.cconnect.ui.TooltipIconButton
 import kotlinx.coroutines.launch
-
-private val MARKDOWN_EXTENSIONS = setOf("md", "markdown")
-
-private val TEXT_APPLICATION_MIMES = setOf(
-    "application/json", "application/xml", "application/javascript", "application/typescript",
-    "application/x-sh", "application/x-yaml", "application/yaml", "application/toml",
-    "application/sql", "application/x-bat",
-)
-private val TEXT_FALLBACK_EXTENSIONS = setOf(
-    "kt", "kts", "gradle", "toml", "ini", "cfg", "conf", "properties", "env", "yml", "yaml",
-    "ts", "tsx", "jsx", "rs", "go", "ps1", "diff", "patch", "log", "lock",
-)
-
-enum class PreviewKind { Image, Markdown, Html, Text, None }
-
-fun previewKindOf(filename: String): PreviewKind {
-    val extension = filename.substringAfterLast('.', "").lowercase()
-    if (extension in MARKDOWN_EXTENSIONS) return PreviewKind.Markdown
-    val mime = URLConnection.guessContentTypeFromName(filename)
-    return when {
-        mime == "text/html" -> PreviewKind.Html
-        mime?.startsWith("image/") == true -> PreviewKind.Image
-        mime?.startsWith("text/") == true -> PreviewKind.Text
-        mime in TEXT_APPLICATION_MIMES -> PreviewKind.Text
-        extension in TEXT_FALLBACK_EXTENSIONS -> PreviewKind.Text
-        else -> PreviewKind.None
-    }
-}
-
-fun isPreviewable(filename: String): Boolean = previewKindOf(filename) != PreviewKind.None
 
 @Composable
 fun FilePreviewScreen(
@@ -117,7 +86,7 @@ fun FilePreviewScreen(
     LaunchedEffect(url) {
         if (kind == PreviewKind.Html) return@LaunchedEffect
         if (kind == PreviewKind.Image) return@LaunchedEffect  // Coil streams the image itself
-        val result = SharedApi.fetchText(url)
+        val result = fetchSharedText(url)
         if (result != null) text = result else failed = true
     }
 
@@ -168,17 +137,17 @@ fun FilePreviewScreen(
                             CompactDropdownItem(
                                 text = stringResource(Res.string.save),
                                 leadingIcon = { Icon(Lucide.Download, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                                onClick = { menu = false; scope.launch { FileTransfer.enqueueToDownloads(url, filename) } },
+                                onClick = { menu = false; scope.launch { downloadShared(url, filename) } },
                             )
                             CompactDropdownItem(
                                 text = stringResource(Res.string.save_as),
                                 leadingIcon = { Icon(Lucide.Save, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                                onClick = { menu = false; FileDialogs.save(filename)?.let { dest -> scope.launch { FileTransfer.saveTo(url, dest) } } },
+                                onClick = { menu = false; scope.launch { saveSharedAs(url, filename) } },
                             )
                             CompactDropdownItem(
                                 text = stringResource(Res.string.share),
                                 leadingIcon = { Icon(Lucide.Share2, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                                onClick = { menu = false; scope.launch { FileTransfer.openExternally(url, filename) } },
+                                onClick = { menu = false; scope.launch { openSharedExternally(url, filename) } },
                             )
                             if (onDelete != null) {
                                 CompactDropdownItem(
@@ -203,7 +172,7 @@ fun FilePreviewScreen(
                 EmptyState(stringResource(Res.string.html_preview_unavailable))
                 ActionButton(
                     text = stringResource(Res.string.open_in_browser),
-                    onClick = { scope.launch { FileTransfer.openExternally(url, filename) } },
+                    onClick = { scope.launch { openSharedExternally(url, filename) } },
                     icon = Lucide.ExternalLink,
                 )
             }

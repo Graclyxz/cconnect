@@ -35,8 +35,8 @@ import com.jahirtrap.cconnect.data.remote.Backend
 import com.jahirtrap.cconnect.data.remote.ChatSocket
 import com.jahirtrap.cconnect.data.remote.SessionsApi
 import com.jahirtrap.cconnect.data.remote.SettingsApi
-import com.jahirtrap.cconnect.data.remote.SharedApi
-import com.jahirtrap.cconnect.files.UploadManager
+import com.jahirtrap.cconnect.files.AttachmentFile
+import com.jahirtrap.cconnect.files.uploadAttachment
 import com.jahirtrap.cconnect.service.Notifier
 import com.jahirtrap.cconnect.data.remote.UrlCodec
 import kotlinx.coroutines.CancellationException
@@ -47,7 +47,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.getString
-import java.io.File
+import com.jahirtrap.cconnect.data.nowMillis
 
 enum class ConnectionState { Disconnected, Connecting, Connected }
 
@@ -108,7 +108,7 @@ data class ChatUiState(
 
 data class Attachment(
     val id: Long,
-    val file: File,
+    val file: AttachmentFile,
     val name: String,
     val size: Long,
     val progress: Float = 0f,
@@ -256,10 +256,9 @@ class ChatViewModel : ViewModel() {
             try {
                 val saved = mutableListOf<String>()
                 for (attachment in _state.value.attachments) {
-                    val rel = SharedApi.upload(
+                    val rel = uploadAttachment(
+                        file = attachment.file,
                         path = "uploads/${attachment.name}",
-                        length = attachment.size,
-                        open = { attachment.file.inputStream() },
                     ) { p ->
                         _state.update { st ->
                             st.copy(attachments = st.attachments.map { a -> if (a.id == attachment.id) a.copy(progress = p) else a })
@@ -311,11 +310,10 @@ class ChatViewModel : ViewModel() {
     private var uploadJob: Job? = null
     private var attachmentId = 0L
 
-    fun addAttachments(files: List<File>) {
+    fun addAttachments(files: List<AttachmentFile>) {
         if (files.isEmpty() || _state.value.uploadingAttachments) return
         val items = files.map { file ->
-            val (name, size) = UploadManager.metadataOf(file)
-            Attachment(id = attachmentId++, file = file, name = name, size = size)
+            Attachment(id = attachmentId++, file = file, name = file.name, size = file.size)
         }
         _state.update { it.copy(attachments = it.attachments + items) }
     }
@@ -780,7 +778,7 @@ class ChatViewModel : ViewModel() {
                         sessionId = sid,
                         projectKey = st.activeProjectKey,
                         path = settings.cwd,
-                        lastActive = System.currentTimeMillis() / 1000.0,
+                        lastActive = nowMillis() / 1000.0,
                         size = 0L,
                         preview = st.messages.firstOrNull { it.role == Role.USER }?.text?.take(120),
                         title = null,

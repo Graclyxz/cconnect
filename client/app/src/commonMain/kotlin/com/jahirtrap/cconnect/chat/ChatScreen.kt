@@ -182,8 +182,10 @@ import com.jahirtrap.cconnect.data.Role
 import com.jahirtrap.cconnect.data.pending
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.TodoItem
-import com.jahirtrap.cconnect.files.FileTransfer
-import com.jahirtrap.cconnect.files.FileDialogs
+import com.jahirtrap.cconnect.files.pickFiles
+import com.jahirtrap.cconnect.files.downloadShared
+import com.jahirtrap.cconnect.files.saveSharedAs
+import com.jahirtrap.cconnect.files.openSharedExternally
 import com.jahirtrap.cconnect.files.isArchive
 import com.jahirtrap.cconnect.files.isPreviewable
 import androidx.compose.material3.ModalBottomSheet
@@ -719,7 +721,7 @@ fun ChatScreen(
                             onCloseSide = if (sideActive) dismissSide else null,
                             attachments = if (sideActive) emptyList() else state.attachments,
                             uploading = !sideActive && state.uploadingAttachments,
-                            onAttach = if (sideActive) null else ({ vm.addAttachments(FileDialogs.openMultiple()) }),
+                            onAttach = if (sideActive) null else ({ scope.launch { vm.addAttachments(pickFiles()) } }),
                         )
                     }
                 }
@@ -770,9 +772,9 @@ fun ChatScreen(
                 })
             }) else null,
             onOpenInFiles = archiveRel?.let { rel -> { onOpenExplorer(rel) } },
-            onSave = { scope.launch { FileTransfer.enqueueToDownloads(url, filename) } },
-            onSaveAs = { FileDialogs.save(filename)?.let { dest -> scope.launch { FileTransfer.saveTo(url, dest) } } },
-            onShare = { scope.launch { FileTransfer.openExternally(url, filename) } },
+            onSave = { scope.launch { downloadShared(url, filename) } },
+            onSaveAs = { scope.launch { saveSharedAs(url, filename) } },
+            onShare = { scope.launch { openSharedExternally(url, filename) } },
             onDismiss = { sharedLinkAction = null },
         )
     }

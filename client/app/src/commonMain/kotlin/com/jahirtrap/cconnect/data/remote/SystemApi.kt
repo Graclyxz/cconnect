@@ -1,6 +1,5 @@
 package com.jahirtrap.cconnect.data.remote
 
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -15,11 +14,6 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.floatOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
 
 object SystemApi {
 
@@ -69,11 +63,10 @@ object SystemApi {
     suspend fun restart(): Boolean = Http.post("/system/restart", buildJsonObject {}) != null
 
     fun stream(): Flow<Event> = callbackFlow {
-        val request = Request.Builder().url(Backend.systemWsUrl).apply {
-            Backend.authHeaders.forEach { (name, value) -> header(name, value) }
-        }.build()
-        val socket = client.newWebSocket(request, object : WebSocketListener() {
-            override fun onMessage(webSocket: WebSocket, text: String) {
+        val socket = openWebSocket(Backend.systemWsUrl, Backend.authHeaders, object : WsListener {
+            override fun onOpen() {}
+
+            override fun onMessage(text: String) {
                 val o = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return
                 when (o["type"]?.jsonPrimitive?.contentOrNull) {
                     "system" -> trySend(Event.Info(parseInfo(o)))
@@ -81,14 +74,14 @@ object SystemApi {
                 }
             }
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                close(t)
+            override fun onFailure(reason: String) {
+                close(RuntimeException(reason))
             }
 
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            override fun onClosed(reason: String) {
                 close()
             }
-        })
+        }, pingSeconds = 15)
         awaitClose { socket.cancel() }
     }
 
@@ -134,6 +127,4 @@ object SystemApi {
         level = o["level"]?.jsonPrimitive?.contentOrNull.orEmpty(),
         message = o["message"]?.jsonPrimitive?.contentOrNull.orEmpty(),
     )
-
-    private val client = OkHttpClient.Builder().pingInterval(15, TimeUnit.SECONDS).build()
 }

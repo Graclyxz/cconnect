@@ -9,12 +9,12 @@ import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Response
 
-object AppImageLoader {
+actual object AppImageLoader {
 
     @Volatile
     private var instance: ImageLoader? = null
 
-    fun get(context: PlatformContext): ImageLoader =
+    actual fun get(context: PlatformContext): ImageLoader =
         instance ?: synchronized(this) {
             instance ?: build(context).also { instance = it }
         }

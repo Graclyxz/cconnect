@@ -70,9 +70,6 @@ import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.theme.palette
 import com.jahirtrap.cconnect.ui.verticalScrollIndicator
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first

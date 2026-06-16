@@ -11,11 +11,11 @@ import java.io.File
 import java.net.URI
 import kotlin.coroutines.coroutineContext
 
-object AppUpdater {
+actual object AppUpdater {
 
     private val client = OkHttpClient()
 
-    fun openRelease(url: String): Boolean =
+    actual fun openRelease(url: String): Boolean =
         runCatching {
             if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
                 Desktop.getDesktop().browse(URI(url))
@@ -23,7 +23,7 @@ object AppUpdater {
             } else false
         }.getOrDefault(false)
 
-    suspend fun downloadAndInstall(url: String, onProgress: (Float) -> Unit = {}): Boolean = withContext(Dispatchers.IO) {
+    actual suspend fun downloadAndInstall(url: String, onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
         val name = url.substringAfterLast('/').ifBlank { "CConnect-update" }
         val dest = File(System.getProperty("java.io.tmpdir"), name)
         try {

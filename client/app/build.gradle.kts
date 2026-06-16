@@ -108,6 +108,7 @@ kotlin {
             dependencies {
                 implementation(libs.ktor.client.core)
                 implementation(libs.ktor.client.js)
+                implementation(libs.coil.network.ktor3)
                 implementation(libs.kotlinx.browser)
             }
         }

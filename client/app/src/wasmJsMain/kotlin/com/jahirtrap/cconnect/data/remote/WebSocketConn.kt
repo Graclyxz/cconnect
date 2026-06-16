@@ -11,7 +11,7 @@ actual class WsConnection(private val ws: WebSocket) {
     actual fun close(code: Int, reason: String?) { runCatching { ws.close(code.toShort(), reason ?: "") } }
 }
 
-actual fun openWebSocket(url: String, headers: List<Pair<String, String>>, listener: WsListener): WsConnection {
+actual fun openWebSocket(url: String, headers: List<Pair<String, String>>, listener: WsListener, pingSeconds: Long): WsConnection {
     val token = headers.firstOrNull { it.first == "Authorization" }?.second?.removePrefix("Bearer ")
     val full = if (token != null) url + (if ('?' in url) "&" else "?") + "token=$token" else url
     val ws = WebSocket(full)

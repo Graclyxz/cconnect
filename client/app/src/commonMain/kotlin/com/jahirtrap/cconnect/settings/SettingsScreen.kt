@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)
+
 package com.jahirtrap.cconnect.settings
 
 import androidx.compose.animation.core.Animatable
@@ -138,7 +140,7 @@ import com.jahirtrap.cconnect.ui.theme.palette
 import com.jahirtrap.cconnect.ui.theme.accentAt
 import com.jahirtrap.cconnect.ui.theme.accentNameAt
 import com.jahirtrap.cconnect.ui.theme.dynamicAccent
-import java.util.UUID
+import kotlin.uuid.Uuid
 
 private const val KOFI_URL = "https://ko-fi.com/jahirtrap"
 
@@ -594,78 +596,6 @@ private fun permissionLabel(caps: Capabilities, mode: String): String =
     caps.permissionModes.firstOrNull { it.id == mode }?.label ?: mode
 
 @Composable
-fun SettingsGroup(
-    label: String?,
-    labelTrailing: (@Composable () -> Unit)? = null,
-    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        if (label != null) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    label,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                labelTrailing?.invoke()
-            }
-        } else {
-            Spacer(Modifier.height(16.dp))
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-            content = content,
-        )
-    }
-}
-
-@Composable
-fun PreferenceRow(
-    icon: ImageVector,
-    title: String,
-    summary: String?,
-    trailing: (@Composable () -> Unit)? = null,
-    enabled: Boolean = true,
-    alert: String? = null,
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-) {
-    val alpha = if (enabled) 1f else 0.38f
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(enabled = enabled, onClick = onClick) else Modifier)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary.copy(alpha = alpha), modifier = Modifier.size(24.dp))
-        Spacer(Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (summary != null) {
-                Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            if (alert != null) {
-                Text(alert, style = MaterialTheme.typography.bodySmall, color = palette.red.copy(alpha = alpha))
-            }
-        }
-        if (trailing != null) {
-            Spacer(Modifier.width(12.dp))
-            trailing()
-        }
-    }
-}
-
-@Composable
 private fun SwitchRow(
     title: String,
     summary: String,
@@ -880,7 +810,7 @@ private fun EnvironmentEditDialog(
                     val portInt: Int? = if (finalKind == "https") null else (finalPort.toIntOrNull() ?: 8723)
                     onConfirm(
                         EnvironmentProfile(
-                            id = initial?.id ?: UUID.randomUUID().toString(),
+                            id = initial?.id ?: Uuid.random().toString(),
                             name = name.trim().ifBlank { finalHost },
                             kind = finalKind,
                             host = finalHost,

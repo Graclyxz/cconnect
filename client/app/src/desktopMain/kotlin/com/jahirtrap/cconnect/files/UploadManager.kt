@@ -1,6 +1,6 @@
 package com.jahirtrap.cconnect.files
 
-import com.jahirtrap.cconnect.data.remote.SharedApi
+import com.jahirtrap.cconnect.data.remote.uploadShared
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -40,7 +40,7 @@ object UploadManager {
         _uploads.value += Upload(id, name, dir)
         jobs[id] = scope.launch {
             val path = if (dir.isEmpty()) name else "$dir/$name"
-            val saved = SharedApi.upload(path, length, { file.inputStream() }) { p ->
+            val saved = uploadShared(path, length, { file.inputStream() }) { p ->
                 patch(id) { it.copy(progress = p) }
             }
             patch(id) { it.copy(progress = 1f, status = if (saved != null) Status.Done else Status.Failed) }

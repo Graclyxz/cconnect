@@ -261,4 +261,5 @@
     <string name="disconnected">Disconnected</string>
     <string name="waiting_user">Waiting for a reply</string>
     <string name="refresh">Refresh</string>
+    <string name="web_unavailable">Not available in the web version</string>
 </resources>

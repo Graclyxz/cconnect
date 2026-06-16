@@ -1,55 +1,149 @@
 package com.jahirtrap.cconnect
 
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.ComposeViewport
-import com.jahirtrap.cconnect.ui.MarkdownText
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import com.jahirtrap.cconnect.chat.ChatScreen
+import com.jahirtrap.cconnect.claude.ClaudeScreen
+import com.jahirtrap.cconnect.data.Settings
+import com.jahirtrap.cconnect.files.FilePreviewScreen
+import com.jahirtrap.cconnect.monitor.MonitorScreen
+import com.jahirtrap.cconnect.resources.Res
+import com.jahirtrap.cconnect.resources.web_unavailable
+import com.jahirtrap.cconnect.settings.SettingsScreen
+import com.jahirtrap.cconnect.ui.EmptyState
+import com.jahirtrap.cconnect.ui.LocalRefreshTick
 import com.jahirtrap.cconnect.ui.theme.CConnectTheme
-import com.jahirtrap.cconnect.ui.theme.ThemeMode
+import com.jahirtrap.cconnect.ui.theme.accentAt
+import com.jahirtrap.cconnect.ui.theme.themeModeOf
+import org.jetbrains.compose.resources.stringResource
 import kotlinx.browser.document
+import kotlinx.browser.window
+import org.w3c.dom.events.Event
 
 @OptIn(ExperimentalComposeUiApi::class)
 fun main() {
     ComposeViewport(document.body!!) {
-        CConnectTheme(themeMode = ThemeMode.SYSTEM, dynamicColor = false) {
-            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp),
-                ) {
-                    Text("CConnect Web — vista previa", style = MaterialTheme.typography.titleLarge)
-                    MarkdownText(PREVIEW_MARKDOWN)
+        App()
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun App() {
+    val settings = remember { Settings() }
+    val viewModelStoreOwner = remember {
+        object : ViewModelStoreOwner {
+            override val viewModelStore = ViewModelStore()
+        }
+    }
+
+    var themeMode by remember { mutableStateOf(settings.themeMode) }
+    var dynamicColor by remember { mutableStateOf(settings.dynamicColor) }
+    var accentIndex by remember { mutableStateOf(settings.accentIndex) }
+    var language by remember { mutableStateOf(settings.language) }
+    var route by remember { mutableStateOf(if (settings.isConfigured) currentRoute() else "/settings") }
+    var settingsHighlight by remember { mutableStateOf<String?>(null) }
+    var previewFile by remember { mutableStateOf<PreviewRequest?>(null) }
+    var sidebarExpanded by remember { mutableStateOf(settings.sidebarExpanded) }
+
+    DisposableEffect(Unit) {
+        val listener: (Event) -> Unit = { route = currentRoute() }
+        window.addEventListener("popstate", listener)
+        onDispose { window.removeEventListener("popstate", listener) }
+    }
+
+    fun navigate(target: String) {
+        if (route == target) return
+        window.history.pushState(null, "", target)
+        route = target
+    }
+
+    fun goBack() {
+        if (previewFile != null) previewFile = null else window.history.back()
+    }
+
+    CompositionLocalProvider(
+        LocalViewModelStoreOwner provides viewModelStoreOwner,
+        LocalRefreshTick provides 0,
+    ) {
+        CConnectTheme(
+            themeMode = themeModeOf(themeMode),
+            dynamicColor = dynamicColor,
+            accent = accentAt(accentIndex),
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                when (route) {
+                    "/settings" -> SettingsScreen(
+                        themeMode = themeMode,
+                        onThemeMode = { themeMode = it; settings.themeMode = it },
+                        dynamicColor = dynamicColor,
+                        onDynamicColor = { dynamicColor = it; settings.dynamicColor = it },
+                        accentIndex = accentIndex,
+                        onAccent = { accentIndex = it; settings.accentIndex = it },
+                        language = language,
+                        onLanguage = { language = it; settings.language = it },
+                        onOpenSshHosts = { navigate("/terminal") },
+                        highlight = settingsHighlight,
+                        onClose = { settingsHighlight = null; goBack() },
+                    )
+
+                    "/claude" -> ClaudeScreen(
+                        onClose = { goBack() },
+                        onOpenPreview = { url, name, onDelete -> previewFile = PreviewRequest(url, name, onDelete) },
+                    )
+
+                    "/monitor" -> MonitorScreen(onClose = { goBack() })
+
+                    "/files", "/terminal" -> EmptyState(
+                        stringResource(Res.string.web_unavailable),
+                        Modifier.fillMaxSize(),
+                    )
+
+                    else -> ChatScreen(
+                        onOpenSettings = { target -> settingsHighlight = target; navigate("/settings") },
+                        onOpenExplorer = { navigate("/files") },
+                        onOpenClaude = { navigate("/claude") },
+                        onOpenMonitor = { navigate("/monitor") },
+                        onOpenTerminal = { navigate("/terminal") },
+                        onOpenPreview = { url, name, onDelete -> previewFile = PreviewRequest(url, name, onDelete) },
+                        expanded = sidebarExpanded,
+                        onExpandedChange = { sidebarExpanded = it; settings.sidebarExpanded = it },
+                    )
+                }
+                previewFile?.let { request ->
+                    FilePreviewScreen(
+                        url = request.url,
+                        filename = request.name,
+                        onClose = { previewFile = null },
+                        onDelete = request.onDelete,
+                    )
                 }
             }
         }
     }
 }
 
-private const val PREVIEW_MARKDOWN = """
-# Migración web en curso
+private data class PreviewRequest(
+    val url: String,
+    val name: String,
+    val onDelete: (() -> Unit)?,
+)
 
-Esto se renderiza en **wasmJs** con el mismo tema y componentes que desktop.
-
-- Tema y colores compartidos
-- Markdown propio de web (*primer corte*)
-- `código en línea` y bloques:
-
-```kotlin
-fun hola() = "desde el navegador"
-```
-
-> Las pantallas reales se montan en la siguiente fase.
-
-Un [enlace de ejemplo](https://example.com).
-"""
+private fun currentRoute(): String = when (val path = window.location.pathname) {
+    "/settings", "/claude", "/monitor", "/files", "/terminal" -> path
+    else -> "/"
+}

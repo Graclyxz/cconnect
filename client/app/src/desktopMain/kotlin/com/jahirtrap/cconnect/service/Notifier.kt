@@ -6,32 +6,23 @@ import java.awt.SystemTray
 import java.awt.TrayIcon
 import java.awt.image.BufferedImage
 
-object Notifier {
+internal actual val platformNotifier: PlatformNotifier = DesktopNotifier
 
-    data class Action(val label: String, val requestId: String, val optionId: String)
-
-    enum class Kind(val notifId: Int) {
-        TaskDone(2),
-        Interaction(3),
-    }
-
-    @Volatile
-    var appInForeground: Boolean = false
+private object DesktopNotifier : PlatformNotifier {
 
     private var onActivate: (() -> Unit)? = null
     private var trayIcon: TrayIcon? = null
 
-    fun init(onActivate: () -> Unit) {
+    override fun init(onActivate: () -> Unit) {
         this.onActivate = onActivate
     }
 
-    fun notify(kind: Kind, title: String, text: String?, actions: List<Action> = emptyList()) {
-        if (appInForeground) return
+    override fun notify(kind: Notifier.Kind, title: String, text: String?, actions: List<Notifier.Action>) {
         val tray = ensureTray() ?: return
         tray.displayMessage(title, text.orEmpty(), TrayIcon.MessageType.INFO)
     }
 
-    fun cancel(kind: Kind) {}
+    override fun cancel(kind: Notifier.Kind) {}
 
     private fun ensureTray(): TrayIcon? {
         if (!SystemTray.isSupported()) return null
