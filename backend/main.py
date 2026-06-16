@@ -6,6 +6,7 @@ import pkgutil
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from slowapi.errors import RateLimitExceeded
 
@@ -52,6 +53,12 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 app.add_middleware(GZipMiddleware, minimum_size=512)
 register_security_middleware(app)
 register_public_auth_middleware(app)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 register_error_handlers(app)
 
 for module_info in pkgutil.iter_modules(routers_pkg.__path__):

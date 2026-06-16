@@ -227,7 +227,7 @@ fun ChatScreen(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
 ) {
-    val vm: ChatViewModel = viewModel()
+    val vm: ChatViewModel = viewModel(factory = chatViewModelFactory)
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()

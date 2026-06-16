@@ -497,6 +497,7 @@ fun SettingsScreen(
                         ) { uriHandler.openUri(GitHubApi.REPO_URL) }
                     }
                 }
+                Spacer(Modifier.height(16.dp))
             }
         }
     }

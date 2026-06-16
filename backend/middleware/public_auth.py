@@ -16,7 +16,8 @@ def ws_bearer_ok(ws: WebSocket) -> bool:
     if PUBLIC_ACCESS_TOKEN is None:
         return True
     scheme, _, value = ws.headers.get("authorization", "").partition(" ")
-    return scheme.lower() == "bearer" and hmac.compare_digest(value.strip(), PUBLIC_ACCESS_TOKEN)
+    token = value.strip() if scheme.lower() == "bearer" else ws.query_params.get("token", "")
+    return hmac.compare_digest(token, PUBLIC_ACCESS_TOKEN)
 
 
 def _extract_bearer(request: Request) -> str | None:

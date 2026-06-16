@@ -10,3 +10,11 @@ actual suspend fun saveSharedAs(url: String, filename: String): Boolean {
 
 actual suspend fun openSharedExternally(url: String, filename: String): Boolean =
     FileTransfer.openExternally(url, filename)
+
+actual suspend fun saveAllShared(items: List<Pair<String, String>>): Boolean {
+    val dir = FileDialogs.chooseDirectory() ?: return false
+    return FileTransfer.saveAllTo(items, dir)
+}
+
+actual suspend fun openAllSharedExternally(items: List<Pair<String, String>>): Boolean =
+    FileTransfer.openMultipleExternally(items)

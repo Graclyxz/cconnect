@@ -55,6 +55,7 @@ import com.composables.icons.lucide.Server
 import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.chat.ChatViewModel
+import com.jahirtrap.cconnect.chat.chatViewModelFactory
 import com.jahirtrap.cconnect.data.remote.SystemApi
 import com.jahirtrap.cconnect.files.formatSize
 import com.jahirtrap.cconnect.terminal.colorForOs
@@ -83,7 +84,7 @@ private const val HISTORY_CAP = 90
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MonitorScreen(onClose: () -> Unit) {
-    val vm: ChatViewModel = viewModel()
+    val vm: ChatViewModel = viewModel(factory = chatViewModelFactory)
     val state by vm.state.collectAsState()
     var info by remember { mutableStateOf<SystemApi.SystemInfo?>(null) }
     var gpu by remember { mutableStateOf<SystemApi.GpuInfo?>(null) }

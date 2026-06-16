@@ -19,17 +19,15 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.jahirtrap.cconnect.chat.ChatScreen
 import com.jahirtrap.cconnect.claude.ClaudeScreen
 import com.jahirtrap.cconnect.data.Settings
+import com.jahirtrap.cconnect.files.FileExplorerScreen
 import com.jahirtrap.cconnect.files.FilePreviewScreen
 import com.jahirtrap.cconnect.monitor.MonitorScreen
-import com.jahirtrap.cconnect.resources.Res
-import com.jahirtrap.cconnect.resources.web_unavailable
 import com.jahirtrap.cconnect.settings.SettingsScreen
-import com.jahirtrap.cconnect.ui.EmptyState
+import com.jahirtrap.cconnect.terminal.TerminalScreen
 import com.jahirtrap.cconnect.ui.LocalRefreshTick
 import com.jahirtrap.cconnect.ui.theme.CConnectTheme
 import com.jahirtrap.cconnect.ui.theme.accentAt
 import com.jahirtrap.cconnect.ui.theme.themeModeOf
-import org.jetbrains.compose.resources.stringResource
 import kotlinx.browser.document
 import kotlinx.browser.window
 import org.w3c.dom.events.Event
@@ -57,6 +55,7 @@ private fun App() {
     var language by remember { mutableStateOf(settings.language) }
     var route by remember { mutableStateOf(if (settings.isConfigured) currentRoute() else "/settings") }
     var settingsHighlight by remember { mutableStateOf<String?>(null) }
+    var explorerArchive by remember { mutableStateOf<String?>(null) }
     var previewFile by remember { mutableStateOf<PreviewRequest?>(null) }
     var sidebarExpanded by remember { mutableStateOf(settings.sidebarExpanded) }
 
@@ -108,14 +107,17 @@ private fun App() {
 
                     "/monitor" -> MonitorScreen(onClose = { goBack() })
 
-                    "/files", "/terminal" -> EmptyState(
-                        stringResource(Res.string.web_unavailable),
-                        Modifier.fillMaxSize(),
+                    "/files" -> FileExplorerScreen(
+                        onClose = { explorerArchive = null; goBack() },
+                        onOpenPreview = { url, name, onDelete -> previewFile = PreviewRequest(url, name, onDelete) },
+                        initialArchive = explorerArchive,
                     )
+
+                    "/terminal" -> TerminalScreen(onClose = { goBack() })
 
                     else -> ChatScreen(
                         onOpenSettings = { target -> settingsHighlight = target; navigate("/settings") },
-                        onOpenExplorer = { navigate("/files") },
+                        onOpenExplorer = { target -> explorerArchive = target; navigate("/files") },
                         onOpenClaude = { navigate("/claude") },
                         onOpenMonitor = { navigate("/monitor") },
                         onOpenTerminal = { navigate("/terminal") },

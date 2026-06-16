@@ -1,6 +1,5 @@
 package com.jahirtrap.cconnect.files
 
-import com.jahirtrap.cconnect.data.remote.uploadShared
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -8,9 +7,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import java.io.File
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicLong
 
 object UploadManager {
 
@@ -27,20 +23,17 @@ object UploadManager {
     private val _uploads = MutableStateFlow<List<Upload>>(emptyList())
     val uploads: StateFlow<List<Upload>> = _uploads
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val nextId = AtomicLong()
-    private val jobs = ConcurrentHashMap<Long, Job>()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private var nextId = 0L
+    private val jobs = mutableMapOf<Long, Job>()
 
-    fun metadataOf(file: File): Pair<String, Long> = file.name to file.length()
-
-    fun enqueue(file: File, dir: String) {
-        val (name, length) = metadataOf(file)
-
-        val id = nextId.incrementAndGet()
+    fun enqueue(file: AttachmentFile, dir: String) {
+        val name = file.name
+        val id = ++nextId
         _uploads.value += Upload(id, name, dir)
         jobs[id] = scope.launch {
             val path = if (dir.isEmpty()) name else "$dir/$name"
-            val saved = uploadShared(path, length, { file.inputStream() }) { p ->
+            val saved = uploadAttachment(file, path) { p ->
                 patch(id) { it.copy(progress = p) }
             }
             patch(id) { it.copy(progress = 1f, status = if (saved != null) Status.Done else Status.Failed) }

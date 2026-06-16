@@ -125,6 +125,7 @@ import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.chat.ChatViewModel
+import com.jahirtrap.cconnect.chat.chatViewModelFactory
 import com.jahirtrap.cconnect.chat.ConnectionState
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.SharedEntry
@@ -149,10 +150,6 @@ import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.theme.palette
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 private enum class TransferKind { Move, Copy, Extract }
 
@@ -207,7 +204,7 @@ fun FileExplorerScreen(
     onOpenPreview: (url: String, filename: String, onDelete: (() -> Unit)?) -> Unit,
     initialArchive: String? = null,
 ) {
-    val vm: ChatViewModel = viewModel()
+    val vm: ChatViewModel = viewModel(factory = chatViewModelFactory)
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -252,7 +249,7 @@ fun FileExplorerScreen(
         sortEntries(searchResults ?: entries, sortField, sortAscending)
     }
 
-    var pendingUploads by remember { mutableStateOf<List<File>>(emptyList()) }
+    var pendingUploads by remember { mutableStateOf<List<AttachmentFile>>(emptyList()) }
 
     fun child(name: String) = if (path.isEmpty()) name else "$path/$name"
     fun innerChild(name: String) = if (archiveDir.isEmpty()) name else "$archiveDir/$name"
@@ -469,7 +466,7 @@ fun FileExplorerScreen(
                             {
                                 if (currentArchive != null) scope.launch {
                                     files.forEach {
-                                        FileTransfer.enqueueToDownloads(SharedApi.archiveFileUrl(currentArchive, innerChild(it.name)), it.name)
+                                        downloadShared(SharedApi.archiveFileUrl(currentArchive, innerChild(it.name)), it.name)
                                     }
                                 }
                                 exitSelection()
@@ -505,7 +502,7 @@ fun FileExplorerScreen(
                     onShare = {
                         scope.launch {
                             val files = selectedEntries.map { SharedApi.downloadUrl(child(it.name)) to it.name }
-                            FileTransfer.openMultipleExternally(files)
+                            openAllSharedExternally(files)
                             exitSelection()
                         }
                     },
@@ -520,20 +517,16 @@ fun FileExplorerScreen(
                         onRename = shownSingle?.let { entry -> { renaming = entry } },
                         onSave = shownFiles.takeIf { it.isNotEmpty() }?.let { files ->
                             {
-                                scope.launch { files.forEach { FileTransfer.enqueueToDownloads(SharedApi.downloadUrl(child(it.name)), it.name) } }
+                                scope.launch { files.forEach { downloadShared(SharedApi.downloadUrl(child(it.name)), it.name) } }
                                 exitSelection()
                             }
                         },
                         onSaveAs = shownFiles.takeIf { it.isNotEmpty() }?.let { files ->
                             {
                                 if (files.size == 1) {
-                                    FileDialogs.save(files.first().name)?.let { dest ->
-                                        scope.launch { FileTransfer.saveTo(SharedApi.downloadUrl(child(files.first().name)), dest) }
-                                    }
+                                    scope.launch { saveSharedAs(SharedApi.downloadUrl(child(files.first().name)), files.first().name) }
                                 } else {
-                                    FileDialogs.chooseDirectory()?.let { dir ->
-                                        scope.launch { FileTransfer.saveAllTo(files.map { SharedApi.downloadUrl(child(it.name)) to it.name }, dir) }
-                                    }
+                                    scope.launch { saveAllShared(files.map { SharedApi.downloadUrl(child(it.name)) to it.name }) }
                                 }
                                 exitSelection()
                             }
@@ -574,7 +567,7 @@ fun FileExplorerScreen(
                 exit = scaleOut() + fadeOut(),
             ) {
                 Surface(
-                    onClick = { val picked = FileDialogs.openMultiple(); if (picked.isNotEmpty()) pendingUploads = picked },
+                    onClick = { scope.launch { val picked = pickFiles(); if (picked.isNotEmpty()) pendingUploads = picked } },
                     shape = CircleShape,
                     color = MaterialTheme.colorScheme.onBackground,
                     shadowElevation = 4.dp,

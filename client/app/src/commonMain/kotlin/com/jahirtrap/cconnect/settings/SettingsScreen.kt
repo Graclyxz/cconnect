@@ -101,6 +101,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.chat.ChatViewModel
+import com.jahirtrap.cconnect.chat.chatViewModelFactory
 import com.jahirtrap.cconnect.chat.ConnectionState
 import com.jahirtrap.cconnect.claude.ClaudeChangelogSheet
 import coil3.compose.AsyncImage
@@ -178,7 +179,7 @@ fun SettingsScreen(
     var loading by remember { mutableStateOf(Backend.isConfigured) }
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val chatVm = viewModel<ChatViewModel>()
+    val chatVm = viewModel<ChatViewModel>(factory = chatViewModelFactory)
     val chatState by chatVm.state.collectAsState()
 
     suspend fun loadServerSettings() {
