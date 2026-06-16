@@ -560,6 +560,25 @@ def list_checkpoints(project_key: str, session_id: str) -> list[dict]:
     return points
 
 
+def _parse_ts(value) -> Optional[int]:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        from datetime import datetime
+        return int(datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp() * 1000)
+    except Exception:
+        return None
+
+
+class _StampedList(list):
+    cur_ts: Optional[int] = None
+
+    def append(self, item):
+        if isinstance(item, dict) and self.cur_ts is not None:
+            item.setdefault("ts", self.cur_ts)
+        super().append(item)
+
+
 def get_session_messages(project_key: str, session_id: str) -> list[dict]:
     file = _session_file(project_key, session_id)
     if not file.is_file():
@@ -585,10 +604,11 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
     )
     # Per-type visibility (full / label / off).
     vis = {t: settings_store.visibility_mode(t) for t in ("thinking", "tool_use", "file_change", "compact")}
-    messages: list[dict] = []
+    messages = _StampedList()
     hidden_ids: set[str] = set()
     compact_block: dict | None = None
     for i, entry in enumerate(entries):
+        messages.cur_ts = _parse_ts(entry.get("timestamp"))
         etype = entry.get("type")
         if etype == "system" and entry.get("subtype") == "compact_boundary":
             if i != last_boundary:

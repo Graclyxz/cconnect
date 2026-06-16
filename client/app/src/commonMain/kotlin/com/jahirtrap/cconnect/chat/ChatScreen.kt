@@ -182,6 +182,7 @@ import com.jahirtrap.cconnect.data.Role
 import com.jahirtrap.cconnect.data.pending
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.TodoItem
+import com.jahirtrap.cconnect.files.fileDropTarget
 import com.jahirtrap.cconnect.files.pickFiles
 import com.jahirtrap.cconnect.files.downloadShared
 import com.jahirtrap.cconnect.files.saveSharedAs
@@ -211,6 +212,7 @@ import com.jahirtrap.cconnect.ui.RenameDialog
 import com.jahirtrap.cconnect.ui.SharedLinkActionsDialog
 import com.jahirtrap.cconnect.ui.OutlinedPanel
 import com.jahirtrap.cconnect.ui.TooltipIconButton
+import com.jahirtrap.cconnect.ui.dayIndex
 import com.jahirtrap.cconnect.ui.theme.sessionColorOf
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -259,6 +261,7 @@ fun ChatScreen(
 
     // Only manual scrolling changes this, so incoming content can't flip it before we react.
     var followBottom by remember { mutableStateOf(true) }
+    var dropOver by remember { mutableStateOf(false) }
 
     // Hidden while following; otherwise shown once scrolled more than half the chat viewport above the bottom.
     val showScrollButton by remember {
@@ -277,6 +280,29 @@ fun ChatScreen(
     LaunchedEffect(Unit) { vm.connect() }
     val refreshTick = LocalRefreshTick.current
     LaunchedEffect(refreshTick) { if (refreshTick > 0) vm.loadHistory() }
+
+    val chatLoc = remember { readChatLocation() }
+    var hadSession by remember { mutableStateOf(false) }
+    var restoreTriggered by remember { mutableStateOf(false) }
+    LaunchedEffect(state.connection) {
+        if (!restoreTriggered && chatLoc != null && state.connection == ConnectionState.Connected) {
+            restoreTriggered = true
+            vm.restoreSession(chatLoc.first, chatLoc.second)
+        }
+    }
+    LaunchedEffect(state.sessionId, state.activeProjectKey) {
+        val sid = state.sessionId
+        val pr = state.activeProjectKey
+        if (sid != null && pr != null) {
+            hadSession = true
+            syncChatLocation(sid, pr)
+        } else if (hadSession) {
+            syncChatLocation(null, null)
+        }
+    }
+    ChatPopstate { sid, pr ->
+        if (sid != null && pr != null) vm.restoreSession(sid, pr) else vm.newSession()
+    }
 
     // A user drag stops the follow immediately so streaming can't fight the gesture.
     LaunchedEffect(listState) {
@@ -527,11 +553,14 @@ fun ChatScreen(
                         Unit
                     }
                     Column(
-                        modifier = Modifier.fillMaxSize().padding(padding).onPreviewKeyEvent { e ->
-                            if (e.type == KeyEventType.KeyDown && e.key == Key.Escape && sideActive) {
-                                dismissSide(); true
-                            } else false
-                        },
+                        modifier = Modifier.fillMaxSize().padding(padding)
+                            .fileDropTarget(enabled = !sideActive, onDragChange = { dropOver = it }) { vm.addAttachments(it) }
+                            .then(if (dropOver) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier)
+                            .onPreviewKeyEvent { e ->
+                                if (e.type == KeyEventType.KeyDown && e.key == Key.Escape && sideActive) {
+                                    dismissSide(); true
+                                } else false
+                            },
                     ) {
                         BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
                             val boxHeightPx = constraints.maxHeight.toFloat()
@@ -552,6 +581,11 @@ fun ChatScreen(
                                         },
                                     ) {
                                         itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
+                                            val ts = message.timestamp
+                                            if (ts != null) {
+                                                val prevTs = (index - 1 downTo 0).firstNotNullOfOrNull { state.messages[it].timestamp }
+                                                if (prevTs == null || dayIndex(prevTs) != dayIndex(ts)) ChatDateSeparator(ts)
+                                            }
                                             val running = when (message.role) {
                                                 Role.TOOL -> message.toolUseId != null && message.toolUseId in state.pendingToolIds
                                                 Role.THINKING -> index == state.messages.lastIndex && state.streaming

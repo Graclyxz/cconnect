@@ -49,7 +49,27 @@ private fun linuxAccent(): Color? = when (runCommand(listOf("gsettings", "get", 
     "pink" -> Color(0xFFD56199)
     "purple" -> Color(0xFF9141AC)
     "slate" -> Color(0xFF6F8396)
-    else -> null
+    else -> yaruAccent()
+}
+
+private fun yaruAccent(): Color? {
+    val theme = runCommand(listOf("gsettings", "get", "org.gnome.desktop.interface", "gtk-theme"))
+        ?.trim()?.trim('\'') ?: return null
+    if (!theme.startsWith("Yaru")) return null
+    val token = theme.removePrefix("Yaru").trim('-').removeSuffix("dark").removeSuffix("light").trim('-')
+    return when (token) {
+        "", "orange" -> Color(0xFFE95420)
+        "bark" -> Color(0xFF787859)
+        "sage" -> Color(0xFF657B69)
+        "olive" -> Color(0xFF4B8501)
+        "viridian" -> Color(0xFF03875B)
+        "prussiangreen" -> Color(0xFF308280)
+        "blue" -> Color(0xFF0073E5)
+        "purple" -> Color(0xFF7764D8)
+        "magenta" -> Color(0xFFB34CB3)
+        "red" -> Color(0xFFDA3450)
+        else -> null
+    }
 }
 
 private fun runCommand(command: List<String>): String? = runCatching {

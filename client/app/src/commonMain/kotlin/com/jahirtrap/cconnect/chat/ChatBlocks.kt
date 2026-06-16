@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -79,6 +80,7 @@ import com.composables.icons.lucide.File
 import com.composables.icons.lucide.FilePen
 import com.composables.icons.lucide.FolderArchive
 import com.composables.icons.lucide.Bot
+import com.composables.icons.lucide.Calendar
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Lightbulb
 import com.composables.icons.lucide.Lucide
@@ -100,7 +102,9 @@ import com.jahirtrap.cconnect.data.Role
 import com.jahirtrap.cconnect.ui.ActionButton
 import com.jahirtrap.cconnect.ui.CodeBlock
 import com.jahirtrap.cconnect.ui.MarkdownText
-import com.jahirtrap.cconnect.ui.horizontalScrollIndicator
+import com.jahirtrap.cconnect.ui.formatClock
+import com.jahirtrap.cconnect.ui.formatDay
+import com.jahirtrap.cconnect.ui.horizontalScrollbar
 import com.jahirtrap.cconnect.ui.theme.palette
 import kotlinx.coroutines.launch
 
@@ -191,6 +195,16 @@ fun ChatMessageItem(
                                     onClick = { onSharedLink?.invoke(url, name) },
                                 )
                             }
+                        }
+                    }
+                    if (message.timestamp != null) {
+                        DisableSelection {
+                            Text(
+                                text = formatClock(message.timestamp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.align(Alignment.End),
+                            )
                         }
                     }
                 }
@@ -487,7 +501,7 @@ private fun FileChangeBlock(path: String, diffLines: List<DiffLine>, labelOnly: 
             ) {
                 Column(
                     modifier = Modifier
-                        .horizontalScrollIndicator(scroll)
+                        .horizontalScrollbar(scroll)
                         .horizontalScroll(scroll)
                         .padding(vertical = 4.dp),
                 ) {
@@ -883,6 +897,28 @@ private fun OptionRow(opt: InteractionOption, selected: Boolean, multi: Boolean,
 }
 
 @Composable
+fun ChatDateSeparator(millis: Long) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Lucide.Calendar,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.size(6.dp))
+        Text(
+            text = formatDay(millis),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
 private fun PreviewBox(preview: String) {
     val scroll = rememberScrollState()
     Surface(
@@ -896,7 +932,7 @@ private fun PreviewBox(preview: String) {
             style = MaterialTheme.typography.bodySmall.copy(lineHeight = 14.sp),
             color = MaterialTheme.colorScheme.onSurface,
             softWrap = false,
-            modifier = Modifier.horizontalScrollIndicator(scroll).horizontalScroll(scroll).padding(horizontal = 10.dp, vertical = 8.dp),
+            modifier = Modifier.horizontalScrollbar(scroll).horizontalScroll(scroll).padding(horizontal = 10.dp, vertical = 8.dp),
         )
     }
 }

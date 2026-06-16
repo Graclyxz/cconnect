@@ -13,6 +13,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.PointerMatcher
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.onClick
 import com.jahirtrap.cconnect.ui.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -42,6 +43,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import com.jahirtrap.cconnect.ui.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -84,6 +86,11 @@ import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import org.jetbrains.compose.resources.pluralStringResource
@@ -127,11 +134,13 @@ import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.chat.ChatViewModel
 import com.jahirtrap.cconnect.chat.chatViewModelFactory
 import com.jahirtrap.cconnect.chat.ConnectionState
+import com.jahirtrap.cconnect.isWebPlatform
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.SharedEntry
 import com.jahirtrap.cconnect.data.remote.SharedApi
 import com.jahirtrap.cconnect.ui.AbovePopupMenu
 import com.jahirtrap.cconnect.ui.AppTopBar
+import com.jahirtrap.cconnect.ui.BackInterceptor
 import com.jahirtrap.cconnect.ui.CenteredProgress
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
@@ -211,9 +220,11 @@ fun FileExplorerScreen(
     val haptics = LocalHapticFeedback.current
     val clipboard = LocalClipboardManager.current
 
-    var path by remember { mutableStateOf(initialArchive?.substringBeforeLast('/', "") ?: "") }
-    var archive by remember { mutableStateOf(initialArchive) }
-    var archiveDir by remember { mutableStateOf("") }
+    val urlLoc = remember { readFilesLocation() }
+    val hasUrlLoc = urlLoc != null && (urlLoc.first.isNotEmpty() || urlLoc.second != null)
+    var path by remember { mutableStateOf(if (hasUrlLoc) urlLoc!!.first else initialArchive?.substringBeforeLast('/', "") ?: "") }
+    var archive by remember { mutableStateOf(if (hasUrlLoc) urlLoc!!.second else initialArchive) }
+    var archiveDir by remember { mutableStateOf(if (hasUrlLoc) urlLoc!!.third else "") }
     var extractRequest by remember { mutableStateOf<ExtractRequest?>(null) }
     var compressing by remember { mutableStateOf<List<String>?>(null) }
     var entries by remember { mutableStateOf<List<SharedEntry>>(emptyList()) }
@@ -250,6 +261,7 @@ fun FileExplorerScreen(
     }
 
     var pendingUploads by remember { mutableStateOf<List<AttachmentFile>>(emptyList()) }
+    var dropOver by remember { mutableStateOf(false) }
 
     fun child(name: String) = if (path.isEmpty()) name else "$path/$name"
     fun innerChild(name: String) = if (archiveDir.isEmpty()) name else "$archiveDir/$name"
@@ -284,14 +296,25 @@ fun FileExplorerScreen(
     }
     val refreshTick = LocalRefreshTick.current
     LaunchedEffect(refreshTick) { if (refreshTick > 0) { refreshing = true; reload() } }
+    LaunchedEffect(path, archive, archiveDir) { syncFilesLocation(path, archive, archiveDir) }
+    FilesPopstate { p, a, ad -> path = p; archive = a; archiveDir = ad }
 
     fun goUp() {
+        if (isWebPlatform) {
+            if (archive == null && path.isEmpty()) onClose() else filesHistoryBack()
+            return
+        }
         when {
             archive != null && archiveDir.isNotEmpty() -> archiveDir = archiveDir.substringBeforeLast('/', "")
             archive != null -> { archive = null; archiveDir = "" }
             path.isEmpty() -> onClose()
             else -> path = path.substringBeforeLast('/', "")
         }
+    }
+    fun handleBack(): Boolean = when {
+        selecting -> { exitSelection(); true }
+        archive != null || path.isNotEmpty() -> { goUp(); true }
+        else -> false
     }
     val selectedEntries = entries.filter { it.name in selected }
     val single = if (selected.size == 1) selectedEntries.firstOrNull() else null
@@ -317,6 +340,12 @@ fun FileExplorerScreen(
     }
     if (currentTransfer != null) shownTransfer = currentTransfer
     var suppressClick by remember { mutableStateOf<String?>(null) }
+
+    val screenFocus = remember { FocusRequester() }
+    BackInterceptor { handleBack() }
+    LaunchedEffect(searching, renaming, confirmingDelete, creatingFolder) {
+        if (!searching && renaming == null && !confirmingDelete && !creatingFolder) runCatching { screenFocus.requestFocus() }
+    }
 
     Scaffold(
         topBar = {
@@ -592,7 +621,20 @@ fun FileExplorerScreen(
                 onDismiss = { envMenu = false },
             )
         }
-        Column(modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()
+                .fileDropTarget(enabled = archive == null, onDragChange = { dropOver = it }) { pendingUploads = it }
+                .then(if (dropOver) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier)
+                .focusRequester(screenFocus).focusable()
+                .onPreviewKeyEvent { e ->
+                    if (e.type != KeyEventType.KeyDown) false
+                    else when (e.key) {
+                        Key.Escape -> handleBack()
+                        Key.Delete -> if (selected.isNotEmpty() && !confirmingDelete) { confirmingDelete = true; true } else false
+                        else -> false
+                    }
+                },
+        ) {
             if (searching) {
                 SearchBar(
                     query = searchQuery,

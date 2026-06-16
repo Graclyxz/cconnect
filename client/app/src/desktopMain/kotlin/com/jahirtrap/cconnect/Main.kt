@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.isBackPressed
+import androidx.compose.ui.awt.awtEventOrNull
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.input.key.Key
@@ -53,6 +54,7 @@ import com.jahirtrap.cconnect.monitor.MonitorScreen
 import com.jahirtrap.cconnect.service.Notifier
 import com.jahirtrap.cconnect.settings.SettingsScreen
 import com.jahirtrap.cconnect.terminal.TerminalScreen
+import com.jahirtrap.cconnect.ui.BackInterceptors
 import com.jahirtrap.cconnect.ui.LocalRefreshTick
 import com.jahirtrap.cconnect.ui.theme.CConnectTheme
 import com.jahirtrap.cconnect.ui.theme.ThemeMode
@@ -71,6 +73,13 @@ fun main() {
     // has curve25519, ed25519, chacha20-poly1305, etc. Modern OpenSSH defaults need this.
     Security.removeProvider("BC")
     Security.insertProviderAt(BouncyCastleProvider(), 1)
+    runCatching {
+        val toolkit = java.awt.Toolkit.getDefaultToolkit()
+        toolkit.javaClass.getDeclaredField("awtAppClassName").apply {
+            isAccessible = true
+            set(toolkit, "CConnect")
+        }
+    }
     val systemLocale = Locale.getDefault()
     val settings = Settings()
     val screen = java.awt.Toolkit.getDefaultToolkit().screenSize
@@ -103,7 +112,8 @@ fun main() {
                 }
                 window.addWindowFocusListener(listener)
                 Notifier.init { window.toFront(); window.requestFocus() }
-                onDispose { window.removeWindowFocusListener(listener) }
+                desktopWindowToFront = { window.toFront(); window.requestFocus() }
+                onDispose { window.removeWindowFocusListener(listener); desktopWindowToFront = null }
             }
             App(systemLocale, refreshTick, window)
         }
@@ -140,6 +150,7 @@ private fun App(systemLocale: Locale, refreshTick: Int, window: ComposeWindow) {
     LaunchedEffect(sidebarExpanded) { settings.sidebarExpanded = sidebarExpanded }
 
     fun goBack() {
+        if (BackInterceptors.handle()) return
         when {
             previewFile != null -> previewFile = null
             showSettings -> { showSettings = false; settingsHighlight = null }
@@ -192,7 +203,8 @@ private fun App(systemLocale: Locale, refreshTick: Int, window: ComposeWindow) {
                             var backDown = false
                             while (true) {
                                 val event = awaitPointerEvent(PointerEventPass.Initial)
-                                val isBack = event.buttons.isBackPressed
+                                val awtButton = (event.awtEventOrNull as? java.awt.event.MouseEvent)?.button
+                                val isBack = event.buttons.isBackPressed || awtButton == 4
                                 if (isBack && !backDown) goBack()
                                 backDown = isBack
                             }

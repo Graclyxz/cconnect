@@ -19,6 +19,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.selection.DisableSelection
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -360,24 +362,28 @@ private fun LogsPage(logs: List<LogItem>, scroll: ScrollState) {
     LaunchedEffect(Unit) {
         snapshotFlow { scroll.maxValue }.first { it > 0 }.let { scroll.scrollTo(it) }
     }
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-            .verticalScrollIndicator(scroll)
-            .verticalScroll(scroll)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-    ) {
-        if (logs.isEmpty()) {
-            Text(
-                stringResource(Res.string.no_logs),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+    SelectionContainer(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .verticalScrollIndicator(scroll)
+                .verticalScroll(scroll)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        ) {
+            if (logs.isEmpty()) {
+                DisableSelection {
+                    Text(
+                        stringResource(Res.string.no_logs),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            logs.forEach { item -> LogRow(item) }
         }
-        logs.forEach { item -> LogRow(item) }
     }
 }
 

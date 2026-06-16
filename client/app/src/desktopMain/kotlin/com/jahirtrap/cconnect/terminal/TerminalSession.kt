@@ -28,15 +28,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.PointerType
-import androidx.compose.ui.input.pointer.pointerInput
+import com.jahirtrap.cconnect.ui.LocalIsTouch
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.clip
@@ -121,20 +117,12 @@ actual fun TerminalSession(
             )
         },
     ) { pad ->
-        var touch by remember { mutableStateOf(false) }
+        val touch = LocalIsTouch.current
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(pad)
-                .consumeWindowInsets(pad)
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                            touch = event.changes.any { it.type == PointerType.Touch }
-                        }
-                    }
-                },
+                .consumeWindowInsets(pad),
         ) {
             Terminal(
                 terminalEmulator = emulator,
@@ -147,13 +135,12 @@ actual fun TerminalSession(
                 showSoftKeyboard = true,
                 focusRequester = focusRequester,
             )
-            if (touch) {
-                SoftKeyRow(
-                    onKey = { connection.send(it); runCatching { focusRequester.requestFocus() } },
-                    onShowKeyboard = { runCatching { focusRequester.requestFocus() } },
-                    modifier = Modifier.imePadding(),
-                )
-            }
+            SoftKeyRow(
+                onKey = { connection.send(it); runCatching { focusRequester.requestFocus() } },
+                onShowKeyboard = { runCatching { focusRequester.requestFocus() } },
+                showKeyboard = touch,
+                modifier = Modifier.imePadding(),
+            )
         }
     }
 }
@@ -170,6 +157,7 @@ private fun statusLabel(state: SshConnection.State): String = when (state) {
 private fun SoftKeyRow(
     onKey: (ByteArray) -> Unit,
     onShowKeyboard: () -> Unit,
+    showKeyboard: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -208,20 +196,22 @@ private fun SoftKeyRow(
                 }
             }
         }
-        Box(
-            modifier = Modifier
-                .size(width = 40.dp, height = 32.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .clickable(onClick = onShowKeyboard),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Lucide.Keyboard,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.onSurface,
-            )
+        if (showKeyboard) {
+            Box(
+                modifier = Modifier
+                    .size(width = 40.dp, height = 32.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .clickable(onClick = onShowKeyboard),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Lucide.Keyboard,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+            }
         }
     }
 }

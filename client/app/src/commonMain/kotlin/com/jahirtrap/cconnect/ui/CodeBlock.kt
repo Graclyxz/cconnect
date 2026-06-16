@@ -41,7 +41,7 @@ internal fun CodeBlock(code: String, bg: Color, lang: String) {
                 fontFamily = LocalMonoFontFamily.current,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier
-                    .horizontalScrollIndicator(scroll)
+                    .horizontalScrollbar(scroll)
                     .horizontalScroll(scroll)
                     .padding(horizontal = 10.dp, vertical = 8.dp),
             )

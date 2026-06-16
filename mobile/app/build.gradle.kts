@@ -52,7 +52,7 @@ android {
                 outputs.all {
                     val outputImpl = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
                     val version = defaultConfig.versionName
-                    outputImpl.outputFileName = "CConnect-$version-android.apk"
+                    outputImpl.outputFileName = "CConnect-$version.apk"
                 }
             }
         }

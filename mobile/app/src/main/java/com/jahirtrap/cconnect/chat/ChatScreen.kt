@@ -83,6 +83,7 @@ import com.composables.icons.lucide.SquareTerminal
 import com.composables.icons.lucide.SquarePen
 import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.ui.AbovePopupMenu
+import com.jahirtrap.cconnect.ui.dayIndex
 import com.jahirtrap.cconnect.ui.AppBottomSheet
 import com.jahirtrap.cconnect.ui.AppLogo
 import com.jahirtrap.cconnect.ui.AttachmentChip
@@ -511,6 +512,11 @@ fun ChatScreen(
                                         modifier = Modifier.fillMaxSize(),
                                     ) {
                                         itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
+                                            val ts = message.timestamp
+                                            if (ts != null) {
+                                                val prevTs = (index - 1 downTo 0).firstNotNullOfOrNull { state.messages[it].timestamp }
+                                                if (prevTs == null || dayIndex(prevTs) != dayIndex(ts)) ChatDateSeparator(ts)
+                                            }
                                             val running = when (message.role) {
                                                 Role.TOOL -> message.toolUseId != null && message.toolUseId in state.pendingToolIds
                                                 Role.THINKING -> index == state.messages.lastIndex && state.streaming

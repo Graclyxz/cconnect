@@ -521,7 +521,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             val page = SessionsApi.sessionMessages(session.sessionId, projectKey, limit = 100)
             val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly || !it.images.isNullOrEmpty() }
             val loaded = visible.mapIndexed { i, m ->
-                ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, session.sessionId, projectKey))
+                ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, session.sessionId, projectKey), timestamp = m.timestamp)
             }
             nextId = loaded.size.toLong()
             currentAssistantId = null
@@ -614,7 +614,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         val page = SessionsApi.sessionMessages(sid, proj, limit = 100)
         val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly || !it.images.isNullOrEmpty() }
         val loaded = visible.mapIndexed { i, m ->
-            ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, sid, proj))
+            ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, sid, proj), timestamp = m.timestamp)
         }
         nextId = loaded.size.toLong()
         currentAssistantId = null
@@ -761,7 +761,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 currentThinkingId = null
                 _state.update {
                     it.copy(
-                        messages = listOf(ChatMessage(nextId++, Role.COMPACT, compact = CompactData(event.trigger, event.preTokens, event.postTokens, event.summary))),
+                        messages = listOf(ChatMessage(nextId++, Role.COMPACT, compact = CompactData(event.trigger, event.preTokens, event.postTokens, event.summary), timestamp = System.currentTimeMillis())),
                         oldestLoadedIndex = null,
                         transcriptExhausted = true,
                     )
@@ -826,7 +826,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                     val tuid = event.toolUseId
                     _state.update { st ->
                         val cleaned = if (tuid != null) st.messages.filterNot { it.role == Role.TOOL && it.toolUseId == tuid } else st.messages
-                        st.copy(messages = cleaned + ChatMessage(nextId++, Role.INTERACTION, event.input.orEmpty(), event.toolName, tuid, data))
+                        st.copy(messages = cleaned + ChatMessage(nextId++, Role.INTERACTION, event.input.orEmpty(), event.toolName, tuid, data, timestamp = System.currentTimeMillis()))
                     }
                     if (settings.notifyInteraction) {
                         val question = event.kind == "questions"
@@ -931,7 +931,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
             .filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly || !it.images.isNullOrEmpty() }
         _state.update { st ->
             val prepended = older.mapIndexed { i, m ->
-                ChatMessage(nextId + i, m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, event.sessionId, st.activeProjectKey))
+                ChatMessage(nextId + i, m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, event.sessionId, st.activeProjectKey), timestamp = m.timestamp)
             }
             nextId += prepended.size
             st.copy(
@@ -994,7 +994,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private fun append(currentId: Long?, role: Role, delta: String): Long {
         if (currentId == null) {
             val newId = nextId++
-            _state.update { applyTailCap(it.copy(messages = it.messages + ChatMessage(newId, role, delta))) }
+            _state.update { applyTailCap(it.copy(messages = it.messages + ChatMessage(newId, role, delta, timestamp = System.currentTimeMillis()))) }
             return newId
         }
         // .map allocates a fresh ChatMessage per item every chunk; replace just the slot.
@@ -1023,7 +1023,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         attachments: List<String>? = null,
     ) {
         _state.update {
-            applyTailCap(it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines, compact, labelOnly = labelOnly, result = result, ephemeral = ephemeral, attachments = attachments)))
+            applyTailCap(it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines, compact, labelOnly = labelOnly, result = result, ephemeral = ephemeral, attachments = attachments, timestamp = System.currentTimeMillis())))
         }
     }
 

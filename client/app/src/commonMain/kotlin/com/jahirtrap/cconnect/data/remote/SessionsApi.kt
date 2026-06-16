@@ -121,6 +121,7 @@ object SessionsApi {
                 val index = r["index"]?.jsonPrimitive?.intOrNull ?: return@mapNotNull null
                 "$uuid/$index"
             }?.takeIf { it.isNotEmpty() },
+            timestamp = o["ts"]?.jsonPrimitive?.longOrNull,
         )
     }
 

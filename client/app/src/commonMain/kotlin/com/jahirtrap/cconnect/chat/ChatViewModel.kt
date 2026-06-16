@@ -505,13 +505,22 @@ class ChatViewModel : ViewModel() {
         loadHistory()
     }
 
+    fun restoreSession(sessionId: String, projectKey: String) {
+        if (_state.value.sessionId == sessionId) return
+        viewModelScope.launch {
+            val info = SessionsApi.sessions(projectKey).firstOrNull { it.sessionId == sessionId }
+                ?: SessionInfo(sessionId, projectKey, null, null, 0L, null, null, null)
+            openSession(info)
+        }
+    }
+
     fun openSession(session: SessionInfo) {
         val projectKey = session.projectKey ?: return
         viewModelScope.launch {
             val page = SessionsApi.sessionMessages(session.sessionId, projectKey, limit = 100)
             val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly || !it.images.isNullOrEmpty() }
             val loaded = visible.mapIndexed { i, m ->
-                ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, session.sessionId, projectKey))
+                ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, session.sessionId, projectKey), timestamp = m.timestamp)
             }
             nextId = loaded.size.toLong()
             currentAssistantId = null
@@ -604,7 +613,7 @@ class ChatViewModel : ViewModel() {
         val page = SessionsApi.sessionMessages(sid, proj, limit = 100)
         val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly || !it.images.isNullOrEmpty() }
         val loaded = visible.mapIndexed { i, m ->
-            ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, sid, proj))
+            ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, sid, proj), timestamp = m.timestamp)
         }
         nextId = loaded.size.toLong()
         currentAssistantId = null
@@ -751,7 +760,7 @@ class ChatViewModel : ViewModel() {
                 currentThinkingId = null
                 _state.update {
                     it.copy(
-                        messages = listOf(ChatMessage(nextId++, Role.COMPACT, compact = CompactData(event.trigger, event.preTokens, event.postTokens, event.summary))),
+                        messages = listOf(ChatMessage(nextId++, Role.COMPACT, compact = CompactData(event.trigger, event.preTokens, event.postTokens, event.summary), timestamp = nowMillis())),
                         oldestLoadedIndex = null,
                         transcriptExhausted = true,
                     )
@@ -816,7 +825,7 @@ class ChatViewModel : ViewModel() {
                     val tuid = event.toolUseId
                     _state.update { st ->
                         val cleaned = if (tuid != null) st.messages.filterNot { it.role == Role.TOOL && it.toolUseId == tuid } else st.messages
-                        st.copy(messages = cleaned + ChatMessage(nextId++, Role.INTERACTION, event.input.orEmpty(), event.toolName, tuid, data))
+                        st.copy(messages = cleaned + ChatMessage(nextId++, Role.INTERACTION, event.input.orEmpty(), event.toolName, tuid, data, timestamp = nowMillis()))
                     }
                     if (settings.notifyInteraction) {
                         val question = event.kind == "questions"
@@ -921,7 +930,7 @@ class ChatViewModel : ViewModel() {
             .filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly || !it.images.isNullOrEmpty() }
         _state.update { st ->
             val prepended = older.mapIndexed { i, m ->
-                ChatMessage(nextId + i, m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, event.sessionId, st.activeProjectKey))
+                ChatMessage(nextId + i, m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, event.sessionId, st.activeProjectKey), timestamp = m.timestamp)
             }
             nextId += prepended.size
             st.copy(
@@ -984,7 +993,7 @@ class ChatViewModel : ViewModel() {
     private fun append(currentId: Long?, role: Role, delta: String): Long {
         if (currentId == null) {
             val newId = nextId++
-            _state.update { applyTailCap(it.copy(messages = it.messages + ChatMessage(newId, role, delta))) }
+            _state.update { applyTailCap(it.copy(messages = it.messages + ChatMessage(newId, role, delta, timestamp = nowMillis()))) }
             return newId
         }
         // .map allocates a fresh ChatMessage per item every chunk; replace just the slot.
@@ -1013,7 +1022,7 @@ class ChatViewModel : ViewModel() {
         attachments: List<String>? = null,
     ) {
         _state.update {
-            applyTailCap(it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines, compact, labelOnly = labelOnly, result = result, ephemeral = ephemeral, attachments = attachments)))
+            applyTailCap(it.copy(messages = it.messages + ChatMessage(nextId++, role, text, toolName, toolUseId, interaction, path, diffLines, compact, labelOnly = labelOnly, result = result, ephemeral = ephemeral, attachments = attachments, timestamp = nowMillis())))
         }
     }
 

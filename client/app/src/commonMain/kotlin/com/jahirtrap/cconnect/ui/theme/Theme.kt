@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.jahirtrap.cconnect.resources.Res
+import com.jahirtrap.cconnect.ui.ProvideIsTouch
 import com.jahirtrap.cconnect.resources.cconnect_color_bold
 import com.jahirtrap.cconnect.resources.cconnect_color_regular
 import com.jahirtrap.cconnect.resources.cconnect_flat_bold
@@ -87,8 +88,9 @@ fun CConnectTheme(
         CompositionLocalProvider(
             LocalPalette provides paletteFor(dark),
             LocalMonoFontFamily provides appMonoFontFamily(fontStyle),
-            content = content,
-        )
+        ) {
+            ProvideIsTouch(content)
+        }
     }
 }
 

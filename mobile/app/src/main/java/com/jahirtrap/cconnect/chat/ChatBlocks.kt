@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -64,6 +65,8 @@ import com.jahirtrap.cconnect.files.PreviewKind
 import com.jahirtrap.cconnect.files.isArchive
 import com.jahirtrap.cconnect.files.previewKindOf
 import com.jahirtrap.cconnect.ui.AttachmentChip
+import com.jahirtrap.cconnect.ui.formatClock
+import com.jahirtrap.cconnect.ui.formatDay
 import com.composables.icons.lucide.Archive
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ChevronRight
@@ -73,6 +76,7 @@ import com.composables.icons.lucide.File
 import com.composables.icons.lucide.FilePen
 import com.composables.icons.lucide.FolderArchive
 import com.composables.icons.lucide.Bot
+import com.composables.icons.lucide.Calendar
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Lightbulb
 import com.composables.icons.lucide.Lucide
@@ -187,6 +191,16 @@ fun ChatMessageItem(
                             }
                         }
                     }
+                    if (message.timestamp != null) {
+                        DisableSelection {
+                            Text(
+                                text = formatClock(message.timestamp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.align(Alignment.End),
+                            )
+                        }
+                    }
                 }
             }
 
@@ -287,6 +301,28 @@ internal fun gapAbove(prev: Role?, cur: Role): Dp {
     val b = group(cur)
     if (a != 0 && b != 0) return BIG
     return if (a == 1 || b == 1) 0.dp else SMALL
+}
+
+@Composable
+fun ChatDateSeparator(millis: Long) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = Lucide.Calendar,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.size(6.dp))
+        Text(
+            text = formatDay(millis),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
 }
 
 @Composable

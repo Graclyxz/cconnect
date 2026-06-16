@@ -31,8 +31,10 @@ import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.files.FileExplorerScreen
 import com.jahirtrap.cconnect.files.FilePreviewScreen
 import com.jahirtrap.cconnect.monitor.MonitorScreen
+import com.jahirtrap.cconnect.service.Notifier
 import com.jahirtrap.cconnect.settings.SettingsScreen
 import com.jahirtrap.cconnect.terminal.TerminalScreen
+import com.jahirtrap.cconnect.ui.BackInterceptors
 import com.jahirtrap.cconnect.ui.LocalRefreshTick
 import com.jahirtrap.cconnect.ui.theme.CConnectTheme
 import com.jahirtrap.cconnect.ui.theme.accentAt
@@ -79,6 +81,19 @@ private fun App() {
         onDispose { window.removeEventListener("popstate", listener) }
     }
 
+    DisposableEffect(Unit) {
+        val update: (Event) -> Unit = { Notifier.appInForeground = docHasFocus() }
+        Notifier.appInForeground = docHasFocus()
+        window.addEventListener("focus", update)
+        window.addEventListener("blur", update)
+        document.addEventListener("visibilitychange", update)
+        onDispose {
+            window.removeEventListener("focus", update)
+            window.removeEventListener("blur", update)
+            document.removeEventListener("visibilitychange", update)
+        }
+    }
+
     fun navigate(target: String) {
         if (route == target) return
         window.history.pushState(null, "", target)
@@ -86,6 +101,7 @@ private fun App() {
     }
 
     fun goBack() {
+        if (BackInterceptors.handle()) return
         if (previewFile != null) previewFile = null else window.history.back()
     }
 
@@ -161,6 +177,8 @@ private data class PreviewRequest(
     val name: String,
     val onDelete: (() -> Unit)?,
 )
+
+private fun docHasFocus(): Boolean = js("document.hasFocus()")
 
 private fun currentRoute(): String = when (val path = window.location.pathname) {
     "/settings", "/claude", "/monitor", "/files", "/terminal" -> path

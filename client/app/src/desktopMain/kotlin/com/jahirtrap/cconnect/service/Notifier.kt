@@ -18,6 +18,10 @@ private object DesktopNotifier : PlatformNotifier {
     }
 
     override fun notify(kind: Notifier.Kind, title: String, text: String?, actions: List<Notifier.Action>) {
+        if (System.getProperty("os.name").orEmpty().lowercase().contains("linux")) {
+            runCatching { ProcessBuilder("notify-send", "-a", "CConnect", title, text.orEmpty()).start() }
+            return
+        }
         val tray = ensureTray() ?: return
         tray.displayMessage(title, text.orEmpty(), TrayIcon.MessageType.INFO)
     }
