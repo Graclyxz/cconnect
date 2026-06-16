@@ -102,6 +102,7 @@ import kotlinx.coroutines.launch
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.chat.ChatViewModel
 import com.jahirtrap.cconnect.chat.chatViewModelFactory
+import com.jahirtrap.cconnect.isWebPlatform
 import com.jahirtrap.cconnect.chat.ConnectionState
 import com.jahirtrap.cconnect.claude.ClaudeChangelogSheet
 import coil3.compose.AsyncImage
@@ -264,7 +265,9 @@ fun SettingsScreen(
             ) {
                 SettingsGroup(stringResource(Res.string.settings_appearance)) {
                     PreferenceRow(themeIcon(themeMode), stringResource(Res.string.theme), themeLabel(themeMode)) { dialog = SettingsDialog.Theme }
-                    PreferenceRow(Lucide.Languages, stringResource(Res.string.language), languageLabel(language)) { dialog = SettingsDialog.Language }
+                    if (!isWebPlatform) {
+                        PreferenceRow(Lucide.Languages, stringResource(Res.string.language), languageLabel(language)) { dialog = SettingsDialog.Language }
+                    }
                     PreferenceRow(
                         icon = Lucide.Palette,
                         title = stringResource(Res.string.accent),
