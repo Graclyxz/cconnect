@@ -138,6 +138,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     private var currentSideAssistantId: Long? = null
     private var historyJob: Job? = null
     private var historyLoaded = false
+    private var defaultProjectApplied = false
 
     private val foregroundObserver = object : DefaultLifecycleObserver {
         override fun onStart(owner: LifecycleOwner) {
@@ -157,6 +158,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun applyDefaultDirectory() {
         settings.cwd = settings.activeEnvironment?.directory.orEmpty()
+        defaultProjectApplied = false
     }
 
     fun connect() {
@@ -484,12 +486,24 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
     fun loadHistory() {
         historyJob?.cancel()
         historyLoaded = true
-        val key = _state.value.historyProjectKey
         historyJob = viewModelScope.launch {
             _state.update { it.copy(historyLoading = true) }
             val projects = SessionsApi.projects()
-            val sessions = SessionsApi.sessions(key)
-            _state.update { it.copy(historyProjects = projects, historySessions = sessions, historyLoading = false) }
+            val dir = settings.activeEnvironment?.directory.orEmpty()
+            var finalProjects = projects
+            var selectedKey = _state.value.historyProjectKey
+            if (dir.isNotBlank()) {
+                val targetKey = dir.replace(Regex("[^A-Za-z0-9]"), "-")
+                val existing = projects.firstOrNull { it.projectKey == targetKey || it.path == dir }
+                if (existing == null) finalProjects = listOf(ProjectInfo(targetKey, dir, null, 0, null)) + projects
+                if (!defaultProjectApplied) {
+                    defaultProjectApplied = true
+                    selectedKey = existing?.projectKey ?: targetKey
+                    settings.cwd = dir
+                }
+            }
+            val sessions = SessionsApi.sessions(selectedKey)
+            _state.update { it.copy(historyProjects = finalProjects, historyProjectKey = selectedKey, historySessions = sessions, historyLoading = false) }
         }
     }
 
