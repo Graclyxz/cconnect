@@ -18,7 +18,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: desktop
+        working-directory: client
     steps:
       - uses: actions/checkout@v4
 
@@ -41,22 +41,22 @@ jobs:
         with:
           name: cconnect-desktop-${{ matrix.os }}
           path: |
-            desktop/app/build/compose/binaries/main/msi/*.msi
-            desktop/app/build/compose/binaries/main/exe/*.exe
-            desktop/app/build/compose/binaries/main/deb/*.deb
-            desktop/app/build/compose/binaries/main/rpm/*.rpm
-            desktop/app/build/compose/binaries/main/dmg/*.dmg
+            client/app/build/compose/binaries/main/msi/*.msi
+            client/app/build/compose/binaries/main/exe/*.exe
+            client/app/build/compose/binaries/main/deb/*.deb
+            client/app/build/compose/binaries/main/rpm/*.rpm
+            client/app/build/compose/binaries/main/dmg/*.dmg
 
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           body_path: CHANGELOG.md
           files: |
-            desktop/app/build/compose/binaries/main/msi/*.msi
-            desktop/app/build/compose/binaries/main/exe/*.exe
-            desktop/app/build/compose/binaries/main/deb/*.deb
-            desktop/app/build/compose/binaries/main/rpm/*.rpm
-            desktop/app/build/compose/binaries/main/dmg/*.dmg
+            client/app/build/compose/binaries/main/msi/*.msi
+            client/app/build/compose/binaries/main/exe/*.exe
+            client/app/build/compose/binaries/main/deb/*.deb
+            client/app/build/compose/binaries/main/rpm/*.rpm
+            client/app/build/compose/binaries/main/dmg/*.dmg
 
   android:
     runs-on: ubuntu-latest
