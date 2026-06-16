@@ -25,7 +25,7 @@ fun themeModeOf(value: String): ThemeMode = when (value) {
 }
 
 @Composable
-fun dynamicAccent(themeMode: String): Color = MaterialTheme.colorScheme.primary
+fun dynamicAccent(themeMode: String): Color = systemAccent() ?: MaterialTheme.colorScheme.primary
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -43,7 +43,7 @@ fun CConnectTheme(
 
     // The accent is the ONLY color: from the palette.
     // The background/surfaces stay flat black/white regardless.
-    val accentColor = accent
+    val accentColor = if (dynamicColor) (systemAccent() ?: accent) else accent
 
     val base = if (dark) darkColorScheme() else lightColorScheme()
     val background = if (dark) Color(0xFF000000) else Color(0xFFFFFFFF)

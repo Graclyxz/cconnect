@@ -1,5 +1,2 @@
-- Added archive browsing in Files — tap a zip, rar, 7z or tar to navigate inside like a folder, preview its files, and extract or save just what you pick
-- Added compression formats — choose a name and format when compressing: zip, 7z, tar.gz, tar.xz, plus rar when the server has the RAR CLI available
-- Added extract options — unpack into a folder named after the archive, right where it is, or pick any destination
-- Added an "Open in Files" action for shared archives in the chat, and archives now show their own icon everywhere
-- Fixed drag-select marking the wrong files in subfolders
+- Added a desktop app for Windows, Linux and macOS — the full CConnect experience beyond the phone, with the same chat, files, Claude management, monitor and SSH terminal
+- Added a default project per environment — set a working directory and the chat list opens straight to it, creating it automatically when it doesn't exist yet

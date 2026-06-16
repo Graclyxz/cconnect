@@ -29,7 +29,16 @@ object GitHubApi {
     private val client = OkHttpClient()
     private val cacheDir: File by lazy { File(System.getProperty("user.home"), ".cconnect").apply { mkdirs() } }
 
-    data class Release(val tag: String, val url: String, val apkUrl: String?)
+    data class Release(val tag: String, val url: String, val installerUrl: String?)
+
+    private val installerExtensions: List<String> = run {
+        val os = System.getProperty("os.name").lowercase()
+        when {
+            os.contains("win") -> listOf(".msi", ".exe")
+            os.contains("mac") || os.contains("darwin") -> listOf(".dmg")
+            else -> listOf(".deb", ".rpm")
+        }
+    }
     data class ReleaseNotes(val tag: String, val body: String)
     data class Profile(val login: String, val name: String?, val avatarUrl: String, val url: String)
 
@@ -53,14 +62,16 @@ object GitHubApi {
 
     suspend fun latestRelease(): Release? {
         val o = fetch("https://api.github.com/repos/$OWNER/$REPO/releases/latest")?.jsonObject ?: return null
-        val apk = o["assets"]?.jsonArray?.firstNotNullOfOrNull { asset ->
-            val a = asset.jsonObject
-            a["browser_download_url"]?.jsonPrimitive?.contentOrNull?.takeIf { it.endsWith(".apk") }
+        val assets = o["assets"]?.jsonArray.orEmpty()
+        val installer = installerExtensions.firstNotNullOfOrNull { ext ->
+            assets.firstNotNullOfOrNull { asset ->
+                asset.jsonObject["browser_download_url"]?.jsonPrimitive?.contentOrNull?.takeIf { it.endsWith(ext) }
+            }
         }
         return Release(
             tag = o["tag_name"]?.jsonPrimitive?.contentOrNull ?: return null,
             url = o["html_url"]?.jsonPrimitive?.contentOrNull ?: REPO_URL,
-            apkUrl = apk,
+            installerUrl = installer,
         )
     }
 

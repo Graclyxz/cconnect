@@ -3,6 +3,7 @@ package com.jahirtrap.cconnect
 import androidx.compose.foundation.ComposeFoundationFlags
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
@@ -14,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
@@ -29,7 +31,10 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.awt.ComposeWindow
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
@@ -50,6 +55,7 @@ import com.jahirtrap.cconnect.settings.SettingsScreen
 import com.jahirtrap.cconnect.terminal.TerminalScreen
 import com.jahirtrap.cconnect.ui.LocalRefreshTick
 import com.jahirtrap.cconnect.ui.theme.CConnectTheme
+import com.jahirtrap.cconnect.ui.theme.ThemeMode
 import com.jahirtrap.cconnect.ui.theme.accentAt
 import com.jahirtrap.cconnect.ui.theme.themeModeOf
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -66,11 +72,17 @@ fun main() {
     Security.removeProvider("BC")
     Security.insertProviderAt(BouncyCastleProvider(), 1)
     val systemLocale = Locale.getDefault()
+    val settings = Settings()
+    val screen = java.awt.Toolkit.getDefaultToolkit().screenSize
     application {
         val windowState = rememberWindowState(
-            size = DpSize(1200.dp, 800.dp),
+            placement = if (settings.windowMaximized) WindowPlacement.Maximized else WindowPlacement.Floating,
+            size = DpSize((screen.width * 0.8f).dp, (screen.height * 0.85f).dp),
             position = WindowPosition(Alignment.Center),
         )
+        LaunchedEffect(windowState.placement) {
+            settings.windowMaximized = windowState.placement == WindowPlacement.Maximized
+        }
         var refreshTick by remember { mutableIntStateOf(0) }
         Window(
             onCloseRequest = ::exitApplication,
@@ -93,14 +105,14 @@ fun main() {
                 Notifier.init { window.toFront(); window.requestFocus() }
                 onDispose { window.removeWindowFocusListener(listener) }
             }
-            App(systemLocale, refreshTick)
+            App(systemLocale, refreshTick, window)
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun App(systemLocale: Locale, refreshTick: Int) {
+private fun App(systemLocale: Locale, refreshTick: Int, window: ComposeWindow) {
     val settings = remember { Settings() }
     val focusManager = LocalFocusManager.current
     val viewModelStoreOwner = remember {
@@ -123,7 +135,8 @@ private fun App(systemLocale: Locale, refreshTick: Int) {
     var showTerminal by remember { mutableStateOf(false) }
     var terminalFromSettings by remember { mutableStateOf(false) }
     // Hoisted so the open/collapsed state survives navigating to settings and back.
-    var sidebarExpanded by remember { mutableStateOf(false) }
+    var sidebarExpanded by remember { mutableStateOf(settings.sidebarExpanded) }
+    LaunchedEffect(sidebarExpanded) { settings.sidebarExpanded = sidebarExpanded }
 
     fun goBack() {
         when {
@@ -145,6 +158,16 @@ private fun App(systemLocale: Locale, refreshTick: Int) {
         Locale.setDefault(if (language.isBlank()) systemLocale else Locale.forLanguageTag(language))
     }
 
+    val systemDark = isSystemInDarkTheme()
+    LaunchedEffect(themeMode, systemDark) {
+        val dark = when (themeModeOf(themeMode)) {
+            ThemeMode.LIGHT -> false
+            ThemeMode.DARK -> true
+            ThemeMode.SYSTEM -> systemDark
+        }
+        WindowTitleBar.apply(window, dark)
+    }
+
     CompositionLocalProvider(
         LocalViewModelStoreOwner provides viewModelStoreOwner,
         LocalRefreshTick provides refreshTick,
@@ -154,6 +177,12 @@ private fun App(systemLocale: Locale, refreshTick: Int) {
             dynamicColor = dynamicColor,
             accent = accentAt(accentIndex),
         ) {
+            val frameBackground = MaterialTheme.colorScheme.background
+            LaunchedEffect(frameBackground) {
+                val awtColor = java.awt.Color(frameBackground.toArgb())
+                window.background = awtColor
+                window.contentPane.background = awtColor
+            }
             key(language) {
                 Box(
                     modifier = Modifier.fillMaxSize().pointerInput(Unit) {

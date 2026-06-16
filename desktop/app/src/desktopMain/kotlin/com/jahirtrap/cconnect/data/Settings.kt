@@ -54,6 +54,14 @@ class Settings {
         get() = prefs.getBoolean("markdown_preview_formatted", true)
         set(value) = prefs.edit { putBoolean("markdown_preview_formatted", value) }
 
+    var sidebarExpanded: Boolean
+        get() = prefs.getBoolean("sidebar_expanded", false)
+        set(value) = prefs.edit { putBoolean("sidebar_expanded", value) }
+
+    var windowMaximized: Boolean
+        get() = prefs.getBoolean("window_maximized", true)
+        set(value) = prefs.edit { putBoolean("window_maximized", value) }
+
     var fileSortField: String
         get() = prefs.getString("file_sort_field", "date") ?: "date"
         set(value) = prefs.edit { putString("file_sort_field", value) }

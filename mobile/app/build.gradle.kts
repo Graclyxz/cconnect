@@ -52,8 +52,7 @@ android {
                 outputs.all {
                     val outputImpl = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
                     val version = defaultConfig.versionName
-                    val buildType = buildType.name
-                    outputImpl.outputFileName = "CConnect-$version-$buildType.apk"
+                    outputImpl.outputFileName = "CConnect-$version-android.apk"
                 }
             }
         }

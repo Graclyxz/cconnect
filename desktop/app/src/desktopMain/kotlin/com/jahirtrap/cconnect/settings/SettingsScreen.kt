@@ -382,11 +382,34 @@ fun SettingsScreen(
                                 Icon(Lucide.FileText, contentDescription = null)
                             }
                         }
-                        val release = chatState.latestRelease
-                        if (release != null) {
+                        val installer = chatState.latestRelease?.installerUrl
+                        if (installer != null) {
+                            var progress by remember { mutableStateOf<Float?>(null) }
+                            var downloadJob by remember { mutableStateOf<Job?>(null) }
+                            if (progress != null) {
+                                LinearProgressIndicator(
+                                    progress = { progress ?: 0f },
+                                    drawStopIndicator = {},
+                                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                                )
+                            }
                             ActionButton(
-                                text = stringResource(Res.string.update_action),
-                                onClick = { AppUpdater.openRelease(release.url) },
+                                text = stringResource(if (progress != null) Res.string.cancel else Res.string.update_action),
+                                onClick = {
+                                    if (progress != null) {
+                                        downloadJob?.cancel()
+                                    } else {
+                                        progress = 0f
+                                        downloadJob = scope.launch {
+                                            try {
+                                                AppUpdater.downloadAndInstall(installer) { progress = it }
+                                            } finally {
+                                                progress = null
+                                                downloadJob = null
+                                            }
+                                        }
+                                    }
+                                },
                                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
                             )
                         } else {

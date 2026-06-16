@@ -88,6 +88,8 @@ kotlin {
 
                 implementation(libs.lwjgl.core)
                 implementation(libs.lwjgl.tinyfd)
+                implementation(libs.jna)
+                implementation(libs.jna.platform)
                 runtimeOnly("org.lwjgl:lwjgl:$lwjglVersion:$lwjglNatives")
                 runtimeOnly("org.lwjgl:lwjgl-tinyfd:$lwjglVersion:$lwjglNatives")
             }
@@ -111,6 +113,20 @@ compose.desktop {
             packageVersion = appVersionName
             description = "Bridge between the CConnect desktop client and Claude Code"
             vendor = "jahirtrap"
+            windows {
+                iconFile.set(project.file("icons/cconnect.ico"))
+                menuGroup = "CConnect"
+                shortcut = true
+                dirChooser = true
+                perUserInstall = true
+                upgradeUuid = "8f2a6c41-3b7e-4d59-9a1c-2e5f7b0d4c83"
+            }
+            linux {
+                iconFile.set(project.file("icons/cconnect.png"))
+            }
+            macOS {
+                iconFile.set(project.file("icons/cconnect.icns"))
+            }
         }
     }
 }
