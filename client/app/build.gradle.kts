@@ -86,14 +86,6 @@ kotlin {
                 implementation(libs.okhttp)
                 implementation(libs.coil.network.okhttp)
 
-                implementation(libs.commonmark)
-                implementation(libs.commonmark.ext.tables)
-                implementation(libs.commonmark.ext.strikethrough)
-                implementation(libs.commonmark.ext.task.list)
-                implementation(libs.commonmark.ext.footnotes)
-                implementation(libs.commonmark.ext.autolink)
-                implementation(libs.commonmark.ext.ins)
-
                 implementation(libs.sshj)
                 implementation(libs.bouncycastle)
 
