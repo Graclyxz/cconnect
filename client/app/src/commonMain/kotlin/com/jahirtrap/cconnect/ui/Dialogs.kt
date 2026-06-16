@@ -47,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.vector.ImageVector
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -343,6 +344,7 @@ fun DialogSelectItem(
     onClick: () -> Unit,
     subtitle: String? = null,
     enabled: Boolean = true,
+    labelFontFamily: FontFamily? = null,
     trailing: @Composable (RowScope.() -> Unit)? = null,
 ) {
     Row(
@@ -362,6 +364,7 @@ fun DialogSelectItem(
             Text(
                 label,
                 style = MaterialTheme.typography.labelLarge,
+                fontFamily = labelFontFamily,
                 color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

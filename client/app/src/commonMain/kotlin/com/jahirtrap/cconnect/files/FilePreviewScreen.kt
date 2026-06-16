@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import com.jahirtrap.cconnect.ui.theme.LocalMonoFontFamily
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Download
@@ -192,7 +193,7 @@ fun FilePreviewScreen(
                         Text(
                             text.orEmpty(),
                             style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = LocalMonoFontFamily.current,
                         )
                     }
                 }

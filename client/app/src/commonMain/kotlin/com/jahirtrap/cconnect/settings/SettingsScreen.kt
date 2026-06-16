@@ -63,6 +63,7 @@ import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Bell
 import com.composables.icons.lucide.ChevronRight
@@ -71,7 +72,7 @@ import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.History
 import com.composables.icons.lucide.Languages
-import com.composables.icons.lucide.Smile
+import com.composables.icons.lucide.Type
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Palette
 import com.composables.icons.lucide.Pencil
@@ -139,6 +140,7 @@ import com.jahirtrap.cconnect.ui.themeLabel
 import com.jahirtrap.cconnect.ui.LANGUAGE_TAGS
 import com.jahirtrap.cconnect.ui.THEME_MODES
 import com.jahirtrap.cconnect.ui.theme.ACCENTS
+import com.jahirtrap.cconnect.ui.theme.appFontFamily
 import com.jahirtrap.cconnect.ui.theme.palette
 import com.jahirtrap.cconnect.ui.theme.accentAt
 import com.jahirtrap.cconnect.ui.theme.accentNameAt
@@ -156,8 +158,8 @@ fun SettingsScreen(
     onDynamicColor: (Boolean) -> Unit,
     accentIndex: Int,
     onAccent: (Int) -> Unit,
-    emojiStyle: String,
-    onEmojiStyle: (String) -> Unit,
+    fontStyle: String,
+    onFontStyle: (String) -> Unit,
     language: String,
     onLanguage: (String) -> Unit,
     onOpenSshHosts: () -> Unit,
@@ -268,9 +270,7 @@ fun SettingsScreen(
             ) {
                 SettingsGroup(stringResource(Res.string.settings_appearance)) {
                     PreferenceRow(themeIcon(themeMode), stringResource(Res.string.theme), themeLabel(themeMode)) { dialog = SettingsDialog.Theme }
-                    if (!isWebPlatform) {
-                        PreferenceRow(Lucide.Languages, stringResource(Res.string.language), languageLabel(language)) { dialog = SettingsDialog.Language }
-                    }
+                    PreferenceRow(Lucide.Languages, stringResource(Res.string.language), languageLabel(language)) { dialog = SettingsDialog.Language }
                     PreferenceRow(
                         icon = Lucide.Palette,
                         title = stringResource(Res.string.accent),
@@ -278,13 +278,12 @@ fun SettingsScreen(
                         else accentNameAt(accentIndex),
                         trailing = { AccentDot(if (dynamicColor) MaterialTheme.colorScheme.primary else accentAt(accentIndex)) },
                     ) { dialog = SettingsDialog.Accent }
-                    if (isWebPlatform) {
-                        PreferenceRow(
-                            Lucide.Smile,
-                            stringResource(Res.string.emoji_style),
-                            stringResource(if (emojiStyle == "color") Res.string.emoji_color else Res.string.emoji_flat),
-                        ) { dialog = SettingsDialog.EmojiStyle }
-                    }
+                    PreferenceRow(
+                        icon = Lucide.Type,
+                        title = stringResource(Res.string.font),
+                        summary = fontLabel(fontStyle),
+                        trailing = { FontPreview(fontStyle) },
+                    ) { dialog = SettingsDialog.Font }
                 }
                 SettingsGroup(stringResource(Res.string.background_group)) {
                     val activeCount = listOf(notifyInteraction, notifyTaskDone).count { it }
@@ -509,20 +508,15 @@ fun SettingsScreen(
 
         SettingsDialog.Language -> ConfirmSelectDialog(
             title = stringResource(Res.string.language),
-            options = LANGUAGE_TAGS.map { it to languageLabel(it) },
+            options = (if (isWebPlatform) listOf("") else LANGUAGE_TAGS).map { it to languageLabel(it) },
             selected = language,
             onConfirm = { onLanguage(it); dialog = null },
             onDismiss = { dialog = null },
         )
 
-        SettingsDialog.EmojiStyle -> SelectDialog(
-            title = stringResource(Res.string.emoji_style),
-            options = listOf(
-                "flat" to stringResource(Res.string.emoji_flat),
-                "color" to stringResource(Res.string.emoji_color),
-            ),
-            selected = emojiStyle,
-            onSelect = onEmojiStyle,
+        SettingsDialog.Font -> FontSelectDialog(
+            selected = fontStyle,
+            onSelect = onFontStyle,
             onDismiss = { dialog = null },
         )
 
@@ -614,7 +608,49 @@ fun SettingsScreen(
     }
 }
 
-private enum class SettingsDialog { Theme, Language, EmojiStyle, Accent, Environments, Cli, Generation, Permissions, Visibility, Notifications, Reset }
+private enum class SettingsDialog { Theme, Language, Font, Accent, Environments, Cli, Generation, Permissions, Visibility, Notifications, Reset }
+
+@Composable
+private fun fontLabel(style: String): String = when (style) {
+    "color" -> stringResource(Res.string.font_color)
+    "flat" -> stringResource(Res.string.font_flat)
+    else -> stringResource(Res.string.font_system)
+}
+
+@Composable
+private fun FontPreview(style: String) {
+    Box(modifier = Modifier.size(40.dp), contentAlignment = Alignment.Center) {
+        Text("😃", fontFamily = appFontFamily(style), fontSize = 22.sp)
+    }
+}
+
+@Composable
+private fun FontSelectDialog(
+    selected: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val options = buildList {
+        if (!isWebPlatform) add("system")
+        add("flat"); add("color")
+    }
+    CompactDialog(
+        onDismiss = onDismiss,
+        title = stringResource(Res.string.font),
+        contentPadding = PaddingValues(0.dp),
+        buttons = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) } },
+    ) {
+        options.forEach { value ->
+            DialogSelectItem(
+                label = fontLabel(value),
+                selected = value == selected,
+                onClick = { onSelect(value); onDismiss() },
+                labelFontFamily = appFontFamily(value),
+                trailing = { FontPreview(value) },
+            )
+        }
+    }
+}
 
 @Composable
 private fun permissionLabel(caps: Capabilities, mode: String): String =

@@ -17,10 +17,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.jahirtrap.cconnect.resources.Res
-import com.jahirtrap.cconnect.resources.app_font_color_bold
-import com.jahirtrap.cconnect.resources.app_font_color_regular
-import com.jahirtrap.cconnect.resources.app_font_flat_bold
-import com.jahirtrap.cconnect.resources.app_font_flat_regular
+import com.jahirtrap.cconnect.resources.cconnect_color_bold
+import com.jahirtrap.cconnect.resources.cconnect_color_regular
+import com.jahirtrap.cconnect.resources.cconnect_flat_bold
+import com.jahirtrap.cconnect.resources.cconnect_flat_regular
 import org.jetbrains.compose.resources.Font
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
@@ -40,7 +40,7 @@ fun CConnectTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     dynamicColor: Boolean = true,
     accent: Color = accentAt(4),
-    emojiStyle: String = "flat",
+    fontStyle: String = "flat",
     content: @Composable () -> Unit,
 ) {
     val dark = when (themeMode) {
@@ -82,10 +82,11 @@ fun CConnectTheme(
         colorScheme = colorScheme,
         motionScheme = MotionScheme.expressive(),
         shapes = ExpressiveShapes,
-        typography = ExpressiveTypography.withFamily(rememberAppFontFamily(emojiStyle)),
+        typography = ExpressiveTypography.withFamily(appFontFamily(fontStyle)),
     ) {
         CompositionLocalProvider(
             LocalPalette provides paletteFor(dark),
+            LocalMonoFontFamily provides appMonoFontFamily(fontStyle),
             content = content,
         )
     }
@@ -116,11 +117,12 @@ private val ExpressiveTypography: Typography = Typography().run {
 }
 
 @Composable
-private fun rememberAppFontFamily(emojiStyle: String): FontFamily {
-    val color = emojiStyle == "color"
+fun appFontFamily(fontStyle: String): FontFamily {
+    if (fontStyle != "flat" && fontStyle != "color") return FontFamily.Default
+    val color = fontStyle == "color"
     return FontFamily(
-        Font(if (color) Res.font.app_font_color_regular else Res.font.app_font_flat_regular, FontWeight.Normal),
-        Font(if (color) Res.font.app_font_color_bold else Res.font.app_font_flat_bold, FontWeight.Bold),
+        Font(if (color) Res.font.cconnect_color_regular else Res.font.cconnect_flat_regular, FontWeight.Normal),
+        Font(if (color) Res.font.cconnect_color_bold else Res.font.cconnect_flat_bold, FontWeight.Bold),
     )
 }
 

@@ -57,6 +57,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import com.jahirtrap.cconnect.ui.theme.LocalMonoFontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
@@ -427,7 +428,7 @@ private fun ToolBlock(name: String?, input: String, result: String? = null, runn
             if (input.isNotBlank()) {
                 Text(
                     text = input,
-                    fontFamily = FontFamily.Monospace,
+                    fontFamily = LocalMonoFontFamily.current,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
@@ -495,7 +496,7 @@ private fun FileChangeBlock(path: String, diffLines: List<DiffLine>, labelOnly: 
                         Text(
                             text = if (line.text.isEmpty() && prefix.isEmpty()) " " else "$prefix${line.text}",
                             color = fg,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = LocalMonoFontFamily.current,
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 1,
                             softWrap = false,
@@ -601,7 +602,7 @@ private fun InteractionBlock(
         if (input.isNotBlank()) {
             Text(
                 text = input,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalMonoFontFamily.current,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
@@ -891,7 +892,7 @@ private fun PreviewBox(preview: String) {
     ) {
         Text(
             preview.trimEnd('\n'),
-            fontFamily = FontFamily.Monospace,
+            fontFamily = LocalMonoFontFamily.current,
             style = MaterialTheme.typography.bodySmall.copy(lineHeight = 14.sp),
             color = MaterialTheme.colorScheme.onSurface,
             softWrap = false,

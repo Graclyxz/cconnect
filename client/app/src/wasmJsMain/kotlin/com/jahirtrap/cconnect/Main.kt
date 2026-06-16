@@ -13,6 +13,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.window.ComposeViewport
+import androidx.compose.ui.text.font.FontWeight
+import org.jetbrains.compose.resources.ExperimentalResourceApi
+import org.jetbrains.compose.resources.preloadFont
+import com.jahirtrap.cconnect.resources.Res
+import com.jahirtrap.cconnect.resources.cconnect_color_bold
+import com.jahirtrap.cconnect.resources.cconnect_color_regular
+import com.jahirtrap.cconnect.resources.cconnect_flat_bold
+import com.jahirtrap.cconnect.resources.cconnect_flat_regular
+import com.jahirtrap.cconnect.resources.cconnect_mono_regular
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
@@ -32,10 +41,14 @@ import kotlinx.browser.document
 import kotlinx.browser.window
 import org.w3c.dom.events.Event
 
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalResourceApi::class)
 fun main() {
     ComposeViewport(document.body!!) {
-        App()
+        val color = remember { Settings().fontStyle == "color" }
+        val regular by preloadFont(if (color) Res.font.cconnect_color_regular else Res.font.cconnect_flat_regular)
+        val bold by preloadFont(if (color) Res.font.cconnect_color_bold else Res.font.cconnect_flat_bold, FontWeight.Bold)
+        val mono by preloadFont(Res.font.cconnect_mono_regular)
+        if (regular != null && bold != null && mono != null) App()
     }
 }
 
@@ -52,7 +65,7 @@ private fun App() {
     var themeMode by remember { mutableStateOf(settings.themeMode) }
     var dynamicColor by remember { mutableStateOf(settings.dynamicColor) }
     var accentIndex by remember { mutableStateOf(settings.accentIndex) }
-    var emojiStyle by remember { mutableStateOf(settings.emojiStyle) }
+    var fontStyle by remember { mutableStateOf(settings.fontStyle) }
     var language by remember { mutableStateOf(settings.language) }
     var route by remember { mutableStateOf(if (settings.isConfigured) currentRoute() else "/settings") }
     var settingsHighlight by remember { mutableStateOf<String?>(null) }
@@ -84,7 +97,7 @@ private fun App() {
             themeMode = themeModeOf(themeMode),
             dynamicColor = dynamicColor,
             accent = accentAt(accentIndex),
-            emojiStyle = emojiStyle,
+            fontStyle = fontStyle,
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 when (route) {
@@ -95,8 +108,8 @@ private fun App() {
                         onDynamicColor = { dynamicColor = it; settings.dynamicColor = it },
                         accentIndex = accentIndex,
                         onAccent = { accentIndex = it; settings.accentIndex = it },
-                        emojiStyle = emojiStyle,
-                        onEmojiStyle = { emojiStyle = it; settings.emojiStyle = it },
+                        fontStyle = fontStyle,
+                        onFontStyle = { fontStyle = it; settings.fontStyle = it },
                         language = language,
                         onLanguage = { language = it; settings.language = it },
                         onOpenSshHosts = { navigate("/terminal") },

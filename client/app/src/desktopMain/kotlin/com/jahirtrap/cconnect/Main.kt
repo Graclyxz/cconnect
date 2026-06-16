@@ -124,7 +124,7 @@ private fun App(systemLocale: Locale, refreshTick: Int, window: ComposeWindow) {
     var themeMode by remember { mutableStateOf(settings.themeMode) }
     var dynamicColor by remember { mutableStateOf(settings.dynamicColor) }
     var accentIndex by remember { mutableStateOf(settings.accentIndex) }
-    var emojiStyle by remember { mutableStateOf(settings.emojiStyle) }
+    var fontStyle by remember { mutableStateOf(settings.fontStyle) }
     var language by remember { mutableStateOf(settings.language) }
     var showSettings by remember { mutableStateOf(!settings.isConfigured) }
     var settingsHighlight by remember { mutableStateOf<String?>(null) }
@@ -177,7 +177,7 @@ private fun App(systemLocale: Locale, refreshTick: Int, window: ComposeWindow) {
             themeMode = themeModeOf(themeMode),
             dynamicColor = dynamicColor,
             accent = accentAt(accentIndex),
-            emojiStyle = emojiStyle,
+            fontStyle = fontStyle,
         ) {
             val frameBackground = MaterialTheme.colorScheme.background
             LaunchedEffect(frameBackground) {
@@ -209,8 +209,8 @@ private fun App(systemLocale: Locale, refreshTick: Int, window: ComposeWindow) {
                         onDynamicColor = { dynamicColor = it; settings.dynamicColor = it },
                         accentIndex = accentIndex,
                         onAccent = { accentIndex = it; settings.accentIndex = it },
-                        emojiStyle = emojiStyle,
-                        onEmojiStyle = { emojiStyle = it; settings.emojiStyle = it },
+                        fontStyle = fontStyle,
+                        onFontStyle = { fontStyle = it; settings.fontStyle = it },
                         language = language,
                         onLanguage = { language = it; settings.language = it },
                         onOpenSshHosts = {

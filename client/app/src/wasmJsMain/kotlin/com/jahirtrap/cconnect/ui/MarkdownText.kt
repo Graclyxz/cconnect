@@ -93,6 +93,7 @@ import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import org.intellij.markdown.flavours.gfm.GFMTokenTypes
 import org.intellij.markdown.parser.MarkdownParser
 import org.jetbrains.compose.resources.stringResource
+import com.jahirtrap.cconnect.ui.theme.LocalMonoFontFamily
 
 private val flavour = GFMFlavourDescriptor()
 
@@ -136,7 +137,8 @@ actual fun MarkdownText(
             )
         }
     }
-    val ctx = remember(markdown, linkColor, codeBg) { MdContext(markdown, linkColor, codeBg) }
+    val monoFamily = LocalMonoFontFamily.current
+    val ctx = remember(markdown, linkColor, codeBg, monoFamily) { MdContext(markdown, linkColor, codeBg, monoFamily) }
     CompositionLocalProvider(
         LocalUriHandler provides uriHandler,
         LocalImageDownload provides onSharedLink,
@@ -151,7 +153,7 @@ actual fun MarkdownText(
     }
 }
 
-private class MdContext(val src: String, val linkColor: Color, val codeBg: Color)
+private class MdContext(val src: String, val linkColor: Color, val codeBg: Color, val monoFamily: FontFamily)
 
 private fun ASTNode.text(src: String): String = getTextInNode(src).toString()
 private fun ASTNode.child(type: IElementType): ASTNode? = children.firstOrNull { it.type == type }
@@ -416,7 +418,7 @@ private fun AnnotatedString.Builder.appendNode(n: ASTNode, ctx: MdContext) {
         MarkdownElementTypes.CODE_SPAN -> {
             val literal = n.text(ctx.src).trim('`')
             val start = length
-            styled(SpanStyle(fontFamily = FontFamily.Monospace)) { append(literal) }
+            styled(SpanStyle(fontFamily = ctx.monoFamily)) { append(literal) }
             addStringAnnotation(INLINE_CODE_TAG, literal, start, length)
         }
         MarkdownElementTypes.INLINE_LINK, MarkdownElementTypes.FULL_REFERENCE_LINK, MarkdownElementTypes.SHORT_REFERENCE_LINK ->

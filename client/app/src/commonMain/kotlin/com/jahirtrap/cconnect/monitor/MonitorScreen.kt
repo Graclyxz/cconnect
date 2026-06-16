@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import com.jahirtrap.cconnect.ui.theme.LocalMonoFontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -458,14 +459,14 @@ private fun LogRow(item: LogItem) {
         Text(
             time,
             style = MaterialTheme.typography.bodySmall,
-            fontFamily = FontFamily.Monospace,
+            fontFamily = LocalMonoFontFamily.current,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
         )
         Spacer(Modifier.width(8.dp))
         Text(
             entry.message,
             style = MaterialTheme.typography.bodySmall,
-            fontFamily = FontFamily.Monospace,
+            fontFamily = LocalMonoFontFamily.current,
             color = color,
         )
     }

@@ -262,7 +262,8 @@
     <string name="waiting_user">Waiting for a reply</string>
     <string name="refresh">Refresh</string>
     <string name="web_unavailable">Not available in the web version</string>
-    <string name="emoji_style">Emoji</string>
-    <string name="emoji_flat">Flat</string>
-    <string name="emoji_color">Color</string>
+    <string name="font">Font</string>
+    <string name="font_system">System</string>
+    <string name="font_flat">CConnect Flat</string>
+    <string name="font_color">CConnect Color</string>
 </resources>

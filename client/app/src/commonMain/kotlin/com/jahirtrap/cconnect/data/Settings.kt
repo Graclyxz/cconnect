@@ -1,6 +1,7 @@
 package com.jahirtrap.cconnect.data
 
 import com.jahirtrap.cconnect.data.remote.Backend
+import com.jahirtrap.cconnect.isWebPlatform
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.booleanOrNull
@@ -120,9 +121,9 @@ class Settings {
         get() = prefs.getInt("accent_index", 4)
         set(value) = prefs.edit { putInt("accent_index", value) }
 
-    var emojiStyle: String
-        get() = prefs.getString("emoji_style", "flat") ?: "flat"
-        set(value) = prefs.edit { putString("emoji_style", value) }
+    var fontStyle: String
+        get() = (if (isWebPlatform) "flat" else "system").let { def -> prefs.getString("font_style", def) ?: def }
+        set(value) = prefs.edit { putString("font_style", value) }
 
     val isConfigured: Boolean
         get() = activeEnvironment != null
@@ -130,7 +131,7 @@ class Settings {
     // Reset app-local prefs (backend-owned settings reset via /api/settings/reset).
     fun resetDefaults() {
         prefs.edit {
-            listOf("cwd", "language", "theme_mode", "dynamic_color", "accent_index")
+            listOf("cwd", "language", "theme_mode", "dynamic_color", "accent_index", "font_style")
                 .forEach { remove(it) }
         }
     }

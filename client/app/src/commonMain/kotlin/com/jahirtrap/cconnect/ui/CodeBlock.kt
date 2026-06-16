@@ -23,8 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import com.jahirtrap.cconnect.ui.theme.LocalMonoFontFamily
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.Copy
 import com.composables.icons.lucide.Lucide
@@ -38,7 +38,7 @@ internal fun CodeBlock(code: String, bg: Color, lang: String) {
             CodeBlockHeader(lang, code)
             Text(
                 text = code.trimEnd('\n'),
-                fontFamily = FontFamily.Monospace,
+                fontFamily = LocalMonoFontFamily.current,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier
                     .horizontalScrollIndicator(scroll)
