@@ -1,12 +1,12 @@
 # CConnect
 
-Mobile and desktop interface for **Claude Code**. Drive Claude Code running on
-your PC — sessions, files, projects, file edits, interactive permission prompts —
-from an Android app or a desktop app for Windows, Linux and macOS, locally over
-Tailscale or publicly over a Tailscale Funnel.
+Mobile, desktop and web interface for **Claude Code**. Drive Claude Code running
+on your PC — sessions, files, projects, file edits, interactive permission
+prompts — from an Android app, a desktop app for Windows, Linux and macOS, or
+any browser, locally over Tailscale or publicly over a Tailscale Funnel.
 
 ```
-[Android / Desktop app] ──HTTP/WS──> [Backend :8723 on the PC] ──Agent SDK──> [Claude Code]
+[Android / Desktop / Web client] ──HTTP/WS──> [Backend :8723 on the PC] ──Agent SDK──> [Claude Code]
 ```
 
 ## Structure
@@ -15,8 +15,12 @@ Tailscale or publicly over a Tailscale Funnel.
 cconnect/
 ├── backend/   # FastAPI bridge (Python) — see backend/CLAUDE.md
 ├── mobile/    # Android app (Jetpack Compose) — see mobile/CLAUDE.md
-└── desktop/   # Desktop app (Compose Multiplatform) — Windows, Linux, macOS
+└── client/    # Desktop + web app (Compose Multiplatform) — Windows, Linux, macOS, and the browser — see client/CLAUDE.md
 ```
+
+The desktop and web apps are one Compose Multiplatform codebase: the desktop
+build is a native installer per OS, and the web build is the same UI compiled to
+WebAssembly and hosted as a static site (see [Web app](#web-app)).
 
 ## Run modes
 
@@ -66,6 +70,19 @@ Open Settings → Connections and add the server: on mobile, scan the QR
 (top-right of the dialog) to autofill it from `--expose`'s output; on desktop,
 paste the address and token by hand. The connection becomes active immediately
 and the chat reconnects.
+
+## Web app
+
+The desktop UI also runs in the browser — the same Compose code compiled to
+**WebAssembly**, nothing to install. It's a plain static site (HTML + WASM +
+assets), so it can be hosted anywhere and opened from any browser.
+
+Because the page is served over HTTPS, the browser only lets it reach a backend
+over **HTTPS/WSS** — so the web app pairs with the public mode: run
+`python run.py --expose tailscale` and add the server with its
+`https://<hostname>.<tailnet>.ts.net` URL and token. (For that reason the
+environment form on web offers only HTTPS; the native apps keep plain HTTP for
+local backends.) Updating is just a reload.
 
 ## In the chat
 

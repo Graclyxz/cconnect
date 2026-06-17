@@ -1,7 +1,8 @@
 # CLAUDE.md — CConnect Backend
 
-Bridge between the CConnect Android app and Claude Code, running locally on the
-user's PC. FastAPI + Python 3.11+.
+Bridge between the CConnect clients (the Android app and the Compose
+desktop/web app) and Claude Code, running locally on the user's PC. FastAPI +
+Python 3.11+. One backend serves all clients identically.
 
 It drives Claude Code through the official **Claude Agent SDK**
 (`claude-agent-sdk`), using the user's **subscription** (the logged-in CLI
@@ -15,7 +16,7 @@ marketplaces, MCP servers, skills, memories) and a shared-folder file manager.
 ## Architecture
 
 ```
-[Mobile app] ──WS  /api/chat/ws────> chat router ──> services/live_sessions.LiveSession ──> services/claude_runtime.run_prompt ──> SDK query()
+[CConnect client] ──WS  /api/chat/ws────> chat router ──> services/live_sessions.LiveSession ──> services/claude_runtime.run_prompt ──> SDK query()
              ──REST /api/sessions/* ─> sessions router ──> services/sessions (reads ~/.claude/projects JSONL; rewind via services/rewind)
              ──REST /api/shared/* ──> shared router ──> services/shared (list/upload/download/move/copy/rename under backend/shared/)
              ──REST /api/claude/* ──> claude router ──> services/claude_assets (reads ~/.claude) + services/claude_manage (mutations via `claude` CLI subprocess)
@@ -74,7 +75,7 @@ backend/
 ├── mcps/                    # In-process MCP server (auto-registered tools) — see below
 └── services/
     ├── live_sessions.py     # In-memory LiveSession + SessionRegistry — turns decoupled from the WS connection; reattach by channel, idle reaper, seq'd outbox replay
-    ├── claude_runtime.py    # SDK query() -> normalized event stream; system-prompt append; side-question + usage helpers; title generation
+    ├── claude_runtime.py    # SDK query() -> normalized event stream; system-prompt append; side-question + usage helpers; title generation; PreCompact hook emits `compacting` via the LiveSession `emit` callback
     ├── sessions.py          # Read transcripts from ~/.claude/projects (path-traversal safe); checkpoints; image extraction
     ├── rewind.py            # Rewind preview/execute via SDK control requests; pending rewind id in rewind_pending.json
     ├── attachments.py       # compose_prompt(): native image blocks + @-mentions for chat attachments
@@ -215,7 +216,15 @@ Control/ephemeral messages (`ready`, `permission_mode`, `history_chunk`,
 - `tool_result` (tool_use_id, content, is_error)
 - `ask_text` / `ask_done` — quick-chat answer stream and its end marker.
 - `usage` (markdown) — ephemeral plan-usage report; rendered live and never persisted.
-- `compact` / `compact_summary` — compaction block and its summary, filled in live.
+- `compacting` — turns on the client's "Compactando" progress bar. Emitted by a
+  **PreCompact hook** (carries `trigger: manual|auto`) registered in
+  `run_prompt`, so the bar shows during **auto**-compaction too, not only manual
+  `/compact`. It's pushed **out-of-band** through the LiveSession's `emit`
+  callback (the runner factory now receives `(ask_user, emit)`) because the SDK
+  message stream is blocked while it compacts, so a normal `yield` couldn't
+  surface it in time.
+- `compact` / `compact_summary` — compaction block and its summary, filled in
+  live; `compact` (the boundary) also turns the progress bar back off.
 - `command` (markdown) — output of local slash commands.
 - `permission_mode` — ack of `set_permission_mode`.
 - **`file_change`** (id, path, diff_lines) — emitted instead of `tool_use` for

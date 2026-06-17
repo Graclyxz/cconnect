@@ -7,6 +7,10 @@ a Tailscale Funnel.
 
 Package: `com.jahirtrap.cconnect`. Min SDK 26, target SDK 36.
 
+The desktop + web sibling lives in `client/` (Compose Multiplatform) and mirrors
+this app 1:1 — same screens, models and `ServerEvent` shapes. Keep features in
+step across both; see `client/CLAUDE.md`.
+
 ---
 
 ## Architecture
@@ -139,7 +143,8 @@ the settings list, the chat topbar, and the active-connection summary.
 | `result` | stores the new `sessionId` |
 | `ask_text` / `ask_done` | streamed into the quick-chat panel, separate from the main thread |
 | `usage` | ephemeral markdown message (plan token usage) — shown live, never resumed |
-| `compact` / `compact_summary` | compaction block and its summary, filled in live |
+| `compacting` | sets `compacting=true` → the "Compactando" progress bar; fired by the backend's PreCompact hook so it shows on **auto**-compaction too, not just manual `/compact` |
+| `compact` / `compact_summary` | compaction block and its summary, filled in live; `compact` also clears `compacting` |
 | `done` / `interrupted` / `error` | UI transitions |
 | `history_chunk` | older messages from the WS backfill — prepended to `state.messages`. Chunks for a non-active `sessionId` are dropped. Updates `oldestLoadedIndex = chunk.startIndex` and `transcriptExhausted = !chunk.hasMore`. |
 

@@ -2,32 +2,39 @@
 
 ## Project Overview
 
-Mobile interface for Claude Code. The Android app drives Claude Code running on
-the user's PC — sessions, files, projects, file edits, interactive permission
-prompts, chat attachments, rewind — over HTTP/WS, reachable either locally via
-Tailscale or publicly via Tailscale Funnel. It also remote-manages the Claude
-Code installation itself (CLI version/updates, plugins, marketplaces, MCP
-servers, skills, memories, user prompt), ships a full file manager over the
+Mobile, desktop and web interface for Claude Code. The apps drive Claude Code
+running on the user's PC — sessions, files, projects, file edits, interactive
+permission prompts, chat attachments, rewind — over HTTP/WS, reachable either
+locally via Tailscale or publicly via Tailscale Funnel. They also remote-manage
+the Claude Code installation itself (CLI version/updates, plugins, marketplaces,
+MCP servers, skills, memories, user prompt), ship a full file manager over the
 backend's shared folder, and a live PC monitor (CPU/GPU/memory/disks + server
 logs).
 
-The mobile app also bundles a standalone SSH client (saved hosts, embedded
-terminal, OS auto-detection) — see `mobile/CLAUDE.md`.
+The mobile and desktop apps also bundle a standalone SSH client (saved hosts,
+embedded terminal, OS auto-detection) — see `mobile/CLAUDE.md` / `client/CLAUDE.md`.
 
-**Monorepo** — backend and mobile are a single project and MUST stay in sync.
-Changes to API contracts, event shapes, or schemas have to be reflected in both.
+**Monorepo** — backend, mobile and client are a single project and MUST stay in
+sync. Changes to API contracts, event shapes, or schemas have to be reflected
+everywhere. The mobile (Android) and client (desktop/web) apps mirror each other
+1:1 — a feature that applies to both lands in both.
 
 - **Backend**: FastAPI (Python 3.11+ + Pydantic 2 + Uvicorn) — bridge between the
-  app and Claude Code via the Agent SDK. Runs on the user's PC.
+  apps and Claude Code via the Agent SDK. Runs on the user's PC. Serves all
+  clients identically.
 - **Mobile**: Android (Jetpack Compose, Kotlin 2.2, BOM 2025.09). Connects via
   WebSocket and REST.
+- **Client**: Compose Multiplatform (Kotlin) — one codebase building a native
+  **desktop** app (Windows/Linux/macOS) and a **web** app (WebAssembly, hosted on
+  Cloudflare Pages). Same WebSocket/REST contract.
 
-See `backend/CLAUDE.md` and `mobile/CLAUDE.md` for module-specific rules.
+See `backend/CLAUDE.md`, `mobile/CLAUDE.md` and `client/CLAUDE.md` for
+module-specific rules.
 
 ## Architecture
 
 ```
-[Android app] ──HTTP/WS──> [Backend :8723] ──claude-agent-sdk──> [Claude Code CLI]
+[Android / desktop / web client] ──HTTP/WS──> [Backend :8723] ──claude-agent-sdk──> [Claude Code CLI]
                                 │
                                 ├──> ~/.claude/projects (sessions on disk)
                                 ├──> ~/.claude (plugins, marketplaces, MCP, skills, memories — read + `claude` CLI subprocess for mutations)
@@ -83,10 +90,23 @@ cd mobile && ./gradlew :app:installRelease     # Signed release to connected dev
 cd mobile && ./gradlew :app:assembleRelease    # Signed release APK
 ```
 
+### Client (desktop + web)
+```bash
+cd client && ./gradlew :app:run                                 # Run desktop
+cd client && ./gradlew :app:wasmJsBrowserDevelopmentRun         # Run web
+cd client && ./gradlew :app:compileKotlinDesktop :app:compileKotlinWasmJs  # Compile-check both
+cd client && ./gradlew :app:packageDistributionForCurrentOS     # Desktop installers
+cd client && ./gradlew :app:wasmJsBrowserDistribution           # Web static bundle (→ Cloudflare Pages in CI)
+```
+Releases are cut by `.github/workflows/release.yml` on a `x.y.z` tag: desktop
+installers, the Android APK, and the web deploy to Cloudflare Pages all ship
+together.
+
 ## Key Rules
 
-1. **Monorepo consistency** — backend and mobile must agree on event types,
-   field names, and the QR payload shape (`{url, token}` JSON).
+1. **Monorepo consistency** — backend, mobile and client must agree on event
+   types, field names, and the QR payload shape (`{url, token}` JSON). Mobile and
+   client mirror each other (same screens/models); apply applicable features to both.
 2. **Version contract** — when a feature needs a newer app/server/CLI, update
    `version` / `supported-app` / `supported-cli` in `backend/pyproject.toml`
    and the app's `versionName` / `SUPPORTED_SERVER` accordingly.
