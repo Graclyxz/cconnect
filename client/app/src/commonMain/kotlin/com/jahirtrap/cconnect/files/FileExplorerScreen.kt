@@ -63,6 +63,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -141,7 +142,10 @@ import com.jahirtrap.cconnect.data.remote.SharedApi
 import com.jahirtrap.cconnect.ui.AbovePopupMenu
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.BackInterceptor
+import com.jahirtrap.cconnect.ui.HistoryNavHandler
 import com.jahirtrap.cconnect.ui.CenteredProgress
+import com.jahirtrap.cconnect.ui.ClipKey
+import com.jahirtrap.cconnect.ui.ClipboardShortcutHandler
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.ConfirmDialog
@@ -226,6 +230,10 @@ fun FileExplorerScreen(
     var path by remember { mutableStateOf(if (hasUrlLoc) urlLoc!!.first else initialArchive?.substringBeforeLast('/', "") ?: "") }
     var archive by remember { mutableStateOf(if (hasUrlLoc) urlLoc!!.second else initialArchive) }
     var archiveDir by remember { mutableStateOf(if (hasUrlLoc) urlLoc!!.third else "") }
+    val histBack = remember { mutableStateListOf<Triple<String, String?, String>>() }
+    val histFwd = remember { mutableStateListOf<Triple<String, String?, String>>() }
+    var histCurrent by remember { mutableStateOf<Triple<String, String?, String>?>(null) }
+    var histNavigating by remember { mutableStateOf(false) }
     var extractRequest by remember { mutableStateOf<ExtractRequest?>(null) }
     var compressing by remember { mutableStateOf<List<String>?>(null) }
     var entries by remember { mutableStateOf<List<SharedEntry>>(emptyList()) }
@@ -263,6 +271,7 @@ fun FileExplorerScreen(
 
     var pendingUploads by remember { mutableStateOf<List<AttachmentFile>>(emptyList()) }
     var dropOver by remember { mutableStateOf(false) }
+    ClipboardPasteEffect(enabled = archive == null) { pendingUploads = it }
 
     fun child(name: String) = if (path.isEmpty()) name else "$path/$name"
     fun innerChild(name: String) = if (archiveDir.isEmpty()) name else "$archiveDir/$name"
@@ -299,12 +308,17 @@ fun FileExplorerScreen(
     LaunchedEffect(refreshTick) { if (refreshTick > 0) { refreshing = true; reload() } }
     LaunchedEffect(path, archive, archiveDir) { syncFilesLocation(path, archive, archiveDir) }
     FilesPopstate { p, a, ad -> path = p; archive = a; archiveDir = ad }
+    LaunchedEffect(path, archive, archiveDir) {
+        val loc = Triple(path, archive, archiveDir)
+        when {
+            histCurrent == null -> histCurrent = loc
+            loc == histCurrent -> {}
+            histNavigating -> { histNavigating = false; histCurrent = loc }
+            else -> { histCurrent?.let { histBack.add(it) }; histFwd.clear(); histCurrent = loc }
+        }
+    }
 
     fun goUp() {
-        if (isWebPlatform) {
-            if (archive == null && path.isEmpty()) onClose() else filesHistoryBack()
-            return
-        }
         when {
             archive != null && archiveDir.isNotEmpty() -> archiveDir = archiveDir.substringBeforeLast('/', "")
             archive != null -> { archive = null; archiveDir = "" }
@@ -326,6 +340,55 @@ fun FileExplorerScreen(
         currentTransfer.folders.none { path == it || path.startsWith("$it/") } &&
         (currentTransfer.kind != TransferKind.Move || path != currentTransfer.sourceDir)
 
+    val shortcutsEnabled = !searching && renaming == null && !creatingFolder &&
+        !confirmingDelete && extractRequest == null && compressing == null
+    ClipboardShortcutHandler(enabled = shortcutsEnabled) { key ->
+        when (key) {
+            ClipKey.Copy -> if (archive == null && selected.isNotEmpty()) {
+                transfer = TransferOp(
+                    kind = TransferKind.Copy,
+                    paths = selectedEntries.map { child(it.name) },
+                    sourceDir = path,
+                    folders = selectedEntries.filter { it.isDir }.map { child(it.name) },
+                )
+                exitSelection()
+                true
+            } else false
+            ClipKey.Cut -> if (archive == null && selected.isNotEmpty()) {
+                transfer = TransferOp(
+                    kind = TransferKind.Move,
+                    paths = selectedEntries.map { child(it.name) },
+                    sourceDir = path,
+                    folders = selectedEntries.filter { it.isDir }.map { child(it.name) },
+                )
+                exitSelection()
+                true
+            } else false
+            ClipKey.Paste -> {
+                val op = transfer
+                if (op != null && transferAllowed) {
+                    scope.launch {
+                        when (op.kind) {
+                            TransferKind.Move -> SharedApi.move(op.paths, path)
+                            TransferKind.Copy -> SharedApi.copy(op.paths, path)
+                            TransferKind.Extract -> SharedApi.extract(
+                                op.paths.first(), dest = path, intoFolder = false,
+                                members = op.members, base = op.base,
+                            )
+                        }
+                        transfer = null
+                        reload()
+                    }
+                    true
+                } else if (archive == null && clipboardHasFiles()) {
+                    scope.launch { readClipboardFiles().takeIf { it.isNotEmpty() }?.let { pendingUploads = it } }
+                    true
+                } else false
+            }
+            ClipKey.Cancel -> if (transfer != null) { transfer = null; true } else false
+        }
+    }
+
     var shownCount by remember { mutableStateOf(0) }
     var shownSingle by remember { mutableStateOf<SharedEntry?>(null) }
     var shownCanShare by remember { mutableStateOf(false) }
@@ -344,6 +407,30 @@ fun FileExplorerScreen(
 
     val screenFocus = remember { FocusRequester() }
     BackInterceptor { handleBack() }
+    HistoryNavHandler(
+        enabled = !isWebPlatform,
+        onBack = {
+            if (selecting && selected.isNotEmpty()) false
+            else if (histBack.isEmpty()) false
+            else {
+                val prev = histBack.removeAt(histBack.lastIndex)
+                histCurrent?.let { histFwd.add(it) }
+                histNavigating = true
+                path = prev.first; archive = prev.second; archiveDir = prev.third
+                true
+            }
+        },
+        onForward = {
+            if (histFwd.isEmpty()) false
+            else {
+                val next = histFwd.removeAt(histFwd.lastIndex)
+                histCurrent?.let { histBack.add(it) }
+                histNavigating = true
+                path = next.first; archive = next.second; archiveDir = next.third
+                true
+            }
+        },
+    )
     LaunchedEffect(searching, renaming, confirmingDelete, creatingFolder) {
         if (!searching && renaming == null && !confirmingDelete && !creatingFolder) runCatching { screenFocus.requestFocus() }
     }

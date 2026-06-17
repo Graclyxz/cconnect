@@ -95,6 +95,7 @@ import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.Stop
 import com.jahirtrap.cconnect.ui.theme.palette
 import androidx.compose.material3.DrawerState
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -114,6 +115,9 @@ import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Scaffold
 import com.jahirtrap.cconnect.ui.AppPullToRefresh
 import com.jahirtrap.cconnect.ui.LocalIsTouch
+import com.jahirtrap.cconnect.ui.ClipKey
+import com.jahirtrap.cconnect.ui.ClipboardShortcutHandler
+import com.jahirtrap.cconnect.ui.Dismissable
 import com.jahirtrap.cconnect.ui.LocalMobileLayout
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -187,6 +191,9 @@ import com.jahirtrap.cconnect.data.Role
 import com.jahirtrap.cconnect.data.pending
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.TodoItem
+import com.jahirtrap.cconnect.files.ClipboardPasteEffect
+import com.jahirtrap.cconnect.files.clipboardHasFiles
+import com.jahirtrap.cconnect.files.readClipboardFiles
 import com.jahirtrap.cconnect.files.fileDropTarget
 import com.jahirtrap.cconnect.files.pickFiles
 import com.jahirtrap.cconnect.files.downloadShared
@@ -528,15 +535,24 @@ fun ChatScreen(
                                 }
                                 Unit
                             }
+                            val dialogOpen = renameTarget != null || deleteTarget != null || colorTarget != null ||
+                                confirmCommand != null || sharedLinkAction != null || showRewindSheet
+                            val shortcutsEnabled = !dialogOpen && !(mobile && drawerState.targetValue == DrawerValue.Open)
+                            ClipboardPasteEffect(enabled = shortcutsEnabled && !sideActive) { vm.addAttachments(it) }
+                            ClipboardShortcutHandler(enabled = shortcutsEnabled) { key ->
+                                when (key) {
+                                    ClipKey.Paste -> if (!sideActive && clipboardHasFiles()) {
+                                        scope.launch { readClipboardFiles().takeIf { it.isNotEmpty() }?.let { vm.addAttachments(it) } }
+                                        true
+                                    } else false
+                                    ClipKey.Cancel -> if (sideActive) { dismissSide(); true } else false
+                                    else -> false
+                                }
+                            }
                             Column(
                                 modifier = Modifier.fillMaxSize().padding(padding)
                                 .fileDropTarget(enabled = !sideActive, onDragChange = { dropOver = it }) { vm.addAttachments(it) }
-                                .then(if (dropOver) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier)
-                                .onPreviewKeyEvent { e ->
-                                    if (e.type == KeyEventType.KeyDown && e.key == Key.Escape && sideActive) {
-                                        dismissSide(); true
-                                    } else false
-                                },
+                                .then(if (dropOver) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier),
                             ) {
                                 BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
                                     val boxHeightPx = constraints.maxHeight.toFloat()
@@ -1420,10 +1436,11 @@ private fun SelectorChip(
             Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
         }
         if (open) DropdownScrim { open = false }
+        if (open) Dismissable { open = false }
         DropdownMenu(
             expanded = open,
             onDismissRequest = { open = false },
-            properties = PopupProperties(focusable = false),
+            properties = PopupProperties(focusable = !LocalIsTouch.current),
         ) {
             options.forEach { (value, display) ->
                 val style = optionStyle?.invoke(value)

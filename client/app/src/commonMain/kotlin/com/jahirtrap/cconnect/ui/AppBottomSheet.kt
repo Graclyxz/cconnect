@@ -79,6 +79,7 @@ fun AppBottomSheet(
             override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity = available
         }
     }
+    Dismissable(enabled = dismissible, onDismiss = animatedDismiss)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,

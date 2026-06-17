@@ -17,9 +17,8 @@ def is_image(name: str) -> bool:
 
 
 def _encode_image(path: Path) -> tuple[str, str] | None:
-    from PIL import Image
-
     try:
+        from PIL import Image
         with Image.open(path) as img:
             img.load()
             has_alpha = img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info)

@@ -109,11 +109,12 @@ fun SelectField(
                 Icon(Lucide.ChevronDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
             }
             if (open) DropdownScrim { open = false }
+            if (open) Dismissable { open = false }
             DropdownMenu(
                 expanded = open,
                 onDismissRequest = { open = false },
                 modifier = Modifier.widthIn(min = fieldWidth),
-                properties = PopupProperties(focusable = false),
+                properties = PopupProperties(focusable = !LocalIsTouch.current),
             ) {
                 options.forEach { (value, text) ->
                     CompactDropdownItem(text = text, selected = value == selected, onClick = { onSelect(value); open = false })

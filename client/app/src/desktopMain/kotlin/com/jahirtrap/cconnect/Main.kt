@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.isBackPressed
+import androidx.compose.ui.input.pointer.isForwardPressed
 import androidx.compose.ui.awt.awtEventOrNull
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
@@ -57,6 +58,9 @@ import com.jahirtrap.cconnect.service.Notifier
 import com.jahirtrap.cconnect.settings.SettingsScreen
 import com.jahirtrap.cconnect.terminal.TerminalScreen
 import com.jahirtrap.cconnect.ui.BackInterceptors
+import com.jahirtrap.cconnect.ui.dispatchClipboardShortcut
+import com.jahirtrap.cconnect.ui.DismissStack
+import com.jahirtrap.cconnect.ui.HistoryNav
 import com.jahirtrap.cconnect.ui.LocalMobileLayout
 import com.jahirtrap.cconnect.ui.LocalRefreshTick
 import com.jahirtrap.cconnect.ui.theme.CConnectTheme
@@ -105,7 +109,7 @@ fun main() {
                 if (event.type == KeyEventType.KeyDown && event.isCtrlPressed && event.key == Key.R) {
                     refreshTick++
                     true
-                } else false
+                } else dispatchClipboardShortcut(event)
             },
         ) {
             DisposableEffect(window) {
@@ -204,12 +208,16 @@ private fun App(systemLocale: Locale, refreshTick: Int, window: ComposeWindow) {
                     modifier = Modifier.fillMaxSize().pointerInput(Unit) {
                         awaitPointerEventScope {
                             var backDown = false
+                            var forwardDown = false
                             while (true) {
                                 val event = awaitPointerEvent(PointerEventPass.Initial)
                                 val awtButton = (event.awtEventOrNull as? java.awt.event.MouseEvent)?.button
                                 val isBack = event.buttons.isBackPressed || awtButton == 4
-                                if (isBack && !backDown) goBack()
+                                val isForward = event.buttons.isForwardPressed || awtButton == 5
+                                if (isBack && !backDown) { if (!DismissStack.dismissTop() && !HistoryNav.back()) goBack() }
+                                if (isForward && !forwardDown) HistoryNav.forward()
                                 backDown = isBack
+                                forwardDown = isForward
                             }
                         }
                     }.pointerInput(Unit) {

@@ -75,6 +75,7 @@ fun CompactDialog(
     titleTrailing: (@Composable RowScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    Dismissable(onDismiss = onDismiss)
     BasicAlertDialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier.widthIn(min = 280.dp),

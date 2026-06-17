@@ -36,6 +36,7 @@ fun AbovePopupMenu(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (expanded) DropdownScrim(onDismiss)
+    if (expanded) Dismissable(onDismiss = onDismiss)
     val state = remember { MutableTransitionState(false) }
     state.targetState = expanded
     if (state.currentState || state.targetState) {
@@ -43,7 +44,7 @@ fun AbovePopupMenu(
         Popup(
             popupPositionProvider = remember(gap) { AboveAnchorPositionProvider(gap) },
             onDismissRequest = onDismiss,
-            properties = PopupProperties(focusable = true),
+            properties = PopupProperties(focusable = !LocalIsTouch.current),
         ) {
             val transition = rememberTransition(state, "AbovePopupMenu")
             val scale by transition.animateFloat(
