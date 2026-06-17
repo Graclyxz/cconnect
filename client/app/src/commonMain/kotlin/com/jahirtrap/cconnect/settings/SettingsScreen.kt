@@ -427,6 +427,12 @@ fun SettingsScreen(
                                 },
                                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
                             )
+                        } else if (chatState.latestRelease != null && isWebPlatform) {
+                            ActionButton(
+                                text = stringResource(Res.string.update_action),
+                                onClick = { AppUpdater.reload() },
+                                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                            )
                         } else {
                             var checking by remember { mutableStateOf(false) }
                             ActionButton(
@@ -838,7 +844,7 @@ private fun EnvironmentEditDialog(
     onDismiss: () -> Unit,
     focusName: Boolean = false,
 ) {
-    var kind by remember { mutableStateOf(initial?.kind ?: "http") }
+    var kind by remember { mutableStateOf(initial?.kind ?: if (isWebPlatform) "https" else "http") }
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var host by remember { mutableStateOf(initial?.host ?: "") }
     var port by remember { mutableStateOf(initial?.port?.toString() ?: "8723") }
@@ -893,7 +899,7 @@ private fun EnvironmentEditDialog(
         SelectField(
             label = stringResource(Res.string.environment_kind),
             selected = kind,
-            options = listOf("http" to "HTTP", "https" to "HTTPS"),
+            options = if (isWebPlatform) listOf("https" to "HTTPS") else listOf("http" to "HTTP", "https" to "HTTPS"),
             onSelect = { newKind ->
                 if (newKind != kind) {
                     port = defaultPortFor(newKind)

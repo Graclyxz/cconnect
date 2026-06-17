@@ -10,13 +10,15 @@ self.addEventListener('activate', function (event) {
 
 // Network-first for the app shell (same-origin GET): online always serves fresh
 // and refreshes the cache; offline falls back to the cached copy so the app still
-// loads (theme, navigation). Backend/API requests are cross-origin and pass through.
+// loads (theme, navigation). `cache: 'no-cache'` forces revalidation against the
+// server so a redeployed build is picked up on reload (the in-app update button
+// clears these caches first). Backend/API requests are cross-origin and pass through.
 self.addEventListener('fetch', function (event) {
     const request = event.request;
     if (request.method !== 'GET') return;
     if (new URL(request.url).origin !== self.location.origin) return;
     event.respondWith(
-        fetch(request)
+        fetch(request, { cache: 'no-cache' })
             .then(function (response) {
                 const copy = response.clone();
                 caches.open(CACHE).then(function (cache) {

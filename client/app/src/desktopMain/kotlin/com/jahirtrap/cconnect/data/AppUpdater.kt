@@ -15,6 +15,8 @@ actual object AppUpdater {
 
     private val client = OkHttpClient()
 
+    actual fun reload(): Boolean = false
+
     actual fun openRelease(url: String): Boolean =
         runCatching {
             if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
