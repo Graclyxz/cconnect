@@ -4,6 +4,7 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -68,7 +69,7 @@ fun Modifier.verticalScrollIndicator(state: ScrollState, thickness: Dp = 2.dp): 
 private val SCROLLBAR_HIT = 16.dp
 
 @Composable
-fun Modifier.horizontalScrollbar(state: ScrollState, thickness: Dp = 6.dp): Modifier {
+fun Modifier.horizontalScrollbar(state: ScrollState, thickness: Dp = 4.dp): Modifier {
     val active = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
     val idle = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
     val scope = rememberCoroutineScope()
@@ -127,6 +128,7 @@ fun Modifier.horizontalScrollbar(state: ScrollState, thickness: Dp = 6.dp): Modi
                 cornerRadius = CornerRadius(px / 2, px / 2),
             )
         }
+        .then(if (!touch && state.maxValue > 0) Modifier.padding(bottom = thickness + 2.dp) else Modifier)
 }
 
 @Composable

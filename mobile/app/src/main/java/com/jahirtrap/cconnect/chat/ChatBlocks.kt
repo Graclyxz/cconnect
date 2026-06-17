@@ -164,41 +164,51 @@ fun ChatMessageItem(
     onSubmitQuestions: ((String) -> Unit)? = null,
     onChatQuestions: ((String) -> Unit)? = null,
     onSharedLink: ((String, String) -> Unit)? = null,
+    gluedTop: Boolean = false,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = gapAbove(prevRole, message.role), bottom = bottomGap(message.role, nextRole)),
+            .padding(top = if (gluedTop) 0.dp else gapAbove(prevRole, message.role), bottom = bottomGap(message.role, nextRole)),
     ) {
         when (message.role) {
             Role.USER -> Band(MaterialTheme.colorScheme.surfaceVariant) {
                 val content = remember(message.text, message.attachments, message.images) { userContent(message) }
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(if (content.attachments.isNotEmpty()) 6.dp else 0.dp)) {
                     if (content.body.isNotEmpty()) {
                         Text(content.body, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
                     }
-                    if (content.attachments.isNotEmpty()) {
+                    if (content.attachments.isNotEmpty() || message.timestamp != null) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Bottom,
                         ) {
-                            content.attachments.forEach { (url, name) ->
-                                AttachmentChip(
-                                    name = name,
-                                    icon = if (isArchive(name)) Lucide.FolderArchive else Lucide.File,
-                                    onClick = { onSharedLink?.invoke(url, name) },
-                                )
+                            if (content.attachments.isNotEmpty()) {
+                                Row(
+                                    modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    content.attachments.forEach { (url, name) ->
+                                        AttachmentChip(
+                                            name = name,
+                                            icon = if (isArchive(name)) Lucide.FolderArchive else Lucide.File,
+                                            onClick = { onSharedLink?.invoke(url, name) },
+                                        )
+                                    }
+                                }
+                            } else {
+                                Spacer(Modifier.weight(1f))
                             }
-                        }
-                    }
-                    if (message.timestamp != null) {
-                        DisableSelection {
-                            Text(
-                                text = formatClock(message.timestamp),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.align(Alignment.End),
-                            )
+                            if (message.timestamp != null) {
+                                DisableSelection {
+                                    Text(
+                                        text = formatClock(message.timestamp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(start = 8.dp),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -305,23 +315,25 @@ internal fun gapAbove(prev: Role?, cur: Role): Dp {
 
 @Composable
 fun ChatDateSeparator(millis: Long) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Lucide.Calendar,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(16.dp),
-        )
-        Spacer(Modifier.size(6.dp))
-        Text(
-            text = formatDay(millis),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+    DisableSelection {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Lucide.Calendar,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.size(6.dp))
+            Text(
+                text = formatDay(millis),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

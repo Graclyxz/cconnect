@@ -267,6 +267,8 @@
     <string name="refresh">Refresh</string>
     <string name="web_unavailable">Not available in the web version</string>
     <string name="font">Font</string>
+    <string name="show_timestamps">Time and date</string>
+    <string name="show_timestamps_summary">Show the time and date in the chat</string>
     <string name="font_system">System</string>
     <string name="font_flat">CConnect Flat</string>
     <string name="font_color">CConnect Color</string>

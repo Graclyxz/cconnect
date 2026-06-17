@@ -56,6 +56,10 @@ class Settings {
         get() = prefs.getBoolean("markdown_preview_formatted", true)
         set(value) = prefs.edit { putBoolean("markdown_preview_formatted", value) }
 
+    var showTimestamps: Boolean
+        get() = prefs.getBoolean("show_timestamps", false)
+        set(value) = prefs.edit { putBoolean("show_timestamps", value) }
+
     var sidebarExpanded: Boolean
         get() = prefs.getBoolean("sidebar_expanded", false)
         set(value) = prefs.edit { putBoolean("sidebar_expanded", value) }

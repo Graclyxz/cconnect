@@ -143,6 +143,7 @@ import com.jahirtrap.cconnect.ui.AbovePopupMenu
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.BackInterceptor
 import com.jahirtrap.cconnect.ui.HistoryNavHandler
+import com.jahirtrap.cconnect.ui.horizontalScrollbar
 import com.jahirtrap.cconnect.ui.CenteredProgress
 import com.jahirtrap.cconnect.ui.ClipKey
 import com.jahirtrap.cconnect.ui.ClipboardShortcutHandler
@@ -1047,7 +1048,7 @@ private fun Breadcrumb(path: String, onNavigate: (String) -> Unit) {
                 .size(20.dp),
         )
         Row(
-            modifier = Modifier.weight(1f).horizontalScroll(scroll),
+            modifier = Modifier.weight(1f).horizontalScrollbar(scroll).horizontalScroll(scroll),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             var cumulative = ""

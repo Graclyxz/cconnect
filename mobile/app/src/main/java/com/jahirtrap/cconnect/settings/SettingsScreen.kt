@@ -891,6 +891,7 @@ private fun EnvironmentsDialog(
     onDismiss: () -> Unit,
 ) {
     val context = LocalContext.current
+    val qrAvailable = remember { QrScanner.isAvailable(context) }
     var editing by remember { mutableStateOf<EnvironmentProfile?>(null) }
     var adding by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<EnvironmentProfile?>(null) }
@@ -901,7 +902,7 @@ private fun EnvironmentsDialog(
         title = stringResource(R.string.environments),
         contentPadding = PaddingValues(0.dp),
         buttons = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.back)) } },
-        titleTrailing = {
+        titleTrailing = if (qrAvailable) ({
             IconButton(
                 onClick = {
                     QrScanner.scan(context) { raw ->
@@ -912,7 +913,7 @@ private fun EnvironmentsDialog(
             ) {
                 Icon(Lucide.ScanQrCode, contentDescription = stringResource(R.string.scan_qr), modifier = Modifier.size(20.dp))
             }
-        },
+        }) else null,
     ) {
         environments.forEach { c ->
             DialogSelectItem(
@@ -967,6 +968,7 @@ private fun EnvironmentEditDialog(
     focusName: Boolean = false,
 ) {
     val context = LocalContext.current
+    val qrAvailable = remember { QrScanner.isAvailable(context) }
     var kind by remember { mutableStateOf(initial?.kind ?: "http") }
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var host by remember { mutableStateOf(initial?.host ?: "") }
@@ -984,7 +986,7 @@ private fun EnvironmentEditDialog(
     CompactDialog(
         onDismiss = onDismiss,
         title = stringResource(if (initial == null) R.string.add_environment else R.string.edit_environment),
-        titleTrailing = {
+        titleTrailing = if (qrAvailable) ({
             IconButton(
                 onClick = {
                     QrScanner.scan(context) { raw ->
@@ -1001,7 +1003,7 @@ private fun EnvironmentEditDialog(
             ) {
                 Icon(Lucide.ScanQrCode, contentDescription = stringResource(R.string.scan_qr), modifier = Modifier.size(20.dp))
             }
-        },
+        }) else null,
         buttons = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
             TextButton(

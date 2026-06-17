@@ -119,6 +119,7 @@ enum class CompatStatus { AppOutdated, ServerOutdated, CliOutdated, UpdateAvaila
 
 class ChatViewModel : ViewModel() {
     private val settings = Settings()
+    val showTimestamps: Boolean get() = settings.showTimestamps
     private val client = ChatSocket(viewModelScope)
 
     // Generation settings (model/effort/permission/streaming) are backend-owned

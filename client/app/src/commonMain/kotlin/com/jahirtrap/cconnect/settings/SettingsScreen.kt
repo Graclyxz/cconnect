@@ -72,6 +72,7 @@ import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.History
 import com.composables.icons.lucide.Languages
+import com.composables.icons.lucide.Clock
 import com.composables.icons.lucide.Type
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Palette
@@ -218,6 +219,7 @@ fun SettingsScreen(
     var dialog by remember { mutableStateOf<SettingsDialog?>(null) }
     var notifyTaskDone by remember { mutableStateOf(settings.notifyTaskDone) }
     var notifyInteraction by remember { mutableStateOf(settings.notifyInteraction) }
+    var showTimestamps by remember { mutableStateOf(settings.showTimestamps) }
     val notificationsEnabled = true
 
     val scrollState = rememberScrollState()
@@ -284,6 +286,13 @@ fun SettingsScreen(
                         summary = fontLabel(fontStyle),
                         trailing = { FontPreview(fontStyle) },
                     ) { dialog = SettingsDialog.Font }
+                    PreferenceRow(
+                        icon = Lucide.Clock,
+                        title = stringResource(Res.string.show_timestamps),
+                        summary = stringResource(Res.string.show_timestamps_summary),
+                        trailing = { CompactSwitch(showTimestamps) { showTimestamps = it; settings.showTimestamps = it } },
+                        onClick = { showTimestamps = !showTimestamps; settings.showTimestamps = showTimestamps },
+                    )
                 }
                 SettingsGroup(stringResource(Res.string.background_group)) {
                     val activeCount = listOf(notifyInteraction, notifyTaskDone).count { it }

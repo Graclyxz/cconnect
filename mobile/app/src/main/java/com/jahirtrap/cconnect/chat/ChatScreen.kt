@@ -513,9 +513,13 @@ fun ChatScreen(
                                     ) {
                                         itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
                                             val ts = message.timestamp
+                                            var separated = false
                                             if (ts != null) {
                                                 val prevTs = (index - 1 downTo 0).firstNotNullOfOrNull { state.messages[it].timestamp }
-                                                if (prevTs == null || dayIndex(prevTs) != dayIndex(ts)) ChatDateSeparator(ts)
+                                                if (prevTs == null || dayIndex(prevTs) != dayIndex(ts)) {
+                                                    ChatDateSeparator(ts)
+                                                    separated = true
+                                                }
                                             }
                                             val running = when (message.role) {
                                                 Role.TOOL -> message.toolUseId != null && message.toolUseId in state.pendingToolIds
@@ -536,6 +540,7 @@ fun ChatScreen(
                                                 onSubmitQuestions = vm::submitQuestions,
                                                 onChatQuestions = vm::chatQuestions,
                                                 onSharedLink = { url, filename -> sharedLinkAction = url to filename },
+                                                gluedTop = separated,
                                             )
                                         }
                                     }

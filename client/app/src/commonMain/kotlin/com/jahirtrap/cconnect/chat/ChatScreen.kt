@@ -118,6 +118,7 @@ import com.jahirtrap.cconnect.ui.LocalIsTouch
 import com.jahirtrap.cconnect.ui.ClipKey
 import com.jahirtrap.cconnect.ui.ClipboardShortcutHandler
 import com.jahirtrap.cconnect.ui.Dismissable
+import com.jahirtrap.cconnect.ui.horizontalScrollbar
 import com.jahirtrap.cconnect.ui.LocalMobileLayout
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -559,6 +560,7 @@ fun ChatScreen(
                                     val toolbarReveal = (1f - expansion.value / peek).coerceIn(0f, 1f)
                                     val panelH = expansion.value.coerceAtLeast(peek)
                                     var toolbarHeightPx by remember { mutableStateOf(0) }
+                                    val showTime = vm.showTimestamps
                                     Box(modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().fillMaxHeight((1f - panelH * (1f - toolbarReveal)).coerceAtMost(1f - toolbarHeightPx / boxHeightPx).coerceIn(0.0001f, 1f)).clipToBounds()) {
                                         SelectionContainer(modifier = Modifier.fillMaxSize().selectionTextCursor()) {
                                             LazyColumn(
@@ -574,9 +576,13 @@ fun ChatScreen(
                                             ) {
                                                 itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
                                                     val ts = message.timestamp
-                                                    if (ts != null) {
+                                                    var separated = false
+                                                    if (ts != null && showTime) {
                                                         val prevTs = (index - 1 downTo 0).firstNotNullOfOrNull { state.messages[it].timestamp }
-                                                        if (prevTs == null || dayIndex(prevTs) != dayIndex(ts)) ChatDateSeparator(ts)
+                                                        if (prevTs == null || dayIndex(prevTs) != dayIndex(ts)) {
+                                                            ChatDateSeparator(ts)
+                                                            separated = true
+                                                        }
                                                     }
                                                     val running = when (message.role) {
                                                         Role.TOOL -> message.toolUseId != null && message.toolUseId in state.pendingToolIds
@@ -597,6 +603,8 @@ fun ChatScreen(
                                                         onSubmitQuestions = vm::submitQuestions,
                                                         onChatQuestions = vm::chatQuestions,
                                                         onSharedLink = { url, filename -> sharedLinkAction = url to filename },
+                                                        gluedTop = separated,
+                                                        showTime = showTime,
                                                     )
                                                 }
                                             }
@@ -1331,10 +1339,12 @@ private fun ChatToolbar(
             }
         }
         Spacer(Modifier.width(6.dp))
+        val selectorScroll = rememberScrollState()
         Row(
             modifier = Modifier
                 .weight(1f)
-                .horizontalScroll(rememberScrollState())
+                .horizontalScrollbar(selectorScroll)
+                .horizontalScroll(selectorScroll)
                 .padding(end = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -1666,10 +1676,12 @@ private fun AttachmentsRow(
     uploading: Boolean,
     onRemove: (Long) -> Unit,
 ) {
+    val scroll = rememberScrollState()
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
+            .horizontalScrollbar(scroll)
+            .horizontalScroll(scroll)
             .padding(start = 8.dp, end = 8.dp, top = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
