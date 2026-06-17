@@ -128,7 +128,7 @@ class LiveSession:
 
     async def _run(self, runner_factory):
         try:
-            async for event in runner_factory(self._ask):
+            async for event in runner_factory(self._ask, self._emit):
                 await self._emit(event)
         except asyncio.CancelledError:
             raise  # interrupt(): stop without a trailing `done`

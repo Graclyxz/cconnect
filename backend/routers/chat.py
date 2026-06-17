@@ -69,7 +69,7 @@ def _build_turn_runner(state: _Session, text: str, attachments: list[str] | None
     the run_prompt loop plus the post-turn session bookkeeping; the LiveSession
     appends the trailing ``done`` event itself."""
 
-    def factory(ask_user):
+    def factory(ask_user, emit):
         async def gen():
             name = text.strip()[:80] if state.session_id is None else None
             compacted = False
@@ -103,6 +103,7 @@ def _build_turn_runner(state: _Session, text: str, attachments: list[str] | None
                 name=name,
                 ask_user=ask_user,
                 base_url=state.base_url,
+                emit=emit,
             ):
                 if event.get("type") == "compact":
                     compacted = True
@@ -142,7 +143,7 @@ def _build_side_runner(main_state: _Session, side_state: _Session, question: str
     interaction callback for permissions/AskUserQuestion) and records the side SDK session id
     so it can be resumed/reattached like the main turn. The trailing ``done`` is added by the
     LiveSession itself."""
-    def factory(ask_user):
+    def factory(ask_user, emit):
         async def gen():
             from services.claude_runtime import ask_side_question
             context = sessions_service.session_context(main_state.cwd, main_state.session_id or "")

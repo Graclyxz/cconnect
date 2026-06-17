@@ -119,6 +119,7 @@ sealed interface ServerEvent {
     data class ToolUse(val id: String?, val name: String?, val input: String?, val result: String? = null) : ServerEvent
     data class ToolResult(val toolUseId: String?, val content: String?) : ServerEvent
     data class FileChange(val id: String?, val path: String, val diffLines: List<DiffLine>, val labelOnly: Boolean = false) : ServerEvent
+    data class Compacting(val trigger: String?) : ServerEvent
     data class Compact(val trigger: String?, val preTokens: Int?, val postTokens: Int?, val summary: String) : ServerEvent
     data class CompactSummary(val trigger: String?, val preTokens: Int?, val postTokens: Int?, val summary: String) : ServerEvent
     data class AskText(val text: String) : ServerEvent

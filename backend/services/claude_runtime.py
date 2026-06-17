@@ -376,6 +376,7 @@ async def run_prompt(
     name: Optional[str] = None,
     ask_user: Optional[Callable[[dict], Awaitable[dict]]] = None,
     base_url: Optional[str] = None,
+    emit: Optional[Callable[[dict], Awaitable[None]]] = None,
 ) -> AsyncIterator[dict]:
     from claude_agent_sdk import (
         query,
@@ -419,9 +420,17 @@ async def run_prompt(
     )
     if ultracode:
         options_kwargs["settings"] = json.dumps({"ultracode": True})
+    hooks_map: dict[str, Any] = {}
     if ask_user is not None:
         options_kwargs["can_use_tool"] = _build_can_use_tool(ask_user)
-        options_kwargs["hooks"] = {"PreToolUse": [HookMatcher(matcher=None, hooks=[_keep_stream_open])]}
+        hooks_map["PreToolUse"] = [HookMatcher(matcher=None, hooks=[_keep_stream_open])]
+    if emit is not None:
+        async def _pre_compact(input_data, tool_use_id, context):
+            await emit({"type": "compacting", "trigger": (input_data or {}).get("trigger")})
+            return {}
+        hooks_map["PreCompact"] = [HookMatcher(matcher=None, hooks=[_pre_compact])]
+    if hooks_map:
+        options_kwargs["hooks"] = hooks_map
     options = ClaudeAgentOptions(**options_kwargs)
 
     content = [{"type": "text", "text": prompt}, *images] if images else prompt

@@ -756,6 +756,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                 currentThinkingId = null
                 addMessage(Role.FILE_CHANGE, text = "", toolUseId = event.id, path = event.path, diffLines = event.diffLines, labelOnly = event.labelOnly)
             }
+            is ServerEvent.Compacting -> _state.update { it.copy(compacting = true) }
             is ServerEvent.Compact -> {
                 currentAssistantId = null
                 currentThinkingId = null
@@ -764,6 +765,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
                         messages = listOf(ChatMessage(nextId++, Role.COMPACT, compact = CompactData(event.trigger, event.preTokens, event.postTokens, event.summary), timestamp = System.currentTimeMillis())),
                         oldestLoadedIndex = null,
                         transcriptExhausted = true,
+                        compacting = false,
                     )
                 }
             }
