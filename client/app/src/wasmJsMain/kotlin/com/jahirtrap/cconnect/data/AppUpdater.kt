@@ -7,7 +7,13 @@ actual object AppUpdater {
         return true
     }
 
-    actual suspend fun downloadAndInstall(url: String, onProgress: (Float) -> Unit): Boolean = false
+    actual suspend fun download(url: String, version: String, onProgress: (Float) -> Unit): Boolean = false
+
+    actual fun pendingVersion(): String? = null
+
+    actual fun install(): Boolean = false
+
+    actual fun consumeIfInstalled(currentVersion: String) {}
 
     actual fun reload(): Boolean {
         reloadFresh()

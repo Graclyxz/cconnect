@@ -12,6 +12,7 @@ import com.jahirtrap.cconnect.resources.permission_allow
 import com.jahirtrap.cconnect.resources.permission_allow_always
 import com.jahirtrap.cconnect.resources.permission_deny
 import com.jahirtrap.cconnect.data.AppCompat
+import com.jahirtrap.cconnect.data.AppUpdater
 import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.ChatMessage
 import com.jahirtrap.cconnect.data.EnvironmentProfile
@@ -161,6 +162,7 @@ class ChatViewModel : ViewModel() {
         _state.update { it.copy(connection = ConnectionState.Connecting, error = null) }
         if (!releaseChecked) {
             releaseChecked = true
+            AppUpdater.consumeIfInstalled(BuildConfig.VERSION_NAME)
             viewModelScope.launch { checkForUpdates() }
         }
         viewModelScope.launch {

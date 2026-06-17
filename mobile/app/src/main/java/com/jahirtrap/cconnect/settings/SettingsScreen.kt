@@ -430,50 +430,61 @@ fun SettingsScreen(
                                 Icon(Lucide.FileText, contentDescription = null)
                             }
                         }
-                        val apkUrl = chatState.latestRelease?.apkUrl
-                        if (apkUrl != null) {
-                            var progress by remember { mutableStateOf<Float?>(null) }
-                            var downloadJob by remember { mutableStateOf<Job?>(null) }
-                            if (progress != null) {
-                                LinearProgressIndicator(
-                                    progress = { progress ?: 0f },
-                                    drawStopIndicator = {},
+                        val release = chatState.latestRelease
+                        var pending by remember { mutableStateOf(AppUpdater.pendingVersion(context)) }
+                        var progress by remember { mutableStateOf<Float?>(null) }
+                        var downloadJob by remember { mutableStateOf<Job?>(null) }
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress ?: 0f },
+                                drawStopIndicator = {},
+                                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                            )
+                        }
+                        when {
+                            pending != null -> ActionButton(
+                                text = stringResource(R.string.install),
+                                onClick = { AppUpdater.install(context) },
+                                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                            )
+                            release?.apkUrl != null -> {
+                                val apkUrl = release.apkUrl
+                                val tag = release.tag
+                                ActionButton(
+                                    text = stringResource(if (progress != null) R.string.cancel else R.string.update_action),
+                                    onClick = {
+                                        if (progress != null) {
+                                            downloadJob?.cancel()
+                                        } else {
+                                            progress = 0f
+                                            downloadJob = scope.launch {
+                                                try {
+                                                    if (AppUpdater.download(context, apkUrl, tag) { progress = it }) pending = AppUpdater.pendingVersion(context)
+                                                } finally {
+                                                    progress = null
+                                                    downloadJob = null
+                                                }
+                                            }
+                                        }
+                                    },
                                     modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
                                 )
                             }
-                            ActionButton(
-                                text = stringResource(if (progress != null) R.string.cancel else R.string.update_action),
-                                onClick = {
-                                    if (progress != null) {
-                                        downloadJob?.cancel()
-                                    } else {
-                                        progress = 0f
-                                        downloadJob = scope.launch {
-                                            try {
-                                                AppUpdater.downloadAndInstall(context, apkUrl) { progress = it }
-                                            } finally {
-                                                progress = null
-                                                downloadJob = null
-                                            }
+                            else -> {
+                                var checking by remember { mutableStateOf(false) }
+                                ActionButton(
+                                    text = stringResource(if (checking) R.string.checking_updates else R.string.check_updates),
+                                    enabled = !checking,
+                                    onClick = {
+                                        scope.launch {
+                                            checking = true
+                                            chatVm.checkForUpdates()
+                                            checking = false
                                         }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
-                            )
-                        } else {
-                            var checking by remember { mutableStateOf(false) }
-                            ActionButton(
-                                text = stringResource(if (checking) R.string.checking_updates else R.string.check_updates),
-                                enabled = !checking,
-                                onClick = {
-                                    scope.launch {
-                                        checking = true
-                                        chatVm.checkForUpdates()
-                                        checking = false
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
-                            )
+                                    },
+                                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                                )
+                            }
                         }
                         var ownerProfile by remember { mutableStateOf<GitHubApi.Profile?>(null) }
                         var contributorProfile by remember { mutableStateOf<GitHubApi.Profile?>(null) }

@@ -397,56 +397,66 @@ fun SettingsScreen(
                                 Icon(Lucide.FileText, contentDescription = null)
                             }
                         }
-                        val installer = chatState.latestRelease?.installerUrl
-                        if (installer != null) {
-                            var progress by remember { mutableStateOf<Float?>(null) }
-                            var downloadJob by remember { mutableStateOf<Job?>(null) }
-                            if (progress != null) {
-                                LinearProgressIndicator(
-                                    progress = { progress ?: 0f },
-                                    drawStopIndicator = {},
+                        val release = chatState.latestRelease
+                        var pending by remember { mutableStateOf(AppUpdater.pendingVersion()) }
+                        var progress by remember { mutableStateOf<Float?>(null) }
+                        var downloadJob by remember { mutableStateOf<Job?>(null) }
+                        if (progress != null) {
+                            LinearProgressIndicator(
+                                progress = { progress ?: 0f },
+                                drawStopIndicator = {},
+                                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                            )
+                        }
+                        when {
+                            pending != null -> ActionButton(
+                                text = stringResource(Res.string.install),
+                                onClick = { AppUpdater.install() },
+                                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                            )
+                            release?.installerUrl != null -> {
+                                val installerUrl = release.installerUrl
+                                val tag = release.tag
+                                ActionButton(
+                                    text = stringResource(if (progress != null) Res.string.cancel else Res.string.update_action),
+                                    onClick = {
+                                        if (progress != null) {
+                                            downloadJob?.cancel()
+                                        } else {
+                                            progress = 0f
+                                            downloadJob = scope.launch {
+                                                try {
+                                                    if (AppUpdater.download(installerUrl, tag) { progress = it }) pending = AppUpdater.pendingVersion()
+                                                } finally {
+                                                    progress = null
+                                                    downloadJob = null
+                                                }
+                                            }
+                                        }
+                                    },
                                     modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
                                 )
                             }
-                            ActionButton(
-                                text = stringResource(if (progress != null) Res.string.cancel else Res.string.update_action),
-                                onClick = {
-                                    if (progress != null) {
-                                        downloadJob?.cancel()
-                                    } else {
-                                        progress = 0f
-                                        downloadJob = scope.launch {
-                                            try {
-                                                AppUpdater.downloadAndInstall(installer) { progress = it }
-                                            } finally {
-                                                progress = null
-                                                downloadJob = null
-                                            }
-                                        }
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
-                            )
-                        } else if (chatState.latestRelease != null && isWebPlatform) {
-                            ActionButton(
+                            release != null && isWebPlatform -> ActionButton(
                                 text = stringResource(Res.string.update_action),
                                 onClick = { AppUpdater.reload() },
                                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
                             )
-                        } else {
-                            var checking by remember { mutableStateOf(false) }
-                            ActionButton(
-                                text = stringResource(if (checking) Res.string.checking_updates else Res.string.check_updates),
-                                enabled = !checking,
-                                onClick = {
-                                    scope.launch {
-                                        checking = true
-                                        chatVm.checkForUpdates()
-                                        checking = false
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
-                            )
+                            else -> {
+                                var checking by remember { mutableStateOf(false) }
+                                ActionButton(
+                                    text = stringResource(if (checking) Res.string.checking_updates else Res.string.check_updates),
+                                    enabled = !checking,
+                                    onClick = {
+                                        scope.launch {
+                                            checking = true
+                                            chatVm.checkForUpdates()
+                                            checking = false
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                                )
+                            }
                         }
                         var ownerProfile by remember { mutableStateOf<GitHubApi.Profile?>(null) }
                         var contributorProfile by remember { mutableStateOf<GitHubApi.Profile?>(null) }

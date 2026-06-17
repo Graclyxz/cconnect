@@ -79,6 +79,12 @@ private fun App() {
     var previewFile by remember { mutableStateOf<PreviewRequest?>(null) }
     var sidebarExpanded by remember { mutableStateOf(settings.sidebarExpanded) }
 
+    LaunchedEffect(Unit) {
+        if (!settings.isConfigured && window.location.pathname == "/") {
+            window.history.pushState(null, "", "/settings")
+        }
+    }
+
     DisposableEffect(Unit) {
         val listener: (Event) -> Unit = { route = currentRoute() }
         window.addEventListener("popstate", listener)

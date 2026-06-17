@@ -15,6 +15,9 @@ actual object AppUpdater {
 
     private val client = OkHttpClient()
 
+    private val updateDir = File(System.getProperty("user.home"), ".cconnect/updates")
+    private val marker = File(updateDir, "pending")
+
     actual fun reload(): Boolean = false
 
     actual fun openRelease(url: String): Boolean =
@@ -25,9 +28,11 @@ actual object AppUpdater {
             } else false
         }.getOrDefault(false)
 
-    actual suspend fun downloadAndInstall(url: String, onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
+    actual suspend fun download(url: String, version: String, onProgress: (Float) -> Unit): Boolean = withContext(Dispatchers.IO) {
         val name = url.substringAfterLast('/').ifBlank { "CConnect-update" }
-        val dest = File(System.getProperty("java.io.tmpdir"), name)
+        clear()
+        updateDir.mkdirs()
+        val dest = File(updateDir, name)
         try {
             client.newCall(Request.Builder().url(url).build()).execute().use { resp ->
                 val body = resp.body ?: return@withContext false
@@ -48,15 +53,63 @@ actual object AppUpdater {
                     }
                 }
             }
-            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
-                Desktop.getDesktop().open(dest)
-                true
-            } else false
+            marker.writeText("$version\n$name")
+            true
         } catch (e: CancellationException) {
-            dest.delete()
+            clear()
             throw e
         } catch (_: Exception) {
+            clear()
             false
         }
+    }
+
+    actual fun pendingVersion(): String? = runCatching {
+        if (!marker.isFile) return null
+        val lines = marker.readLines()
+        val version = lines.getOrNull(0)?.takeIf { it.isNotBlank() } ?: return null
+        val name = lines.getOrNull(1)?.takeIf { it.isNotBlank() } ?: return null
+        if (File(updateDir, name).isFile) version else { clear(); null }
+    }.getOrNull()
+
+    actual fun install(): Boolean = runCatching {
+        val name = marker.readLines().getOrNull(1)?.takeIf { it.isNotBlank() } ?: return false
+        val file = File(updateDir, name)
+        if (!file.isFile) return false
+        if (System.getProperty("os.name").lowercase().contains("linux")) linuxInstall(file) else openExternally(file)
+    }.getOrDefault(false)
+
+    private fun openExternally(file: File): Boolean =
+        if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+            Desktop.getDesktop().open(file)
+            true
+        } else false
+
+    private fun hasCmd(name: String): Boolean =
+        runCatching { ProcessBuilder("which", name).start().waitFor() == 0 }.getOrDefault(false)
+
+    private fun linuxInstall(file: File): Boolean {
+        val path = file.absolutePath
+        val cmd = when {
+            path.endsWith(".deb") -> listOf("pkexec", "apt-get", "install", "-y", path)
+            path.endsWith(".rpm") && hasCmd("dnf") -> listOf("pkexec", "dnf", "install", "-y", path)
+            path.endsWith(".rpm") && hasCmd("zypper") -> listOf("pkexec", "zypper", "--non-interactive", "install", "--allow-unsigned-rpm", path)
+            path.endsWith(".rpm") -> listOf("pkexec", "rpm", "-U", "--force", path)
+            else -> null
+        }
+        if (cmd == null || !hasCmd("pkexec")) return openExternally(file)
+        return runCatching { ProcessBuilder(cmd).start(); true }.getOrDefault(false)
+    }
+
+    actual fun consumeIfInstalled(currentVersion: String) {
+        runCatching {
+            if (!marker.isFile) return
+            val version = marker.readLines().getOrNull(0)?.takeIf { it.isNotBlank() } ?: return
+            if (AppCompat.compare(currentVersion, version) >= 0) clear()
+        }
+    }
+
+    private fun clear() {
+        runCatching { if (updateDir.exists()) updateDir.deleteRecursively() }
     }
 }

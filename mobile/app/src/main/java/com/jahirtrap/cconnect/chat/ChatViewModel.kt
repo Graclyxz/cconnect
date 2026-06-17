@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.jahirtrap.cconnect.BuildConfig
 import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.data.AppCompat
+import com.jahirtrap.cconnect.data.AppUpdater
 import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.ChatMessage
 import com.jahirtrap.cconnect.data.EnvironmentProfile
@@ -167,6 +168,7 @@ class ChatViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(connection = ConnectionState.Connecting, error = null) }
         if (!releaseChecked) {
             releaseChecked = true
+            AppUpdater.consumeIfInstalled(appContext, BuildConfig.VERSION_NAME)
             viewModelScope.launch { checkForUpdates() }
         }
         viewModelScope.launch {
