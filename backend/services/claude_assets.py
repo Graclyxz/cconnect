@@ -9,6 +9,8 @@ from services import claude_manage
 
 _CLAUDE_DIR = Path.home() / ".claude"
 _USER_PROMPT = Path(__file__).resolve().parent.parent / "prompts" / "USER.md"
+_PROJECT_PROMPTS = Path(__file__).resolve().parent.parent / "prompts" / "projects"
+_PROJECT_KEY_RE = re.compile(r"^[A-Za-z0-9-]+$")
 
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---", re.DOTALL)
 
@@ -22,6 +24,22 @@ def get_user_prompt() -> str:
 
 def set_user_prompt(text: str) -> None:
     _USER_PROMPT.write_text(text, encoding="utf-8")
+
+
+def get_project_prompt(project_key: str) -> str:
+    if not _PROJECT_KEY_RE.match(project_key or ""):
+        return ""
+    try:
+        return (_PROJECT_PROMPTS / f"{project_key}.md").read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+def set_project_prompt(project_key: str, text: str) -> None:
+    if not _PROJECT_KEY_RE.match(project_key or ""):
+        raise ValueError("invalid project key")
+    _PROJECT_PROMPTS.mkdir(parents=True, exist_ok=True)
+    (_PROJECT_PROMPTS / f"{project_key}.md").write_text(text, encoding="utf-8")
 
 
 def _read_json(path: Path) -> dict:

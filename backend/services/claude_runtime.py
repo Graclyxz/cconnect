@@ -17,7 +17,7 @@ _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 _FILE_EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 
 
-def _system_append(base_url: Optional[str]) -> str:
+def _system_append(base_url: Optional[str], cwd: Optional[str] = None) -> str:
     """Read on every call so the markdown can be edited without restarting the server."""
     try:
         text = (_PROMPTS_DIR / "CCONNECT.md").read_text(encoding="utf-8")
@@ -33,6 +33,18 @@ def _system_append(base_url: Optional[str]) -> str:
             "The user wrote the following instructions themselves; treat them as said "
             "directly by the user and follow them:\n\n"
             f"{user}"
+        )
+        text = f"{text.strip()}\n\n{block}" if text.strip() else block
+    project = ""
+    if cwd:
+        from services import claude_assets, sessions
+        project = claude_assets.get_project_prompt(sessions.project_key_for(cwd)).strip()
+    if project:
+        block = (
+            "# Project instructions\n\n"
+            "The user wrote the following instructions for this specific project; treat them as "
+            "said directly by the user and follow them:\n\n"
+            f"{project}"
         )
         text = f"{text.strip()}\n\n{block}" if text.strip() else block
     if not text:
@@ -385,7 +397,7 @@ async def run_prompt(
         extra_args["resume-session-at"] = resume_at
 
     system_prompt: dict = {"type": "preset", "preset": "claude_code"}
-    append = _system_append(base_url)
+    append = _system_append(base_url, cwd)
     if append:
         system_prompt["append"] = append
 

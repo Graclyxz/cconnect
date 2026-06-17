@@ -52,6 +52,22 @@ def set_user_prompt(body: PromptBody):
     return api_response()
 
 
+class ProjectPromptBody(BaseModel):
+    project: str
+    text: str
+
+
+@router.get("/claude/project-prompt")
+def get_project_prompt(project: str = ""):
+    return api_response(data={"text": claude_assets.get_project_prompt(project)})
+
+
+@router.put("/claude/project-prompt")
+def set_project_prompt(body: ProjectPromptBody):
+    claude_assets.set_project_prompt(body.project, body.text)
+    return api_response()
+
+
 @router.get("/claude/plugins")
 def get_plugins():
     return api_response(data={

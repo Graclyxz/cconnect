@@ -48,6 +48,7 @@ import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Eraser
 import com.composables.icons.lucide.FilePen
 import com.composables.icons.lucide.FileText
+import com.composables.icons.lucide.FolderPen
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.RotateCw
 import com.composables.icons.lucide.Server
@@ -63,6 +64,8 @@ import com.jahirtrap.cconnect.data.remote.Backend
 import com.jahirtrap.cconnect.data.remote.ClaudeApi
 import com.jahirtrap.cconnect.data.remote.CliApi
 import com.jahirtrap.cconnect.data.remote.GitHubApi
+import com.jahirtrap.cconnect.data.remote.SessionsApi
+import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.settings.PreferenceRow
 import com.jahirtrap.cconnect.settings.SettingsGroup
 import com.jahirtrap.cconnect.ui.ActionButton
@@ -96,6 +99,8 @@ fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: Str
     var skills by remember { mutableStateOf<List<ClaudeApi.Skill>?>(null) }
     var mcpServers by remember { mutableStateOf<List<ClaudeApi.McpServer>?>(null) }
     var userPrompt by remember { mutableStateOf<String?>(null) }
+    var projects by remember { mutableStateOf<List<ProjectInfo>>(emptyList()) }
+    var editingProjectPrompt by remember { mutableStateOf(false) }
     var usage by remember { mutableStateOf<ClaudeApi.Usage?>(null) }
     var loaded by remember { mutableStateOf(false) }
     var refreshing by remember { mutableStateOf(false) }
@@ -112,6 +117,7 @@ fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: Str
         skills = ClaudeApi.skills()
         mcpServers = ClaudeApi.mcp()
         userPrompt = ClaudeApi.userPrompt()
+        projects = SessionsApi.projects()
         usage = ClaudeApi.usage()
         loaded = true
         refreshing = false
@@ -206,6 +212,14 @@ fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: Str
                                 ?.takeIf { it.isNotEmpty() } ?: stringResource(Res.string.user_prompt_summary),
                             enabled = serverReady,
                         ) { editingPrompt = true }
+                        if (projects.isNotEmpty()) {
+                            PreferenceRow(
+                                Lucide.FolderPen,
+                                stringResource(Res.string.project_prompt),
+                                stringResource(Res.string.project_prompt_summary),
+                                enabled = serverReady,
+                            ) { editingProjectPrompt = true }
+                        }
                     }
                     usage?.takeIf { it.error == null && it.windows.isNotEmpty() }?.let { current ->
                         Row(
@@ -291,6 +305,21 @@ fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: Str
                 }
             },
             onDismiss = { editingPrompt = false },
+            title = stringResource(Res.string.user_prompt),
+            summary = stringResource(Res.string.user_prompt_summary),
+        )
+    }
+    if (editingProjectPrompt && projects.isNotEmpty()) {
+        ProjectPromptDialog(
+            projects = projects,
+            initialProject = state.activeProjectKey ?: projects.first().projectKey,
+            onSave = { project, text ->
+                scope.launch {
+                    ClaudeApi.setProjectPrompt(project, text)
+                    editingProjectPrompt = false
+                }
+            },
+            onDismiss = { editingProjectPrompt = false },
         )
     }
 
@@ -407,11 +436,13 @@ internal fun PromptDialog(
     initial: String,
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
+    title: String,
+    summary: String,
 ) {
     var text by remember { mutableStateOf(initial) }
     CompactDialog(
         onDismiss = onDismiss,
-        title = stringResource(Res.string.user_prompt),
+        title = title,
         titleTrailing = {
             TooltipIconButton(label = stringResource(Res.string.clear), onClick = { text = "" }, enabled = text.isNotEmpty()) {
                 Icon(Lucide.Eraser, contentDescription = null)
@@ -423,7 +454,52 @@ internal fun PromptDialog(
         },
     ) {
         Text(
-            stringResource(Res.string.user_prompt_summary),
+            summary,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(10.dp))
+        InputField(
+            value = text,
+            onValueChange = { text = it },
+            minLines = 6,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+internal fun ProjectPromptDialog(
+    projects: List<ProjectInfo>,
+    initialProject: String,
+    onSave: (String, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var project by remember { mutableStateOf(initialProject) }
+    var text by remember { mutableStateOf("") }
+    LaunchedEffect(project) { text = ClaudeApi.projectPrompt(project).orEmpty() }
+    CompactDialog(
+        onDismiss = onDismiss,
+        title = stringResource(Res.string.project_prompt),
+        titleTrailing = {
+            TooltipIconButton(label = stringResource(Res.string.clear), onClick = { text = "" }, enabled = text.isNotEmpty()) {
+                Icon(Lucide.Eraser, contentDescription = null)
+            }
+        },
+        buttons = {
+            TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
+            TextButton(onClick = { onSave(project, text) }) { Text(stringResource(Res.string.save)) }
+        },
+    ) {
+        SelectField(
+            label = stringResource(Res.string.project),
+            selected = project,
+            options = projects.map { it.projectKey to (it.name ?: it.path ?: it.projectKey) },
+            onSelect = { project = it },
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            stringResource(Res.string.project_prompt_summary),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

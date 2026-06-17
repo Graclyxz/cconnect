@@ -86,6 +86,9 @@
     <string name="claude">Claude</string>
     <string name="user_prompt">Prompt personalizado</string>
     <string name="user_prompt_summary">Instrucciones extra añadidas al system prompt</string>
+    <string name="project_prompt">Prompt del proyecto</string>
+    <string name="project_prompt_summary">Instrucciones extra añadidas al proyecto que elijas</string>
+    <string name="project">Proyecto</string>
     <string name="extensions">Extensiones</string>
     <string name="plugins">Plugins</string>
     <string name="skills">Skills</string>

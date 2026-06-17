@@ -17,3 +17,6 @@ mcp_disabled.json
 
 # User custom prompt
 prompts/USER.md
+
+# Per-project custom prompts
+prompts/projects/

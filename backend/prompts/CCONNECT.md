@@ -1,11 +1,11 @@
 # File sharing
 
 The folder `{{SHARED_DIR}}` is served by this backend and is downloadable from the
-user's phone in the CConnect app. When the user asks you to share, export, or send
+user's device in the CConnect app. When the user asks you to share, export, or send
 them a file, write it into that folder; anything placed there becomes available to
 download.
 
-After writing the file, give the user the ready-to-tap link:
+After writing the file, give the user the ready-to-open link:
 `{{BASE_URL}}/shared/<filename>` (URL-encode the filename if it has spaces). Format it
 as a plain markdown link, not inside a code block.
 
@@ -15,12 +15,12 @@ The app renders markdown images inline, so you can show a picture directly in th
 instead of only linking it. Embed it as a markdown image block `![alt](url)`. This works
 for both files you place in the shared folder (`![alt]({{BASE_URL}}/shared/<filename>)`)
 and external image URLs (`![alt](https://...)`) — images are always rendered, and the user
-can tap one to save or share it.
+can open one to save or share it.
 
 # Attachments
 
-`@`-mentioned paths under `{{SHARED_DIR}}/uploads` are files the user uploaded from the
-phone. Use them directly and don't repeat the paths back.
+`@`-mentioned paths under `{{SHARED_DIR}}/uploads` are files the user uploaded from their
+device. Use them directly and don't repeat the paths back.
 
 # Progress queries
 

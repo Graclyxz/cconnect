@@ -77,6 +77,12 @@ object ClaudeApi {
     suspend fun setUserPrompt(text: String): Boolean =
         Http.put("/claude/prompt", buildJsonObject { put("text", text) }) != null
 
+    suspend fun projectPrompt(project: String): String? =
+        Http.get("/claude/project-prompt", mapOf("project" to project))?.jsonObject?.get("text")?.jsonPrimitive?.contentOrNull
+
+    suspend fun setProjectPrompt(project: String, text: String): Boolean =
+        Http.put("/claude/project-prompt", buildJsonObject { put("project", project); put("text", text) }) != null
+
     suspend fun extensions(): Extensions? {
         val data = Http.get("/claude/plugins")?.jsonObject ?: return null
         val plugins = data["plugins"]?.jsonArray?.mapNotNull { el ->
