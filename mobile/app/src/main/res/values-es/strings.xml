@@ -89,6 +89,7 @@
     <string name="project_prompt">Prompt del proyecto</string>
     <string name="project_prompt_summary">Instrucciones extra añadidas al proyecto que elijas</string>
     <string name="project">Proyecto</string>
+    <string name="references">Referencias</string>
     <string name="extensions">Extensiones</string>
     <string name="plugins">Plugins</string>
     <string name="skills">Skills</string>

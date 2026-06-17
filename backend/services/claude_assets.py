@@ -167,7 +167,7 @@ def list_skills() -> list[dict]:
 _SKILL_ID_RE = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
-def read_skill(plugin: str | None, skill_id: str) -> str | None:
+def _skill_dir(plugin: str | None, skill_id: str) -> Path:
     if not _SKILL_ID_RE.match(skill_id or ""):
         raise ValueError("invalid skill id")
     if plugin:
@@ -175,10 +175,33 @@ def read_skill(plugin: str | None, skill_id: str) -> str | None:
         installs = installed.get(plugin)
         if not isinstance(installs, list) or not installs:
             raise ValueError("unknown plugin")
-        base = Path(installs[0].get("installPath") or "")
-    else:
-        base = _CLAUDE_DIR / "skills"
-    path = base / "skills" / skill_id / "SKILL.md" if plugin else base / skill_id / "SKILL.md"
+        return Path(installs[0].get("installPath") or "") / "skills" / skill_id
+    return _CLAUDE_DIR / "skills" / skill_id
+
+
+def list_skill_files(plugin: str | None, skill_id: str) -> list[str]:
+    skill_dir = _skill_dir(plugin, skill_id)
+    if not skill_dir.is_dir():
+        return []
+    files = []
+    if (skill_dir / "SKILL.md").is_file():
+        files.append("SKILL.md")
+    for md in sorted(skill_dir.glob("**/*.md")):
+        rel = md.relative_to(skill_dir).as_posix()
+        if rel != "SKILL.md":
+            files.append(rel)
+    return files
+
+
+def read_skill(plugin: str | None, skill_id: str, file: str = "SKILL.md") -> str | None:
+    skill_dir = _skill_dir(plugin, skill_id)
+    if not file or ".." in file or file.startswith("/") or not file.endswith(".md"):
+        raise ValueError("invalid file")
+    path = skill_dir / file
+    try:
+        path.resolve().relative_to(skill_dir.resolve())
+    except ValueError:
+        raise ValueError("invalid file")
     return path.read_text(encoding="utf-8") if path.is_file() else None
 
 

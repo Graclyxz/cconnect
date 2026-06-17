@@ -117,9 +117,17 @@ object ClaudeApi {
         )
     }
 
-    fun skillFileUrl(plugin: String?, skillId: String): String =
+    suspend fun skillFiles(plugin: String?, skillId: String): List<String> {
+        val query = mutableMapOf("skill" to skillId)
+        if (plugin != null) query["plugin"] = plugin
+        return Http.get("/claude/skills/files", query)?.jsonObject?.get("files")?.jsonArray
+            ?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList()
+    }
+
+    fun skillFileUrl(plugin: String?, skillId: String, file: String = "SKILL.md"): String =
         "${Backend.baseUrl}/claude/skills/file?skill=${UrlCodec.encode(skillId)}" +
-            (plugin?.let { "&plugin=${UrlCodec.encode(it)}" } ?: "")
+            (plugin?.let { "&plugin=${UrlCodec.encode(it)}" } ?: "") +
+            "&file=${UrlCodec.encode(file)}"
 
     suspend fun mcp(): List<McpServer>? = Http.get("/claude/mcp")?.jsonArray?.mapNotNull { el ->
         val o = el.jsonObject

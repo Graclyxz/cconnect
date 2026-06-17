@@ -99,10 +99,19 @@ def get_skills():
     return api_response(data=claude_assets.list_skills())
 
 
-@router.get("/claude/skills/file")
-def get_skill_file(skill: str, plugin: str | None = None):
+@router.get("/claude/skills/files")
+def get_skill_files(skill: str, plugin: str | None = None):
     try:
-        text = claude_assets.read_skill(plugin, skill)
+        files = claude_assets.list_skill_files(plugin, skill)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return api_response(data={"files": files})
+
+
+@router.get("/claude/skills/file")
+def get_skill_file(skill: str, plugin: str | None = None, file: str = "SKILL.md"):
+    try:
+        text = claude_assets.read_skill(plugin, skill, file)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     if text is None:

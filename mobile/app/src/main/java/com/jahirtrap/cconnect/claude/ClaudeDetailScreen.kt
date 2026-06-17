@@ -48,6 +48,7 @@ import com.composables.icons.lucide.CirclePlus
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Store
 import com.composables.icons.lucide.X
+import com.jahirtrap.cconnect.files.FilePreviewScreen
 import com.jahirtrap.cconnect.ui.ActionButton
 import com.jahirtrap.cconnect.R
 import com.jahirtrap.cconnect.chat.ChatViewModel
@@ -89,6 +90,10 @@ fun ClaudeDetailScreen(
 
     var extensions by remember { mutableStateOf<ClaudeApi.Extensions?>(null) }
     var skills by remember { mutableStateOf<List<ClaudeApi.Skill>?>(null) }
+    var skillQuery by remember { mutableStateOf("") }
+    var skillSheet by remember { mutableStateOf<ClaudeApi.Skill?>(null) }
+    var skillFiles by remember { mutableStateOf<List<String>?>(null) }
+    var skillPreview by remember { mutableStateOf<Pair<String, String>?>(null) }
     var mcpServers by remember { mutableStateOf<List<ClaudeApi.McpServer>?>(null) }
     var memories by remember { mutableStateOf<ClaudeApi.Memories?>(null) }
     var memoriesProject by remember { mutableStateOf<String?>(null) }
@@ -124,6 +129,11 @@ fun ClaudeDetailScreen(
             vm.ensureHistoryLoaded()
         }
         load()
+    }
+
+    LaunchedEffect(skillSheet) {
+        skillFiles = null
+        skillSheet?.let { skillFiles = ClaudeApi.skillFiles(it.plugin, it.id) }
     }
 
     fun runAction(block: suspend () -> ClaudeApi.ActionResult?) {
@@ -199,6 +209,25 @@ fun ClaudeDetailScreen(
                     }
                 }
             }
+            if (kind == ClaudeKind.Skills && loaded) {
+                InputField(
+                    value = skillQuery,
+                    onValueChange = { skillQuery = it },
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.search)) },
+                    trailingIcon = if (skillQuery.isNotEmpty()) {
+                        {
+                            Icon(
+                                Lucide.X,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.clip(CircleShape).clickable { skillQuery = "" }.size(18.dp),
+                            )
+                        }
+                    } else null,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+                )
+            }
             if (!loaded) {
                 CenteredProgress(Modifier.fillMaxSize())
             } else {
@@ -212,13 +241,20 @@ fun ClaudeDetailScreen(
                                 onClick = { pluginMenu = plugin },
                             )
                         }
-                        ClaudeKind.Skills -> items(skills.orEmpty(), key = { "${it.plugin}/${it.id}" }) { skill ->
-                            DetailRow(
-                                title = skill.name,
-                                subtitle = skill.description ?: skill.pluginName,
-                                enabled = skill.enabled,
-                                onClick = { onOpenPreview(ClaudeApi.skillFileUrl(skill.plugin, skill.id), "${skill.id}.md", null) },
-                            )
+                        ClaudeKind.Skills -> {
+                            val filtered = skills.orEmpty().filter {
+                                skillQuery.isBlank() || it.name.contains(skillQuery, ignoreCase = true) ||
+                                    it.description?.contains(skillQuery, ignoreCase = true) == true ||
+                                    it.pluginName?.contains(skillQuery, ignoreCase = true) == true
+                            }
+                            items(filtered, key = { "${it.plugin}/${it.id}" }) { skill ->
+                                DetailRow(
+                                    title = skill.name,
+                                    subtitle = skill.description ?: skill.pluginName,
+                                    enabled = skill.enabled,
+                                    onClick = { skillSheet = skill },
+                                )
+                            }
                         }
                         ClaudeKind.Mcp -> items(mcpServers.orEmpty(), key = { it.name }) { server ->
                             DetailRow(
@@ -335,6 +371,61 @@ fun ClaudeDetailScreen(
                 }
             }
         }
+    }
+
+    if (skillPreview == null) skillSheet?.let { skill ->
+        CompactDialog(
+            onDismiss = { skillSheet = null },
+            title = skill.name,
+            buttons = {
+                TextButton(onClick = { skillSheet = null }) { Text(stringResource(R.string.close)) }
+            },
+        ) {
+            val files = skillFiles
+            if (files == null) {
+                CenteredProgress(Modifier.fillMaxWidth().padding(vertical = 24.dp))
+            } else {
+                if (!skill.description.isNullOrBlank()) {
+                    OutlinedPanel(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            skill.description!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
+                OutlinedPanel(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { skillPreview = ClaudeApi.skillFileUrl(skill.plugin, skill.id, "SKILL.md") to "${skill.id} - SKILL.md" },
+                ) {
+                    Text("SKILL.md", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                }
+                val refs = files.filter { it != "SKILL.md" }
+                if (refs.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        stringResource(R.string.references),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    refs.forEach { f ->
+                        OutlinedPanel(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                            onClick = { skillPreview = ClaudeApi.skillFileUrl(skill.plugin, skill.id, f) to f.substringAfterLast('/') },
+                        ) {
+                            Text(f.substringAfterLast('/'), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
+                            Text(f, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    skillPreview?.let { (purl, pname) ->
+        FilePreviewScreen(url = purl, filename = pname, onClose = { skillPreview = null })
     }
 
     pluginMenu?.let { plugin ->
