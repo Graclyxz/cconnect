@@ -73,6 +73,7 @@ import com.jahirtrap.cconnect.ui.AppBottomSheet
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CenteredProgress
 import com.jahirtrap.cconnect.ui.CompactDialog
+import com.jahirtrap.cconnect.ui.LocalIsTouch
 import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.Claude
 import com.jahirtrap.cconnect.ui.EmptyState
@@ -155,8 +156,10 @@ fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: Str
                     TooltipIconButton(label = stringResource(Res.string.environment), onClick = { envMenu = true }) {
                         Icon(Lucide.Server, contentDescription = null)
                     }
-                    TooltipIconButton(label = stringResource(Res.string.refresh), onClick = { refreshing = true; scope.launch { load() } }) {
-                        Icon(Lucide.RotateCw, contentDescription = null)
+                    if (!LocalIsTouch.current) {
+                        TooltipIconButton(label = stringResource(Res.string.refresh), onClick = { refreshing = true; scope.launch { load() } }) {
+                            Icon(Lucide.RotateCw, contentDescription = null)
+                        }
                     }
                 },
             )

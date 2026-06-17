@@ -2,10 +2,13 @@ package com.jahirtrap.cconnect
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +38,7 @@ import com.jahirtrap.cconnect.service.Notifier
 import com.jahirtrap.cconnect.settings.SettingsScreen
 import com.jahirtrap.cconnect.terminal.TerminalScreen
 import com.jahirtrap.cconnect.ui.BackInterceptors
+import com.jahirtrap.cconnect.ui.LocalMobileLayout
 import com.jahirtrap.cconnect.ui.LocalRefreshTick
 import com.jahirtrap.cconnect.ui.theme.CConnectTheme
 import com.jahirtrap.cconnect.ui.theme.accentAt
@@ -116,6 +120,8 @@ private fun App() {
             fontStyle = fontStyle,
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
+                val chatDrawerState = rememberDrawerState(DrawerValue.Closed)
+                LaunchedEffect(LocalMobileLayout.current) { chatDrawerState.close() }
                 when (route) {
                     "/settings" -> SettingsScreen(
                         themeMode = themeMode,
@@ -157,6 +163,7 @@ private fun App() {
                         onOpenPreview = { url, name, onDelete -> previewFile = PreviewRequest(url, name, onDelete) },
                         expanded = sidebarExpanded,
                         onExpandedChange = { sidebarExpanded = it; settings.sidebarExpanded = it },
+                        drawerState = chatDrawerState,
                     )
                 }
                 previewFile?.let { request ->

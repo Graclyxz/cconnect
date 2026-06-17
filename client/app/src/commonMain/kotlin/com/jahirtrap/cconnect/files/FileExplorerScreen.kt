@@ -145,6 +145,7 @@ import com.jahirtrap.cconnect.ui.CenteredProgress
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.ConfirmDialog
+import com.jahirtrap.cconnect.ui.LocalIsTouch
 import com.jahirtrap.cconnect.ui.DialogActionItem
 import com.jahirtrap.cconnect.ui.InputField
 import com.jahirtrap.cconnect.ui.SelectField
@@ -432,8 +433,10 @@ fun FileExplorerScreen(
                                     }
                                 }
                             }
-                            TooltipIconButton(label = stringResource(Res.string.refresh), onClick = { refreshing = true; reload() }) {
-                                Icon(Lucide.RotateCw, contentDescription = null)
+                            if (!LocalIsTouch.current) {
+                                TooltipIconButton(label = stringResource(Res.string.refresh), onClick = { refreshing = true; reload() }) {
+                                    Icon(Lucide.RotateCw, contentDescription = null)
+                                }
                             }
                         },
                     )

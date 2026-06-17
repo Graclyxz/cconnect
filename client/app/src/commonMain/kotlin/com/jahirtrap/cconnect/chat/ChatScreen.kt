@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -94,7 +95,6 @@ import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.Stop
 import com.jahirtrap.cconnect.ui.theme.palette
 import androidx.compose.material3.DrawerState
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -106,10 +106,15 @@ import androidx.compose.material3.Icon
 import com.jahirtrap.cconnect.ui.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Scaffold
 import com.jahirtrap.cconnect.ui.AppPullToRefresh
+import com.jahirtrap.cconnect.ui.LocalIsTouch
+import com.jahirtrap.cconnect.ui.LocalMobileLayout
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -217,7 +222,7 @@ import com.jahirtrap.cconnect.ui.theme.sessionColorOf
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ChatScreen(
     onOpenSettings: (highlight: String?) -> Unit,
@@ -228,9 +233,12 @@ fun ChatScreen(
     onOpenPreview: (url: String, filename: String, onDelete: (() -> Unit)?) -> Unit,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
+    drawerState: DrawerState,
 ) {
     val vm: ChatViewModel = viewModel(factory = chatViewModelFactory)
     val state by vm.state.collectAsState()
+    val mobile = LocalMobileLayout.current
+    val isTouch = LocalIsTouch.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
@@ -344,423 +352,394 @@ fun ChatScreen(
             listState.animateScrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
         }
     }
-    Row(modifier = Modifier.fillMaxSize()) {
-        val sidebarWidth by animateDpAsState(if (expanded) 300.dp else 64.dp, label = "sidebar")
-        Surface(
-            color = MaterialTheme.colorScheme.surface,
-            modifier = Modifier.fillMaxHeight().width(sidebarWidth),
-        ) {
-            Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-                if (expanded) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().height(56.dp).padding(start = 8.dp, end = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        EnvironmentSelector(
-                            environments = state.environments,
-                            activeId = state.activeEnvironmentId,
-                            onSelect = vm::selectEnvironment,
-                            modifier = Modifier.weight(1f),
-                        )
-                        TooltipIconButton(
-                            label = stringResource(Res.string.new_session),
-                            onClick = { vm.newSession() },
-                        ) { Icon(Lucide.SquarePen, contentDescription = null) }
-                        TooltipIconButton(label = stringResource(Res.string.menu), onClick = { onExpandedChange(false) }) {
-                            Icon(Lucide.PanelRightOpen, contentDescription = null)
-                        }
-                    }
-                    Row(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        ProjectSelector(
-                            projects = state.historyProjects,
-                            selected = state.historyProjectKey,
-                            onSelect = vm::selectHistoryProject,
-                            modifier = Modifier.weight(1f),
-                        )
-                        TooltipIconButton(label = stringResource(Res.string.refresh), onClick = { vm.loadHistory() }) {
-                            Icon(Lucide.RotateCw, contentDescription = null)
-                        }
-                    }
-                    val drawerListState = rememberLazyListState()
-                    LaunchedEffect(state.historySessions.size) {
-                        if (state.historySessions.isNotEmpty()) drawerListState.scrollToItem(0)
-                    }
-                    AppPullToRefresh(
-                        isRefreshing = state.historyLoading,
-                        onRefresh = { vm.loadHistory() },
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                    ) {
-                        LazyColumn(
-                            state = drawerListState,
-                            modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(vertical = 6.dp),
-                        ) {
-                            when {
-                                state.historySessions.isNotEmpty() -> items(state.historySessions, key = { it.sessionId }) { s ->
-                                    ConversationRow(
-                                        title = s.title ?: s.preview ?: s.sessionId.take(8),
-                                        selected = s.sessionId == state.sessionId,
-                                        onOpen = { vm.openSession(s) },
-                                        onRename = { renameTarget = s },
-                                        onAutoRename = { vm.autoRenameSession(s) },
-                                        onColor = { colorTarget = s },
-                                        onDelete = { deleteTarget = s },
-                                    )
-                                }
-
-                                !state.historyLoading -> item { EmptyState(stringResource(Res.string.no_chats), Modifier.fillParentMaxSize()) }
-                            }
-                        }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TooltipIconButton(label = stringResource(Res.string.files), onClick = { onOpenExplorer(null) }) {
-                            Icon(Lucide.Folder, contentDescription = null)
-                        }
-                        TooltipIconButton(label = stringResource(Res.string.claude), onClick = onOpenClaude) {
-                            Icon(CustomIcons.Claude, contentDescription = null)
-                        }
-                        TooltipIconButton(label = stringResource(Res.string.monitor), onClick = onOpenMonitor) {
-                            Icon(Lucide.Activity, contentDescription = null)
-                        }
-                        TooltipIconButton(label = stringResource(Res.string.terminal), onClick = onOpenTerminal) {
-                            Icon(Lucide.SquareTerminal, contentDescription = null)
-                        }
-                        Spacer(Modifier.weight(1f))
-                        TooltipIconButton(label = stringResource(Res.string.settings), onClick = { onOpenSettings(null) }) {
-                            Icon(Lucide.Settings, contentDescription = null)
-                        }
-                    }
-                } else {
-                    Spacer(Modifier.height(8.dp))
-                    TooltipIconButton(label = stringResource(Res.string.menu), onClick = { onExpandedChange(true) }) {
-                        Icon(Lucide.PanelLeftOpen, contentDescription = null)
-                    }
-                    TooltipIconButton(label = stringResource(Res.string.new_session), onClick = { vm.newSession() }) {
-                        Icon(Lucide.SquarePen, contentDescription = null)
-                    }
-                    Spacer(Modifier.weight(1f))
-                    TooltipIconButton(label = stringResource(Res.string.files), onClick = { onOpenExplorer(null) }) {
-                        Icon(Lucide.Folder, contentDescription = null)
-                    }
-                    TooltipIconButton(label = stringResource(Res.string.claude), onClick = onOpenClaude) {
-                        Icon(CustomIcons.Claude, contentDescription = null)
-                    }
-                    TooltipIconButton(label = stringResource(Res.string.monitor), onClick = onOpenMonitor) {
-                        Icon(Lucide.Activity, contentDescription = null)
-                    }
-                    TooltipIconButton(label = stringResource(Res.string.terminal), onClick = onOpenTerminal) {
-                        Icon(Lucide.SquareTerminal, contentDescription = null)
-                    }
-                    TooltipIconButton(label = stringResource(Res.string.settings), onClick = { onOpenSettings(null) }) {
-                        Icon(Lucide.Settings, contentDescription = null)
-                    }
-                    Spacer(Modifier.height(8.dp))
+    MaterialExpressiveTheme(motionScheme = MotionScheme.standard()) {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = mobile,
+            drawerContent = {
+                if (mobile) ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surface) {
+                    ChatPanelContent(
+                        state = state,
+                        vm = vm,
+                        showRefresh = !isTouch,
+                        onClose = if (isTouch) null else ({ scope.launch { drawerState.close() } }),
+                        drawerMode = true,
+                        onAfterSelect = { scope.launch { drawerState.close() } },
+                        onOpenExplorer = onOpenExplorer,
+                        onOpenClaude = onOpenClaude,
+                        onOpenMonitor = onOpenMonitor,
+                        onOpenTerminal = onOpenTerminal,
+                        onOpenSettings = onOpenSettings,
+                        onRename = { renameTarget = it },
+                        onColor = { colorTarget = it },
+                        onDelete = { deleteTarget = it },
+                    )
                 }
-            }
-        }
-        Box(modifier = Modifier.weight(1f)) {
-                Scaffold(
-                    snackbarHost = {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
+            },
+        ) {
+            MaterialExpressiveTheme(motionScheme = MotionScheme.expressive()) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    if (!mobile) {
+                        val sidebarWidth by animateDpAsState(if (expanded) 300.dp else 64.dp, label = "sidebar")
+                        Surface(
+                            color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.fillMaxHeight().width(sidebarWidth),
                         ) {
-                            state.versionNotices.sortedBy { it.ordinal }.forEach { notice ->
-                                key(notice) {
-                                    NoticeCard(
-                                        text = when (notice) {
-                                            CompatStatus.AppOutdated -> stringResource(Res.string.compat_app_outdated)
-                                            CompatStatus.ServerOutdated -> stringResource(Res.string.compat_server_outdated)
-                                            CompatStatus.CliOutdated -> stringResource(Res.string.compat_cli_outdated)
-                                            else -> stringResource(Res.string.update_available, state.latestRelease?.tag.orEmpty())
-                                        },
-                                        actionLabel = stringResource(Res.string.settings),
-                                        onAction = {
-                                            vm.dismissNotice(notice)
-                                            onOpenSettings(if (notice == CompatStatus.CliOutdated) "cli" else "about")
-                                        },
-                                        onDismiss = { vm.dismissNotice(notice) },
+                            Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+                                if (expanded) {
+                                    ChatPanelContent(
+                                        state = state,
+                                        vm = vm,
+                                        showRefresh = !isTouch,
+                                        onClose = { onExpandedChange(false) },
+                                        drawerMode = false,
+                                        onAfterSelect = {},
+                                        onOpenExplorer = onOpenExplorer,
+                                        onOpenClaude = onOpenClaude,
+                                        onOpenMonitor = onOpenMonitor,
+                                        onOpenTerminal = onOpenTerminal,
+                                        onOpenSettings = onOpenSettings,
+                                        onRename = { renameTarget = it },
+                                        onColor = { colorTarget = it },
+                                        onDelete = { deleteTarget = it },
                                     )
+                                } else {
+                                    Spacer(Modifier.height(8.dp))
+                                    TooltipIconButton(label = stringResource(Res.string.menu), onClick = { onExpandedChange(true) }) {
+                                        Icon(Lucide.PanelLeftOpen, contentDescription = null)
+                                    }
+                                    TooltipIconButton(label = stringResource(Res.string.new_session), onClick = { vm.newSession() }) {
+                                        Icon(Lucide.SquarePen, contentDescription = null)
+                                    }
+                                    Spacer(Modifier.weight(1f))
+                                    TooltipIconButton(label = stringResource(Res.string.files), onClick = { onOpenExplorer(null) }) {
+                                        Icon(Lucide.Folder, contentDescription = null)
+                                    }
+                                    TooltipIconButton(label = stringResource(Res.string.claude), onClick = onOpenClaude) {
+                                        Icon(CustomIcons.Claude, contentDescription = null)
+                                    }
+                                    TooltipIconButton(label = stringResource(Res.string.monitor), onClick = onOpenMonitor) {
+                                        Icon(Lucide.Activity, contentDescription = null)
+                                    }
+                                    TooltipIconButton(label = stringResource(Res.string.terminal), onClick = onOpenTerminal) {
+                                        Icon(Lucide.SquareTerminal, contentDescription = null)
+                                    }
+                                    TooltipIconButton(label = stringResource(Res.string.settings), onClick = { onOpenSettings(null) }) {
+                                        Icon(Lucide.Settings, contentDescription = null)
+                                    }
+                                    Spacer(Modifier.height(8.dp))
                                 }
                             }
                         }
-                    },
-                    topBar = {
-                        val waitingUser = state.messages.any { it.role == Role.INTERACTION && it.interaction?.pending == true }
-                        val statusLeading: (@Composable () -> Unit) = when {
-                            state.connection == ConnectionState.Disconnected -> ({ StatusDot(palette.red) })
-                            state.connection == ConnectionState.Connecting -> ({ LoadingIndicator(modifier = Modifier.size(14.dp)) })
-                            waitingUser -> ({ StatusDot(palette.orange) })
-                            state.streaming -> ({ LoadingIndicator(modifier = Modifier.size(14.dp)) })
-                            else -> ({ StatusDot(palette.green) })
-                        }
-                        val statusText = when {
-                            state.connection == ConnectionState.Disconnected -> stringResource(Res.string.server_unavailable)
-                            state.connection == ConnectionState.Connecting -> stringResource(Res.string.connecting)
-                            waitingUser -> stringResource(Res.string.waiting_user)
-                            state.streaming -> stringResource(Res.string.working)
-                            else -> state.sessionId?.take(8) ?: stringResource(Res.string.new_chat)
-                        }
-                        AppTopBar(
-                            title = stringResource(Res.string.app_name),
-                            subtitle = statusText,
-                            subtitleLeading = statusLeading,
-                            actions = {
-                                TaskIndicator(todos = state.todos)
-                                if (state.sessionId != null && !state.streaming) {
-                                    TooltipIconButton(
-                                        label = stringResource(Res.string.rewind),
-                                        onClick = { vm.loadRewindPoints(); showRewindSheet = true },
-                                    ) { Icon(Lucide.History, contentDescription = null) }
-                                }
-                                TooltipIconButton(
-                                    label = stringResource(Res.string.new_session),
-                                    onClick = { vm.newSession() },
-                                ) { Icon(Lucide.SquarePen, contentDescription = null) }
-                            },
-                        )
-                    },
-                ) { padding ->
-                    val sc = state.sideChat?.takeIf { it.boundSessionId == state.sessionId }
-                    val sideActive = state.sideChatOpen && sc != null
-                    var mainDraft by rememberSaveable { mutableStateOf("") }
-                    var sideDraft by rememberSaveable { mutableStateOf("") }
-                    LaunchedEffect(state.pendingInput) {
-                        state.pendingInput?.let { mainDraft = it; vm.consumePendingInput() }
                     }
-                    val composerFocus = remember { FocusRequester() }
-                    val expansion = remember { Animatable(0f) }
-                    val peek = 0.58f
-                    LaunchedEffect(sideActive) {
-                        if (sideActive) {
-                            expansion.snapTo(0f)
-                            expansion.animateTo(peek, spring(stiffness = Spring.StiffnessMediumLow))
-                        }
-                    }
-                    LaunchedEffect(expansion.value) {
-                        if (sideActive && followBottom && state.messages.isNotEmpty()) {
-                            listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
-                        }
-                    }
-                    val dismissSide: () -> Unit = {
-                        scope.launch {
-                            expansion.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
-                            vm.closeSideChat()
-                        }
-                        Unit
-                    }
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(padding)
-                            .fileDropTarget(enabled = !sideActive, onDragChange = { dropOver = it }) { vm.addAttachments(it) }
-                            .then(if (dropOver) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier)
-                            .onPreviewKeyEvent { e ->
-                                if (e.type == KeyEventType.KeyDown && e.key == Key.Escape && sideActive) {
-                                    dismissSide(); true
-                                } else false
-                            },
-                    ) {
-                        BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
-                            val boxHeightPx = constraints.maxHeight.toFloat()
-                            val toolbarReveal = (1f - expansion.value / peek).coerceIn(0f, 1f)
-                            val panelH = expansion.value.coerceAtLeast(peek)
-                            var toolbarHeightPx by remember { mutableStateOf(0) }
-                            Box(modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().fillMaxHeight((1f - panelH * (1f - toolbarReveal)).coerceAtMost(1f - toolbarHeightPx / boxHeightPx).coerceIn(0.0001f, 1f)).clipToBounds()) {
-                                SelectionContainer(modifier = Modifier.fillMaxSize().selectionTextCursor()) {
-                                    LazyColumn(
-                                        state = listState,
-                                        modifier = Modifier.fillMaxSize().pointerInput(Unit) {
-                                            awaitPointerEventScope {
-                                                while (true) {
-                                                    val e = awaitPointerEvent(PointerEventPass.Initial)
-                                                    if (e.type == PointerEventType.Scroll) followBottom = false
-                                                }
-                                            }
-                                        },
-                                    ) {
-                                        itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
-                                            val ts = message.timestamp
-                                            if (ts != null) {
-                                                val prevTs = (index - 1 downTo 0).firstNotNullOfOrNull { state.messages[it].timestamp }
-                                                if (prevTs == null || dayIndex(prevTs) != dayIndex(ts)) ChatDateSeparator(ts)
-                                            }
-                                            val running = when (message.role) {
-                                                Role.TOOL -> message.toolUseId != null && message.toolUseId in state.pendingToolIds
-                                                Role.THINKING -> index == state.messages.lastIndex && state.streaming
-                                                else -> false
-                                            }
-                                            ChatMessageItem(
-                                                message,
-                                                prevRole = state.messages.getOrNull(index - 1)?.role,
-                                                nextRole = state.messages.getOrNull(index + 1)?.role,
-                                                running = running,
-                                                expanded = expandedState[message.id] ?: false,
-                                                onToggle = { expandedState[message.id] = !(expandedState[message.id] ?: false) },
-                                                onAnswer = vm::answerInteraction,
-                                                onToggleOption = vm::toggleQuestionOption,
-                                                onQuestionText = vm::setQuestionFreeText,
-                                                onQuestionNotes = vm::setQuestionNotes,
-                                                onSubmitQuestions = vm::submitQuestions,
-                                                onChatQuestions = vm::chatQuestions,
-                                                onSharedLink = { url, filename -> sharedLinkAction = url to filename },
-                                            )
-                                        }
-                                    }
-                                }
-                                var stickyHeaderHeight by remember { mutableStateOf(0) }
-                                val sticky by remember(expandedState) {
-                                    derivedStateOf {
-                                        val info = listState.layoutInfo
-                                        val start = info.viewportStartOffset
-                                        val first = info.visibleItemsInfo.firstOrNull { it.offset + it.size > start }
-                                            ?: return@derivedStateOf null
-                                        val id = first.key as? Long ?: return@derivedStateOf null
-                                        if (expandedState[id] != true) return@derivedStateOf null
-                                        Triple(id, first.offset - start, first.offset + first.size - start)
-                                    }
-                                }
-                                sticky?.let { (id, topRel, bottomRel) ->
-                                    val idx = state.messages.indexOfFirst { it.id == id }
-                                    val msg = state.messages.getOrNull(idx)
-                                    if (msg != null && hasCollapsibleContent(msg)) {
-                                        val gapPx = with(density) { gapAbove(state.messages.getOrNull(idx - 1)?.role, msg.role).roundToPx() }
-                                        if (topRel + gapPx < 0) {
-                                            val h = if (stickyHeaderHeight > 0) stickyHeaderHeight else with(density) { 40.dp.roundToPx() }
-                                            val pushY = minOf(0, bottomRel - h)
-                                            StickyCollapsibleHeader(
-                                                message = msg,
-                                                onCollapse = {
-                                                    expandedState[id] = false
-                                                    scope.launch { listState.scrollToItem(idx, gapPx) }
+                    Box(modifier = Modifier.weight(1f)) {
+                        Scaffold(
+                            snackbarHost = {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    state.versionNotices.sortedBy { it.ordinal }.forEach { notice ->
+                                        key(notice) {
+                                            NoticeCard(
+                                                text = when (notice) {
+                                                    CompatStatus.AppOutdated -> stringResource(Res.string.compat_app_outdated)
+                                                    CompatStatus.ServerOutdated -> stringResource(Res.string.compat_server_outdated)
+                                                    CompatStatus.CliOutdated -> stringResource(Res.string.compat_cli_outdated)
+                                                    else -> stringResource(Res.string.update_available, state.latestRelease?.tag.orEmpty())
                                                 },
-                                                modifier = Modifier
-                                                    .align(Alignment.TopCenter)
-                                                    .fillMaxWidth()
-                                                    .offset { IntOffset(0, pushY) }
-                                                    .onSizeChanged { stickyHeaderHeight = it.height },
+                                                actionLabel = stringResource(Res.string.settings),
+                                                onAction = {
+                                                    vm.dismissNotice(notice)
+                                                    onOpenSettings(if (notice == CompatStatus.CliOutdated) "cli" else "about")
+                                                },
+                                                onDismiss = { vm.dismissNotice(notice) },
                                             )
                                         }
                                     }
                                 }
-                                if (showScrollButton && state.messages.isNotEmpty()) {
-                                    Surface(
-                                        onClick = {
-                                            followBottom = true
-                                            scope.launch { listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE) }
-                                        },
-                                        shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.onBackground,
-                                        shadowElevation = 4.dp,
-                                        modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).size(40.dp).pointerHoverIcon(PointerIcon.Hand),
-                                    ) {
-                                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                Lucide.ChevronDown,
-                                                contentDescription = stringResource(Res.string.scroll_to_bottom),
-                                                tint = MaterialTheme.colorScheme.background,
-                                            )
-                                        }
-                                    }
+                            },
+                            topBar = {
+                                val waitingUser = state.messages.any { it.role == Role.INTERACTION && it.interaction?.pending == true }
+                                val statusLeading: (@Composable () -> Unit) = when {
+                                    state.connection == ConnectionState.Disconnected -> ({ StatusDot(palette.red) })
+                                    state.connection == ConnectionState.Connecting -> ({ LoadingIndicator(modifier = Modifier.size(14.dp)) })
+                                    waitingUser -> ({ StatusDot(palette.orange) })
+                                    state.streaming -> ({ LoadingIndicator(modifier = Modifier.size(14.dp)) })
+                                    else -> ({ StatusDot(palette.green) })
                                 }
+                                val statusText = when {
+                                    state.connection == ConnectionState.Disconnected -> stringResource(Res.string.server_unavailable)
+                                    state.connection == ConnectionState.Connecting -> stringResource(Res.string.connecting)
+                                    waitingUser -> stringResource(Res.string.waiting_user)
+                                    state.streaming -> stringResource(Res.string.working)
+                                    else -> state.sessionId?.take(8) ?: stringResource(Res.string.new_chat)
+                                }
+                                AppTopBar(
+                                    title = stringResource(Res.string.app_name),
+                                    subtitle = statusText,
+                                    subtitleLeading = statusLeading,
+                                    navigationIcon = {
+                                        if (mobile) TooltipIconButton(label = stringResource(Res.string.menu), onClick = { scope.launch { drawerState.open() } }) {
+                                            Icon(Lucide.Menu, contentDescription = null)
+                                        }
+                                    },
+                                    actions = {
+                                        TaskIndicator(todos = state.todos)
+                                        if (state.sessionId != null && !state.streaming) {
+                                            TooltipIconButton(
+                                                label = stringResource(Res.string.rewind),
+                                                onClick = { vm.loadRewindPoints(); showRewindSheet = true },
+                                            ) { Icon(Lucide.History, contentDescription = null) }
+                                        }
+                                        TooltipIconButton(
+                                            label = stringResource(Res.string.new_session),
+                                            onClick = { vm.newSession() },
+                                        ) { Icon(Lucide.SquarePen, contentDescription = null) }
+                                    },
+                                )
+                            },
+                        ) { padding ->
+                            val sc = state.sideChat?.takeIf { it.boundSessionId == state.sessionId }
+                            val sideActive = state.sideChatOpen && sc != null
+                            var mainDraft by rememberSaveable { mutableStateOf("") }
+                            var sideDraft by rememberSaveable { mutableStateOf("") }
+                            LaunchedEffect(state.pendingInput) {
+                                state.pendingInput?.let { mainDraft = it; vm.consumePendingInput() }
+                            }
+                            val composerFocus = remember { FocusRequester() }
+                            val expansion = remember { Animatable(0f) }
+                            val peek = 0.58f
+                            LaunchedEffect(sideActive) {
+                                if (sideActive) {
+                                    expansion.snapTo(0f)
+                                    expansion.animateTo(peek, spring(stiffness = Spring.StiffnessMediumLow))
+                                }
+                            }
+                            LaunchedEffect(expansion.value) {
+                                if (sideActive && followBottom && state.messages.isNotEmpty()) {
+                                    listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
+                                }
+                            }
+                            val dismissSide: () -> Unit = {
+                                scope.launch {
+                                    expansion.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow))
+                                    vm.closeSideChat()
+                                }
+                                Unit
                             }
                             Column(
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .fillMaxWidth()
-                                    .onSizeChanged { toolbarHeightPx = it.height }
-                                    .background(MaterialTheme.colorScheme.background)
-                                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
+                                modifier = Modifier.fillMaxSize().padding(padding)
+                                .fileDropTarget(enabled = !sideActive, onDragChange = { dropOver = it }) { vm.addAttachments(it) }
+                                .then(if (dropOver) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier)
+                                .onPreviewKeyEvent { e ->
+                                    if (e.type == KeyEventType.KeyDown && e.key == Key.Escape && sideActive) {
+                                        dismissSide(); true
+                                    } else false
+                                },
                             ) {
-                                if (state.compacting) CompactProgress()
-                                if (!sideActive && state.attachments.isNotEmpty()) {
-                                    AttachmentsRow(
-                                        attachments = state.attachments,
-                                        uploading = state.uploadingAttachments,
-                                        onRemove = vm::removeAttachment,
-                                    )
-                                }
-                                ChatToolbar(
-                                    ready = state.capabilitiesReady,
-                                    disconnected = state.connection == ConnectionState.Disconnected,
-                                    connecting = state.connection == ConnectionState.Connecting,
-                                    model = state.model,
-                                    models = state.capabilities.models,
-                                    onModel = vm::setModel,
-                                    effort = state.effort,
-                                    effortLevels = state.capabilities.effortLevels,
-                                    onEffort = vm::setEffort,
-                                    permissionMode = state.permissionMode,
-                                    permissionModes = state.capabilities.permissionModes,
-                                    onPermissionMode = vm::setPermissionMode,
-                                    onQuickChat = vm::openSideChat,
-                                    quickChatActive = sc != null && sc.messages.isNotEmpty(),
-                                )
-                            }
-                            if (sideActive && sc != null) {
-                                val dragModifier = Modifier.pointerInput(boxHeightPx) {
-                                    detectVerticalDragGestures(
-                                        onDragEnd = {
-                                            scope.launch {
-                                                val v = expansion.value
-                                                when {
-                                                    v < 0.32f -> { expansion.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)); vm.closeSideChat() }
-                                                    v < (peek + 1f) / 2f -> expansion.animateTo(peek, spring(stiffness = Spring.StiffnessMediumLow))
-                                                    else -> expansion.animateTo(1f, spring(stiffness = Spring.StiffnessMediumLow))
+                                BoxWithConstraints(modifier = Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
+                                    val boxHeightPx = constraints.maxHeight.toFloat()
+                                    val toolbarReveal = (1f - expansion.value / peek).coerceIn(0f, 1f)
+                                    val panelH = expansion.value.coerceAtLeast(peek)
+                                    var toolbarHeightPx by remember { mutableStateOf(0) }
+                                    Box(modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().fillMaxHeight((1f - panelH * (1f - toolbarReveal)).coerceAtMost(1f - toolbarHeightPx / boxHeightPx).coerceIn(0.0001f, 1f)).clipToBounds()) {
+                                        SelectionContainer(modifier = Modifier.fillMaxSize().selectionTextCursor()) {
+                                            LazyColumn(
+                                                state = listState,
+                                                modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+                                                    awaitPointerEventScope {
+                                                        while (true) {
+                                                            val e = awaitPointerEvent(PointerEventPass.Initial)
+                                                            if (e.type == PointerEventType.Scroll) followBottom = false
+                                                        }
+                                                    }
+                                                },
+                                            ) {
+                                                itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
+                                                    val ts = message.timestamp
+                                                    if (ts != null) {
+                                                        val prevTs = (index - 1 downTo 0).firstNotNullOfOrNull { state.messages[it].timestamp }
+                                                        if (prevTs == null || dayIndex(prevTs) != dayIndex(ts)) ChatDateSeparator(ts)
+                                                    }
+                                                    val running = when (message.role) {
+                                                        Role.TOOL -> message.toolUseId != null && message.toolUseId in state.pendingToolIds
+                                                        Role.THINKING -> index == state.messages.lastIndex && state.streaming
+                                                        else -> false
+                                                    }
+                                                    ChatMessageItem(
+                                                        message,
+                                                        prevRole = state.messages.getOrNull(index - 1)?.role,
+                                                        nextRole = state.messages.getOrNull(index + 1)?.role,
+                                                        running = running,
+                                                        expanded = expandedState[message.id] ?: false,
+                                                        onToggle = { expandedState[message.id] = !(expandedState[message.id] ?: false) },
+                                                        onAnswer = vm::answerInteraction,
+                                                        onToggleOption = vm::toggleQuestionOption,
+                                                        onQuestionText = vm::setQuestionFreeText,
+                                                        onQuestionNotes = vm::setQuestionNotes,
+                                                        onSubmitQuestions = vm::submitQuestions,
+                                                        onChatQuestions = vm::chatQuestions,
+                                                        onSharedLink = { url, filename -> sharedLinkAction = url to filename },
+                                                    )
                                                 }
                                             }
-                                        },
-                                    ) { change, dy ->
-                                        change.consume()
-                                        if (boxHeightPx > 0f) {
-                                            val target = (expansion.value - dy / boxHeightPx).coerceIn(0f, 1f)
-                                            scope.launch { expansion.snapTo(target) }
+                                        }
+                                        var stickyHeaderHeight by remember { mutableStateOf(0) }
+                                        val sticky by remember(expandedState) {
+                                            derivedStateOf {
+                                                val info = listState.layoutInfo
+                                                val start = info.viewportStartOffset
+                                                val first = info.visibleItemsInfo.firstOrNull { it.offset + it.size > start }
+                                                ?: return@derivedStateOf null
+                                                val id = first.key as? Long ?: return@derivedStateOf null
+                                                if (expandedState[id] != true) return@derivedStateOf null
+                                                Triple(id, first.offset - start, first.offset + first.size - start)
+                                            }
+                                        }
+                                        sticky?.let { (id, topRel, bottomRel) ->
+                                            val idx = state.messages.indexOfFirst { it.id == id }
+                                            val msg = state.messages.getOrNull(idx)
+                                            if (msg != null && hasCollapsibleContent(msg)) {
+                                                val gapPx = with(density) { gapAbove(state.messages.getOrNull(idx - 1)?.role, msg.role).roundToPx() }
+                                                if (topRel + gapPx < 0) {
+                                                    val h = if (stickyHeaderHeight > 0) stickyHeaderHeight else with(density) { 40.dp.roundToPx() }
+                                                    val pushY = minOf(0, bottomRel - h)
+                                                    StickyCollapsibleHeader(
+                                                        message = msg,
+                                                        onCollapse = {
+                                                            expandedState[id] = false
+                                                            scope.launch { listState.scrollToItem(idx, gapPx) }
+                                                        },
+                                                        modifier = Modifier
+                                                        .align(Alignment.TopCenter)
+                                                        .fillMaxWidth()
+                                                        .offset { IntOffset(0, pushY) }
+                                                        .onSizeChanged { stickyHeaderHeight = it.height },
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        if (showScrollButton && state.messages.isNotEmpty()) {
+                                            Surface(
+                                                onClick = {
+                                                    followBottom = true
+                                                    scope.launch { listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE) }
+                                                },
+                                                shape = CircleShape,
+                                                color = MaterialTheme.colorScheme.onBackground,
+                                                shadowElevation = 4.dp,
+                                                modifier = Modifier.align(Alignment.BottomEnd).padding(12.dp).size(40.dp).pointerHoverIcon(PointerIcon.Hand),
+                                            ) {
+                                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                                    Icon(
+                                                        Lucide.ChevronDown,
+                                                        contentDescription = stringResource(Res.string.scroll_to_bottom),
+                                                        tint = MaterialTheme.colorScheme.background,
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
-                                }
-                                val dockT = ((expansion.value - peek) / (1f - peek)).coerceIn(0f, 1f)
-                                SidePanel(
-                                    sideChat = sc,
-                                    headerModifier = dragModifier,
-                                    onClear = vm::clearSideChat,
-                                    onAnswer = vm::answerInteraction,
-                                    onToggleOption = vm::toggleQuestionOption,
-                                    onQuestionText = vm::setQuestionFreeText,
-                                    onQuestionNotes = vm::setQuestionNotes,
-                                    onSubmitQuestions = vm::submitQuestions,
-                                    onChatQuestions = vm::chatQuestions,
-                                    onSharedLink = { url, filename -> sharedLinkAction = url to filename },
-                                    topCorner = (20 * (1f - dockT)).dp,
-                                    modifier = Modifier
+                                    Column(
+                                        modifier = Modifier
                                         .align(Alignment.BottomCenter)
                                         .fillMaxWidth()
-                                        .offset { IntOffset(0, (toolbarReveal * panelH * boxHeightPx).toInt()) }
-                                        .fillMaxHeight(panelH),
+                                        .onSizeChanged { toolbarHeightPx = it.height }
+                                        .background(MaterialTheme.colorScheme.background)
+                                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
+                                    ) {
+                                        if (state.compacting) CompactProgress()
+                                        if (!sideActive && state.attachments.isNotEmpty()) {
+                                            AttachmentsRow(
+                                                attachments = state.attachments,
+                                                uploading = state.uploadingAttachments,
+                                                onRemove = vm::removeAttachment,
+                                            )
+                                        }
+                                        ChatToolbar(
+                                            ready = state.capabilitiesReady,
+                                            disconnected = state.connection == ConnectionState.Disconnected,
+                                            connecting = state.connection == ConnectionState.Connecting,
+                                            model = state.model,
+                                            models = state.capabilities.models,
+                                            onModel = vm::setModel,
+                                            effort = state.effort,
+                                            effortLevels = state.capabilities.effortLevels,
+                                            onEffort = vm::setEffort,
+                                            permissionMode = state.permissionMode,
+                                            permissionModes = state.capabilities.permissionModes,
+                                            onPermissionMode = vm::setPermissionMode,
+                                            onQuickChat = vm::openSideChat,
+                                            quickChatActive = sc != null && sc.messages.isNotEmpty(),
+                                        )
+                                    }
+                                    if (sideActive && sc != null) {
+                                        val dragModifier = Modifier.pointerInput(boxHeightPx) {
+                                            detectVerticalDragGestures(
+                                                onDragEnd = {
+                                                    scope.launch {
+                                                        val v = expansion.value
+                                                        when {
+                                                            v < 0.32f -> { expansion.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)); vm.closeSideChat() }
+                                                            v < (peek + 1f) / 2f -> expansion.animateTo(peek, spring(stiffness = Spring.StiffnessMediumLow))
+                                                            else -> expansion.animateTo(1f, spring(stiffness = Spring.StiffnessMediumLow))
+                                                        }
+                                                    }
+                                                },
+                                            ) { change, dy ->
+                                                change.consume()
+                                                if (boxHeightPx > 0f) {
+                                                    val target = (expansion.value - dy / boxHeightPx).coerceIn(0f, 1f)
+                                                    scope.launch { expansion.snapTo(target) }
+                                                }
+                                            }
+                                        }
+                                        val dockT = ((expansion.value - peek) / (1f - peek)).coerceIn(0f, 1f)
+                                        SidePanel(
+                                            sideChat = sc,
+                                            headerModifier = dragModifier,
+                                            onClear = vm::clearSideChat,
+                                            onAnswer = vm::answerInteraction,
+                                            onToggleOption = vm::toggleQuestionOption,
+                                            onQuestionText = vm::setQuestionFreeText,
+                                            onQuestionNotes = vm::setQuestionNotes,
+                                            onSubmitQuestions = vm::submitQuestions,
+                                            onChatQuestions = vm::chatQuestions,
+                                            onSharedLink = { url, filename -> sharedLinkAction = url to filename },
+                                            topCorner = (20 * (1f - dockT)).dp,
+                                            modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .fillMaxWidth()
+                                            .offset { IntOffset(0, (toolbarReveal * panelH * boxHeightPx).toInt()) }
+                                            .fillMaxHeight(panelH),
+                                        )
+                                    }
+                                }
+                                Composer(
+                                    value = if (sideActive) sideDraft else mainDraft,
+                                    onValueChange = { if (sideActive) sideDraft = it else mainDraft = it },
+                                    streaming = if (sideActive) (sc?.streaming ?: false) else state.streaming,
+                                    sessionColor = state.sessionColor,
+                                    commands = state.capabilities.commands,
+                                    onCommand = { cmd -> if (cmd.requireConfirmation) confirmCommand = cmd else vm.runCommand(cmd) },
+                                    onSend = { if (sideActive) vm.sendSideQuestion(it) else vm.submit(it) },
+                                    onStop = { if (sideActive) vm.stopSide() else vm.stop() },
+                                    canSend = state.connection == ConnectionState.Connected,
+                                    commandsEnabled = state.sessionId != null && state.connection == ConnectionState.Connected,
+                                    focusRequester = composerFocus,
+                                    onCloseSide = if (sideActive) dismissSide else null,
+                                    attachments = if (sideActive) emptyList() else state.attachments,
+                                    uploading = !sideActive && state.uploadingAttachments,
+                                    onAttach = if (sideActive) null else ({ scope.launch { vm.addAttachments(pickFiles()) } }),
                                 )
                             }
                         }
-                        Composer(
-                            value = if (sideActive) sideDraft else mainDraft,
-                            onValueChange = { if (sideActive) sideDraft = it else mainDraft = it },
-                            streaming = if (sideActive) (sc?.streaming ?: false) else state.streaming,
-                            sessionColor = state.sessionColor,
-                            commands = state.capabilities.commands,
-                            onCommand = { cmd -> if (cmd.requireConfirmation) confirmCommand = cmd else vm.runCommand(cmd) },
-                            onSend = { if (sideActive) vm.sendSideQuestion(it) else vm.submit(it) },
-                            onStop = { if (sideActive) vm.stopSide() else vm.stop() },
-                            canSend = state.connection == ConnectionState.Connected,
-                            commandsEnabled = state.sessionId != null && state.connection == ConnectionState.Connected,
-                            focusRequester = composerFocus,
-                            onCloseSide = if (sideActive) dismissSide else null,
-                            attachments = if (sideActive) emptyList() else state.attachments,
-                            uploading = !sideActive && state.uploadingAttachments,
-                            onAttach = if (sideActive) null else ({ scope.launch { vm.addAttachments(pickFiles()) } }),
-                        )
                     }
                 }
             }
         }
+    }
 
     renameTarget?.let { s ->
         RenameDialog(
@@ -1098,6 +1077,110 @@ private fun SidePanel(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.ChatPanelContent(
+    state: ChatUiState,
+    vm: ChatViewModel,
+    showRefresh: Boolean,
+    onClose: (() -> Unit)?,
+    drawerMode: Boolean,
+    onAfterSelect: () -> Unit,
+    onOpenExplorer: (String?) -> Unit,
+    onOpenClaude: () -> Unit,
+    onOpenMonitor: () -> Unit,
+    onOpenTerminal: () -> Unit,
+    onOpenSettings: (String?) -> Unit,
+    onRename: (com.jahirtrap.cconnect.data.SessionInfo) -> Unit,
+    onColor: (com.jahirtrap.cconnect.data.SessionInfo) -> Unit,
+    onDelete: (com.jahirtrap.cconnect.data.SessionInfo) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().height(56.dp).padding(start = 8.dp, end = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        EnvironmentSelector(
+            environments = state.environments,
+            activeId = state.activeEnvironmentId,
+            onSelect = { vm.selectEnvironment(it); onAfterSelect() },
+            modifier = Modifier.weight(1f),
+        )
+        TooltipIconButton(
+            label = stringResource(Res.string.new_session),
+            onClick = { vm.newSession(); onAfterSelect() },
+        ) { Icon(Lucide.SquarePen, contentDescription = null) }
+        if (onClose != null) {
+            TooltipIconButton(label = stringResource(Res.string.menu), onClick = onClose) {
+                Icon(if (drawerMode) Lucide.Menu else Lucide.PanelRightOpen, contentDescription = null)
+            }
+        }
+    }
+    Row(modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        ProjectSelector(
+            projects = state.historyProjects,
+            selected = state.historyProjectKey,
+            onSelect = vm::selectHistoryProject,
+            modifier = Modifier.weight(1f),
+        )
+        if (showRefresh) {
+            TooltipIconButton(label = stringResource(Res.string.refresh), onClick = { vm.loadHistory() }) {
+                Icon(Lucide.RotateCw, contentDescription = null)
+            }
+        }
+    }
+    val drawerListState = rememberLazyListState()
+    LaunchedEffect(state.historySessions.size) {
+        if (state.historySessions.isNotEmpty()) drawerListState.scrollToItem(0)
+    }
+    AppPullToRefresh(
+        isRefreshing = state.historyLoading,
+        onRefresh = { vm.loadHistory() },
+        modifier = Modifier.weight(1f).fillMaxWidth(),
+    ) {
+        LazyColumn(
+            state = drawerListState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(vertical = 6.dp),
+        ) {
+            when {
+                state.historySessions.isNotEmpty() -> items(state.historySessions, key = { it.sessionId }) { s ->
+                    ConversationRow(
+                        title = s.title ?: s.preview ?: s.sessionId.take(8),
+                        selected = s.sessionId == state.sessionId,
+                        onOpen = { vm.openSession(s); onAfterSelect() },
+                        onRename = { onRename(s) },
+                        onAutoRename = { vm.autoRenameSession(s) },
+                        onColor = { onColor(s) },
+                        onDelete = { onDelete(s) },
+                    )
+                }
+
+                !state.historyLoading -> item { EmptyState(stringResource(Res.string.no_chats), Modifier.fillParentMaxSize()) }
+            }
+        }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        TooltipIconButton(label = stringResource(Res.string.files), onClick = { onOpenExplorer(null) }) {
+            Icon(Lucide.Folder, contentDescription = null)
+        }
+        TooltipIconButton(label = stringResource(Res.string.claude), onClick = onOpenClaude) {
+            Icon(CustomIcons.Claude, contentDescription = null)
+        }
+        TooltipIconButton(label = stringResource(Res.string.monitor), onClick = onOpenMonitor) {
+            Icon(Lucide.Activity, contentDescription = null)
+        }
+        TooltipIconButton(label = stringResource(Res.string.terminal), onClick = onOpenTerminal) {
+            Icon(Lucide.SquareTerminal, contentDescription = null)
+        }
+        Spacer(Modifier.weight(1f))
+        TooltipIconButton(label = stringResource(Res.string.settings), onClick = { onOpenSettings(null) }) {
+            Icon(Lucide.Settings, contentDescription = null)
         }
     }
 }
@@ -1517,6 +1600,8 @@ private fun Composer(
                                 stringResource(Res.string.type_message),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                         innerTextField()

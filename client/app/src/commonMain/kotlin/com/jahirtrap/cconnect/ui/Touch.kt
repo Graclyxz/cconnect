@@ -13,14 +13,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.unit.dp
 import com.jahirtrap.cconnect.isCoarsePointer
 
 val LocalIsTouch = compositionLocalOf { false }
 
+val LocalMobileLayout = compositionLocalOf { false }
+
 @Composable
 fun ProvideIsTouch(content: @Composable () -> Unit) {
     var touch by remember { mutableStateOf(isCoarsePointer()) }
-    CompositionLocalProvider(LocalIsTouch provides touch) {
+    val density = LocalDensity.current
+    val size = LocalWindowInfo.current.containerSize
+    val mobile = if (size.width == 0 || size.height == 0) isCoarsePointer()
+        else size.height > size.width || with(density) { size.width.toDp() } < 600.dp
+    CompositionLocalProvider(LocalIsTouch provides touch, LocalMobileLayout provides mobile) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
