@@ -9,12 +9,11 @@ import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.PointerMatcher
-import androidx.compose.foundation.onClick
 import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
 import com.jahirtrap.cconnect.ui.clickable
 import com.jahirtrap.cconnect.ui.combinedClickable
+import com.jahirtrap.cconnect.ui.secondaryClick
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.DragInteraction
@@ -149,7 +148,6 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -1842,7 +1840,7 @@ private fun ConversationRow(
             .clip(RoundedCornerShape(20.dp))
             .then(if (selected) Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)) else Modifier)
             .combinedClickable(onClick = onOpen, onLongClick = { menu = true })
-            .onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary)) { menu = true }
+            .secondaryClick { menu = true }
             .padding(start = 16.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

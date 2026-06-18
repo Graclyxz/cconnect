@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.compose.multiplatform)
+    alias(libs.plugins.android.library)
 }
 
 val appVersionName = "1.2.1"
@@ -58,6 +59,12 @@ kotlin {
         binaries.executable()
     }
 
+    androidTarget {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+        }
+    }
+
     sourceSets {
         val commonMain by getting {
             kotlin.srcDir(generateBuildConfig)
@@ -78,7 +85,15 @@ kotlin {
                 implementation(libs.jetbrains.markdown)
             }
         }
+        val jvmSharedMain by creating {
+            dependsOn(commonMain)
+            dependencies {
+                implementation(libs.sshj)
+                implementation(libs.bouncycastle)
+            }
+        }
         val desktopMain by getting {
+            dependsOn(jvmSharedMain)
             dependencies {
                 implementation(compose.desktop.currentOs)
                 implementation(libs.kotlinx.coroutines.swing)
@@ -105,6 +120,34 @@ kotlin {
                 implementation(libs.kotlinx.browser)
             }
         }
+        val androidMain by getting {
+            dependsOn(jvmSharedMain)
+            dependencies {
+                implementation(libs.androidx.activity.compose)
+                implementation(libs.androidx.core.ktx)
+                implementation(libs.androidx.appcompat)
+                implementation(libs.androidx.lifecycle.process)
+                implementation(libs.androidx.lifecycle.runtime.ktx)
+                implementation(libs.okhttp)
+                implementation(libs.coil.network.okhttp)
+                implementation(libs.androidx.security.crypto)
+                implementation(libs.play.code.scanner)
+            }
+        }
+    }
+}
+
+android {
+    namespace = "com.jahirtrap.cconnect.shared"
+    compileSdk = 37
+
+    defaultConfig {
+        minSdk = 26
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 }
 

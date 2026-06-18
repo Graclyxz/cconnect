@@ -10,3 +10,7 @@
 local.properties
 /.kotlin
 /app/build
+/androidApp/build
+key.properties
+keystore.jks
+*.jks

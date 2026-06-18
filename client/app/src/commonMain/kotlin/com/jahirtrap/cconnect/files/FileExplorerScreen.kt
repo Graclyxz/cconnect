@@ -11,11 +11,10 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.PointerMatcher
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.onClick
 import com.jahirtrap.cconnect.ui.clickable
+import com.jahirtrap.cconnect.ui.secondaryClick
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
@@ -83,7 +82,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.PointerButton
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
@@ -1090,7 +1088,7 @@ private fun EntryRow(
     val detail = if (entry.isDir) pluralStringResource(Res.plurals.item_count, entry.items, entry.items) else formatSize(entry.size)
     val slot by animateFloatAsState(if (selecting) 1f else 0f, label = "selection-slot")
     ListRow(
-        modifier = Modifier.onClick(matcher = PointerMatcher.mouse(PointerButton.Secondary), onClick = onSecondaryClick),
+        modifier = Modifier.secondaryClick(onSecondaryClick),
         icon = when {
             entry.isDir -> Lucide.Folder
             isArchive(entry.name) -> Lucide.FolderArchive

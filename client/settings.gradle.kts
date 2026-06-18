@@ -25,3 +25,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "CConnect"
 include(":app")
+include(":androidApp")

@@ -16,6 +16,14 @@ jna = "5.14.0"
 ktor = "3.0.3"
 kotlinxBrowser = "0.3"
 jetbrainsMarkdown = "0.7.3"
+agp = "9.1.1"
+androidActivity = "1.11.0"
+androidxCore = "1.17.0"
+appcompat = "1.7.1"
+androidLifecycle = "2.9.3"
+playCodeScanner = "16.1.0"
+securityCrypto = "1.1.0-alpha07"
+termlib = "0.0.40"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -47,9 +55,20 @@ ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-js = { module = "io.ktor:ktor-client-js", version.ref = "ktor" }
 kotlinx-browser = { module = "org.jetbrains.kotlinx:kotlinx-browser", version.ref = "kotlinxBrowser" }
 jetbrains-markdown = { module = "org.jetbrains:markdown", version.ref = "jetbrainsMarkdown" }
+androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidActivity" }
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appcompat" }
+androidx-lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.ref = "androidLifecycle" }
+androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "androidLifecycle" }
+play-code-scanner = { module = "com.google.android.gms:play-services-code-scanner", version.ref = "playCodeScanner" }
+androidx-security-crypto = { module = "androidx.security:security-crypto-ktx", version.ref = "securityCrypto" }
+termlib = { module = "org.connectbot:termlib", version.ref = "termlib" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
