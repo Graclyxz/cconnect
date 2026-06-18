@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,12 +33,17 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.rememberTextMeasurer
 import kotlinx.coroutines.delay
@@ -44,6 +51,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
+
+private const val INPUT_SENTINEL = " "
 
 @Composable
 fun Terminal(
@@ -63,15 +72,16 @@ fun Terminal(
     val measurer = rememberTextMeasurer()
     val cell = remember(style) { measurer.measure("M", style).size }
     val density = LocalDensity.current
+    val keyboard = LocalSoftwareKeyboardController.current
     val listState = rememberLazyListState()
-    var input by remember { mutableStateOf(TextFieldValue("")) }
+    var input by remember { mutableStateOf(TextFieldValue(INPUT_SENTINEL, TextRange(INPUT_SENTINEL.length))) }
 
     LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
 
     BoxWithConstraints(
         modifier = modifier
             .background(backgroundColor)
-            .pointerInput(Unit) { detectTapGestures { runCatching { focusRequester.requestFocus() } } },
+            .pointerInput(Unit) { detectTapGestures { runCatching { focusRequester.requestFocus() }; keyboard?.show() } },
     ) {
         val cols = (constraints.maxWidth / cell.width).coerceAtLeast(1)
         val rows = (constraints.maxHeight / cell.height).coerceAtLeast(1)
@@ -114,12 +124,26 @@ fun Terminal(
         BasicTextField(
             value = input,
             onValueChange = { value ->
-                if (value.text.isNotEmpty()) terminalEmulator.send(value.text.toByteArray(Charsets.UTF_8))
-                input = TextFieldValue("")
+                val text = value.text
+                if (text.isEmpty()) {
+                    terminalEmulator.send(byteArrayOf(0x7F))
+                } else {
+                    val added = if (text.startsWith(INPUT_SENTINEL)) text.substring(INPUT_SENTINEL.length) else text
+                    if (added.isNotEmpty()) terminalEmulator.send(added.replace("\n", "\r").toByteArray(Charsets.UTF_8))
+                }
+                input = TextFieldValue(INPUT_SENTINEL, TextRange(INPUT_SENTINEL.length))
             },
             enabled = keyboardEnabled,
             textStyle = TextStyle(color = Color.Transparent),
             cursorBrush = SolidColor(Color.Transparent),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Ascii,
+                autoCorrectEnabled = false,
+                capitalization = KeyboardCapitalization.None,
+                imeAction = ImeAction.Go,
+            ),
+            keyboardActions = KeyboardActions(onGo = { terminalEmulator.send(byteArrayOf(0x0D)) }),
             modifier = Modifier
                 .size(1.dp)
                 .focusRequester(focusRequester)

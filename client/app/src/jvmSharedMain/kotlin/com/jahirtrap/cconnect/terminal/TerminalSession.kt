@@ -37,6 +37,7 @@ import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ChevronLeft
@@ -82,6 +83,7 @@ actual fun TerminalSession(
     }
 
     val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
 
     DisposableEffect(Unit) { onDispose { connection.close() } }
 
@@ -137,7 +139,7 @@ actual fun TerminalSession(
             )
             SoftKeyRow(
                 onKey = { connection.send(it); runCatching { focusRequester.requestFocus() } },
-                onShowKeyboard = { runCatching { focusRequester.requestFocus() } },
+                onShowKeyboard = { runCatching { focusRequester.requestFocus() }; keyboard?.show() },
                 showKeyboard = touch,
                 modifier = Modifier.imePadding(),
             )
