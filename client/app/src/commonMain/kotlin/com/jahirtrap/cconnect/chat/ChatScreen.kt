@@ -57,7 +57,6 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import com.composables.icons.lucide.Activity
 import com.composables.icons.lucide.Archive
 import com.composables.icons.lucide.Radio
-import com.composables.icons.lucide.RadioOff
 import com.composables.icons.lucide.TriangleAlert
 import com.composables.icons.lucide.ArrowUp
 import com.composables.icons.lucide.Check
@@ -1434,7 +1433,7 @@ private fun StreamToggle(streaming: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(if (streaming) Lucide.Radio else Lucide.RadioOff, contentDescription = stringResource(Res.string.streaming), tint = color, modifier = Modifier.size(18.dp))
+        Icon(Lucide.Radio, contentDescription = stringResource(Res.string.streaming), tint = color, modifier = Modifier.size(18.dp))
     }
 }
 

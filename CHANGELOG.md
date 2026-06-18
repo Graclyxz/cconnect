@@ -1,8 +1,8 @@
-- Added a setting to show or hide the time and date in the chat (off by default)
-- Changed the desktop updater — downloads are kept and installed from an Install button instead of launching on their own, so an update no longer gets lost; on Linux it installs through the package manager
-- Changed the horizontal scrollbars (attachment chips, toolbars, code and diffs) to be thinner and no longer drawn on top of the content
-- Fixed the web app staying on Settings on first launch with no way back to the chat
-- Fixed the QR scanner showing on devices without Google Play Services
+- Added per-host model, effort, permission mode and token streaming in the chat toolbar, each able to follow the server default
+- Added "Open in new tab" for chats on the web
+- Added encryption at rest of SSH passwords and environment data (host, token, keys) on Windows and Android
+- Changed transient connection problems (retries and reconnections) to show a status bar instead of a raw error; usage limits and other errors now appear with a warning icon and a clean message
+- Changed the Linux desktop updater to restart the app automatically after installing
 
 > [!NOTE]
 > The web version is available at https://cconnect.pages.dev/

@@ -63,7 +63,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: mobile
+        working-directory: client
     steps:
       - uses: actions/checkout@v4
 
@@ -72,6 +72,8 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: gradle
+
+      - uses: android-actions/setup-android@v3
 
       - name: Write signing config
         run: |
@@ -86,18 +88,18 @@ jobs:
       - name: Build release APK
         run: |
           chmod +x ./gradlew
-          ./gradlew :app:assembleRelease
+          ./gradlew :androidApp:assembleRelease
 
       - uses: actions/upload-artifact@v4
         with:
           name: cconnect-android
-          path: mobile/app/build/outputs/apk/release/*.apk
+          path: client/androidApp/build/outputs/apk/release/*.apk
 
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
           body_path: CHANGELOG.md
-          files: mobile/app/build/outputs/apk/release/*.apk
+          files: client/androidApp/build/outputs/apk/release/*.apk
 
   web:
     runs-on: ubuntu-latest
