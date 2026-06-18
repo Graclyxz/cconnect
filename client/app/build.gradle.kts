@@ -7,7 +7,7 @@ plugins {
     alias(libs.plugins.compose.multiplatform)
 }
 
-val appVersionName = "1.2.0"
+val appVersionName = "1.2.1"
 val supportedServerRange = ">=1.1.5"
 
 val lwjglVersion = libs.versions.lwjgl.get()

@@ -10,11 +10,17 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.util.concurrent.TimeUnit
 import kotlin.coroutines.coroutineContext
 
 object AppUpdater {
 
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(0, TimeUnit.SECONDS)
+        .callTimeout(0, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .build()
 
     private fun dir(context: Context) = File(context.cacheDir, "updates")
     private fun marker(context: Context) = File(dir(context), "pending")

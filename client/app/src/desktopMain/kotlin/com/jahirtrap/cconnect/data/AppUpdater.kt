@@ -9,11 +9,17 @@ import okhttp3.Request
 import java.awt.Desktop
 import java.io.File
 import java.net.URI
+import java.util.concurrent.TimeUnit
 import kotlin.coroutines.coroutineContext
 
 actual object AppUpdater {
 
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(0, TimeUnit.SECONDS)
+        .callTimeout(0, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .build()
 
     private val updateDir = File(System.getProperty("user.home"), ".cconnect/updates")
     private val marker = File(updateDir, "pending")
