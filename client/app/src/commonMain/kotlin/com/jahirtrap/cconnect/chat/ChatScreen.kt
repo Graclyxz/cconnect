@@ -56,6 +56,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
 import com.composables.icons.lucide.Activity
 import com.composables.icons.lucide.Archive
+import com.composables.icons.lucide.TriangleAlert
 import com.composables.icons.lucide.ArrowUp
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.ChevronDown
@@ -683,6 +684,7 @@ fun ChatScreen(
                                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
                                     ) {
                                         if (state.compacting) CompactProgress()
+                                        state.streamStatus?.let { StatusProgress(it) }
                                         if (!sideActive && state.attachments.isNotEmpty()) {
                                             AttachmentsRow(
                                                 attachments = state.attachments,
@@ -1485,6 +1487,27 @@ private fun CompactProgress() {
         }
         Spacer(Modifier.size(6.dp))
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+    }
+}
+
+@Composable
+private fun StatusProgress(kind: String) {
+    val failed = kind == "failed"
+    val color = if (failed) palette.red else palette.orange
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Lucide.TriangleAlert, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                stringResource(if (failed) Res.string.status_failed else Res.string.status_retrying),
+                style = MaterialTheme.typography.bodyMedium,
+                color = color,
+            )
+        }
+        if (!failed) {
+            Spacer(Modifier.size(6.dp))
+            LinearProgressIndicator(color = color, modifier = Modifier.fillMaxWidth())
+        }
     }
 }
 

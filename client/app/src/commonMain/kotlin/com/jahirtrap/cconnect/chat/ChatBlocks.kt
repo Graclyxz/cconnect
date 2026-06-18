@@ -87,6 +87,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MessageSquare
 import com.composables.icons.lucide.Shield
 import com.composables.icons.lucide.SquareTerminal
+import com.composables.icons.lucide.TriangleAlert
 import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.PlayFilled
@@ -256,7 +257,16 @@ fun ChatMessageItem(
             Role.COMPACT -> message.compact?.let { CompactBlock(it, expanded = expanded, onToggle = onToggle) }
 
             Role.ERROR -> Band(MaterialTheme.colorScheme.errorContainer) {
-                SelectableText(message.text, MaterialTheme.typography.bodyMedium, MaterialTheme.colorScheme.onErrorContainer)
+                Row(verticalAlignment = Alignment.Top) {
+                    Icon(
+                        Lucide.TriangleAlert,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = 1.dp).size(18.dp),
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    SelectableText(message.text, MaterialTheme.typography.bodyMedium, MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.weight(1f))
+                }
             }
 
             Role.SYSTEM -> Plain {

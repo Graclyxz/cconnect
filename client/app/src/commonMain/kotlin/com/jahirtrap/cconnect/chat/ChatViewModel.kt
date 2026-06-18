@@ -88,6 +88,7 @@ data class ChatUiState(
     val transcriptExhausted: Boolean = false,
     val followBottom: Boolean = true,
     val compacting: Boolean = false,
+    val streamStatus: String? = null,
     val sideChat: SideChatState? = null,             // persisted side conversation (kept while the session lives)
     val sideChatOpen: Boolean = false,               // whether the side panel is currently shown
     val showWorking: String = "label",               // quick-chat working indicator visibility (label/off)
@@ -305,7 +306,7 @@ class ChatViewModel : ViewModel() {
         currentThinkingId = null
         _state.update {
             val todos = if (it.todos.all { t -> t.status == "completed" }) emptyList() else it.todos
-            resetToInitialWindow(it).copy(streaming = true, compacting = compacting, error = null, todos = todos)
+            resetToInitialWindow(it).copy(streaming = true, compacting = compacting, streamStatus = null, error = null, todos = todos)
         }
         client.sendPrompt(prompt, attachments)
     }
@@ -428,6 +429,7 @@ class ChatViewModel : ViewModel() {
                 sessionColor = null,
                 todos = emptyList(),
                 streaming = false,
+                streamStatus = null,
                 oldestLoadedIndex = null,
                 transcriptLoading = false,
                 transcriptExhausted = false,
@@ -460,6 +462,7 @@ class ChatViewModel : ViewModel() {
                 sessionColor = null,
                 todos = emptyList(),
                 streaming = false,
+                streamStatus = null,
                 historyProjects = emptyList(),
                 historySessions = emptyList(),
                 historyProjectKey = null,
@@ -759,6 +762,7 @@ class ChatViewModel : ViewModel() {
                 addMessage(Role.FILE_CHANGE, text = "", toolUseId = event.id, path = event.path, diffLines = event.diffLines, labelOnly = event.labelOnly)
             }
             is ServerEvent.Compacting -> _state.update { it.copy(compacting = true) }
+            is ServerEvent.Status -> _state.update { it.copy(streamStatus = if (event.kind == "ok") null else event.kind) }
             is ServerEvent.Compact -> {
                 currentAssistantId = null
                 currentThinkingId = null
@@ -976,7 +980,7 @@ class ChatViewModel : ViewModel() {
     private fun resetStreaming() {
         currentAssistantId = null
         currentThinkingId = null
-        _state.update { it.copy(streaming = false, compacting = false, pendingToolIds = emptySet()) }
+        _state.update { it.copy(streaming = false, compacting = false, pendingToolIds = emptySet(), streamStatus = it.streamStatus?.takeIf { s -> s == "failed" }) }
     }
 
     private fun dismissPendingInteractions() {

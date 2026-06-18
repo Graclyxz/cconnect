@@ -1,5 +1,6 @@
 """Wraps the Claude Agent SDK query() into a stream of normalized event dicts."""
 
+import asyncio
 import difflib
 import json
 import os
@@ -15,6 +16,28 @@ from services import settings_store
 
 _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 _FILE_EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
+
+_TRANSIENT_API_STATUS = frozenset({500, 502, 503, 504, 529})
+_TRANSIENT_PATTERNS = (
+    "no response from api", "overloaded", "connection error", "connection reset",
+    "econnreset", "etimedout", "timed out", "timeout", "socket hang up",
+    "fetch failed", "network error", "service unavailable", "bad gateway",
+    "gateway timeout", "stream error", "premature close",
+)
+_USAGE_PATTERNS = ("rate limit", "rate_limit", "usage limit", "quota", "too many requests")
+
+
+def _looks_transient(status: int | None, text: str | None) -> bool:
+    low = (text or "").lower()
+    if any(p in low for p in _USAGE_PATTERNS):
+        return False
+    if status in _TRANSIENT_API_STATUS:
+        return True
+    return any(p in low for p in _TRANSIENT_PATTERNS)
+
+
+def _clean_error_text(text: str | None) -> str:
+    return (text or "").strip() or "Unknown error"
 
 
 def _system_append(base_url: Optional[str], cwd: Optional[str] = None) -> str:
@@ -420,15 +443,28 @@ async def run_prompt(
     )
     if ultracode:
         options_kwargs["settings"] = json.dumps({"ultracode": True})
+    status_state = {"retrying": False}
     hooks_map: dict[str, Any] = {}
     if ask_user is not None:
         options_kwargs["can_use_tool"] = _build_can_use_tool(ask_user)
         hooks_map["PreToolUse"] = [HookMatcher(matcher=None, hooks=[_keep_stream_open])]
     if emit is not None:
+        loop = asyncio.get_running_loop()
+
         async def _pre_compact(input_data, tool_use_id, context):
             await emit({"type": "compacting", "trigger": (input_data or {}).get("trigger")})
             return {}
         hooks_map["PreCompact"] = [HookMatcher(matcher=None, hooks=[_pre_compact])]
+
+        def _on_stderr(line: str):
+            low = line.lower()
+            if "retry" in low or _looks_transient(None, line):
+                status_state["retrying"] = True
+                try:
+                    loop.create_task(emit({"type": "status", "kind": "retrying"}))
+                except RuntimeError:
+                    pass
+        options_kwargs["stderr"] = _on_stderr
     if hooks_map:
         options_kwargs["hooks"] = hooks_map
     options = ClaudeAgentOptions(**options_kwargs)
@@ -444,6 +480,9 @@ async def run_prompt(
 
     try:
         async for message in query(prompt=prompt_arg, options=options):
+            if status_state["retrying"] and emit is not None:
+                status_state["retrying"] = False
+                await emit({"type": "status", "kind": "ok"})
             if isinstance(message, StreamEvent):
                 raw = message.event
                 idx = raw.get("index") if isinstance(raw, dict) else None
@@ -490,6 +529,16 @@ async def run_prompt(
                 else:
                     yield {"type": "system", "subtype": subtype, "data": data}
             elif isinstance(message, ResultMessage):
+                if getattr(message, "is_error", None):
+                    api_status = getattr(message, "api_error_status", None)
+                    errs = getattr(message, "errors", None) or []
+                    detail = "; ".join(e for e in errs if e) or (getattr(message, "result", None) or "")
+                    if not detail and api_status:
+                        detail = f"API error {api_status}"
+                    if _looks_transient(api_status, detail):
+                        yield {"type": "status", "kind": "failed"}
+                    else:
+                        yield {"type": "error", "message": _clean_error_text(detail)}
                 yield {
                     "type": "result",
                     "session_id": getattr(message, "session_id", None),
@@ -498,7 +547,11 @@ async def run_prompt(
                 }
     except Exception as exc:
         logger.error(f"run_prompt failed: {type(exc).__name__}: {exc}")
-        yield {"type": "error", "message": f"{type(exc).__name__}: {exc}"}
+        detail = getattr(exc, "stderr", None) or str(exc)
+        if _looks_transient(None, detail):
+            yield {"type": "status", "kind": "failed"}
+        else:
+            yield {"type": "error", "message": _clean_error_text(detail)}
 
 
 async def generate_title(transcript: str) -> str:

@@ -232,6 +232,8 @@
     <string name="close">Close</string>
     <string name="clear">Clear</string>
     <string name="compacting">Compacting</string>
+    <string name="status_retrying">Retrying</string>
+    <string name="status_failed">Temporary failure</string>
     <string name="loading">Loading</string>
     <string name="confirm">Confirm</string>
     <string name="visibility">Chat visibility</string>

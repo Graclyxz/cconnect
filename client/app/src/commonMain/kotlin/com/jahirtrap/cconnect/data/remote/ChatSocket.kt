@@ -268,6 +268,7 @@ class ChatSocket(private val scope: CoroutineScope) {
                 labelOnly = flag("label"),
             )
             "compacting" -> ServerEvent.Compacting(trigger = str("trigger"))
+            "status" -> ServerEvent.Status(kind = str("kind").orEmpty())
             "compact" -> ServerEvent.Compact(
                 trigger = str("trigger"),
                 preTokens = obj["pre_tokens"]?.jsonPrimitive?.intOrNull,
