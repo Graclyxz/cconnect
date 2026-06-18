@@ -56,6 +56,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.selection.SelectionContainer
 import com.composables.icons.lucide.Activity
 import com.composables.icons.lucide.Archive
+import com.composables.icons.lucide.Radio
+import com.composables.icons.lucide.RadioOff
 import com.composables.icons.lucide.TriangleAlert
 import com.composables.icons.lucide.ArrowUp
 import com.composables.icons.lucide.Check
@@ -267,6 +269,13 @@ fun ChatScreen(
     var showRewindSheet by remember { mutableStateOf(false) }
     LaunchedEffect(expanded) {
         if (expanded) {
+            focusManager.clearFocus()
+            vm.refreshEnvironments()
+            vm.ensureHistoryLoaded()
+        }
+    }
+    LaunchedEffect(drawerState.targetValue) {
+        if (drawerState.targetValue == DrawerValue.Open) {
             focusManager.clearFocus()
             vm.refreshEnvironments()
             vm.ensureHistoryLoaded()
@@ -696,15 +705,20 @@ fun ChatScreen(
                                             ready = state.capabilitiesReady,
                                             disconnected = state.connection == ConnectionState.Disconnected,
                                             connecting = state.connection == ConnectionState.Connecting,
-                                            model = state.model,
+                                            model = state.modelOverride.ifEmpty { state.model },
+                                            modelSelected = state.modelOverride,
                                             models = state.capabilities.models,
                                             onModel = vm::setModel,
-                                            effort = state.effort,
+                                            effort = state.effortOverride.ifEmpty { state.effort },
+                                            effortSelected = state.effortOverride,
                                             effortLevels = state.capabilities.effortLevels,
                                             onEffort = vm::setEffort,
-                                            permissionMode = state.permissionMode,
+                                            permissionMode = state.permissionOverride.ifEmpty { state.permissionMode },
+                                            permissionSelected = state.permissionOverride,
                                             permissionModes = state.capabilities.permissionModes,
                                             onPermissionMode = vm::setPermissionMode,
+                                            streaming = state.streamingOverride ?: state.streamTokens,
+                                            onStreaming = vm::toggleStreaming,
                                             onQuickChat = vm::openSideChat,
                                             quickChatActive = sc != null && sc.messages.isNotEmpty(),
                                         )
@@ -1312,14 +1326,19 @@ private fun ChatToolbar(
     disconnected: Boolean,
     connecting: Boolean,
     model: String,
+    modelSelected: String,
     models: List<com.jahirtrap.cconnect.data.ModelOption>,
     onModel: (String) -> Unit,
     effort: String,
+    effortSelected: String,
     effortLevels: List<String>,
     onEffort: (String) -> Unit,
     permissionMode: String,
+    permissionSelected: String,
     permissionModes: List<PermissionMode>,
     onPermissionMode: (String) -> Unit,
+    streaming: Boolean,
+    onStreaming: () -> Unit,
     onQuickChat: () -> Unit = {},
     quickChatActive: Boolean = false,
 ) {
@@ -1372,20 +1391,21 @@ private fun ChatToolbar(
                 ToolbarLoadingChip()
                 return@Row
             }
+            val defaultLabel = stringResource(Res.string.server_default)
             SelectorChip(
                 label = models.firstOrNull { it.id == model }?.label ?: model,
                 icon = Lucide.Sparkles,
                 tint = accent,
-                options = models.map { it.id to it.label },
-                selected = model,
+                options = listOf("" to defaultLabel) + models.map { it.id to it.label },
+                selected = modelSelected,
                 onSelect = onModel,
             )
             SelectorChip(
                 label = effort,
                 icon = Lucide.Gauge,
                 tint = accent,
-                options = effortLevels.map { it to it },
-                selected = effort,
+                options = listOf("" to defaultLabel) + effortLevels.map { it to it },
+                selected = effortSelected,
                 onSelect = onEffort,
             )
             val styles = permissionModes.associate { it.id to permissionStyle(it.id).let { s -> s.icon to s.color } }
@@ -1393,12 +1413,28 @@ private fun ChatToolbar(
                 label = permissionModes.firstOrNull { it.id == permissionMode }?.label ?: permissionMode,
                 icon = pstyle.icon,
                 tint = pstyle.color,
-                options = permissionModes.map { it.id to it.label },
-                selected = permissionMode,
+                options = listOf("" to defaultLabel) + permissionModes.map { it.id to it.label },
+                selected = permissionSelected,
                 optionStyle = { styles[it] ?: (pstyle.icon to pstyle.color) },
                 onSelect = onPermissionMode,
             )
+            StreamToggle(streaming = streaming, onClick = onStreaming)
         }
+    }
+}
+
+@Composable
+private fun StreamToggle(streaming: Boolean, onClick: () -> Unit) {
+    val color = if (streaming) palette.green else MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(if (streaming) Lucide.Radio else Lucide.RadioOff, contentDescription = stringResource(Res.string.streaming), tint = color, modifier = Modifier.size(18.dp))
     }
 }
 

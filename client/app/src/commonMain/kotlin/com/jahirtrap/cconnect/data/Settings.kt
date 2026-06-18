@@ -91,6 +91,11 @@ class Settings {
         if (activeEnvironmentId == id) activeEnvironmentId = environments.firstOrNull()?.id
     }
 
+    fun updateActiveEnvironment(transform: (EnvironmentProfile) -> EnvironmentProfile) {
+        val env = activeEnvironment ?: return
+        upsertEnvironment(transform(env))
+    }
+
     private fun syncBackend() {
         activeEnvironment?.let {
             Backend.kind = it.kind
@@ -195,6 +200,10 @@ class Settings {
                     authHeaderName = o["authHeaderName"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                     authHeaderValue = o["authHeaderValue"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                     directory = o["directory"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    model = o["model"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    effort = o["effort"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    permissionMode = o["permissionMode"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    streaming = o["streaming"]?.jsonPrimitive?.booleanOrNull,
                 )
             }
         }.getOrDefault(emptyList())
@@ -216,6 +225,10 @@ class Settings {
                     put("authHeaderName", p.authHeaderName)
                     put("authHeaderValue", p.authHeaderValue)
                     put("directory", p.directory)
+                    put("model", p.model)
+                    put("effort", p.effort)
+                    put("permissionMode", p.permissionMode)
+                    p.streaming?.let { put("streaming", it) }
                 }
             }
         }.toString()

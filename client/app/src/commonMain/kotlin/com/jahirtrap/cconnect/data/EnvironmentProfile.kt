@@ -13,6 +13,10 @@ data class EnvironmentProfile(
     val authHeaderName: String = "",
     val authHeaderValue: String = "",
     val directory: String = "",
+    val model: String = "",               // "" = inherit server default
+    val effort: String = "",              // "" = inherit server default
+    val permissionMode: String = "",      // "" = inherit server default
+    val streaming: Boolean? = null,       // null = inherit server default
 ) {
     val address: String get() = if (port != null) "$host:$port" else host
 }

@@ -70,6 +70,10 @@ data class ChatUiState(
     val model: String = "opus[1m]",
     val effort: String = "xhigh",
     val streamTokens: Boolean = true,
+    val modelOverride: String = "",
+    val effortOverride: String = "",
+    val permissionOverride: String = "",
+    val streamingOverride: Boolean? = null,
     val capabilities: Capabilities = Capabilities(),
     val capabilitiesReady: Boolean = false,
     val sessionId: String? = null,
@@ -148,6 +152,7 @@ class ChatViewModel : ViewModel() {
 
     init {
         applyDefaultDirectory()
+        loadEnvOverrides()
         viewModelScope.launch {
             client.events.collect { (side, event) -> if (side) onSideEvent(event) else onEvent(event) }
         }
@@ -156,6 +161,18 @@ class ChatViewModel : ViewModel() {
     private fun applyDefaultDirectory() {
         settings.cwd = settings.activeEnvironment?.directory.orEmpty()
         defaultProjectApplied = false
+    }
+
+    private fun loadEnvOverrides() {
+        val env = settings.activeEnvironment
+        _state.update {
+            it.copy(
+                modelOverride = env?.model ?: "",
+                effortOverride = env?.effort ?: "",
+                permissionOverride = env?.permissionMode ?: "",
+                streamingOverride = env?.streaming,
+            )
+        }
     }
 
     fun connect() {
@@ -174,6 +191,7 @@ class ChatViewModel : ViewModel() {
                     it.copy(model = s.model, effort = s.effort, permissionMode = s.permissionMode, streamTokens = s.streaming, showWorking = s.showWorking)
                 }
             }
+            loadEnvOverrides()
             _state.update { it.copy(capabilitiesReady = true) }
             client.connect()
         }
@@ -244,7 +262,14 @@ class ChatViewModel : ViewModel() {
 
     private fun startSession(resume: String?) {
         val s = _state.value
-        client.sendStart(settings.cwd, s.permissionMode, resume, s.model, s.effort, s.streamTokens)
+        client.sendStart(
+            settings.cwd,
+            s.permissionOverride.ifEmpty { s.permissionMode },
+            resume,
+            s.modelOverride.ifEmpty { s.model },
+            s.effortOverride.ifEmpty { s.effort },
+            s.streamingOverride ?: s.streamTokens,
+        )
     }
 
     fun sendPrompt(text: String) {
@@ -399,24 +424,27 @@ class ChatViewModel : ViewModel() {
     }
 
     fun setPermissionMode(mode: String) {
-        _state.update { it.copy(permissionMode = mode) }
-        viewModelScope.launch { SettingsApi.update(permissionMode = mode) }
-        if (_state.value.connection == ConnectionState.Connected) client.sendSetPermissionMode(mode)
+        settings.updateActiveEnvironment { it.copy(permissionMode = mode) }
+        _state.update { it.copy(permissionOverride = mode) }
+        val effective = mode.ifEmpty { _state.value.permissionMode }
+        if (_state.value.connection == ConnectionState.Connected) client.sendSetPermissionMode(effective)
     }
 
     fun setModel(model: String) {
-        _state.update { it.copy(model = model) }
-        viewModelScope.launch { SettingsApi.update(model = model) }
+        settings.updateActiveEnvironment { it.copy(model = model) }
+        _state.update { it.copy(modelOverride = model) }
     }
 
     fun setEffort(effort: String) {
-        _state.update { it.copy(effort = effort) }
-        viewModelScope.launch { SettingsApi.update(effort = effort) }
+        settings.updateActiveEnvironment { it.copy(effort = effort) }
+        _state.update { it.copy(effortOverride = effort) }
     }
 
-    fun setStreaming(enabled: Boolean) {
-        _state.update { it.copy(streamTokens = enabled) }
-        viewModelScope.launch { SettingsApi.update(streaming = enabled) }
+    fun toggleStreaming() {
+        val s = _state.value
+        val next = !(s.streamingOverride ?: s.streamTokens)
+        settings.updateActiveEnvironment { it.copy(streaming = next) }
+        _state.update { it.copy(streamingOverride = next) }
     }
 
     fun newSession() {
@@ -471,6 +499,7 @@ class ChatViewModel : ViewModel() {
                 transcriptExhausted = false,
             )
         }
+        loadEnvOverrides()
         connect()
         loadHistory()
     }

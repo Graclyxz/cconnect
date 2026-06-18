@@ -61,6 +61,7 @@
     <string name="cli_updating">Updating</string>
     <string name="server_unavailable">Server unavailable</string>
     <string name="generation">Generation</string>
+    <string name="server_default">Server</string>
     <string name="model">Model</string>
     <string name="effort">Effort</string>
     <string name="streaming">Stream tokens</string>
