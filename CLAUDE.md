@@ -11,25 +11,24 @@ MCP servers, skills, memories, user prompt), ship a full file manager over the
 backend's shared folder, and a live PC monitor (CPU/GPU/memory/disks + server
 logs).
 
-The mobile and desktop apps also bundle a standalone SSH client (saved hosts,
-embedded terminal, OS auto-detection) — see `mobile/CLAUDE.md` / `client/CLAUDE.md`.
+The desktop and Android apps also bundle a standalone SSH client (saved hosts,
+embedded terminal, OS auto-detection) — see `client/CLAUDE.md`.
 
-**Monorepo** — backend, mobile and client are a single project and MUST stay in
-sync. Changes to API contracts, event shapes, or schemas have to be reflected
-everywhere. The mobile (Android) and client (desktop/web) apps mirror each other
-1:1 — a feature that applies to both lands in both.
+**Monorepo** — backend and client are the active project and MUST stay in sync.
+Changes to API contracts, event shapes, or schemas have to be reflected in both.
 
 - **Backend**: FastAPI (Python 3.11+ + Pydantic 2 + Uvicorn) — bridge between the
   apps and Claude Code via the Agent SDK. Runs on the user's PC. Serves all
   clients identically.
-- **Mobile**: Android (Jetpack Compose, Kotlin 2.2, BOM 2025.09). Connects via
-  WebSocket and REST.
 - **Client**: Compose Multiplatform (Kotlin) — one codebase building a native
-  **desktop** app (Windows/Linux/macOS) and a **web** app (WebAssembly, hosted on
-  Cloudflare Pages). Same WebSocket/REST contract.
+  **desktop** app (Windows/Linux/macOS), a **web** app (WebAssembly, hosted on
+  Cloudflare Pages) and a native **Android** app, all over the same WebSocket/REST
+  contract.
+- **Mobile** (`mobile/`): the original standalone Android app (Jetpack Compose).
+  **Legacy — kept for reference only, not built or shipped.** The client's Android
+  target replaces it.
 
-See `backend/CLAUDE.md`, `mobile/CLAUDE.md` and `client/CLAUDE.md` for
-module-specific rules.
+See `backend/CLAUDE.md` and `client/CLAUDE.md` for module-specific rules.
 
 ## Architecture
 
@@ -55,7 +54,7 @@ module-specific rules.
 Three-way compatibility, declared in `backend/pyproject.toml`:
 
 - `[project] version` — the server version.
-- `[tool.cconnect] supported-app` — minimum mobile app version the server accepts.
+- `[tool.cconnect] supported-app` — minimum client app version the server accepts.
 - `[tool.cconnect] supported-cli` — minimum Claude CLI version the backend's
   features are validated against.
 
@@ -84,29 +83,28 @@ cd backend && python run.py --expose tailscale # Public HTTPS via Funnel
 cd backend && python run.py --production       # Multi-worker (Linux/macOS)
 ```
 
-### Mobile
-```bash
-cd mobile && ./gradlew :app:installRelease     # Signed release to connected device
-cd mobile && ./gradlew :app:assembleRelease    # Signed release APK
-```
-
-### Client (desktop + web)
+### Client (desktop + web + Android)
 ```bash
 cd client && ./gradlew :app:run                                 # Run desktop
 cd client && ./gradlew :app:wasmJsBrowserDevelopmentRun         # Run web
-cd client && ./gradlew :app:compileKotlinDesktop :app:compileKotlinWasmJs  # Compile-check both
+cd client && ./gradlew :app:compileKotlinDesktop :app:compileDebugKotlinAndroid :app:compileKotlinWasmJs  # Compile-check all
 cd client && ./gradlew :app:packageDistributionForCurrentOS     # Desktop installers
-cd client && ./gradlew :app:wasmJsBrowserDistribution           # Web static bundle (→ Cloudflare Pages in CI)
+cd client && ./gradlew :app:wasmJsBrowserDistribution           # Web static bundle (→ Cloudflare Pages)
+cd client && ./gradlew :androidApp:assembleRelease              # Android APK (signed if client/key.properties exists)
 ```
-Releases are cut by `.github/workflows/release.yml` on a `x.y.z` tag: desktop
-installers, the Android APK, and the web deploy to Cloudflare Pages all ship
-together.
+`.github/workflows/android.yml` builds the client's Android APK on push/PR and
+uploads it as an artifact (signed when the `KEYSTORE_*` repo secrets are set).
+
+### Mobile (legacy)
+`mobile/` is the original standalone Android app — kept for reference, **not built
+or shipped**. The client's `androidApp` target replaces it.
 
 ## Key Rules
 
-1. **Monorepo consistency** — backend, mobile and client must agree on event
-   types, field names, and the QR payload shape (`{url, token}` JSON). Mobile and
-   client mirror each other (same screens/models); apply applicable features to both.
+1. **Monorepo consistency** — backend and client must agree on event types, field
+   names, and the QR payload shape (`{url, token}` JSON). The client is the single
+   app (desktop/web/Android share `commonMain`); `mobile/` is legacy and no longer
+   kept in sync.
 2. **Version contract** — when a feature needs a newer app/server/CLI, update
    `version` / `supported-app` / `supported-cli` in `backend/pyproject.toml`
    and the app's `versionName` / `SUPPORTED_SERVER` accordingly.

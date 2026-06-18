@@ -1,5 +1,10 @@
 # CLAUDE.md — CConnect Mobile
 
+> **LEGACY — not built or shipped.** The Android app now ships from the Compose
+> Multiplatform `client/` (its `androidApp` target). `mobile/` is kept for
+> reference only and is no longer kept in sync; build/ship the Android app from
+> `client/`. New Android work goes in `client/` (`commonMain` + `androidMain`).
+
 Android app (Jetpack Compose, Kotlin 2.2, Compose BOM 2025.09, Material3
 1.5 alpha) that drives the CConnect backend via REST + WebSocket. Talks to a
 Claude Code instance running on a PC, locally over Tailscale or publicly over

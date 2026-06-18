@@ -75,7 +75,7 @@ backend/
 ├── mcps/                    # In-process MCP server (auto-registered tools) — see below
 └── services/
     ├── live_sessions.py     # In-memory LiveSession + SessionRegistry — turns decoupled from the WS connection; reattach by channel, idle reaper, seq'd outbox replay
-    ├── claude_runtime.py    # SDK query() -> normalized event stream; system-prompt append; side-question + usage helpers; title generation; PreCompact hook emits `compacting` via the LiveSession `emit` callback
+    ├── claude_runtime.py    # SDK query() -> normalized event stream; system-prompt append; side-question + usage helpers; title generation; PreCompact hook emits `compacting`; stderr callback + result/exception classification emit `status` (transient retries) vs clean `error` (usage limits/auth)
     ├── sessions.py          # Read transcripts from ~/.claude/projects (path-traversal safe); checkpoints; image extraction
     ├── rewind.py            # Rewind preview/execute via SDK control requests; pending rewind id in rewind_pending.json
     ├── attachments.py       # compose_prompt(): native image blocks + @-mentions for chat attachments
@@ -225,6 +225,16 @@ Control/ephemeral messages (`ready`, `permission_mode`, `history_chunk`,
   surface it in time.
 - `compact` / `compact_summary` — compaction block and its summary, filled in
   live; `compact` (the boundary) also turns the progress bar back off.
+- `status` (`kind ∈ retrying | ok | failed`) — transient retry/reconnect
+  indicator for the client's status bar. While the CLI is retrying the API,
+  `run_prompt`'s `stderr` callback emits `retrying` (out-of-band via `emit`),
+  cleared with `ok` on the next real message; a final transient failure yields
+  `failed`. **Error classification** (`_looks_transient`): a failing
+  `ResultMessage` (`is_error` + `api_error_status` 5xx, or "no response from
+  API" / connection text) or a `ProcessError` → `status`; usage-limit (429 /
+  rate-limit), auth, billing, etc. → a normal `error` with a clean message
+  (no Python wrapper). The client shows `status` as an orange/red bar and
+  `error` as a block with a warning icon.
 - `command` (markdown) — output of local slash commands.
 - `permission_mode` — ack of `set_permission_mode`.
 - **`file_change`** (id, path, diff_lines) — emitted instead of `tool_use` for

@@ -1,22 +1,28 @@
-# CLAUDE.md — CConnect Client (desktop + web)
+# CLAUDE.md — CConnect Client (desktop + web + Android)
 
 Compose Multiplatform app (Kotlin, Material3 1.5 alpha, MaterialExpressive) that
-drives the CConnect backend via REST + WebSocket — the desktop sibling of the
-Android app, plus a browser build. One codebase, two targets:
+drives the CConnect backend via REST + WebSocket. One codebase, three targets:
 
 - **desktop** — JVM (`jvm("desktop")`), packaged as native installers for
   Windows, Linux and macOS.
 - **wasmJs** — the same UI compiled to WebAssembly, a static site hosted on
   Cloudflare Pages.
+- **android** — `androidTarget()`. Because AGP 9 rejects the KMP plugin on a
+  `com.android.application` module, `:app` is a `com.android.library` and the thin
+  `:androidApp` module (`com.android.application`) wraps it into the APK.
+
+`desktopMain` and `androidMain` share an intermediate **`jvmSharedMain`** source
+set (both JVM) for JVM-only code — notably the SSH terminal (sshj + the libvterm
+emulator) and `SshConnection`.
 
 Talks to a Claude Code instance running on a PC, locally over Tailscale or
 publicly over a Tailscale Funnel.
 
-Package: `com.jahirtrap.cconnect`. **This is the mirror of `mobile/`** — feature
-set, screens, models and event shapes are kept 1:1 with the Android app; the
-differences are the platform plumbing (expect/actual), desktop/web input
-(mouse, keyboard, clipboard), and packaging. When a feature lands here it should
-match mobile, and vice-versa.
+Package: `com.jahirtrap.cconnect`. **This is the single CConnect app** — desktop,
+web and Android all build from `commonMain`; real platform differences live behind
+expect/actual and the `LocalIsTouch` / `isWebPlatform` / `isAndroidPlatform`
+locals. `mobile/` is the old standalone Android app, now **legacy** — not built or
+kept in sync.
 
 ---
 
@@ -95,11 +101,16 @@ in `commonMain` with a `desktop` + `wasmJs` actual:
 | `FilesUrl` / `ChatUrl` | no-op (in-memory folder history instead) | `window.history` pushState/popstate (SPA URLs) |
 | `Clock` / `DateFormat` / `NumberFormat` / `TimeFormat` | `java.time` / `java.text` | JS `Date` / `Intl` |
 | `AppPrefs` | file/Java Prefs | `localStorage` |
-| `TerminalSession` | sshj-backed PTY (SshConnection + libvterm TerminalEmulator) | stub (SSH is desktop-only) |
+| `TerminalSession` | sshj-backed PTY (SshConnection + libvterm TerminalEmulator), shared with android in **`jvmSharedMain`** | stub (no JVM sshj in the browser) |
+
+**Android** (`androidMain`) supplies its own actual for each of the above
+(`AppPrefs` → `EncryptedSharedPreferences` for the secure store; `Notifier` →
+NotificationManager; `FilePicker`/`AttachmentFile` → SAF; `TerminalSession` →
+shared with desktop via `jvmSharedMain`; etc.) plus `isAndroidPlatform = true`.
 
 **Rule:** never branch on platform inside `commonMain` with ad-hoc checks beyond
-`isWebPlatform` / the CompositionLocals below; put real divergence behind an
-expect/actual.
+`isWebPlatform` / `isAndroidPlatform` / the CompositionLocals below; put real
+divergence behind an expect/actual.
 
 ## Touch & layout detection (single source of truth)
 
@@ -170,7 +181,18 @@ implicit 443; defaults 8723 for http), `authKind ∈ none|bearer|basic|header`.
 environment form offers only HTTPS** (`kind` defaults to "https", the protocol
 SelectField hides HTTP) because the HTTPS page can't reach `http://`/`ws://`
 backends (mixed content); desktop keeps both for local backends. QR setup is
-desktop/web manual (paste URL + token); the camera-scan flow is mobile-only.
+desktop/web manual (paste URL + token); the camera-scan flow is Android-only
+(`androidMain` `QrScan`).
+
+**Per-host overrides:** `EnvironmentProfile` also stores `model` / `effort` /
+`permissionMode` (`""` = inherit the server default) and `streaming` (`Boolean?`,
+null = inherit), edited from the chat toolbar — each selector has a "Servidor"
+entry, and streaming is a `Radio`/`RadioOff` toggle. The effective value
+(`override ?: server`) is what the toolbar shows and what the WS `start` sends;
+Settings → Generación still sets the **server** default via `SettingsApi.update`.
+The environments blob and SSH passwords are kept in a **secure** `AppPrefs`
+(`AppPrefs(name, secure = true)` → Android EncryptedSharedPreferences, Windows
+DPAPI via JNA; plain elsewhere).
 
 ## WebSocket event handling
 
@@ -187,7 +209,8 @@ each into a `ChatMessage` or state mutation — identical to mobile. Notable:
 | `command` / `usage` | local-command markdown / ephemeral plan-usage markdown |
 | **`compacting`** | sets `state.compacting=true` → the "Compactando" progress bar (fired by the backend's PreCompact hook, so it shows on **auto**-compaction too, not just manual `/compact`) |
 | `compact` / `compact_summary` | compaction block + summary; `compact` also clears `compacting` |
-| `result` / `done` / `interrupted` / `error` | session id / UI transitions |
+| **`status`** | transient retry/reconnect indicator (`streamStatus`) → orange "Reintentando" bar (kind `retrying`) / red "Fallo temporal" (`failed`); `ok` clears it. The backend classifies API failures: transient (5xx / connection / "no response from API") → `status`, usage-limit/auth/etc → `error` |
+| `result` / `done` / `interrupted` / `error` | session id / UI transitions; an `error` block now shows a red warning icon + the clean SDK message |
 | `history_chunk` | older messages backfill (prepended; non-active session dropped) |
 
 Reconnect/replay (`channel`+`last_seq` resume tokens), the cursor-based
@@ -220,20 +243,26 @@ ServerOutdated / CliOutdated NoticeCards) comes from the backend
   caches + reloads). The service worker (`sw.js`) is network-first with
   `cache: 'no-cache'` so a redeployed build is picked up on reload.
 
-## SSH client (desktop only)
+## SSH client (desktop + Android)
 
-`TerminalScreen` (commonMain UI) over `TerminalSession` (expect). The desktop
-actual is the full client — `SshConnection` (sshj, password auth,
-`PromiscuousVerifier`, OS probe, debounced resize) + a libvterm-style
-`TerminalEmulator`/`TerminalView`, with the BouncyCastle provider swapped in
-`Main` for modern OpenSSH defaults. The wasmJs actual is a stub (no JVM sshj in
-the browser).
+`TerminalScreen` (commonMain UI) over `TerminalSession` (expect). The desktop and
+Android actual is the full client, **shared in `jvmSharedMain`** — `SshConnection`
+(sshj, password auth, `PromiscuousVerifier`, OS probe, debounced resize) + a
+libvterm-style `TerminalEmulator`/`TerminalView`, with BouncyCastle for modern
+OpenSSH defaults. On touch, input goes through a hidden `BasicTextField`: a space
+sentinel makes the on-screen Backspace fire, `KeyboardType.Ascii` +
+`autoCorrectEnabled = false` keep characters literal, and `imeAction = Go` sends
+CR; physical keys still route through `onPreviewKeyEvent`. The wasmJs actual is a
+stub (no JVM sshj in the browser).
 
 ## Build / packaging
 
 - **Run desktop:** `./gradlew :app:run`. **Run web:** `./gradlew :app:wasmJsBrowserDevelopmentRun`.
-- **Compile-check (use this to verify edits — do NOT build mobile here):**
-  `./gradlew :app:compileKotlinDesktop :app:compileKotlinWasmJs`.
+- **Compile-check (use this to verify edits):**
+  `./gradlew :app:compileKotlinDesktop :app:compileDebugKotlinAndroid :app:compileKotlinWasmJs`.
+- **Android APK:** `./gradlew :androidApp:assembleRelease` →
+  `androidApp/build/outputs/apk/release/CConnect-<ver>.apk` (R8 + proguard; signed
+  when `client/key.properties` + the keystore exist, unsigned otherwise).
 - **Desktop installers:** `./gradlew :app:packageDistributionForCurrentOS` →
   `app/build/compose/binaries/main/{msi,exe,deb,rpm,dmg}/`. `nativeDistributions`
   (build.gradle.kts) sets `packageName=CConnect`, the Windows `upgradeUuid` +
@@ -242,23 +271,25 @@ the browser).
 - **Web build:** `./gradlew :app:wasmJsBrowserDistribution` →
   `app/build/dist/wasmJs/productionExecutable/` (index.html, cconnect.js, the
   `.wasm`, sw.js, manifest.json, favicon.png, `_redirects`, composeResources).
-- **CI/deploy:** `.github/workflows/release.yml` (repo root) builds desktop
-  (matrix), Android, and web on every `x.y.z` tag. The `web` job runs
-  `wasmJsBrowserDistribution` and `cloudflare/wrangler-action@v3`
-  (`pages deploy ... --project-name=cconnect --branch=main`); secrets
-  `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`. `_redirects`
-  (`/* /index.html 200`) gives SPA routing so `/files` etc. survive a reload.
+- **CI:** `.github/workflows/android.yml` (repo root) builds the Android APK on
+  push/PR/tag and uploads it as an artifact (signed when the `KEYSTORE_BASE64` /
+  `KEYSTORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD` repo secrets are set, else
+  unsigned). The web is served from Cloudflare Pages (`_redirects`
+  `/* /index.html 200` gives SPA routing so `/files` etc. survive a reload);
+  desktop installers are built per-OS (Linux on `ubuntu-22.04` so the `.deb` links
+  against jammy libs). `mobile/` is not built in CI.
 - **Version contract:** `appVersionName` + `SUPPORTED_SERVER` are generated into
   `BuildConfig` (see the `generateBuildConfig` task) — keep them in step with the
-  backend's `[tool.cconnect]` table and with mobile.
+  backend's `[tool.cconnect]` table. `appVersionName` + `appVersionCode` are also
+  set in `androidApp/build.gradle.kts` for the APK.
 
 ## Conventions
 
-1. **Mirror of mobile.** Keep screens, models and `ServerEvent` shapes 1:1 with
-   `mobile/`; a feature that applies to both lands in both. Touch-only mobile
-   interactions (pull-to-refresh-only, system back) and OS-only desktop/web
-   interactions (mouse buttons, OS clipboard, drag&drop, window) are the allowed
-   divergences — gate them by `LocalIsTouch` / `isWebPlatform` / expect-actual.
+1. **One app, many platforms.** desktop/web/Android share `commonMain`; gate real
+   divergences by `LocalIsTouch` / `isWebPlatform` / `isAndroidPlatform` /
+   expect-actual (touch: pull-to-refresh, system back, swipe scroll; desktop/web:
+   mouse buttons, OS clipboard, drag&drop, window). `mobile/` is legacy — do not
+   keep it in sync.
 2. **Backend is the source of truth.** Mirror its event shapes verbatim.
 3. **Real platform divergence goes behind expect/actual**, not ad-hoc branches in
    `commonMain`.
