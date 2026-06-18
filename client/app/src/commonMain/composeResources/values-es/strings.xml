@@ -220,6 +220,7 @@
     <string name="rename">Renombrar</string>
     <string name="auto_rename">Auto-renombrar</string>
     <string name="conversation_color">Color de conversación</string>
+    <string name="open_in_new_tab">Abrir en pestaña nueva</string>
     <string name="color_none">Ninguno</string>
     <string name="delete">Eliminar</string>
     <string name="cancel">Cancelar</string>

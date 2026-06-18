@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -63,6 +64,7 @@ fun AppBottomSheet(
     val windowHeight = with(density) { LocalWindowInfo.current.containerSize.height.toDp() }
     val statusBar = with(density) { WindowInsets.statusBars.getTop(this).toDp() }
     val sheetHeight = windowHeight - statusBar - 56.dp
+    val lightBars = MaterialTheme.colorScheme.background.luminance() > 0.5f
     var closing by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
@@ -87,6 +89,7 @@ fun AppBottomSheet(
         shape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp),
         containerColor = AlertDialogDefaults.containerColor,
         contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
+        properties = appSheetProperties(lightBars),
         dragHandle = null,
     ) {
         Column(modifier = Modifier.height(sheetHeight).navigationBarsPadding().nestedScroll(blockSheetScroll)) {

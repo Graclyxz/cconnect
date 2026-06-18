@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -15,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.window.ComposeViewport
 import androidx.compose.ui.text.font.FontWeight
 import org.jetbrains.compose.resources.ExperimentalResourceApi
@@ -45,6 +47,7 @@ import com.jahirtrap.cconnect.ui.theme.accentAt
 import com.jahirtrap.cconnect.ui.theme.themeModeOf
 import kotlinx.browser.document
 import kotlinx.browser.window
+import org.w3c.dom.HTMLElement
 import org.w3c.dom.events.Event
 
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalResourceApi::class)
@@ -125,6 +128,12 @@ private fun App() {
             accent = accentAt(accentIndex),
             fontStyle = fontStyle,
         ) {
+            val frameBackground = MaterialTheme.colorScheme.background
+            LaunchedEffect(frameBackground) {
+                val hex = "#" + (frameBackground.toArgb() and 0xFFFFFF).toString(16).padStart(6, '0')
+                document.body?.style?.backgroundColor = hex
+                (document.documentElement as? HTMLElement)?.style?.backgroundColor = hex
+            }
             Box(modifier = Modifier.fillMaxSize()) {
                 val chatDrawerState = rememberDrawerState(DrawerValue.Closed)
                 LaunchedEffect(LocalMobileLayout.current) { chatDrawerState.close() }

@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import com.jahirtrap.cconnect.ui.ClearFocusOnImeHide
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,6 +81,7 @@ fun ClaudeDetailScreen(
     val vm: ChatViewModel = viewModel(factory = chatViewModelFactory)
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
+    ClearFocusOnImeHide()
 
     var extensions by remember { mutableStateOf<ClaudeApi.Extensions?>(null) }
     var skills by remember { mutableStateOf<List<ClaudeApi.Skill>?>(null) }

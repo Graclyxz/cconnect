@@ -50,6 +50,8 @@ fun CConnectTheme(
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
     }
 
+    ApplySystemBarsAppearance(dark)
+
     // The accent is the ONLY color: from the palette.
     // The background/surfaces stay flat black/white regardless.
     val accentColor = if (dynamicColor) (systemAccent() ?: accent) else accent

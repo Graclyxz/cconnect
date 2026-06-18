@@ -53,6 +53,12 @@ android {
                 "proguard-rules.pro"
             )
             if (keystoreProps != null) signingConfig = signingConfigs.getByName("release")
+            applicationVariants.all {
+                outputs.all {
+                    (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
+                        "CConnect-$appVersionName.apk"
+                }
+            }
         }
     }
 

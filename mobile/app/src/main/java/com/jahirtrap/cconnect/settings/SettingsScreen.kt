@@ -611,9 +611,9 @@ fun SettingsScreen(
         SettingsDialog.Environments -> EnvironmentsDialog(
             environments = environments,
             activeId = activeId,
-            onSetActive = { id -> settings.activeEnvironmentId = id; activeId = id },
-            onSave = { profile -> settings.upsertEnvironment(profile); environments = settings.environments; activeId = settings.activeEnvironment?.id },
-            onDelete = { id -> settings.deleteEnvironment(id); environments = settings.environments; activeId = settings.activeEnvironment?.id },
+            onSetActive = { id -> chatVm.selectEnvironment(id); activeId = id },
+            onSave = { profile -> settings.upsertEnvironment(profile); environments = settings.environments; activeId = settings.activeEnvironment?.id; chatVm.refreshEnvironments() },
+            onDelete = { id -> settings.deleteEnvironment(id); environments = settings.environments; activeId = settings.activeEnvironment?.id; chatVm.refreshEnvironments() },
             onDismiss = { dialog = null },
         )
 

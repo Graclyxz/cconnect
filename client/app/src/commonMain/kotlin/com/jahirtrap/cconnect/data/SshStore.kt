@@ -11,7 +11,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
 class SshStore {
-    private val prefs = AppPrefs("cconnect_ssh")
+    private val prefs = AppPrefs("cconnect_ssh", secure = true)
 
     var profiles: List<SshProfile>
         get() = decode(prefs.getString("profiles", null))

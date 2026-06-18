@@ -327,7 +327,9 @@ fun FileExplorerScreen(
     }
     fun handleBack(): Boolean = when {
         selecting -> { exitSelection(); true }
+        searching -> { searching = false; searchQuery = ""; true }
         archive != null || path.isNotEmpty() -> { goUp(); true }
+        transfer != null -> { transfer = null; true }
         else -> false
     }
     val selectedEntries = entries.filter { it.name in selected }

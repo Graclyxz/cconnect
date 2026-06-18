@@ -2,7 +2,7 @@ package com.jahirtrap.cconnect.data
 
 import kotlinx.browser.localStorage
 
-actual class AppPrefs actual constructor(name: String) {
+actual class AppPrefs actual constructor(name: String, secure: Boolean) {
     private val prefix = "$name."
 
     actual fun getString(key: String, default: String?): String? = localStorage.getItem(prefix + key) ?: default

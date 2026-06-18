@@ -160,12 +160,13 @@ compose.resources {
 compose.desktop {
     application {
         mainClass = "com.jahirtrap.cconnect.MainKt"
+        jvmArgs += listOf("--add-opens", "java.desktop/sun.awt.X11=ALL-UNNAMED")
 
         nativeDistributions {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe, TargetFormat.Deb, TargetFormat.Rpm, TargetFormat.Dmg)
             packageName = "CConnect"
             packageVersion = appVersionName
-            description = "Bridge between the CConnect desktop client and Claude Code"
+            description = "CConnect"
             vendor = "jahirtrap"
             windows {
                 iconFile.set(project.file("icons/cconnect.ico"))

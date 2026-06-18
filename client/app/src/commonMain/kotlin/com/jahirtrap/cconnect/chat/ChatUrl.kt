@@ -6,5 +6,7 @@ expect fun readChatLocation(): Pair<String, String>?
 
 expect fun syncChatLocation(sessionId: String?, projectKey: String?)
 
+expect fun openChatInNewTab(sessionId: String, projectKey: String)
+
 @Composable
 expect fun ChatPopstate(onLocation: (String?, String?) -> Unit)

@@ -1,10 +1,22 @@
 package com.jahirtrap.cconnect.data
 
 import android.content.Context
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import com.jahirtrap.cconnect.appContext
 
-actual class AppPrefs actual constructor(name: String) {
-    private val prefs = appContext.getSharedPreferences(name, Context.MODE_PRIVATE)
+actual class AppPrefs actual constructor(name: String, secure: Boolean) {
+    private val prefs = if (secure) {
+        EncryptedSharedPreferences.create(
+            appContext,
+            name,
+            MasterKey.Builder(appContext).setKeyScheme(MasterKey.KeyScheme.AES256_GCM).build(),
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+        )
+    } else {
+        appContext.getSharedPreferences(name, Context.MODE_PRIVATE)
+    }
 
     actual fun getString(key: String, default: String?): String? = prefs.getString(key, default)
     actual fun getBoolean(key: String, default: Boolean): Boolean = prefs.getBoolean(key, default)

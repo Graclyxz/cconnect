@@ -17,16 +17,18 @@ import kotlin.uuid.Uuid
 
 class Settings {
     private val prefs = AppPrefs("cconnect")
+    private val securePrefs = AppPrefs("cconnect_secure", secure = true)
 
     init {
+        migrateEnvironmentsToSecure()
         migrateLegacyHost()
         syncBackend()
     }
 
     var environments: List<EnvironmentProfile>
-        get() = parseEnvironments(prefs.getString("environments", null))
+        get() = parseEnvironments(securePrefs.getString("environments", null))
         set(value) {
-            prefs.edit { putString("environments", encodeEnvironments(value)) }
+            securePrefs.edit { putString("environments", encodeEnvironments(value)) }
             syncBackend()
         }
 
@@ -140,9 +142,16 @@ class Settings {
         }
     }
 
+    private fun migrateEnvironmentsToSecure() {
+        if (securePrefs.contains("environments")) return
+        val legacy = prefs.getString("environments", null) ?: return
+        securePrefs.edit { putString("environments", legacy) }
+        prefs.edit { remove("environments") }
+    }
+
     @OptIn(ExperimentalUuidApi::class)
     private fun migrateLegacyHost() {
-        if (prefs.contains("environments")) return
+        if (securePrefs.contains("environments")) return
         val legacy = prefs.getString("host", "") ?: ""
         if (legacy.isNotBlank()) {
             val profile = EnvironmentProfile(

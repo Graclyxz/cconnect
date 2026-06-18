@@ -220,6 +220,7 @@
     <string name="rename">Rename</string>
     <string name="auto_rename">Auto-rename</string>
     <string name="conversation_color">Conversation color</string>
+    <string name="open_in_new_tab">Open in new tab</string>
     <string name="color_none">None</string>
     <string name="delete">Delete</string>
     <string name="cancel">Cancel</string>

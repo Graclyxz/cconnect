@@ -65,6 +65,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.ArrowLeft
+import com.composables.icons.lucide.BatteryCharging
 import com.composables.icons.lucide.Bell
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Coffee
@@ -78,6 +79,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Palette
 import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.RotateCw
+import com.composables.icons.lucide.ScanQrCode
 import com.composables.icons.lucide.FileText
 import com.composables.icons.lucide.Server
 import com.composables.icons.lucide.SquareTerminal
@@ -90,6 +92,7 @@ import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.EnvironmentProfile
+import com.jahirtrap.cconnect.data.QrEnvironmentPayload
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.AppUpdater
 import com.jahirtrap.cconnect.data.remote.Backend
@@ -102,6 +105,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.chat.ChatViewModel
 import com.jahirtrap.cconnect.chat.chatViewModelFactory
@@ -132,6 +138,7 @@ import com.jahirtrap.cconnect.ui.SelectDialog
 import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.EmptyState
+import com.jahirtrap.cconnect.ui.LocalIsTouch
 import com.jahirtrap.cconnect.ui.LocalRefreshTick
 import com.jahirtrap.cconnect.ui.MarkdownText
 import com.jahirtrap.cconnect.ui.SelectField
@@ -214,13 +221,26 @@ fun SettingsScreen(
         }
     }
     val refreshTick = LocalRefreshTick.current
+    val isTouch = LocalIsTouch.current
     LaunchedEffect(refreshTick) { if (refreshTick > 0) { refreshing = true; loadServerSettings(); refreshing = false } }
 
     var dialog by remember { mutableStateOf<SettingsDialog?>(null) }
     var notifyTaskDone by remember { mutableStateOf(settings.notifyTaskDone) }
     var notifyInteraction by remember { mutableStateOf(settings.notifyInteraction) }
     var showTimestamps by remember { mutableStateOf(settings.showTimestamps) }
-    val notificationsEnabled = true
+    var notificationsEnabled by remember { mutableStateOf(notificationsEnabled()) }
+    var ignoringBattery by remember { mutableStateOf(batteryOptimizationIgnored()) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                notificationsEnabled = notificationsEnabled()
+                ignoringBattery = batteryOptimizationIgnored()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val scrollState = rememberScrollState()
     var aboutY by remember { mutableStateOf<Float?>(null) }
@@ -251,10 +271,12 @@ fun SettingsScreen(
                     }
                 },
                 actions = {
-                    TooltipIconButton(
-                        label = stringResource(Res.string.refresh),
-                        onClick = { scope.launch { refreshing = true; loadServerSettings(); refreshing = false } },
-                    ) { Icon(Lucide.RotateCw, contentDescription = null) }
+                    if (!isTouch) {
+                        TooltipIconButton(
+                            label = stringResource(Res.string.refresh),
+                            onClick = { scope.launch { refreshing = true; loadServerSettings(); refreshing = false } },
+                        ) { Icon(Lucide.RotateCw, contentDescription = null) }
+                    }
                 },
             )
         },
@@ -299,8 +321,18 @@ fun SettingsScreen(
                     PreferenceRow(
                         Lucide.Bell,
                         stringResource(Res.string.notifications),
-                        stringResource(Res.string.notifications_state, activeCount),
+                        if (notificationsEnabled) stringResource(Res.string.notifications_state, activeCount)
+                        else stringResource(Res.string.notifications_disabled),
                     ) { dialog = SettingsDialog.Notifications }
+                    if (ignoringBattery != null) {
+                        PreferenceRow(
+                            Lucide.BatteryCharging,
+                            stringResource(Res.string.battery_optimization),
+                            stringResource(Res.string.battery_optimization_summary),
+                            trailing = { CompactSwitch(ignoringBattery == true) { requestIgnoreBatteryOptimization() } },
+                            onClick = { requestIgnoreBatteryOptimization() },
+                        )
+                    }
                 }
                 SettingsGroup(stringResource(Res.string.settings_connectivity)) {
                     PreferenceRow(
@@ -502,6 +534,22 @@ fun SettingsScreen(
                 contentPadding = PaddingValues(0.dp),
                 buttons = { TextButton(onClick = { dialog = null }) { Text(stringResource(Res.string.close)) } },
             ) {
+                if (!notificationsEnabled) {
+                    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        Text(
+                            stringResource(Res.string.notifications_disabled_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        ActionButton(
+                            text = stringResource(Res.string.enable_notifications),
+                            onClick = { requestEnableNotifications() },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(12.dp))
+                    }
+                }
                 SwitchRow(
                     title = stringResource(Res.string.notify_interaction),
                     summary = stringResource(Res.string.notify_interaction_summary),
@@ -560,9 +608,9 @@ fun SettingsScreen(
         SettingsDialog.Environments -> EnvironmentsDialog(
             environments = environments,
             activeId = activeId,
-            onSetActive = { id -> settings.activeEnvironmentId = id; activeId = id },
-            onSave = { profile -> settings.upsertEnvironment(profile); environments = settings.environments; activeId = settings.activeEnvironment?.id },
-            onDelete = { id -> settings.deleteEnvironment(id); environments = settings.environments; activeId = settings.activeEnvironment?.id },
+            onSetActive = { id -> chatVm.selectEnvironment(id); activeId = id },
+            onSave = { profile -> settings.upsertEnvironment(profile); environments = settings.environments; activeId = settings.activeEnvironment?.id; chatVm.refreshEnvironments() },
+            onDelete = { id -> settings.deleteEnvironment(id); environments = settings.environments; activeId = settings.activeEnvironment?.id; chatVm.refreshEnvironments() },
             onDismiss = { dialog = null },
         )
 
@@ -809,15 +857,29 @@ private fun EnvironmentsDialog(
     onDelete: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val qrAvailable = remember { QrScan.isAvailable() }
     var editing by remember { mutableStateOf<EnvironmentProfile?>(null) }
     var adding by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<EnvironmentProfile?>(null) }
+    var scanned by remember { mutableStateOf<EnvironmentProfile?>(null) }
 
     CompactDialog(
         onDismiss = onDismiss,
         title = stringResource(Res.string.environments),
         contentPadding = PaddingValues(0.dp),
         buttons = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.back)) } },
+        titleTrailing = if (qrAvailable) ({
+            IconButton(
+                onClick = {
+                    QrScan.scan { raw ->
+                        raw?.let(::profileFromQrPayload)?.let { scanned = it }
+                    }
+                },
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(Lucide.ScanQrCode, contentDescription = stringResource(Res.string.scan_qr), modifier = Modifier.size(20.dp))
+            }
+        }) else null,
     ) {
         environments.forEach { c ->
             DialogSelectItem(
@@ -845,6 +907,14 @@ private fun EnvironmentsDialog(
     editing?.let { c ->
         EnvironmentEditDialog(initial = c, onConfirm = { onSave(it); editing = null }, onDismiss = { editing = null })
     }
+    scanned?.let { c ->
+        EnvironmentEditDialog(
+            initial = c,
+            focusName = true,
+            onConfirm = { onSave(it); onSetActive(it.id); scanned = null },
+            onDismiss = { scanned = null },
+        )
+    }
     deleting?.let { c ->
         ConfirmDialog(
             title = stringResource(Res.string.delete),
@@ -863,6 +933,7 @@ private fun EnvironmentEditDialog(
     onDismiss: () -> Unit,
     focusName: Boolean = false,
 ) {
+    val qrAvailable = remember { QrScan.isAvailable() }
     var kind by remember { mutableStateOf(initial?.kind ?: if (isWebPlatform) "https" else "http") }
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var host by remember { mutableStateOf(initial?.host ?: "") }
@@ -880,6 +951,24 @@ private fun EnvironmentEditDialog(
     CompactDialog(
         onDismiss = onDismiss,
         title = stringResource(if (initial == null) Res.string.add_environment else Res.string.edit_environment),
+        titleTrailing = if (qrAvailable) ({
+            IconButton(
+                onClick = {
+                    QrScan.scan { raw ->
+                        val payload = raw?.let(QrEnvironmentPayload::parse) ?: return@scan
+                        val parsed = parseHostInput(payload.url) ?: return@scan
+                        kind = parsed.kind
+                        host = parsed.host
+                        port = if (parsed.kind == "https") "" else parsed.port
+                        authKind = "bearer"
+                        authToken = payload.token
+                    }
+                },
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(Lucide.ScanQrCode, contentDescription = stringResource(Res.string.scan_qr), modifier = Modifier.size(20.dp))
+            }
+        }) else null,
         buttons = {
             TextButton(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
             TextButton(
@@ -1144,6 +1233,21 @@ private fun CliDialog(
             )
         }
     }
+}
+
+private fun profileFromQrPayload(raw: String): EnvironmentProfile? {
+    val payload = QrEnvironmentPayload.parse(raw) ?: return null
+    val parsed = parseHostInput(payload.url) ?: return null
+    val port: Int? = if (parsed.kind == "https") null else parsed.port.toIntOrNull()
+    return EnvironmentProfile(
+        id = Uuid.random().toString(),
+        name = "",
+        kind = parsed.kind,
+        host = parsed.host,
+        port = port,
+        authKind = "bearer",
+        authToken = payload.token,
+    )
 }
 
 private data class ParsedHost(val host: String, val port: String, val kind: String)

@@ -1,6 +1,5 @@
 package com.jahirtrap.cconnect.files
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
@@ -41,13 +40,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import com.jahirtrap.cconnect.ui.theme.LocalMonoFontFamily
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Download
-import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.EllipsisVertical
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Save
@@ -58,11 +57,11 @@ import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.remote.fetchSharedText
-import com.jahirtrap.cconnect.ui.ActionButton
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CenteredProgress
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.ConfirmDialog
+import com.jahirtrap.cconnect.ui.Dismissable
 import com.jahirtrap.cconnect.ui.EmptyState
 import com.jahirtrap.cconnect.ui.MarkdownText
 import com.jahirtrap.cconnect.ui.TooltipIconButton
@@ -82,6 +81,11 @@ fun FilePreviewScreen(
     var failed by remember(url) { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
+
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) { keyboard?.hide() }
+
+    Dismissable { onClose() }
 
     val kind = previewKindOf(filename)
     LaunchedEffect(url) {
@@ -165,18 +169,12 @@ fun FilePreviewScreen(
     ) { padding ->
         when {
             kind == PreviewKind.Image -> ImagePreview(url, Modifier.fillMaxSize().padding(padding))
-            kind == PreviewKind.Html -> Column(
+            kind == PreviewKind.Html -> HtmlPreview(
+                url = url,
+                filename = filename,
+                onOpenExternally = { scope.launch { openSharedExternally(url, filename) } },
                 modifier = Modifier.fillMaxSize().padding(padding),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                EmptyState(stringResource(Res.string.html_preview_unavailable))
-                ActionButton(
-                    text = stringResource(Res.string.open_in_browser),
-                    onClick = { scope.launch { openSharedExternally(url, filename) } },
-                    icon = Lucide.ExternalLink,
-                )
-            }
+            )
             failed -> EmptyState(stringResource(Res.string.connection_error), Modifier.fillMaxSize().padding(padding))
             text == null -> CenteredProgress(Modifier.fillMaxSize().padding(padding))
             else -> Column(

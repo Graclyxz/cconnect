@@ -11,6 +11,7 @@ import java.io.File
 import java.net.URI
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.coroutineContext
+import kotlin.system.exitProcess
 
 actual object AppUpdater {
 
@@ -104,8 +105,24 @@ actual object AppUpdater {
             else -> null
         }
         if (cmd == null || !hasCmd("pkexec")) return openExternally(file)
+
+        val relaunch = runCatching { ProcessHandle.current().info().command().orElse(null) }.getOrNull()
+        if (hasCmd("setsid") && relaunch != null) {
+            val script = cmd.joinToString(" ", transform = ::shellQuote) + "; exec " + shellQuote(relaunch)
+            val spawned = runCatching {
+                ProcessBuilder("setsid", "sh", "-c", script)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .redirectError(ProcessBuilder.Redirect.DISCARD)
+                    .start()
+                true
+            }.getOrDefault(false)
+            if (spawned) exitProcess(0)
+            return spawned
+        }
         return runCatching { ProcessBuilder(cmd).start(); true }.getOrDefault(false)
     }
+
+    private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
 
     actual fun consumeIfInstalled(currentVersion: String) {
         runCatching {

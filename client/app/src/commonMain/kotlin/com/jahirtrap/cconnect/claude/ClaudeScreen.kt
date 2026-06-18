@@ -33,6 +33,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import com.jahirtrap.cconnect.ui.BackInterceptor
+import com.jahirtrap.cconnect.ui.ClearFocusOnImeHide
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -94,6 +96,7 @@ fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: Str
     val vm: ChatViewModel = viewModel(factory = chatViewModelFactory)
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
+    ClearFocusOnImeHide()
 
     var cliInfo by remember { mutableStateOf<CliApi.CliInfo?>(null) }
     var extensions by remember { mutableStateOf<ClaudeApi.Extensions?>(null) }
@@ -129,6 +132,7 @@ fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: Str
     LaunchedEffect(refreshTick) { if (refreshTick > 0) { refreshing = true; load() } }
 
     detail?.let { kind ->
+        BackInterceptor { detail = null; scope.launch { load() }; true }
         ClaudeDetailScreen(
             kind = kind,
             onClose = {

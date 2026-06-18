@@ -1,6 +1,6 @@
 package com.jahirtrap.cconnect.data
 
-expect class AppPrefs(name: String) {
+expect class AppPrefs(name: String, secure: Boolean = false) {
     fun getString(key: String, default: String?): String?
     fun getBoolean(key: String, default: Boolean): Boolean
     fun getInt(key: String, default: Int): Int

@@ -40,6 +40,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -113,6 +117,8 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Scaffold
 import com.jahirtrap.cconnect.ui.AppPullToRefresh
+import com.jahirtrap.cconnect.ui.BackInterceptor
+import com.jahirtrap.cconnect.ui.ClearFocusOnImeHide
 import com.jahirtrap.cconnect.ui.LocalIsTouch
 import com.jahirtrap.cconnect.ui.ClipKey
 import com.jahirtrap.cconnect.ui.ClipboardShortcutHandler
@@ -179,6 +185,7 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jahirtrap.cconnect.isWebPlatform
 import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.data.ChatMessage
@@ -325,8 +332,8 @@ fun ChatScreen(
         }
     }
     LaunchedEffect(listState) {
-        snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
-            if (!scrolling && isAtBottom) followBottom = true
+        snapshotFlow { listState.isScrollInProgress to isAtBottom }.collect { (scrolling, atBottom) ->
+            if (!scrolling && atBottom) followBottom = true
         }
     }
     LaunchedEffect(followBottom) { vm.setFollowBottom(followBottom) }
@@ -514,12 +521,14 @@ fun ChatScreen(
                                 state.pendingInput?.let { mainDraft = it; vm.consumePendingInput() }
                             }
                             val composerFocus = remember { FocusRequester() }
+                            val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
                             val expansion = remember { Animatable(0f) }
                             val peek = 0.58f
                             LaunchedEffect(sideActive) {
                                 if (sideActive) {
                                     expansion.snapTo(0f)
                                     expansion.animateTo(peek, spring(stiffness = Spring.StiffnessMediumLow))
+                                    if (imeVisible) composerFocus.requestFocus()
                                 }
                             }
                             LaunchedEffect(expansion.value) {
@@ -534,6 +543,8 @@ fun ChatScreen(
                                 }
                                 Unit
                             }
+                            BackInterceptor(enabled = sideActive) { dismissSide(); true }
+                            ClearFocusOnImeHide()
                             val dialogOpen = renameTarget != null || deleteTarget != null || colorTarget != null ||
                                 confirmCommand != null || sharedLinkAction != null || showRewindSheet
                             val shortcutsEnabled = !dialogOpen && !(mobile && drawerState.targetValue == DrawerValue.Open)
@@ -549,7 +560,7 @@ fun ChatScreen(
                                 }
                             }
                             Column(
-                                modifier = Modifier.fillMaxSize().padding(padding)
+                                modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()
                                 .fileDropTarget(enabled = !sideActive, onDragChange = { dropOver = it }) { vm.addAttachments(it) }
                                 .then(if (dropOver) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier),
                             ) {
@@ -1036,8 +1047,8 @@ private fun SidePanel(
                 }
             }
             LaunchedEffect(listState) {
-                snapshotFlow { listState.isScrollInProgress }.collect { scrolling ->
-                    if (!scrolling && isAtBottom) followBottom = true
+                snapshotFlow { listState.isScrollInProgress to isAtBottom }.collect { (scrolling, atBottom) ->
+                    if (!scrolling && atBottom) followBottom = true
                 }
             }
             val lastMsg = sideChat.messages.lastOrNull()
@@ -1127,7 +1138,7 @@ private fun ColumnScope.ChatPanelContent(
         EnvironmentSelector(
             environments = state.environments,
             activeId = state.activeEnvironmentId,
-            onSelect = { vm.selectEnvironment(it); onAfterSelect() },
+            onSelect = { vm.selectEnvironment(it) },
             modifier = Modifier.weight(1f),
         )
         TooltipIconButton(
@@ -1176,6 +1187,7 @@ private fun ColumnScope.ChatPanelContent(
                         onRename = { onRename(s) },
                         onAutoRename = { vm.autoRenameSession(s) },
                         onColor = { onColor(s) },
+                        onOpenNewTab = { s.projectKey?.let { openChatInNewTab(s.sessionId, it) } },
                         onDelete = { onDelete(s) },
                     )
                 }
@@ -1829,6 +1841,7 @@ private fun ConversationRow(
     onRename: () -> Unit,
     onAutoRename: () -> Unit,
     onColor: () -> Unit,
+    onOpenNewTab: () -> Unit,
     onDelete: () -> Unit,
     selected: Boolean = false,
 ) {
@@ -1861,6 +1874,9 @@ private fun ConversationRow(
                 CompactDropdownItem(stringResource(Res.string.rename)) { menu = false; onRename() }
                 CompactDropdownItem(stringResource(Res.string.auto_rename)) { menu = false; onAutoRename() }
                 CompactDropdownItem(stringResource(Res.string.conversation_color)) { menu = false; onColor() }
+                if (isWebPlatform) {
+                    CompactDropdownItem(stringResource(Res.string.open_in_new_tab)) { menu = false; onOpenNewTab() }
+                }
                 CompactDropdownItem(stringResource(Res.string.delete)) { menu = false; onDelete() }
             }
         }

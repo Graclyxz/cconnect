@@ -116,13 +116,13 @@ fun Modifier.horizontalScrollbar(state: ScrollState, thickness: Dp = 4.dp): Modi
         .then(if (hovered) Modifier.handCursor() else Modifier)
         .drawWithContent {
             drawContent()
-            if (touch || state.maxValue <= 0) return@drawWithContent
+            if (state.maxValue <= 0) return@drawWithContent
             val viewport = size.width
             val thumb = (viewport / (viewport + state.maxValue)) * viewport
             val x = (state.value.toFloat() / state.maxValue) * (viewport - thumb)
-            val px = thickness.toPx()
+            val px = (if (touch) 2.dp else thickness).toPx()
             drawRoundRect(
-                color = if (hovered || dragging) active else idle,
+                color = if (!touch && (hovered || dragging)) active else idle,
                 topLeft = Offset(x, size.height - px),
                 size = Size(thumb, px),
                 cornerRadius = CornerRadius(px / 2, px / 2),
@@ -179,13 +179,13 @@ fun Modifier.verticalScrollbar(state: ScrollState, thickness: Dp = 6.dp): Modifi
         .then(if (hovered) Modifier.handCursor() else Modifier)
         .drawWithContent {
             drawContent()
-            if (touch || state.maxValue <= 0) return@drawWithContent
+            if (state.maxValue <= 0) return@drawWithContent
             val viewport = size.height
             val thumb = (viewport / (viewport + state.maxValue)) * viewport
             val y = (state.value.toFloat() / state.maxValue) * (viewport - thumb)
-            val px = thickness.toPx()
+            val px = (if (touch) 2.dp else thickness).toPx()
             drawRoundRect(
-                color = if (hovered || dragging) active else idle,
+                color = if (!touch && (hovered || dragging)) active else idle,
                 topLeft = Offset(size.width - px, y),
                 size = Size(px, thumb),
                 cornerRadius = CornerRadius(px / 2, px / 2),

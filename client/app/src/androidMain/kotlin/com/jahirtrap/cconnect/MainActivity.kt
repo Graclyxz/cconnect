@@ -6,6 +6,7 @@ import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -45,8 +46,12 @@ import com.jahirtrap.cconnect.monitor.MonitorScreen
 import com.jahirtrap.cconnect.service.EXTRA_OPEN_CHAT
 import com.jahirtrap.cconnect.service.Notifier
 import com.jahirtrap.cconnect.settings.SettingsScreen
+import com.jahirtrap.cconnect.settings.androidNotificationRequest
 import com.jahirtrap.cconnect.terminal.TerminalScreen
 import com.jahirtrap.cconnect.ui.BackInterceptors
+import com.jahirtrap.cconnect.ui.DismissStack
+import com.jahirtrap.cconnect.ui.HistoryNav
+import com.jahirtrap.cconnect.ui.dispatchClipboardShortcut
 import com.jahirtrap.cconnect.ui.LocalMobileLayout
 import com.jahirtrap.cconnect.ui.LocalRefreshTick
 import com.jahirtrap.cconnect.ui.theme.CConnectTheme
@@ -60,10 +65,21 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private val openChatRequests = mutableIntStateOf(0)
+    private val refreshRequests = mutableIntStateOf(0)
     private var pickerDeferred: CompletableDeferred<List<Uri>>? = null
 
+    private var couldAskNotifications = false
+
     private val notificationPermission =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            val canAskAgain = shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)
+            if (!granted && !canAskAgain && !couldAskNotifications) runCatching {
+                startActivity(
+                    Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+                )
+            }
+        }
 
     private val pickFilesLauncher =
         registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
@@ -86,6 +102,10 @@ class MainActivity : AppCompatActivity() {
         Security.removeProvider("BC")
         Security.insertProviderAt(BouncyCastleProvider(), 1)
         Notifier.init {}
+        androidNotificationRequest = {
+            couldAskNotifications = shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
         ComposeFoundationFlags.isNewContextMenuEnabled = true
         androidFilePicker = {
             val deferred = CompletableDeferred<List<Uri>>()
@@ -119,6 +139,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleIntent(intent: Intent) {
         if (intent.getBooleanExtra(EXTRA_OPEN_CHAT, false)) openChatRequests.intValue++
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (dispatchClipboardShortcut(event)) return true
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            when {
+                event.isCtrlPressed && event.keyCode == KeyEvent.KEYCODE_R -> { refreshRequests.intValue++; return true }
+                event.keyCode == KeyEvent.KEYCODE_FORWARD -> if (HistoryNav.forward()) return true
+                event.keyCode == KeyEvent.KEYCODE_ESCAPE -> if (DismissStack.dismissTop()) return true
+            }
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -182,7 +214,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         BackHandler(enabled = true) {
-            if (!goBack()) moveTaskToBack(true)
+            if (!DismissStack.dismissTop() && !HistoryNav.back() && !goBack()) moveTaskToBack(true)
         }
 
         LaunchedEffect(language) {
@@ -203,7 +235,7 @@ class MainActivity : AppCompatActivity() {
             LocalContext provides localizedContext,
             LocalConfiguration provides localizedContext.resources.configuration,
             LocalViewModelStoreOwner provides viewModelStoreOwner,
-            LocalRefreshTick provides 0,
+            LocalRefreshTick provides refreshRequests.intValue,
         ) {
             CConnectTheme(
                 themeMode = themeModeOf(themeMode),

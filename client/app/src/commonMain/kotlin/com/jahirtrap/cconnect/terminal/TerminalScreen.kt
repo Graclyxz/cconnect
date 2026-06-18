@@ -38,6 +38,7 @@ import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.data.SshProfile
 import com.jahirtrap.cconnect.data.SshStore
 import com.jahirtrap.cconnect.ui.AppTopBar
+import com.jahirtrap.cconnect.ui.BackInterceptor
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.EmptyState
@@ -58,6 +59,7 @@ fun TerminalScreen(onClose: () -> Unit) {
     var deleting by remember { mutableStateOf<SshProfile?>(null) }
 
     if (active != null) {
+        BackInterceptor { active = null; true }
         TerminalSession(
             profile = active!!,
             onClose = { active = null },
