@@ -156,6 +156,10 @@
     <string name="support_creator">Apoyar el desarrollo</string>
     <string name="changelog">Novedades</string>
 
+    <string name="minimize_to_tray">Minimizar a la bandeja</string>
+    <string name="minimize_to_tray_summary">Mantener CConnect en la bandeja del sistema al cerrar la ventana</string>
+    <string name="tray_exit">Salir</string>
+
     <!-- Chat -->
     <string name="menu">Menú</string>
     <string name="environment">Entorno</string>

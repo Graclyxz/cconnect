@@ -12,16 +12,12 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
 class Settings {
     private val prefs = AppPrefs("cconnect")
     private val securePrefs = AppPrefs("cconnect_secure", secure = true)
 
     init {
-        migrateEnvironmentsToSecure()
-        migrateLegacyHost()
         syncBackend()
     }
 
@@ -69,6 +65,10 @@ class Settings {
     var windowMaximized: Boolean
         get() = prefs.getBoolean("window_maximized", true)
         set(value) = prefs.edit { putBoolean("window_maximized", value) }
+
+    var minimizeToTray: Boolean
+        get() = prefs.getBoolean("minimize_to_tray", true)
+        set(value) = prefs.edit { putBoolean("minimize_to_tray", value) }
 
     var fileSortField: String
         get() = prefs.getString("file_sort_field", "date") ?: "date"
@@ -144,29 +144,6 @@ class Settings {
         prefs.edit {
             listOf("cwd", "language", "theme_mode", "dynamic_color", "accent_index", "font_style")
                 .forEach { remove(it) }
-        }
-    }
-
-    private fun migrateEnvironmentsToSecure() {
-        if (securePrefs.contains("environments")) return
-        val legacy = prefs.getString("environments", null) ?: return
-        securePrefs.edit { putString("environments", legacy) }
-        prefs.edit { remove("environments") }
-    }
-
-    @OptIn(ExperimentalUuidApi::class)
-    private fun migrateLegacyHost() {
-        if (securePrefs.contains("environments")) return
-        val legacy = prefs.getString("host", "") ?: ""
-        if (legacy.isNotBlank()) {
-            val profile = EnvironmentProfile(
-                id = Uuid.random().toString(),
-                name = "Default",
-                host = legacy,
-                port = prefs.getInt("port", 8723),
-            )
-            environments = listOf(profile)
-            activeEnvironmentId = profile.id
         }
     }
 

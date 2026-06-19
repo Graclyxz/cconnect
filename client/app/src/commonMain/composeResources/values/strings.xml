@@ -156,6 +156,10 @@
     <string name="support_creator">Support development</string>
     <string name="changelog">Changelog</string>
 
+    <string name="minimize_to_tray">Minimize to tray</string>
+    <string name="minimize_to_tray_summary">Keep CConnect in the system tray when you close the window</string>
+    <string name="tray_exit">Exit</string>
+
     <!-- Chat -->
     <string name="menu">Menu</string>
     <string name="environment">Environment</string>

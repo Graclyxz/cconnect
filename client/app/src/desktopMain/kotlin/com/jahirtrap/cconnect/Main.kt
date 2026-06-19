@@ -43,8 +43,11 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import org.jetbrains.compose.resources.painterResource
+import org.jetbrains.compose.resources.stringResource
 import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.app_icon
+import com.jahirtrap.cconnect.resources.`open`
+import com.jahirtrap.cconnect.resources.tray_exit
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
@@ -55,6 +58,8 @@ import com.jahirtrap.cconnect.files.FileExplorerScreen
 import com.jahirtrap.cconnect.files.FilePreviewScreen
 import com.jahirtrap.cconnect.monitor.MonitorScreen
 import com.jahirtrap.cconnect.service.Notifier
+import com.jahirtrap.cconnect.service.configureTrayMenu
+import com.jahirtrap.cconnect.service.isTrayActive
 import com.jahirtrap.cconnect.settings.SettingsScreen
 import com.jahirtrap.cconnect.terminal.TerminalScreen
 import com.jahirtrap.cconnect.ui.BackInterceptors
@@ -73,8 +78,30 @@ import java.awt.event.WindowFocusListener
 import java.security.Security
 import java.util.Locale
 
+private object SingleInstance {
+    private const val PORT = 53117
+    private var server: java.net.ServerSocket? = null
+
+    fun acquire(onShow: () -> Unit): Boolean = try {
+        val socket = java.net.ServerSocket(PORT, 1, java.net.InetAddress.getLoopbackAddress())
+        server = socket
+        Thread {
+            while (true) {
+                val client = runCatching { socket.accept() }.getOrNull() ?: break
+                client.close()
+                javax.swing.SwingUtilities.invokeLater { onShow() }
+            }
+        }.apply { isDaemon = true; name = "cconnect-single-instance" }.start()
+        true
+    } catch (_: java.io.IOException) {
+        runCatching { java.net.Socket(java.net.InetAddress.getLoopbackAddress(), PORT).close() }
+        false
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 fun main() {
+    if (!SingleInstance.acquire { bringAppToFront() }) return
     ComposeFoundationFlags.isNewContextMenuEnabled = true
     // The JVM ships a stripped BC provider; swap it for the full BouncyCastle so sshj
     // has curve25519, ed25519, chacha20-poly1305, etc. Modern OpenSSH defaults need this.
@@ -100,8 +127,13 @@ fun main() {
             settings.windowMaximized = windowState.placement == WindowPlacement.Maximized
         }
         var refreshTick by remember { mutableIntStateOf(0) }
+        var windowVisible by remember { mutableStateOf(true) }
         Window(
-            onCloseRequest = ::exitApplication,
+            onCloseRequest = {
+                if (settings.minimizeToTray && isTrayActive()) windowVisible = false
+                else exitApplication()
+            },
+            visible = windowVisible,
             state = windowState,
             title = "CConnect",
             icon = painterResource(Res.drawable.app_icon),
@@ -112,14 +144,17 @@ fun main() {
                 } else dispatchClipboardShortcut(event)
             },
         ) {
+            val showLabel = stringResource(Res.string.`open`)
+            val exitLabel = stringResource(Res.string.tray_exit)
             DisposableEffect(window) {
                 val listener = object : WindowFocusListener {
                     override fun windowGainedFocus(e: WindowEvent?) { Notifier.appInForeground = true }
                     override fun windowLostFocus(e: WindowEvent?) { Notifier.appInForeground = false }
                 }
                 window.addWindowFocusListener(listener)
-                Notifier.init { window.toFront(); window.requestFocus() }
-                desktopWindowToFront = { window.toFront(); window.requestFocus() }
+                Notifier.init { windowVisible = true; window.toFront(); window.requestFocus() }
+                configureTrayMenu(showLabel, exitLabel) { exitApplication() }
+                desktopWindowToFront = { windowVisible = true; window.toFront(); window.requestFocus() }
                 onDispose { window.removeWindowFocusListener(listener); desktopWindowToFront = null }
             }
             App(systemLocale, refreshTick, window)

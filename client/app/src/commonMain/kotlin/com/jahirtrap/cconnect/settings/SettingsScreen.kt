@@ -73,6 +73,7 @@ import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Eye
 import com.composables.icons.lucide.History
 import com.composables.icons.lucide.Languages
+import com.composables.icons.lucide.Minimize2
 import com.composables.icons.lucide.Clock
 import com.composables.icons.lucide.Type
 import com.composables.icons.lucide.Lucide
@@ -112,6 +113,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.chat.ChatViewModel
 import com.jahirtrap.cconnect.chat.chatViewModelFactory
 import com.jahirtrap.cconnect.isWebPlatform
+import com.jahirtrap.cconnect.supportsTraySetting
 import com.jahirtrap.cconnect.chat.ConnectionState
 import com.jahirtrap.cconnect.claude.ClaudeChangelogSheet
 import coil3.compose.AsyncImage
@@ -228,6 +230,7 @@ fun SettingsScreen(
     var notifyTaskDone by remember { mutableStateOf(settings.notifyTaskDone) }
     var notifyInteraction by remember { mutableStateOf(settings.notifyInteraction) }
     var showTimestamps by remember { mutableStateOf(settings.showTimestamps) }
+    var minimizeToTray by remember { mutableStateOf(settings.minimizeToTray) }
     var notificationsEnabled by remember { mutableStateOf(notificationsEnabled()) }
     var ignoringBattery by remember { mutableStateOf(batteryOptimizationIgnored()) }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -331,6 +334,15 @@ fun SettingsScreen(
                             stringResource(Res.string.battery_optimization_summary),
                             trailing = { CompactSwitch(ignoringBattery == true) { requestIgnoreBatteryOptimization() } },
                             onClick = { requestIgnoreBatteryOptimization() },
+                        )
+                    }
+                    if (supportsTraySetting) {
+                        PreferenceRow(
+                            Lucide.Minimize2,
+                            stringResource(Res.string.minimize_to_tray),
+                            stringResource(Res.string.minimize_to_tray_summary),
+                            trailing = { CompactSwitch(minimizeToTray) { minimizeToTray = it; settings.minimizeToTray = it } },
+                            onClick = { minimizeToTray = !minimizeToTray; settings.minimizeToTray = minimizeToTray },
                         )
                     }
                 }
