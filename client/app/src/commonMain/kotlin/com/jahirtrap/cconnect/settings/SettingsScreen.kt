@@ -82,6 +82,12 @@ import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.RotateCw
 import com.composables.icons.lucide.ScanQrCode
 import com.composables.icons.lucide.FileText
+import com.composables.icons.lucide.Folder
+import com.composables.icons.lucide.Play
+import com.composables.icons.lucide.Power
+import com.composables.icons.lucide.ServerCog
+import androidx.compose.foundation.text.selection.SelectionContainer
+import com.jahirtrap.cconnect.ui.theme.LocalMonoFontFamily
 import com.composables.icons.lucide.Server
 import com.composables.icons.lucide.SquareTerminal
 import com.composables.icons.lucide.Shield
@@ -112,8 +118,21 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.chat.ChatViewModel
 import com.jahirtrap.cconnect.chat.chatViewModelFactory
+import com.jahirtrap.cconnect.isAndroidPlatform
 import com.jahirtrap.cconnect.isWebPlatform
 import com.jahirtrap.cconnect.supportsTraySetting
+import com.jahirtrap.cconnect.service.LocalServer
+import com.jahirtrap.cconnect.service.LocalServerConfig
+import com.jahirtrap.cconnect.service.LocalServerError
+import com.jahirtrap.cconnect.service.LocalServerInfo
+import com.jahirtrap.cconnect.service.LocalServerState
+import com.jahirtrap.cconnect.data.remote.SystemApi
+import com.jahirtrap.cconnect.service.pickDirectory
+import com.jahirtrap.cconnect.service.pickExecutable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import com.jahirtrap.cconnect.chat.ConnectionState
 import com.jahirtrap.cconnect.claude.ClaudeChangelogSheet
 import coil3.compose.AsyncImage
@@ -231,6 +250,7 @@ fun SettingsScreen(
     var notifyInteraction by remember { mutableStateOf(settings.notifyInteraction) }
     var showTimestamps by remember { mutableStateOf(settings.showTimestamps) }
     var minimizeToTray by remember { mutableStateOf(settings.minimizeToTray) }
+    var localServerEnabled by remember { mutableStateOf(settings.localServerEnabled) }
     var notificationsEnabled by remember { mutableStateOf(notificationsEnabled()) }
     var ignoringBattery by remember { mutableStateOf(batteryOptimizationIgnored()) }
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -400,6 +420,54 @@ fun SettingsScreen(
                     PreferenceRow(Lucide.Shield, stringResource(Res.string.permissions), serverSummary(permissionLabel(caps, permissionMode)), enabled = serverReady) { dialog = SettingsDialog.Permissions }
                     PreferenceRow(Lucide.Eye, stringResource(Res.string.visibility), serverSummary(stringResource(Res.string.visibility_summary)), enabled = serverReady) { dialog = SettingsDialog.Visibility }
                 }
+                }
+                if (!isWebPlatform && !isAndroidPlatform) {
+                    val lsInfo by LocalServer.status.collectAsState()
+                    val lsPort = environments.firstOrNull { it.id == activeId }?.port ?: 8723
+                    val lsState = localServerStateOf(lsInfo, serverReady, loading)
+                    val lsConfig = LocalServerConfig(settings.localServerDir, settings.localServerPython, settings.localServerPythonPath, settings.localServerMode, lsPort)
+                    SettingsGroup(
+                        label = stringResource(Res.string.local_server),
+                        labelTrailing = {
+                            if (lsState == LocalServerState.Starting) LoadingIndicator(modifier = Modifier.size(20.dp))
+                            else StatusDot(localServerStatusColor(lsState), box = 20.dp, dot = 12.dp)
+                        },
+                    ) {
+                        PreferenceRow(
+                            Lucide.Server,
+                            stringResource(Res.string.local_server),
+                            if (lsState == LocalServerState.Stopped) null else localServerStatusText(lsState),
+                            trailing = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    ConfirmTooltipButton(
+                                        label = stringResource(Res.string.restart),
+                                        confirmTitle = stringResource(Res.string.restart_server),
+                                        confirmText = stringResource(Res.string.restart_server_confirm),
+                                        enabled = serverReady || lsInfo.managed,
+                                        onConfirm = { if (serverReady) scope.launch { SystemApi.restart() } else LocalServer.restart(lsConfig) },
+                                    ) { Icon(Lucide.ServerCog, contentDescription = null) }
+                                    ConfirmTooltipButton(
+                                        label = stringResource(Res.string.stop),
+                                        confirmTitle = stringResource(Res.string.stop_server),
+                                        confirmText = stringResource(Res.string.stop_server_confirm),
+                                        enabled = lsInfo.managed,
+                                        onConfirm = { LocalServer.stop() },
+                                    ) { Icon(Lucide.Power, contentDescription = null) }
+                                    TooltipIconButton(label = stringResource(Res.string.run), onClick = { LocalServer.start(lsConfig) }, enabled = lsState == LocalServerState.Stopped || lsState == LocalServerState.Failed) {
+                                        Icon(Lucide.Play, contentDescription = null)
+                                    }
+                                }
+                            },
+                            onClick = { dialog = SettingsDialog.LocalServer },
+                        )
+                        PreferenceRow(
+                            Lucide.Play,
+                            stringResource(Res.string.local_server_start),
+                            null,
+                            trailing = { CompactSwitch(localServerEnabled) { localServerEnabled = it; settings.localServerEnabled = it } },
+                            onClick = { localServerEnabled = !localServerEnabled; settings.localServerEnabled = localServerEnabled },
+                        )
+                    }
                 }
                 SettingsGroup(label = null) {
                     PreferenceRow(Lucide.History, stringResource(Res.string.reset_settings), stringResource(Res.string.reset_settings_summary)) { dialog = SettingsDialog.Reset }
@@ -669,6 +737,13 @@ fun SettingsScreen(
             onDismiss = { dialog = null },
         )
 
+        SettingsDialog.LocalServer -> LocalServerDialog(
+            settings = settings,
+            probePort = environments.firstOrNull { it.id == activeId }?.port ?: 8723,
+            reachable = serverReady,
+            connecting = loading,
+            onClose = { dialog = null },
+        )
         SettingsDialog.Reset -> ConfirmDialog(
             title = stringResource(Res.string.reset_settings),
             text = stringResource(Res.string.reset_settings_confirm),
@@ -693,7 +768,186 @@ fun SettingsScreen(
     }
 }
 
-private enum class SettingsDialog { Theme, Language, Font, Accent, Environments, Cli, Generation, Permissions, Visibility, Notifications, Reset }
+private enum class SettingsDialog { Theme, Language, Font, Accent, Environments, Cli, Generation, Permissions, Visibility, Notifications, Reset, LocalServer }
+
+@Composable
+private fun LocalServerDialog(settings: Settings, probePort: Int, reachable: Boolean, connecting: Boolean, onClose: () -> Unit) {
+    var dir by remember { mutableStateOf(settings.localServerDir) }
+    var python by remember { mutableStateOf(settings.localServerPython) }
+    var pythonPath by remember { mutableStateOf(settings.localServerPythonPath) }
+    var mode by remember { mutableStateOf(settings.localServerMode) }
+    val info by LocalServer.status.collectAsState()
+    val scope = rememberCoroutineScope()
+    val lsState = localServerStateOf(info, reachable, connecting)
+
+    fun config() = LocalServerConfig(dir, python, pythonPath, mode, probePort)
+
+    CompactDialog(
+        onDismiss = onClose,
+        title = stringResource(Res.string.local_server),
+        titleTrailing = {
+            ConfirmTooltipButton(
+                label = stringResource(Res.string.restart),
+                confirmTitle = stringResource(Res.string.restart_server),
+                confirmText = stringResource(Res.string.restart_server_confirm),
+                enabled = reachable || info.managed,
+                onConfirm = { if (reachable) scope.launch { SystemApi.restart() } else LocalServer.restart(config()) },
+            ) { Icon(Lucide.ServerCog, contentDescription = null) }
+            ConfirmTooltipButton(
+                label = stringResource(Res.string.stop),
+                confirmTitle = stringResource(Res.string.stop_server),
+                confirmText = stringResource(Res.string.stop_server_confirm),
+                enabled = info.managed,
+                onConfirm = { LocalServer.stop() },
+            ) { Icon(Lucide.Power, contentDescription = null) }
+            TooltipIconButton(label = stringResource(Res.string.run), onClick = { LocalServer.start(config()) }, enabled = lsState == LocalServerState.Stopped || lsState == LocalServerState.Failed) {
+                Icon(Lucide.Play, contentDescription = null)
+            }
+        },
+        buttons = {
+            TextButton(onClick = onClose) { Text(stringResource(Res.string.cancel)) }
+            TextButton(onClick = {
+                settings.localServerDir = dir
+                settings.localServerPython = python
+                settings.localServerPythonPath = pythonPath
+                settings.localServerMode = mode
+                LocalServer.restart(config())
+                onClose()
+            }) { Text(stringResource(Res.string.accept)) }
+        },
+    ) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            InputField(
+                value = dir,
+                onValueChange = { dir = it },
+                label = { Text(stringResource(Res.string.local_server_folder)) },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(8.dp))
+            TooltipIconButton(label = stringResource(Res.string.choose), onClick = { scope.launch(Dispatchers.Default) { pickDirectory()?.let { dir = it } } }) {
+                Icon(Lucide.Folder, contentDescription = null)
+            }
+        }
+        Box(Modifier.height(8.dp))
+        SelectField(
+            stringResource(Res.string.python), python,
+            listOf(
+                "auto" to stringResource(Res.string.python_auto),
+                "system" to stringResource(Res.string.python_system),
+                "custom" to stringResource(Res.string.python_custom),
+            ),
+        ) { python = it }
+        if (python == "custom") {
+            Box(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                InputField(
+                    value = pythonPath,
+                    onValueChange = { pythonPath = it },
+                    label = { Text(stringResource(Res.string.python_path)) },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(8.dp))
+                TooltipIconButton(label = stringResource(Res.string.choose), onClick = { scope.launch(Dispatchers.Default) { pickExecutable()?.let { pythonPath = it } } }) {
+                    Icon(Lucide.Folder, contentDescription = null)
+                }
+            }
+        }
+        Box(Modifier.height(8.dp))
+        SelectField(
+            stringResource(Res.string.run_mode), mode,
+            listOf(
+                "local" to stringResource(Res.string.mode_local),
+                "tailscale" to stringResource(Res.string.mode_tailscale),
+            ),
+        ) { mode = it }
+        val localLabel = stringResource(Res.string.local_url)
+        val publicLabel = stringResource(Res.string.public_url)
+        val tokenLabel = stringResource(Res.string.token)
+        val failureText: String? = when (info.error) {
+            LocalServerError.BadDir -> stringResource(Res.string.local_server_bad_dir)
+            LocalServerError.NoPython -> stringResource(Res.string.local_server_no_python)
+            LocalServerError.LaunchFailed -> stringResource(Res.string.local_server_launch_failed)
+            LocalServerError.Crashed -> info.errorDetail ?: stringResource(Res.string.local_server_stopped)
+            null -> null
+        }
+        val panel: String? = when {
+            failureText != null -> failureText
+            lsState == LocalServerState.RunningExternal -> null
+            else -> buildString {
+                appendLine("$localLabel: http://localhost:$probePort")
+                if (mode == "tailscale") {
+                    info.publicUrl?.let { appendLine("$publicLabel: $it") }
+                    info.token?.let { appendLine("$tokenLabel: $it") }
+                }
+            }.trimEnd()
+        }
+        if (panel != null) {
+            Box(Modifier.height(12.dp))
+            SelectionContainer {
+                Text(
+                    panel,
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = LocalMonoFontFamily.current),
+                    color = if (failureText != null) palette.red else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, if (failureText != null) palette.red else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConfirmTooltipButton(
+    label: String,
+    confirmTitle: String,
+    confirmText: String,
+    enabled: Boolean,
+    onConfirm: () -> Unit,
+    icon: @Composable () -> Unit,
+) {
+    var asking by remember { mutableStateOf(false) }
+    TooltipIconButton(label = label, onClick = { asking = true }, enabled = enabled, icon = icon)
+    if (asking) {
+        ConfirmDialog(
+            title = confirmTitle,
+            text = confirmText,
+            confirmLabel = stringResource(Res.string.confirm),
+            onConfirm = { asking = false; onConfirm() },
+            onDismiss = { asking = false },
+        )
+    }
+}
+
+private fun localServerStateOf(info: LocalServerInfo, reachable: Boolean, connecting: Boolean): LocalServerState = when {
+    info.error != null -> LocalServerState.Failed
+    reachable && info.managed -> LocalServerState.RunningManaged
+    reachable -> LocalServerState.RunningExternal
+    info.managed || connecting -> LocalServerState.Starting
+    else -> LocalServerState.Stopped
+}
+
+@Composable
+private fun localServerStatusText(state: LocalServerState): String = stringResource(
+    when (state) {
+        LocalServerState.Stopped -> Res.string.server_stopped
+        LocalServerState.Starting -> Res.string.server_starting
+        LocalServerState.RunningManaged -> Res.string.server_running
+        LocalServerState.RunningExternal -> Res.string.server_running_external
+        LocalServerState.Failed -> Res.string.server_failed
+    },
+)
+
+@Composable
+private fun localServerStatusColor(state: LocalServerState): Color = when (state) {
+    LocalServerState.RunningManaged, LocalServerState.RunningExternal -> palette.green
+    LocalServerState.Failed -> palette.red
+    LocalServerState.Starting -> MaterialTheme.colorScheme.primary
+    LocalServerState.Stopped -> MaterialTheme.colorScheme.onSurfaceVariant
+}
 
 @Composable
 private fun fontLabel(style: String): String = when (style) {

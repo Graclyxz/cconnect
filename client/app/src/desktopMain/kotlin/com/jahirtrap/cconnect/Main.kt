@@ -57,6 +57,8 @@ import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.files.FileExplorerScreen
 import com.jahirtrap.cconnect.files.FilePreviewScreen
 import com.jahirtrap.cconnect.monitor.MonitorScreen
+import com.jahirtrap.cconnect.service.LocalServer
+import com.jahirtrap.cconnect.service.LocalServerConfig
 import com.jahirtrap.cconnect.service.Notifier
 import com.jahirtrap.cconnect.service.configureTrayMenu
 import com.jahirtrap.cconnect.service.isTrayActive
@@ -116,6 +118,18 @@ fun main() {
     }
     val systemLocale = Locale.getDefault()
     val settings = Settings()
+    if (settings.localServerEnabled && settings.localServerDir.isNotBlank()) {
+        LocalServer.start(
+            LocalServerConfig(
+                dir = settings.localServerDir,
+                python = settings.localServerPython,
+                pythonPath = settings.localServerPythonPath,
+                mode = settings.localServerMode,
+                probePort = settings.activeEnvironment?.port ?: 8723,
+            )
+        )
+    }
+    Runtime.getRuntime().addShutdownHook(Thread { LocalServer.stop() })
     val screen = java.awt.Toolkit.getDefaultToolkit().screenSize
     application {
         val windowState = rememberWindowState(

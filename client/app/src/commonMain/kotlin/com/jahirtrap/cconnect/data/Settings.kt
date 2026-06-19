@@ -70,6 +70,26 @@ class Settings {
         get() = prefs.getBoolean("minimize_to_tray", true)
         set(value) = prefs.edit { putBoolean("minimize_to_tray", value) }
 
+    var localServerEnabled: Boolean
+        get() = prefs.getBoolean("local_server_enabled", false)
+        set(value) = prefs.edit { putBoolean("local_server_enabled", value) }
+
+    var localServerDir: String
+        get() = prefs.getString("local_server_dir", "") ?: ""
+        set(value) = prefs.edit { putString("local_server_dir", value) }
+
+    var localServerPython: String
+        get() = prefs.getString("local_server_python", "auto") ?: "auto"
+        set(value) = prefs.edit { putString("local_server_python", value) }
+
+    var localServerPythonPath: String
+        get() = prefs.getString("local_server_python_path", "") ?: ""
+        set(value) = prefs.edit { putString("local_server_python_path", value) }
+
+    var localServerMode: String
+        get() = prefs.getString("local_server_mode", "local") ?: "local"
+        set(value) = prefs.edit { putString("local_server_mode", value) }
+
     var fileSortField: String
         get() = prefs.getString("file_sort_field", "date") ?: "date"
         set(value) = prefs.edit { putString("file_sort_field", value) }
