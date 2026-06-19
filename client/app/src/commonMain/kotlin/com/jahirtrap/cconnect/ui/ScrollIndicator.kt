@@ -69,7 +69,7 @@ fun Modifier.verticalScrollIndicator(state: ScrollState, thickness: Dp = 2.dp): 
 private val SCROLLBAR_HIT = 16.dp
 
 @Composable
-fun Modifier.horizontalScrollbar(state: ScrollState, thickness: Dp = 4.dp): Modifier {
+fun Modifier.horizontalScrollbar(state: ScrollState, thickness: Dp = 4.dp, touchIndicator: Boolean = true): Modifier {
     val active = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
     val idle = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
     val scope = rememberCoroutineScope()
@@ -117,6 +117,7 @@ fun Modifier.horizontalScrollbar(state: ScrollState, thickness: Dp = 4.dp): Modi
         .drawWithContent {
             drawContent()
             if (state.maxValue <= 0) return@drawWithContent
+            if (touch && !touchIndicator) return@drawWithContent
             val viewport = size.width
             val thumb = (viewport / (viewport + state.maxValue)) * viewport
             val x = (state.value.toFloat() / state.maxValue) * (viewport - thumb)

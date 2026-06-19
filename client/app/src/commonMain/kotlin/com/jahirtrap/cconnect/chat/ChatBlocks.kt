@@ -194,7 +194,7 @@ fun ChatMessageItem(
                             if (content.attachments.isNotEmpty()) {
                                 val chipScroll = rememberScrollState()
                                 Row(
-                                    modifier = Modifier.weight(1f).horizontalScrollbar(chipScroll).horizontalScroll(chipScroll),
+                                    modifier = Modifier.weight(1f).horizontalScrollbar(chipScroll, touchIndicator = false).horizontalScroll(chipScroll),
                                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                                 ) {
                                     content.attachments.forEach { (url, name) ->
@@ -956,7 +956,7 @@ private fun PreviewBox(preview: String) {
             style = MaterialTheme.typography.bodySmall.copy(lineHeight = 14.sp),
             color = MaterialTheme.colorScheme.onSurface,
             softWrap = false,
-            modifier = Modifier.horizontalScrollbar(scroll).horizontalScroll(scroll).padding(horizontal = 10.dp, vertical = 8.dp),
+            modifier = Modifier.horizontalScrollbar(scroll, touchIndicator = false).horizontalScroll(scroll).padding(horizontal = 10.dp, vertical = 8.dp),
         )
     }
 }

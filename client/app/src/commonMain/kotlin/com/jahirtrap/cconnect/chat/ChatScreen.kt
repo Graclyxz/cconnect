@@ -1373,7 +1373,7 @@ private fun ChatToolbar(
         Row(
             modifier = Modifier
                 .weight(1f)
-                .horizontalScrollbar(selectorScroll)
+                .horizontalScrollbar(selectorScroll, touchIndicator = false)
                 .horizontalScroll(selectorScroll)
                 .padding(end = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1748,7 +1748,7 @@ private fun AttachmentsRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScrollbar(scroll)
+            .horizontalScrollbar(scroll, touchIndicator = false)
             .horizontalScroll(scroll)
             .padding(start = 8.dp, end = 8.dp, top = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),

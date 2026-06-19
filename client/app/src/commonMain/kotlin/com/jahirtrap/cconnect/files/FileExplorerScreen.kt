@@ -1048,7 +1048,7 @@ private fun Breadcrumb(path: String, onNavigate: (String) -> Unit) {
                 .size(20.dp),
         )
         Row(
-            modifier = Modifier.weight(1f).horizontalScrollbar(scroll).horizontalScroll(scroll),
+            modifier = Modifier.weight(1f).horizontalScrollbar(scroll, touchIndicator = false).horizontalScroll(scroll),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             var cumulative = ""
