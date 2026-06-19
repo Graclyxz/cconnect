@@ -55,6 +55,11 @@ class SshConnection(
             session = s
             shell = sh
             stdin = sh.outputStream
+            val pendingCols = lastCols
+            val pendingRows = lastRows
+            if (pendingCols > 0 && pendingRows > 0 && (pendingCols != cols || pendingRows != rows)) {
+                runCatching { sh.changeWindowDimensions(pendingCols, pendingRows, 0, 0) }
+            }
             _state.emit(State.Connected)
             readJob = scope.launch(Dispatchers.IO) {
                 val buf = ByteArray(8192)

@@ -83,7 +83,12 @@ actual object AppUpdater {
         val name = marker.readLines().getOrNull(1)?.takeIf { it.isNotBlank() } ?: return false
         val file = File(updateDir, name)
         if (!file.isFile) return false
-        if (System.getProperty("os.name").lowercase().contains("linux")) linuxInstall(file) else openExternally(file)
+        val os = System.getProperty("os.name").lowercase()
+        when {
+            os.contains("linux") -> linuxInstall(file)
+            os.contains("windows") -> windowsInstall(file)
+            else -> openExternally(file)
+        }
     }.getOrDefault(false)
 
     private fun openExternally(file: File): Boolean =
@@ -91,6 +96,17 @@ actual object AppUpdater {
             Desktop.getDesktop().open(file)
             true
         } else false
+
+    private fun windowsInstall(file: File): Boolean {
+        val path = file.absolutePath
+        val launched = runCatching {
+            val pb = if (path.endsWith(".msi", ignoreCase = true)) ProcessBuilder("msiexec", "/i", path) else ProcessBuilder(path)
+            pb.start()
+            true
+        }.getOrDefault(false)
+        if (!launched) return openExternally(file)
+        exitProcess(0)
+    }
 
     private fun hasCmd(name: String): Boolean =
         runCatching { ProcessBuilder("which", name).start().waitFor() == 0 }.getOrDefault(false)

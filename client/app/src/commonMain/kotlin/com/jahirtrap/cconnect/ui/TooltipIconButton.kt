@@ -72,6 +72,21 @@ fun TooltipIconButton(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TooltipWrap(label: String, content: @Composable () -> Unit) {
+    val skikoTouch = !isAndroidPlatform && LocalIsTouch.current
+    val tooltipState = rememberTooltipState()
+    TooltipBox(
+        positionProvider = rememberAboveOrBelowPositionProvider(),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = tooltipState,
+        enableUserInput = !skikoTouch,
+    ) {
+        content()
+    }
+}
+
 @Composable
 private fun rememberAboveOrBelowPositionProvider(spacing: Dp = 4.dp): PopupPositionProvider {
     val density = LocalDensity.current

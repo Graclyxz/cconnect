@@ -232,6 +232,7 @@ import com.jahirtrap.cconnect.ui.RenameDialog
 import com.jahirtrap.cconnect.ui.SharedLinkActionsDialog
 import com.jahirtrap.cconnect.ui.OutlinedPanel
 import com.jahirtrap.cconnect.ui.TooltipIconButton
+import com.jahirtrap.cconnect.ui.TooltipWrap
 import com.jahirtrap.cconnect.ui.dayIndex
 import com.jahirtrap.cconnect.ui.theme.sessionColorOf
 import kotlinx.coroutines.flow.collect
@@ -1347,25 +1348,27 @@ private fun ChatToolbar(
         modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(modifier = Modifier.padding(start = 8.dp)) {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-                    .clickable(onClick = onQuickChat)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(Lucide.MessagesSquare, contentDescription = stringResource(Res.string.quick_chat), tint = accent, modifier = Modifier.size(18.dp))
-            }
-            if (quickChatActive) {
-                Box(
+        TooltipWrap(stringResource(Res.string.quick_chat)) {
+            Box(modifier = Modifier.padding(start = 8.dp)) {
+                Row(
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(accent),
-                )
+                        .clip(RoundedCornerShape(8.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
+                        .clickable(onClick = onQuickChat)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Lucide.MessagesSquare, contentDescription = stringResource(Res.string.quick_chat), tint = accent, modifier = Modifier.size(18.dp))
+                }
+                if (quickChatActive) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(accent),
+                    )
+                }
             }
         }
         Spacer(Modifier.width(6.dp))
@@ -1391,33 +1394,41 @@ private fun ChatToolbar(
                 return@Row
             }
             val defaultLabel = stringResource(Res.string.server_default)
-            SelectorChip(
-                label = models.firstOrNull { it.id == model }?.label ?: model,
-                icon = Lucide.Sparkles,
-                tint = accent,
-                options = listOf("" to defaultLabel) + models.map { it.id to it.label },
-                selected = modelSelected,
-                onSelect = onModel,
-            )
-            SelectorChip(
-                label = effort,
-                icon = Lucide.Gauge,
-                tint = accent,
-                options = listOf("" to defaultLabel) + effortLevels.map { it to it },
-                selected = effortSelected,
-                onSelect = onEffort,
-            )
+            TooltipWrap(stringResource(Res.string.model)) {
+                SelectorChip(
+                    label = models.firstOrNull { it.id == model }?.label ?: model,
+                    icon = Lucide.Sparkles,
+                    tint = accent,
+                    options = listOf("" to defaultLabel) + models.map { it.id to it.label },
+                    selected = modelSelected,
+                    onSelect = onModel,
+                )
+            }
+            TooltipWrap(stringResource(Res.string.effort)) {
+                SelectorChip(
+                    label = effort,
+                    icon = Lucide.Gauge,
+                    tint = accent,
+                    options = listOf("" to defaultLabel) + effortLevels.map { it to it },
+                    selected = effortSelected,
+                    onSelect = onEffort,
+                )
+            }
             val styles = permissionModes.associate { it.id to permissionStyle(it.id).let { s -> s.icon to s.color } }
-            SelectorChip(
-                label = permissionModes.firstOrNull { it.id == permissionMode }?.label ?: permissionMode,
-                icon = pstyle.icon,
-                tint = pstyle.color,
-                options = listOf("" to defaultLabel) + permissionModes.map { it.id to it.label },
-                selected = permissionSelected,
-                optionStyle = { styles[it] ?: (pstyle.icon to pstyle.color) },
-                onSelect = onPermissionMode,
-            )
-            StreamToggle(streaming = streaming, onClick = onStreaming)
+            TooltipWrap(stringResource(Res.string.permissions)) {
+                SelectorChip(
+                    label = permissionModes.firstOrNull { it.id == permissionMode }?.label ?: permissionMode,
+                    icon = pstyle.icon,
+                    tint = pstyle.color,
+                    options = listOf("" to defaultLabel) + permissionModes.map { it.id to it.label },
+                    selected = permissionSelected,
+                    optionStyle = { styles[it] ?: (pstyle.icon to pstyle.color) },
+                    onSelect = onPermissionMode,
+                )
+            }
+            TooltipWrap(stringResource(Res.string.streaming)) {
+                StreamToggle(streaming = streaming, onClick = onStreaming)
+            }
         }
     }
 }
