@@ -61,13 +61,15 @@ client/app/src/
 │   │   ├── AppCompat.kt         # version-range compare for the app/server/CLI contract
 │   │   ├── AppUpdater.kt        # expect: openRelease / downloadAndInstall / reload
 │   │   ├── Settings.kt / AppPrefs.kt(expect)   # persisted prefs (desktop: java Prefs/file; web: localStorage)
+│   │   ├── MarkdownStore.kt(expect)            # markdown scratchpad text (desktop/android: a file; web: localStorage) — NOT AppPrefs (desktop java Prefs caps a value at 8KB)
 │   │   ├── Clock / DateFormat / NumberFormat    # expect time/number formatting (no kotlinx-datetime dep)
 │   │   └── remote/              # Backend, Http, ChatSocket, Sessions/Shared/Claude/Cli/Capabilities/Settings/System Api,
 │   │                           #   GitHubApi, + expect HttpTransport/WebSocketConn/SharedHttp/UrlCodec/AppImageLoader
 │   ├── files/                   # FileExplorerScreen, FilePreviewScreen, UploadManager, FileDrop, FilePicker(expect),
-│   │                           #   AttachmentFile(expect), ClipboardPaste(expect), FilesUrl(expect), SharedActions(expect), PreviewKind
+│   │                           #   AttachmentFile(expect), ClipboardPaste(expect), FilesUrl(expect), SharedActions(expect: URL save/share + local-text save/share), PreviewKind
+│   ├── markdown/MarkdownScreen.kt # notes scratchpad: BasicTextField editor + live MarkdownText preview toggle; local save/save-as/share via SharedActions text funcs
 │   ├── monitor/MonitorScreen.kt # live PC monitor (resource graphs + server logs)
-│   ├── service/Notifier.kt      # expect notifications (desktop tray/notify-send; web Notification API)
+│   ├── service/                 # Notifier(expect: desktop tray/notify-send; web Notification API) + LocalServer(expect: desktop spawns the backend run.py)
 │   ├── settings/                # SettingsScreen + SettingsComponents (SettingsGroup/PreferenceRow, reused by claude/)
 │   ├── terminal/                # TerminalScreen + TerminalSession(expect) + OsIcons  (SSH; real impl desktop-only)
 │   └── ui/                      # the shared toolkit (see below) incl. Touch, HistoryNav, DismissStack, ClipboardShortcuts,
@@ -102,11 +104,17 @@ in `commonMain` with a `desktop` + `wasmJs` actual:
 | `Clock` / `DateFormat` / `NumberFormat` / `TimeFormat` | `java.time` / `java.text` | JS `Date` / `Intl` |
 | `AppPrefs` | file/Java Prefs | `localStorage` |
 | `TerminalSession` | sshj-backed PTY (SshConnection + libvterm TerminalEmulator), shared with android in **`jvmSharedMain`** | stub (no JVM sshj in the browser) |
+| `LocalServer` / `pickDirectory` / `pickExecutable` (service/LocalServer.kt) | spawns `run.py` as a child, status parsed from its stdout; tinyfd dir/file pickers | stub (no local backend in the browser) |
+| `MarkdownStore` (data/MarkdownStore.kt) | `~/.cconnect/markdown.md` file | `localStorage` |
+| `saveTextToDownloads` / `saveTextAs` / `shareText` (files/SharedActions.kt) | Downloads dir / tinyfd save dialog / copy text to clipboard | blob download / `showSaveFilePicker` / clipboard |
 
 **Android** (`androidMain`) supplies its own actual for each of the above
 (`AppPrefs` → `EncryptedSharedPreferences` for the secure store; `Notifier` →
 NotificationManager; `FilePicker`/`AttachmentFile` → SAF; `TerminalSession` →
-shared with desktop via `jvmSharedMain`; etc.) plus `isAndroidPlatform = true`.
+shared with desktop via `jvmSharedMain`; `MarkdownStore` → `filesDir/markdown.md`;
+the text save/share actuals → MediaStore Downloads / SAF `CreateDocument` /
+temp `.md` + `ACTION_SEND`; `LocalServer` → stub; etc.) plus
+`isAndroidPlatform = true`.
 
 **Rule:** never branch on platform inside `commonMain` with ad-hoc checks beyond
 `isWebPlatform` / `isAndroidPlatform` / the CompositionLocals below; put real
@@ -228,6 +236,11 @@ markdown rendering, code-edit diffs, and rewind all behave as documented in
   WebView.
 - **Interactive scrollbars** (`ui/ScrollIndicator.kt`) on scrollable content
   blocks (code, tables, diffs) for mouse, hidden on touch (mobile keeps swipe).
+- **Share / Save as** (`files/SharedActions.kt`) — there is no native share
+  sheet from the JVM/browser, so desktop & web **copy to the clipboard** (the
+  URL for a file preview, the text for the markdown notes) and "save as" uses
+  tinyfd / `showSaveFilePicker`. Android keeps the real share sheet
+  (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`) and SAF `CreateDocument`.
 
 ## Version compatibility & updates
 
@@ -254,6 +267,36 @@ sentinel makes the on-screen Backspace fire, `KeyboardType.Ascii` +
 `autoCorrectEnabled = false` keep characters literal, and `imeAction = Go` sends
 CR; physical keys still route through `onPreviewKeyEvent`. The wasmJs actual is a
 stub (no JVM sshj in the browser).
+
+## Local server (desktop)
+
+`service/LocalServer.kt` (expect; real actual **desktop-only**, android/web are
+stubs) lets the desktop app launch and supervise the backend itself instead of
+running `python run.py` by hand. `Settings` holds `localServerEnabled`,
+`localServerDir` (the backend folder), `localServerPython`
+(`auto`/`system`/`custom`) + `localServerPythonPath`, and `localServerMode`
+(`local` / `tailscale`). On launch — or the Settings "Run" button — it resolves a
+Python (`auto` = a venv under the backend dir, else system `python`/`python3`),
+`ProcessBuilder`s `run.py` (`--expose tailscale` in tailscale mode) with
+`PYTHONUNBUFFERED=1`, and streams stdout to scrape the **Public URL** / **Token**
+from `--expose`. State (`LocalServerState`: Stopped / Starting / RunningManaged /
+RunningExternal / Failed; `LocalServerError`: BadDir / NoPython / LaunchFailed /
+Crashed) is **derived from the process plus the existing chat WebSocket, never a
+poll loop**: if the port is already open it reports `RunningExternal` and stays
+hands-off; `stop()` kills the process tree; `restart()` waits for the old process
+to exit and the port to free before relaunching. Errors render as red text in the
+panel, which hides when a backend is already running externally.
+
+## Markdown scratchpad
+
+`markdown/MarkdownScreen.kt` is a notes editor reachable from the sidebar
+(`Lucide.Type`, right of Terminal): a full-screen `BasicTextField` with a
+`MarkdownText` live-preview toggle. Content persists through `MarkdownStore`
+(debounced 400ms + an `onDispose` flush) — a **file**, not `AppPrefs`, because
+desktop `java.util.prefs` throws `Value too long` over 8KB. The overflow menu's
+Save / Save As / Share map to the local-text `SharedActions` funcs
+(`saveTextToDownloads` / `saveTextAs` / `shareText`); default name `file.md` /
+`archivo.md` by locale. No delete (it's a scratchpad, not a file).
 
 ## Build / packaging
 

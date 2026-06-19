@@ -12,7 +12,10 @@ backend's shared folder, and a live PC monitor (CPU/GPU/memory/disks + server
 logs).
 
 The desktop and Android apps also bundle a standalone SSH client (saved hosts,
-embedded terminal, OS auto-detection) — see `client/CLAUDE.md`.
+embedded terminal, OS auto-detection); the desktop app can additionally launch
+and supervise the backend process itself (the local-server panel in Settings),
+and a built-in Markdown scratchpad keeps notes that persist between sessions.
+See `client/CLAUDE.md`.
 
 **Monorepo** — backend and client are the active project and MUST stay in sync.
 Changes to API contracts, event shapes, or schemas have to be reflected in both.

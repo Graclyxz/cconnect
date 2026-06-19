@@ -41,7 +41,7 @@ marketplaces, MCP servers, skills, memories) and a shared-folder file manager.
 ```
 backend/
 ├── main.py                  # FastAPI app; lifespan ensures auth + SDK; router auto-discovery; catch-all 404; GZipMiddleware(minimum_size=512)
-├── run.py                   # Supervisor launcher: runs uvicorn as a child and relaunches it on restart requests; --expose tailscale brings up Funnel + token + QR
+├── run.py                   # Supervisor launcher: runs uvicorn as a child and relaunches it on restart requests; --expose tailscale brings up Funnel + token + QR. The desktop client's local-server panel can spawn this too (see client/CLAUDE.md)
 ├── pyproject.toml           # version + [tool.cconnect] supported-app / supported-cli (the version contract)
 ├── Dockerfile
 ├── .env.example

@@ -64,6 +64,16 @@ What this does:
 enabled for this node** in the tailnet ACL. Your device needs only an internet
 connection — no Tailscale required.
 
+## Run the backend from the desktop app
+
+The desktop app can start the backend for you instead of running `python run.py`
+yourself. In Settings → Local server, point it at the backend folder, choose how
+to run Python (auto-detect a virtualenv there, the system Python, or a path you
+pick) and the mode — Local or a Tailscale Funnel — and it launches the server on
+startup, showing its status and, in public mode, the URL and token to connect
+with. It only manages a server it started; if one is already running, it steps
+aside.
+
 ## Connecting
 
 Open Settings → Connections and add the server: on mobile, scan the QR
@@ -118,6 +128,12 @@ desktop — and delete it right from the preview if it's no longer needed.
 It works in both directions: drop a file into `backend/shared/` on the PC — or
 just ask Claude to write one there — and you get a tap-to-download link in the
 chat, served over the same authenticated connection.
+
+## Notes
+
+A built-in Markdown editor doubles as a scratchpad: jot things down with a live
+preview, then save, export, or share the note as a file. What you type stays
+between sessions.
 
 ## Manage Claude Code itself
 
