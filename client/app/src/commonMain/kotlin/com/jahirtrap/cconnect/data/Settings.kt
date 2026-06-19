@@ -67,7 +67,7 @@ class Settings {
         set(value) = prefs.edit { putBoolean("window_maximized", value) }
 
     var minimizeToTray: Boolean
-        get() = prefs.getBoolean("minimize_to_tray", true)
+        get() = prefs.getBoolean("minimize_to_tray", false)
         set(value) = prefs.edit { putBoolean("minimize_to_tray", value) }
 
     var localServerEnabled: Boolean

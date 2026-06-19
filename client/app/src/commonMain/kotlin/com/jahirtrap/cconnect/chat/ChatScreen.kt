@@ -82,6 +82,7 @@ import com.composables.icons.lucide.Sparkles
 import com.composables.icons.lucide.Square
 import com.composables.icons.lucide.SquareCheckBig
 import com.composables.icons.lucide.SquareTerminal
+import com.composables.icons.lucide.Type
 import com.composables.icons.lucide.SquarePen
 import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.ui.AbovePopupMenu
@@ -246,6 +247,7 @@ fun ChatScreen(
     onOpenClaude: () -> Unit,
     onOpenMonitor: () -> Unit,
     onOpenTerminal: () -> Unit,
+    onOpenMarkdown: () -> Unit,
     onOpenPreview: (url: String, filename: String, onDelete: (() -> Unit)?) -> Unit,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
@@ -392,6 +394,7 @@ fun ChatScreen(
                         onOpenClaude = onOpenClaude,
                         onOpenMonitor = onOpenMonitor,
                         onOpenTerminal = onOpenTerminal,
+                        onOpenMarkdown = onOpenMarkdown,
                         onOpenSettings = onOpenSettings,
                         onRename = { renameTarget = it },
                         onColor = { colorTarget = it },
@@ -421,6 +424,7 @@ fun ChatScreen(
                                         onOpenClaude = onOpenClaude,
                                         onOpenMonitor = onOpenMonitor,
                                         onOpenTerminal = onOpenTerminal,
+                                        onOpenMarkdown = onOpenMarkdown,
                                         onOpenSettings = onOpenSettings,
                                         onRename = { renameTarget = it },
                                         onColor = { colorTarget = it },
@@ -446,6 +450,9 @@ fun ChatScreen(
                                     }
                                     TooltipIconButton(label = stringResource(Res.string.terminal), onClick = onOpenTerminal) {
                                         Icon(Lucide.SquareTerminal, contentDescription = null)
+                                    }
+                                    TooltipIconButton(label = stringResource(Res.string.markdown), onClick = onOpenMarkdown) {
+                                        Icon(Lucide.Type, contentDescription = null)
                                     }
                                     TooltipIconButton(label = stringResource(Res.string.settings), onClick = { onOpenSettings(null) }) {
                                         Icon(Lucide.Settings, contentDescription = null)
@@ -1142,6 +1149,7 @@ private fun ColumnScope.ChatPanelContent(
     onOpenClaude: () -> Unit,
     onOpenMonitor: () -> Unit,
     onOpenTerminal: () -> Unit,
+    onOpenMarkdown: () -> Unit,
     onOpenSettings: (String?) -> Unit,
     onRename: (com.jahirtrap.cconnect.data.SessionInfo) -> Unit,
     onColor: (com.jahirtrap.cconnect.data.SessionInfo) -> Unit,
@@ -1227,6 +1235,9 @@ private fun ColumnScope.ChatPanelContent(
         }
         TooltipIconButton(label = stringResource(Res.string.terminal), onClick = onOpenTerminal) {
             Icon(Lucide.SquareTerminal, contentDescription = null)
+        }
+        TooltipIconButton(label = stringResource(Res.string.markdown), onClick = onOpenMarkdown) {
+            Icon(Lucide.Type, contentDescription = null)
         }
         Spacer(Modifier.weight(1f))
         TooltipIconButton(label = stringResource(Res.string.settings), onClick = { onOpenSettings(null) }) {

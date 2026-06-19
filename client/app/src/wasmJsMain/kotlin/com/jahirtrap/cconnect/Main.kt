@@ -35,6 +35,7 @@ import com.jahirtrap.cconnect.claude.ClaudeScreen
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.files.FileExplorerScreen
 import com.jahirtrap.cconnect.files.FilePreviewScreen
+import com.jahirtrap.cconnect.markdown.MarkdownScreen
 import com.jahirtrap.cconnect.monitor.MonitorScreen
 import com.jahirtrap.cconnect.service.Notifier
 import com.jahirtrap.cconnect.settings.SettingsScreen
@@ -169,12 +170,15 @@ private fun App() {
 
                     "/terminal" -> TerminalScreen(onClose = { goBack() })
 
+                    "/markdown" -> MarkdownScreen(onClose = { goBack() })
+
                     else -> ChatScreen(
                         onOpenSettings = { target -> settingsHighlight = target; navigate("/settings") },
                         onOpenExplorer = { target -> explorerArchive = target; navigate("/files") },
                         onOpenClaude = { navigate("/claude") },
                         onOpenMonitor = { navigate("/monitor") },
                         onOpenTerminal = { navigate("/terminal") },
+                        onOpenMarkdown = { navigate("/markdown") },
                         onOpenPreview = { url, name, onDelete -> previewFile = PreviewRequest(url, name, onDelete) },
                         expanded = sidebarExpanded,
                         onExpandedChange = { sidebarExpanded = it; settings.sidebarExpanded = it },
@@ -203,6 +207,6 @@ private data class PreviewRequest(
 private fun docHasFocus(): Boolean = js("document.hasFocus()")
 
 private fun currentRoute(): String = when (val path = window.location.pathname) {
-    "/settings", "/claude", "/monitor", "/files", "/terminal" -> path
+    "/settings", "/claude", "/monitor", "/files", "/terminal", "/markdown" -> path
     else -> "/"
 }

@@ -56,6 +56,7 @@ import com.jahirtrap.cconnect.claude.ClaudeScreen
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.files.FileExplorerScreen
 import com.jahirtrap.cconnect.files.FilePreviewScreen
+import com.jahirtrap.cconnect.markdown.MarkdownScreen
 import com.jahirtrap.cconnect.monitor.MonitorScreen
 import com.jahirtrap.cconnect.service.LocalServer
 import com.jahirtrap.cconnect.service.LocalServerConfig
@@ -201,6 +202,7 @@ private fun App(systemLocale: Locale, refreshTick: Int, window: ComposeWindow) {
     var previewFile by remember { mutableStateOf<PreviewRequest?>(null) }
     var showTerminal by remember { mutableStateOf(false) }
     var terminalFromSettings by remember { mutableStateOf(false) }
+    var showMarkdown by remember { mutableStateOf(false) }
     // Hoisted so the open/collapsed state survives navigating to settings and back.
     var sidebarExpanded by remember { mutableStateOf(settings.sidebarExpanded) }
     LaunchedEffect(sidebarExpanded) { settings.sidebarExpanded = sidebarExpanded }
@@ -217,6 +219,7 @@ private fun App(systemLocale: Locale, refreshTick: Int, window: ComposeWindow) {
                 showTerminal = false
                 if (terminalFromSettings) { terminalFromSettings = false; showSettings = true }
             }
+            showMarkdown -> showMarkdown = false
             sidebarExpanded -> sidebarExpanded = false
         }
     }
@@ -317,12 +320,15 @@ private fun App(systemLocale: Locale, refreshTick: Int, window: ComposeWindow) {
                         }
                     })
 
+                    showMarkdown -> MarkdownScreen(onClose = { showMarkdown = false })
+
                     else -> ChatScreen(
                         onOpenSettings = { target -> settingsHighlight = target; showSettings = true },
                         onOpenExplorer = { target -> explorerArchive = target; showExplorer = true },
                         onOpenClaude = { showClaude = true },
                         onOpenMonitor = { showMonitor = true },
                         onOpenTerminal = { showTerminal = true },
+                        onOpenMarkdown = { showMarkdown = true },
                         onOpenPreview = { url, name, onDelete -> previewFile = PreviewRequest(url, name, onDelete) },
                         expanded = sidebarExpanded,
                         onExpandedChange = { sidebarExpanded = it },

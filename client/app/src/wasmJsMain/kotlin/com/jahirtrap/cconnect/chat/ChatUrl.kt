@@ -20,7 +20,7 @@ private fun parseQuery(search: String): Map<String, String> {
 }
 
 private fun onChatRoute(): Boolean = when (window.location.pathname) {
-    "/settings", "/claude", "/monitor", "/files", "/terminal" -> false
+    "/settings", "/claude", "/monitor", "/files", "/terminal", "/markdown" -> false
     else -> true
 }
 

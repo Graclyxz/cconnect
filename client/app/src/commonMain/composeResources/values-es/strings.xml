@@ -283,6 +283,8 @@
     <string name="local_server">Servidor local</string>
     <string name="local_server_start">Iniciar al abrir app</string>
     <string name="run">Ejecutar</string>
+    <string name="markdown">Markdown</string>
+    <string name="markdown_filename">archivo.md</string>
     <string name="local_server_bad_dir">Carpeta inválida</string>
     <string name="local_server_no_python">No se encontró Python</string>
     <string name="local_server_launch_failed">No se pudo lanzar el proceso</string>

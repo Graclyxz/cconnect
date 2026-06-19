@@ -42,6 +42,8 @@ import com.jahirtrap.cconnect.files.AttachmentFile
 import com.jahirtrap.cconnect.files.FileExplorerScreen
 import com.jahirtrap.cconnect.files.FilePreviewScreen
 import com.jahirtrap.cconnect.files.androidFilePicker
+import com.jahirtrap.cconnect.files.androidSaveAs
+import com.jahirtrap.cconnect.markdown.MarkdownScreen
 import com.jahirtrap.cconnect.monitor.MonitorScreen
 import com.jahirtrap.cconnect.service.EXTRA_OPEN_CHAT
 import com.jahirtrap.cconnect.service.Notifier
@@ -87,6 +89,14 @@ class MainActivity : AppCompatActivity() {
             pickerDeferred = null
         }
 
+    private var saveAsDeferred: CompletableDeferred<Uri?>? = null
+
+    private val saveAsLauncher =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("*/*")) { uri ->
+            saveAsDeferred?.complete(uri)
+            saveAsDeferred = null
+        }
+
     @OptIn(ExperimentalFoundationApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -115,6 +125,12 @@ class MainActivity : AppCompatActivity() {
                 runCatching { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
                 AttachmentFile(uri)
             }
+        }
+        androidSaveAs = { filename ->
+            val deferred = CompletableDeferred<Uri?>()
+            saveAsDeferred = deferred
+            runCatching { saveAsLauncher.launch(filename) }
+            deferred.await()
         }
         enableEdgeToEdge()
         handleIntent(intent)
@@ -178,6 +194,7 @@ class MainActivity : AppCompatActivity() {
         var previewFile by remember { mutableStateOf<PreviewRequest?>(null) }
         var showTerminal by remember { mutableStateOf(false) }
         var terminalFromSettings by remember { mutableStateOf(false) }
+        var showMarkdown by remember { mutableStateOf(false) }
         var sidebarExpanded by remember { mutableStateOf(settings.sidebarExpanded) }
         LaunchedEffect(sidebarExpanded) { settings.sidebarExpanded = sidebarExpanded }
 
@@ -191,6 +208,7 @@ class MainActivity : AppCompatActivity() {
                 showClaude = false
                 showMonitor = false
                 showTerminal = false
+                showMarkdown = false
                 previewFile = null
             }
         }
@@ -207,6 +225,7 @@ class MainActivity : AppCompatActivity() {
                     showTerminal = false
                     if (terminalFromSettings) { terminalFromSettings = false; showSettings = true }
                 }
+                showMarkdown -> showMarkdown = false
                 sidebarExpanded -> sidebarExpanded = false
                 else -> return false
             }
@@ -286,12 +305,15 @@ class MainActivity : AppCompatActivity() {
                             }
                         })
 
+                        showMarkdown -> MarkdownScreen(onClose = { showMarkdown = false })
+
                         else -> ChatScreen(
                             onOpenSettings = { target -> settingsHighlight = target; showSettings = true },
                             onOpenExplorer = { target -> explorerArchive = target; showExplorer = true },
                             onOpenClaude = { showClaude = true },
                             onOpenMonitor = { showMonitor = true },
                             onOpenTerminal = { showTerminal = true },
+                            onOpenMarkdown = { showMarkdown = true },
                             onOpenPreview = { url, name, onDelete -> previewFile = PreviewRequest(url, name, onDelete) },
                             expanded = sidebarExpanded,
                             onExpandedChange = { sidebarExpanded = it },

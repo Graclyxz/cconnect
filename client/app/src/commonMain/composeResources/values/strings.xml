@@ -283,6 +283,8 @@
     <string name="local_server">Local server</string>
     <string name="local_server_start">Start on launch</string>
     <string name="run">Run</string>
+    <string name="markdown">Markdown</string>
+    <string name="markdown_filename">file.md</string>
     <string name="local_server_bad_dir">Invalid folder</string>
     <string name="local_server_no_python">Python not found</string>
     <string name="local_server_launch_failed">Could not launch the process</string>

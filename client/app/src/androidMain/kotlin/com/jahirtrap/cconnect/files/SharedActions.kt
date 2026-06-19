@@ -2,6 +2,7 @@ package com.jahirtrap.cconnect.files
 
 import android.content.ContentValues
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -21,8 +22,12 @@ private val client = OkHttpClient()
 actual suspend fun downloadShared(url: String, filename: String): Boolean =
     saveToDownloads(url, filename)
 
-actual suspend fun saveSharedAs(url: String, filename: String): Boolean =
-    saveToDownloads(url, filename)
+var androidSaveAs: (suspend (filename: String) -> Uri?)? = null
+
+actual suspend fun saveSharedAs(url: String, filename: String): Boolean {
+    val uri = androidSaveAs?.invoke(filename) ?: return false
+    return saveToUri(url, uri)
+}
 
 actual suspend fun openSharedExternally(url: String, filename: String): Boolean =
     openExternally(url, filename)
@@ -32,7 +37,27 @@ actual suspend fun saveAllShared(items: List<Pair<String, String>>): Boolean = w
 }
 
 actual suspend fun openAllSharedExternally(items: List<Pair<String, String>>): Boolean = withContext(Dispatchers.IO) {
-    items.all { (url, filename) -> openExternally(url, filename) }
+    runCatching {
+        val dir = File(appContext.cacheDir, "shared").apply { mkdirs() }
+        val uris = ArrayList<Uri>()
+        items.forEach { (url, filename) ->
+            val file = dedup(dir, filename)
+            client.newCall(authorizedRequest(url)).execute().use { resp ->
+                val body = resp.body ?: return@withContext false
+                if (!resp.isSuccessful) return@withContext false
+                file.outputStream().use { body.byteStream().copyTo(it) }
+            }
+            uris.add(FileProvider.getUriForFile(appContext, "${appContext.packageName}.fileprovider", file))
+        }
+        if (uris.isEmpty()) return@withContext false
+        val send = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            type = "*/*"
+            putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        appContext.startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        true
+    }.getOrDefault(false)
 }
 
 private suspend fun saveToDownloads(url: String, filename: String): Boolean = withContext(Dispatchers.IO) {
@@ -76,13 +101,23 @@ private suspend fun openExternally(url: String, filename: String): Boolean = wit
             file.outputStream().use { body.byteStream().copyTo(it) }
         }
         val uri = FileProvider.getUriForFile(appContext, "${appContext.packageName}.fileprovider", file)
-        appContext.startActivity(
-            Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, mimeOf(filename))
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-        )
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = mimeOf(filename)
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        appContext.startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         true
+    }.getOrDefault(false)
+}
+
+private suspend fun saveToUri(url: String, uri: Uri): Boolean = withContext(Dispatchers.IO) {
+    runCatching {
+        client.newCall(authorizedRequest(url)).execute().use { resp ->
+            val body = resp.body ?: return@use false
+            if (!resp.isSuccessful) return@use false
+            appContext.contentResolver.openOutputStream(uri)?.use { out -> body.byteStream().copyTo(out) } != null
+        }
     }.getOrDefault(false)
 }
 
@@ -111,4 +146,31 @@ private fun dedup(dir: File, name: String): File {
         n++
     }
     return target
+}
+
+actual suspend fun saveTextToDownloads(filename: String, text: String): Boolean = withContext(Dispatchers.IO) {
+    runCatching { writeToDownloads(filename) { out -> out.write(text.toByteArray()) } }.getOrDefault(false)
+}
+
+actual suspend fun saveTextAs(filename: String, text: String): Boolean {
+    val uri = androidSaveAs?.invoke(filename) ?: return false
+    return withContext(Dispatchers.IO) {
+        runCatching { appContext.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) } != null }.getOrDefault(false)
+    }
+}
+
+actual suspend fun shareText(filename: String, text: String): Boolean = withContext(Dispatchers.IO) {
+    runCatching {
+        val dir = File(appContext.cacheDir, "shared").apply { mkdirs() }
+        val file = dedup(dir, filename)
+        file.writeText(text)
+        val uri = FileProvider.getUriForFile(appContext, "${appContext.packageName}.fileprovider", file)
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = mimeOf(filename)
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        appContext.startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        true
+    }.getOrDefault(false)
 }
