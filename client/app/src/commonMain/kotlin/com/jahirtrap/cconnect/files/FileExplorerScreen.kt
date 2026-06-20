@@ -145,6 +145,7 @@ import com.jahirtrap.cconnect.ui.horizontalScrollbar
 import com.jahirtrap.cconnect.ui.CenteredProgress
 import com.jahirtrap.cconnect.ui.ClipKey
 import com.jahirtrap.cconnect.ui.ClipboardShortcutHandler
+import com.jahirtrap.cconnect.ui.PreviewOverlay
 import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.ConfirmDialog
@@ -270,7 +271,7 @@ fun FileExplorerScreen(
 
     var pendingUploads by remember { mutableStateOf<List<AttachmentFile>>(emptyList()) }
     var dropOver by remember { mutableStateOf(false) }
-    ClipboardPasteEffect(enabled = archive == null) { pendingUploads = it }
+    ClipboardPasteEffect(enabled = archive == null && !PreviewOverlay.open) { pendingUploads = it }
 
     fun child(name: String) = if (path.isEmpty()) name else "$path/$name"
     fun innerChild(name: String) = if (archiveDir.isEmpty()) name else "$archiveDir/$name"
@@ -342,7 +343,7 @@ fun FileExplorerScreen(
         (currentTransfer.kind != TransferKind.Move || path != currentTransfer.sourceDir)
 
     val shortcutsEnabled = !searching && renaming == null && !creatingFolder &&
-        !confirmingDelete && extractRequest == null && compressing == null
+        !confirmingDelete && extractRequest == null && compressing == null && !PreviewOverlay.open
     ClipboardShortcutHandler(enabled = shortcutsEnabled) { key ->
         when (key) {
             ClipKey.Copy -> if (archive == null && selected.isNotEmpty()) {

@@ -10,7 +10,7 @@ actual suspend fun downloadShared(url: String, filename: String): Boolean =
     FileTransfer.enqueueToDownloads(url, filename)
 
 actual suspend fun saveSharedAs(url: String, filename: String): Boolean {
-    val dest = FileDialogs.save(filename) ?: return false
+    val dest = withContext(Dispatchers.Default) { FileDialogs.save(filename) } ?: return false
     return FileTransfer.saveTo(url, dest)
 }
 
@@ -20,7 +20,7 @@ actual suspend fun openSharedExternally(url: String, filename: String): Boolean 
 }
 
 actual suspend fun saveAllShared(items: List<Pair<String, String>>): Boolean {
-    val dir = FileDialogs.chooseDirectory() ?: return false
+    val dir = withContext(Dispatchers.Default) { FileDialogs.chooseDirectory() } ?: return false
     return FileTransfer.saveAllTo(items, dir)
 }
 
@@ -42,7 +42,7 @@ actual suspend fun saveTextToDownloads(filename: String, text: String): Boolean 
 }
 
 actual suspend fun saveTextAs(filename: String, text: String): Boolean {
-    val dest = FileDialogs.save(filename) ?: return false
+    val dest = withContext(Dispatchers.Default) { FileDialogs.save(filename) } ?: return false
     return withContext(Dispatchers.IO) { runCatching { dest.writeText(text); true }.getOrDefault(false) }
 }
 

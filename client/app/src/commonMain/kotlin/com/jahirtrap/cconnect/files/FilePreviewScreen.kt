@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +65,7 @@ import com.jahirtrap.cconnect.ui.ConfirmDialog
 import com.jahirtrap.cconnect.ui.Dismissable
 import com.jahirtrap.cconnect.ui.EmptyState
 import com.jahirtrap.cconnect.ui.MarkdownText
+import com.jahirtrap.cconnect.ui.PreviewOverlay
 import com.jahirtrap.cconnect.ui.TooltipIconButton
 import kotlinx.coroutines.launch
 
@@ -86,6 +88,11 @@ fun FilePreviewScreen(
     LaunchedEffect(Unit) { keyboard?.hide() }
 
     Dismissable { onClose() }
+
+    DisposableEffect(Unit) {
+        PreviewOverlay.enter()
+        onDispose { PreviewOverlay.leave() }
+    }
 
     val kind = previewKindOf(filename)
     LaunchedEffect(url) {

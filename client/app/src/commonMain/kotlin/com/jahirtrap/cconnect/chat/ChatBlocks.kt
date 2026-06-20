@@ -651,7 +651,7 @@ private fun InteractionBlock(
                     OutlinedButton(
                         onClick = { onAnswer?.invoke(data.requestId, opt.id, null) },
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand),
+                        modifier = Modifier.pointerHoverIcon(PointerIcon.Hand, overrideDescendants = true),
                     ) {
                         Text(optionLabel(opt), style = MaterialTheme.typography.bodyMedium)
                     }
@@ -782,7 +782,9 @@ private fun QuestionTabs(questions: List<InteractionQuestion>, pagerState: Pager
             Surface(
                 color = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant,
                 shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.clickable { scope.launch { pagerState.animateScrollToPage(i) } },
+                modifier = Modifier
+                    .clickable { scope.launch { pagerState.animateScrollToPage(i) } }
+                    .pointerHoverIcon(PointerIcon.Hand, overrideDescendants = true),
             ) {
                 Text(
                     label,
@@ -851,6 +853,7 @@ private fun QuestionContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable { showNotes = true }
+                    .pointerHoverIcon(PointerIcon.Hand, overrideDescendants = true)
                     .padding(top = 4.dp),
             )
         }
@@ -888,6 +891,7 @@ private fun OptionRow(opt: InteractionOption, selected: Boolean, multi: Boolean,
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
+            .pointerHoverIcon(PointerIcon.Hand, overrideDescendants = true)
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

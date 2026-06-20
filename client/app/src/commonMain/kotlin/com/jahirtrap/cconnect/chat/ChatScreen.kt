@@ -125,6 +125,7 @@ import com.jahirtrap.cconnect.ui.ClearFocusOnImeHide
 import com.jahirtrap.cconnect.ui.LocalIsTouch
 import com.jahirtrap.cconnect.ui.ClipKey
 import com.jahirtrap.cconnect.ui.ClipboardShortcutHandler
+import com.jahirtrap.cconnect.ui.PreviewOverlay
 import com.jahirtrap.cconnect.ui.Dismissable
 import com.jahirtrap.cconnect.ui.horizontalScrollbar
 import com.jahirtrap.cconnect.ui.LocalMobileLayout
@@ -564,7 +565,7 @@ fun ChatScreen(
                             ClearFocusOnImeHide()
                             val dialogOpen = renameTarget != null || deleteTarget != null || colorTarget != null ||
                                 confirmCommand != null || sharedLinkAction != null || showRewindSheet
-                            val shortcutsEnabled = !dialogOpen && !(mobile && drawerState.targetValue == DrawerValue.Open)
+                            val shortcutsEnabled = !dialogOpen && !PreviewOverlay.open && !(mobile && drawerState.targetValue == DrawerValue.Open)
                             ClipboardPasteEffect(enabled = shortcutsEnabled && !sideActive) { vm.addAttachments(it) }
                             ClipboardShortcutHandler(enabled = shortcutsEnabled) { key ->
                                 when (key) {
