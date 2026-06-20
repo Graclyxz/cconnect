@@ -815,6 +815,11 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                     currentThinkingId = append(currentThinkingId, Role.THINKING, event.text)
                 }
             }
+            is ServerEvent.Plan -> {
+                currentAssistantId = null
+                currentThinkingId = null
+                addMessage(Role.PLAN, event.markdown)
+            }
             is ServerEvent.ToolUse -> {
                 currentAssistantId = null
                 currentThinkingId = null

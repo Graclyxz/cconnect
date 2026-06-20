@@ -91,7 +91,6 @@ import com.composables.icons.lucide.TriangleAlert
 import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.PlayFilled
-import com.jahirtrap.cconnect.ui.Stop
 import com.jahirtrap.cconnect.data.ChatMessage
 import com.jahirtrap.cconnect.data.CompactData
 import com.jahirtrap.cconnect.data.DiffKind
@@ -104,6 +103,7 @@ import com.jahirtrap.cconnect.data.Role
 import com.jahirtrap.cconnect.ui.ActionButton
 import com.jahirtrap.cconnect.ui.CodeBlock
 import com.jahirtrap.cconnect.ui.MarkdownText
+import com.jahirtrap.cconnect.ui.OutlinedPanel
 import com.jahirtrap.cconnect.ui.formatClock
 import com.jahirtrap.cconnect.ui.formatDay
 import com.jahirtrap.cconnect.ui.horizontalScrollbar
@@ -257,6 +257,8 @@ fun ChatMessageItem(
 
             Role.COMPACT -> message.compact?.let { CompactBlock(it, expanded = expanded, onToggle = onToggle) }
 
+            Role.PLAN -> PlanBlock(markdown = message.text, expanded = expanded, onToggle = onToggle, onSharedLink = onSharedLink)
+
             Role.ERROR -> Band(MaterialTheme.colorScheme.errorContainer) {
                 Row(verticalAlignment = Alignment.Top) {
                     Icon(
@@ -273,7 +275,7 @@ fun ChatMessageItem(
             Role.INTERRUPTED -> Band(palette.orange.copy(alpha = 0.15f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        CustomIcons.Stop,
+                        Lucide.TriangleAlert,
                         contentDescription = null,
                         tint = palette.orange,
                         modifier = Modifier.size(18.dp),
@@ -322,7 +324,7 @@ fun StickyCollapsibleHeader(message: ChatMessage, onCollapse: () -> Unit, modifi
 private fun isNotice(role: Role?): Boolean = role == Role.ERROR || role == Role.INTERRUPTED
 
 private fun group(role: Role?): Int = when (role) {
-    Role.THINKING, Role.WORKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION, Role.FILE_CHANGE, Role.COMPACT -> 0
+    Role.THINKING, Role.WORKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION, Role.FILE_CHANGE, Role.COMPACT, Role.PLAN -> 0
     Role.ASSISTANT -> 1
     Role.USER, Role.ERROR, Role.INTERRUPTED -> 2
     else -> 3
@@ -423,6 +425,65 @@ private fun Collapsible(label: String, text: String, icon: ImageVector? = null, 
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun PlanBlock(markdown: String, expanded: Boolean? = null, onToggle: (() -> Unit)? = null, onSharedLink: ((String, String) -> Unit)? = null) {
+    var localExpanded by rememberSaveable { mutableStateOf(false) }
+    val isExpanded = expanded ?: localExpanded
+    val toggle = onToggle ?: { localExpanded = !localExpanded }
+    val preview = markdown.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.trimStart('#', ' ')?.trim().orEmpty()
+    val nameColor = MaterialTheme.colorScheme.primary
+    val previewColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val planLabel = stringResource(Res.string.plan)
+    val header = buildAnnotatedString {
+        withStyle(SpanStyle(color = nameColor)) { append(planLabel) }
+        if (!isExpanded && preview.isNotEmpty()) {
+            append("  ")
+            withStyle(SpanStyle(color = previewColor)) { append(preview) }
+        }
+    }
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { toggle() },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Lucide.Lightbulb,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp),
+            )
+            Spacer(Modifier.size(6.dp))
+            Text(
+                text = header,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = if (isExpanded) Lucide.ChevronDown else Lucide.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        if (isExpanded) {
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            ) {
+                MarkdownText(
+                    markdown,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                    selectable = false,
+                    onSharedLink = onSharedLink,
+                )
+            }
         }
     }
 }
@@ -633,10 +694,18 @@ private fun InteractionBlock(
     onAnswer: ((String, String, String?) -> Unit)?,
 ) {
     val resolved = data.resolved
-    val title = data.title ?: toolName ?: stringResource(Res.string.permission_title)
-    val headerIcon = Lucide.Shield
+    val isPlan = toolName == "ExitPlanMode"
+    val title = if (isPlan) stringResource(Res.string.plan) else (data.title ?: toolName ?: stringResource(Res.string.permission_title))
+    val headerIcon = if (isPlan) Lucide.Lightbulb else Lucide.Shield
+    var planExpanded by rememberSaveable { mutableStateOf(true) }
+    val planPreview = if (isPlan) input.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.trimStart('#', ' ')?.trim().orEmpty() else ""
+    val titleColor = MaterialTheme.colorScheme.primary
+    val previewColor = MaterialTheme.colorScheme.onSurfaceVariant
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = if (isPlan) Modifier.fillMaxWidth().clickable { planExpanded = !planExpanded } else Modifier,
+        ) {
             Icon(
                 headerIcon,
                 contentDescription = null,
@@ -645,20 +714,43 @@ private fun InteractionBlock(
             )
             Spacer(Modifier.size(8.dp))
             Text(
-                text = title,
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(color = titleColor)) { append(title) }
+                    if (isPlan && !planExpanded && planPreview.isNotEmpty()) {
+                        append("  ")
+                        withStyle(SpanStyle(color = previewColor)) { append(planPreview) }
+                    }
+                },
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            if (isPlan) {
+                Icon(
+                    if (planExpanded) Lucide.ChevronDown else Lucide.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
         if (input.isNotBlank()) {
-            Text(
-                text = input,
-                fontFamily = LocalMonoFontFamily.current,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
-            )
+            if (isPlan) {
+                if (planExpanded) {
+                    OutlinedPanel(modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                        MarkdownText(input, modifier = Modifier.fillMaxWidth(), selectable = false)
+                    }
+                }
+            } else {
+                Text(
+                    text = input,
+                    fontFamily = LocalMonoFontFamily.current,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
         }
         if (resolved == null) {
             Spacer(Modifier.height(8.dp))

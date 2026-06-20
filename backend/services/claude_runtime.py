@@ -256,6 +256,11 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False, hidden_tool_ids
                 if bid:
                     hidden.add(bid)
                 continue
+            if name == "ExitPlanMode":
+                bid = getattr(block, "id", None)
+                if bid:
+                    hidden.add(bid)
+                continue
             if name == "TodoWrite" and isinstance(raw_input, dict):
                 events.append({"type": "todos", "items": _todo_items(raw_input.get("todos"))})
             elif name == "TaskUpdate" and isinstance(raw_input, dict):
@@ -349,11 +354,15 @@ def _build_can_use_tool(ask_user: Callable[[dict], Awaitable[dict]]):
                 updated["annotations"] = annotations
             return PermissionResultAllow(updated_input=updated)
 
+        if tool_name == "ExitPlanMode" and isinstance(tool_input, dict):
+            tool_display = (tool_input.get("plan") or "").strip()
+        else:
+            tool_display = _format_tool_input(tool_input)
         response = await ask_user({
             "kind": "permission",
             "tool_name": tool_name,
             "tool_use_id": getattr(ctx, "tool_use_id", None),
-            "input": _format_tool_input(tool_input),
+            "input": tool_display,
             "options": [
                 {"id": "allow"},
                 {"id": "allow_always"},

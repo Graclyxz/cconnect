@@ -280,6 +280,7 @@ class ChatSocket(private val scope: CoroutineScope, private val config: () -> Ba
             "ask_session" -> ServerEvent.AskSession(str("session_id").orEmpty())
             "ask_done" -> ServerEvent.AskDone
             "command" -> ServerEvent.Command(str("markdown").orEmpty())
+            "plan" -> ServerEvent.Plan(str("markdown").orEmpty())
             "compact_summary" -> ServerEvent.CompactSummary(
                 trigger = str("trigger"),
                 preTokens = obj["pre_tokens"]?.jsonPrimitive?.intOrNull,

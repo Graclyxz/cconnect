@@ -240,6 +240,7 @@
     <string name="status_retrying">Retrying</string>
     <string name="status_failed">Temporary failure</string>
     <string name="interrupted">Interrupted</string>
+    <string name="plan">Plan</string>
     <string name="loading">Loading</string>
     <string name="confirm">Confirm</string>
     <string name="visibility">Chat visibility</string>
