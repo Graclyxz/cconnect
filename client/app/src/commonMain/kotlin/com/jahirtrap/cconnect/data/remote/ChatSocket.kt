@@ -45,11 +45,11 @@ class ChatSocket(private val scope: CoroutineScope, private val config: () -> Ba
     private var sideResume: String? = null
 
     // Boolean = side lane (quick chat) vs main lane.
-    private val _events = MutableSharedFlow<Pair<Boolean, ServerEvent>>(extraBufferCapacity = 256)
-    val events: SharedFlow<Pair<Boolean, ServerEvent>> = _events
+    private val _events = MutableSharedFlow<Triple<Boolean, String?, ServerEvent>>(extraBufferCapacity = 256)
+    val events: SharedFlow<Triple<Boolean, String?, ServerEvent>> = _events
 
-    private fun emit(side: Boolean, event: ServerEvent) {
-        scope.launch { _events.emit(side to event) }
+    private fun emit(side: Boolean, event: ServerEvent, parent: String? = null) {
+        scope.launch { _events.emit(Triple(side, parent, event)) }
     }
 
     fun connect() {
@@ -80,7 +80,7 @@ class ChatSocket(private val scope: CoroutineScope, private val config: () -> Ba
 
             override fun onMessage(text: String) {
                 if (gen != generation) return
-                parse(text)?.let { (side, event) -> emit(side, event) }
+                parse(text)?.let { (side, parent, event) -> emit(side, event, parent) }
             }
 
             override fun onFailure(reason: String) {
@@ -224,10 +224,11 @@ class ChatSocket(private val scope: CoroutineScope, private val config: () -> Ba
         ws?.send(payload.toString())
     }
 
-    private fun parse(text: String): Pair<Boolean, ServerEvent>? {
+    private fun parse(text: String): Triple<Boolean, String?, ServerEvent>? {
         val obj = runCatching { Json.parseToJsonElement(text).jsonObject }.getOrNull() ?: return null
         fun str(key: String): String? = obj[key]?.jsonPrimitive?.contentOrNull
         fun flag(key: String): Boolean = obj[key]?.jsonPrimitive?.booleanOrNull == true
+        val parent = str("parent")
         val type = str("type")
         if (type == "ready") {
             // New channel = fresh server session (replay restarts at 1); reset the cursor.
@@ -236,7 +237,7 @@ class ChatSocket(private val scope: CoroutineScope, private val config: () -> Ba
                 channel = newChannel
                 lastSeq = 0
             }
-            return false to ServerEvent.Ready(str("session_id"), str("project"), newChannel, flag("running"))
+            return Triple(false, null, ServerEvent.Ready(str("session_id"), str("project"), newChannel, flag("running")))
         }
         val ch = str("channel")
         val side = ch != null && channel != null && ch != channel
@@ -281,6 +282,7 @@ class ChatSocket(private val scope: CoroutineScope, private val config: () -> Ba
             "ask_done" -> ServerEvent.AskDone
             "command" -> ServerEvent.Command(str("markdown").orEmpty())
             "plan" -> ServerEvent.Plan(str("markdown").orEmpty())
+            "agent" -> ServerEvent.Agent(str("id"), str("subagent_type"), str("description"), flag("label"))
             "compact_summary" -> ServerEvent.CompactSummary(
                 trigger = str("trigger"),
                 preTokens = obj["pre_tokens"]?.jsonPrimitive?.intOrNull,
@@ -337,7 +339,7 @@ class ChatSocket(private val scope: CoroutineScope, private val config: () -> Ba
             else -> null
         }
         if (event is ServerEvent.AskSession) sideResume = event.sessionId
-        return event?.let { side to it }
+        return event?.let { Triple(side, parent, it) }
     }
 }
 

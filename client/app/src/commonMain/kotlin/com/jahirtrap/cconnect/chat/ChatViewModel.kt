@@ -178,7 +178,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         }
         loadEnvOverrides()
         viewModelScope.launch {
-            client.events.collect { (side, event) -> if (side) onSideEvent(event) else onEvent(event) }
+            client.events.collect { (side, parent, event) -> if (side) onSideEvent(event) else onEvent(event, parent) }
         }
     }
 
@@ -597,14 +597,31 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         SessionsApi.sessions(projectKey.orEmpty()).firstOrNull { it.sessionId == sessionId }
             ?: SessionInfo(sessionId, projectKey, null, null, 0L, null, null, null)
 
+    private fun nestAgents(flat: List<Pair<ChatMessage, String?>>): List<ChatMessage> {
+        val result = mutableListOf<ChatMessage>()
+        val agentAt = mutableMapOf<String, Int>()
+        for ((msg, parent) in flat) {
+            if (parent != null) {
+                val idx = agentAt[parent]
+                if (idx != null && (msg.role == Role.TOOL || msg.role == Role.FILE_CHANGE)) {
+                    result[idx] = result[idx].copy(children = result[idx].children + msg)
+                }
+                continue
+            }
+            if (msg.role == Role.AGENT && msg.toolUseId != null) agentAt[msg.toolUseId] = result.size
+            result.add(msg)
+        }
+        return result
+    }
+
     private suspend fun loadSessionInto(session: SessionInfo): Boolean {
         val projectKey = session.projectKey ?: return false
         val page = SessionsApi.sessionMessages(session.sessionId, projectKey, limit = 100)
         val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly || !it.images.isNullOrEmpty() }
-        val loaded = visible.mapIndexed { i, m ->
-            ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, session.sessionId, projectKey), timestamp = m.timestamp)
-        }
-        nextId = loaded.size.toLong()
+        val loaded = nestAgents(visible.mapIndexed { i, m ->
+            ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, toolUseId = m.toolUseId, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, session.sessionId, projectKey), timestamp = m.timestamp) to m.parent
+        })
+        nextId = visible.size.toLong()
         currentAssistantId = null
         currentThinkingId = null
         session.path?.let { ctx.cwd = it }
@@ -692,10 +709,10 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         val proj = currentProjectKey() ?: return
         val page = SessionsApi.sessionMessages(sid, proj, limit = 100)
         val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly || !it.images.isNullOrEmpty() }
-        val loaded = visible.mapIndexed { i, m ->
-            ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, sid, proj), timestamp = m.timestamp)
-        }
-        nextId = loaded.size.toLong()
+        val loaded = nestAgents(visible.mapIndexed { i, m ->
+            ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, toolUseId = m.toolUseId, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, sid, proj), timestamp = m.timestamp) to m.parent
+        })
+        nextId = visible.size.toLong()
         currentAssistantId = null
         currentThinkingId = null
         _state.update {
@@ -776,10 +793,37 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         "interaction" -> Role.INTERACTION
         "compact" -> Role.COMPACT
         "summary" -> Role.SUMMARY
+        "agent" -> Role.AGENT
+        "plan" -> Role.PLAN
         else -> Role.SYSTEM
     }
 
-    private suspend fun onEvent(event: ServerEvent) {
+    private fun onAgentChild(parent: String, event: ServerEvent) {
+        val child: ChatMessage? = when (event) {
+            is ServerEvent.ToolUse -> ChatMessage(nextId++, Role.TOOL, event.input.orEmpty(), toolName = event.name, toolUseId = event.id, result = event.result, timestamp = nowMillis())
+            is ServerEvent.FileChange -> ChatMessage(nextId++, Role.FILE_CHANGE, "", toolUseId = event.id, path = event.path, diffLines = event.diffLines, labelOnly = event.labelOnly, timestamp = nowMillis())
+            else -> null
+        }
+        _state.update { st ->
+            st.copy(messages = st.messages.map { m ->
+                if (m.role == Role.AGENT && m.toolUseId == parent) {
+                    val kids = when {
+                        event is ServerEvent.ToolResult && event.toolUseId != null && event.content != null ->
+                            m.children.map { if (it.toolUseId == event.toolUseId) it.copy(result = event.content) else it }
+                        child != null -> m.children + child
+                        else -> m.children
+                    }
+                    m.copy(children = kids)
+                } else m
+            })
+        }
+    }
+
+    private suspend fun onEvent(event: ServerEvent, parent: String? = null) {
+        if (parent != null) {
+            onAgentChild(parent, event)
+            return
+        }
         when (event) {
             is ServerEvent.Connecting -> _state.update {
                 if (it.connection == ConnectionState.Connected) it
@@ -819,6 +863,12 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 currentAssistantId = null
                 currentThinkingId = null
                 addMessage(Role.PLAN, event.markdown)
+            }
+            is ServerEvent.Agent -> {
+                currentAssistantId = null
+                currentThinkingId = null
+                addMessage(Role.AGENT, event.description.orEmpty(), toolName = event.subagentType, toolUseId = event.id, labelOnly = event.labelOnly)
+                event.id?.let { id -> _state.update { it.copy(pendingToolIds = it.pendingToolIds + id) } }
             }
             is ServerEvent.ToolUse -> {
                 currentAssistantId = null

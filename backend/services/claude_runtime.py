@@ -261,6 +261,17 @@ def _blocks_to_events(content: Any, skip_streamed: bool = False, hidden_tool_ids
                 if bid:
                     hidden.add(bid)
                 continue
+            if name in ("Agent", "Task") and isinstance(raw_input, dict):
+                mode = settings_store.visibility_mode("tool_use")
+                if mode != "off":
+                    events.append({
+                        "type": "agent",
+                        "id": getattr(block, "id", None),
+                        "subagent_type": raw_input.get("subagent_type"),
+                        "description": raw_input.get("description"),
+                        "label": mode == "label",
+                    })
+                continue
             if name == "TodoWrite" and isinstance(raw_input, dict):
                 events.append({"type": "todos", "items": _todo_items(raw_input.get("todos"))})
             elif name == "TaskUpdate" and isinstance(raw_input, dict):
@@ -363,12 +374,16 @@ def _build_can_use_tool(ask_user: Callable[[dict], Awaitable[dict]]):
             "tool_name": tool_name,
             "tool_use_id": getattr(ctx, "tool_use_id", None),
             "input": tool_display,
-            "options": [
-                {"id": "allow"},
-                {"id": "allow_always"},
-                {"id": "deny"},
-                {"id": "different"},
-            ],
+            "options": (
+                [{"id": "allow"}, {"id": "deny"}, {"id": "different"}]
+                if tool_name == "ExitPlanMode"
+                else [
+                    {"id": "allow"},
+                    {"id": "allow_always"},
+                    {"id": "deny"},
+                    {"id": "different"},
+                ]
+            ),
             "free_text": "off",
         })
         option = response.get("option_id")
@@ -492,6 +507,10 @@ async def run_prompt(
             if status_state["retrying"] and emit is not None:
                 status_state["retrying"] = False
                 await emit({"type": "status", "kind": "ok"})
+            parent = getattr(message, "parent_tool_use_id", None)
+            agent_mode = settings_store.visibility_mode("tool_use") if parent else None
+            if parent and agent_mode == "off":
+                continue
             if isinstance(message, StreamEvent):
                 raw = message.event
                 idx = raw.get("index") if isinstance(raw, dict) else None
@@ -504,9 +523,13 @@ async def run_prompt(
                     if isinstance(idx, int) and idx in first_chunk_pending and event.get("text"):
                         event["text"] = event["text"].lstrip()
                         first_chunk_pending.discard(idx)
+                    if parent:
+                        event["parent"] = parent
                     yield event
             elif isinstance(message, AssistantMessage):
                 for event in _blocks_to_events(message.content, skip_streamed=partial, hidden_tool_ids=hidden_tool_ids):
+                    if parent:
+                        event["parent"] = parent
                     yield event
             elif isinstance(message, UserMessage):
                 tu_mode = settings_store.visibility_mode("tool_use")
@@ -520,8 +543,12 @@ async def run_prompt(
                         ev = {"type": "tool_result", "tool_use_id": tuid}
                         if tu_mode == "full":
                             ev["content"] = _flatten_result_content(getattr(block, "content", None))
+                        if parent:
+                            ev["parent"] = parent
                         yield ev
                 for event in _task_events_from_result(getattr(message, "tool_use_result", None)):
+                    if parent:
+                        event["parent"] = parent
                     yield event
             elif isinstance(message, SystemMessage):
                 subtype = getattr(message, "subtype", None)

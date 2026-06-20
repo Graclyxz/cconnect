@@ -84,7 +84,9 @@ object SessionsApi {
         val o = el.jsonObject
         val type = o["type"]?.jsonPrimitive?.contentOrNull
         val text = when (type) {
-            "file_change", "interaction", "compact" -> ""
+            "file_change", "compact" -> ""
+            "interaction" -> o["input"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            "agent" -> o["description"]?.jsonPrimitive?.contentOrNull.orEmpty()
             else -> o["text"]?.jsonPrimitive?.contentOrNull.orEmpty()
         }
         val interaction = if (type == "interaction") parseInteraction(o) else null
@@ -107,7 +109,7 @@ object SessionsApi {
             type = type,
             role = o["role"]?.jsonPrimitive?.contentOrNull,
             text = text,
-            name = o["name"]?.jsonPrimitive?.contentOrNull ?: o["tool_name"]?.jsonPrimitive?.contentOrNull,
+            name = o["name"]?.jsonPrimitive?.contentOrNull ?: o["tool_name"]?.jsonPrimitive?.contentOrNull ?: o["subagent_type"]?.jsonPrimitive?.contentOrNull,
             path = o["path"]?.jsonPrimitive?.contentOrNull,
             interaction = interaction,
             diffLines = diffLines,
@@ -115,6 +117,8 @@ object SessionsApi {
             index = o["index"]?.jsonPrimitive?.intOrNull ?: -1,
             labelOnly = o["label"]?.jsonPrimitive?.booleanOrNull == true,
             result = o["result"]?.jsonPrimitive?.contentOrNull,
+            parent = o["parent"]?.jsonPrimitive?.contentOrNull,
+            toolUseId = o["id"]?.jsonPrimitive?.contentOrNull,
             images = o["images"]?.jsonArray?.mapNotNull { ref ->
                 val r = ref.jsonObject
                 val uuid = r["uuid"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
@@ -126,6 +130,11 @@ object SessionsApi {
     }
 
     private fun parseInteraction(o: kotlinx.serialization.json.JsonObject): InteractionData {
+        val kind = o["kind"]?.jsonPrimitive?.contentOrNull ?: "questions"
+        if (kind != "questions") {
+            val res = o["resolved"]?.jsonPrimitive?.contentOrNull ?: "allow"
+            return InteractionData(requestId = "resumed", kind = kind, resolved = res, options = listOf(InteractionOption(id = res)))
+        }
         val qArray = o["questions"]?.jsonArray
         val questions = qArray?.map { qel ->
             val q = qel.jsonObject

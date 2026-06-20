@@ -622,7 +622,7 @@ fun ChatScreen(
                                                         }
                                                     }
                                                     val running = when (message.role) {
-                                                        Role.TOOL -> message.toolUseId != null && message.toolUseId in state.pendingToolIds
+                                                        Role.TOOL, Role.AGENT -> message.toolUseId != null && message.toolUseId in state.pendingToolIds
                                                         Role.THINKING -> index == state.messages.lastIndex && state.streaming
                                                         else -> false
                                                     }
@@ -1262,6 +1262,8 @@ private fun hasCollapsibleContent(m: ChatMessage): Boolean = when (m.role) {
     Role.TOOL -> m.text.isNotBlank() || !m.result.isNullOrBlank()
     Role.FILE_CHANGE -> !m.labelOnly && !m.diffLines.isNullOrEmpty()
     Role.COMPACT -> m.compact?.summary?.isNotBlank() == true
+    Role.AGENT -> m.children.isNotEmpty()
+    Role.INTERACTION -> m.toolName == "ExitPlanMode"
     else -> false
 }
 

@@ -241,6 +241,7 @@
     <string name="status_failed">Fallo temporal</string>
     <string name="interrupted">Interrumpido</string>
     <string name="plan">Plan</string>
+    <string name="agent">Agente</string>
     <string name="loading">Cargando</string>
     <string name="confirm">Confirmar</string>
     <string name="visibility">Visibilidad del chat</string>

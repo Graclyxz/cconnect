@@ -1,6 +1,6 @@
 package com.jahirtrap.cconnect.data
 
-enum class Role { USER, ASSISTANT, THINKING, WORKING, TOOL, TOOL_RESULT, SUMMARY, INTERACTION, FILE_CHANGE, COMPACT, SYSTEM, ERROR, INTERRUPTED, PLAN }
+enum class Role { USER, ASSISTANT, THINKING, WORKING, TOOL, TOOL_RESULT, SUMMARY, INTERACTION, FILE_CHANGE, COMPACT, SYSTEM, ERROR, INTERRUPTED, PLAN, AGENT }
 
 data class ChatMessage(
     val id: Long,
@@ -19,6 +19,7 @@ data class ChatMessage(
     val attachments: List<String>? = null,
     val images: List<String>? = null,
     val timestamp: Long? = null,
+    val children: List<ChatMessage> = emptyList(),
 )
 
 data class CompactData(
@@ -129,6 +130,7 @@ sealed interface ServerEvent {
     data object AskDone : ServerEvent
     data class Command(val markdown: String) : ServerEvent
     data class Plan(val markdown: String) : ServerEvent
+    data class Agent(val id: String?, val subagentType: String?, val description: String?, val labelOnly: Boolean) : ServerEvent
     data class Todos(val items: List<TodoItem>) : ServerEvent
     data class Task(val id: String, val content: String?, val status: String?) : ServerEvent
     data class Result(val sessionId: String?) : ServerEvent

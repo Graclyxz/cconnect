@@ -249,7 +249,7 @@ fun ChatMessageItem(
                         onChat = { onChatQuestions?.invoke(it.requestId) },
                     )
                 } else {
-                    InteractionBlock(data = it, toolName = message.toolName, input = message.text, onAnswer = onAnswer)
+                    InteractionBlock(data = it, toolName = message.toolName, input = message.text, expanded = expanded, onToggle = onToggle, onAnswer = onAnswer)
                 }
             }
 
@@ -258,6 +258,8 @@ fun ChatMessageItem(
             Role.COMPACT -> message.compact?.let { CompactBlock(it, expanded = expanded, onToggle = onToggle) }
 
             Role.PLAN -> PlanBlock(markdown = message.text, expanded = expanded, onToggle = onToggle, onSharedLink = onSharedLink)
+
+            Role.AGENT -> AgentBlock(message = message, running = running, expanded = expanded, onToggle = onToggle)
 
             Role.ERROR -> Band(MaterialTheme.colorScheme.errorContainer) {
                 Row(verticalAlignment = Alignment.Top) {
@@ -303,6 +305,8 @@ fun StickyCollapsibleHeader(message: ChatMessage, onCollapse: () -> Unit, modifi
         Role.SUMMARY -> Triple(null, stringResource(Res.string.summary), variant)
         Role.FILE_CHANGE -> Triple(Lucide.FilePen, message.path.orEmpty(), primary)
         Role.COMPACT -> Triple(Lucide.Archive, stringResource(Res.string.compacted), primary)
+        Role.AGENT -> Triple(Lucide.Bot, message.toolName ?: stringResource(Res.string.agent), primary)
+        Role.INTERACTION -> Triple(Lucide.Lightbulb, stringResource(Res.string.plan), primary)
         else -> Triple(null, "", variant)
     }
     val (icon, label, tint) = spec
@@ -324,7 +328,7 @@ fun StickyCollapsibleHeader(message: ChatMessage, onCollapse: () -> Unit, modifi
 private fun isNotice(role: Role?): Boolean = role == Role.ERROR || role == Role.INTERRUPTED
 
 private fun group(role: Role?): Int = when (role) {
-    Role.THINKING, Role.WORKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION, Role.FILE_CHANGE, Role.COMPACT, Role.PLAN -> 0
+    Role.THINKING, Role.WORKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION, Role.FILE_CHANGE, Role.COMPACT, Role.PLAN, Role.AGENT -> 0
     Role.ASSISTANT -> 1
     Role.USER, Role.ERROR, Role.INTERRUPTED -> 2
     else -> 3
@@ -425,6 +429,55 @@ private fun Collapsible(label: String, text: String, icon: ImageVector? = null, 
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun AgentBlock(message: ChatMessage, running: Boolean = false, expanded: Boolean? = null, onToggle: (() -> Unit)? = null) {
+    var localExpanded by rememberSaveable { mutableStateOf(false) }
+    val isExpanded = expanded ?: localExpanded
+    val toggle = onToggle ?: { localExpanded = !localExpanded }
+    val name = message.toolName ?: stringResource(Res.string.agent)
+    val preview = message.text.replace("\n", " ").trim()
+    val nameColor = MaterialTheme.colorScheme.primary
+    val previewColor = MaterialTheme.colorScheme.onSurfaceVariant
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).clickable { toggle() }, verticalAlignment = Alignment.CenterVertically) {
+            Icon(Lucide.Bot, contentDescription = null, tint = nameColor, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.size(6.dp))
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(color = nameColor)) { append(name) }
+                    if (!isExpanded && preview.isNotEmpty()) {
+                        append("  ")
+                        withStyle(SpanStyle(color = previewColor)) { append(preview) }
+                    }
+                },
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (running) {
+                LoadingIndicator(modifier = Modifier.size(16.dp), color = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.size(2.dp))
+            }
+            if (message.children.isNotEmpty()) {
+                Icon(
+                    imageVector = if (isExpanded) Lucide.ChevronDown else Lucide.ChevronRight,
+                    contentDescription = null,
+                    tint = previewColor,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+        if (isExpanded && message.children.isNotEmpty()) {
+            Column(modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 4.dp)) {
+                message.children.forEach { child ->
+                    ChatMessageItem(message = child, prevRole = child.role, nextRole = child.role, gluedTop = true)
+                }
+            }
         }
     }
 }
@@ -691,20 +744,24 @@ private fun InteractionBlock(
     data: InteractionData,
     toolName: String?,
     input: String,
+    expanded: Boolean? = null,
+    onToggle: (() -> Unit)? = null,
     onAnswer: ((String, String, String?) -> Unit)?,
 ) {
     val resolved = data.resolved
     val isPlan = toolName == "ExitPlanMode"
     val title = if (isPlan) stringResource(Res.string.plan) else (data.title ?: toolName ?: stringResource(Res.string.permission_title))
     val headerIcon = if (isPlan) Lucide.Lightbulb else Lucide.Shield
-    var planExpanded by rememberSaveable { mutableStateOf(true) }
+    var localPlanExpanded by rememberSaveable { mutableStateOf(false) }
+    val planExpanded = expanded ?: localPlanExpanded
+    val togglePlan = onToggle ?: { localPlanExpanded = !localPlanExpanded }
     val planPreview = if (isPlan) input.lineSequence().firstOrNull { it.isNotBlank() }?.trim()?.trimStart('#', ' ')?.trim().orEmpty() else ""
     val titleColor = MaterialTheme.colorScheme.primary
     val previewColor = MaterialTheme.colorScheme.onSurfaceVariant
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = if (isPlan) Modifier.fillMaxWidth().clickable { planExpanded = !planExpanded } else Modifier,
+            modifier = if (isPlan) Modifier.fillMaxWidth().clickable { togglePlan() } else Modifier,
         ) {
             Icon(
                 headerIcon,

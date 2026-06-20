@@ -572,11 +572,67 @@ def _parse_ts(value) -> Optional[int]:
 
 class _StampedList(list):
     cur_ts: Optional[int] = None
+    cur_parent: Optional[str] = None
 
     def append(self, item):
-        if isinstance(item, dict) and self.cur_ts is not None:
-            item.setdefault("ts", self.cur_ts)
+        if isinstance(item, dict):
+            if self.cur_ts is not None:
+                item.setdefault("ts", self.cur_ts)
+            if self.cur_parent is not None:
+                item.setdefault("parent", self.cur_parent)
         super().append(item)
+
+
+def _subagent_blocks(sub_file: Path, parent_id: Optional[str], vis: dict) -> list[dict]:
+    from services.claude_runtime import (
+        _FILE_EDIT_TOOLS, _build_file_diff, _format_tool_input,
+        _display_tool_name, _flatten_result_content,
+    )
+    entries = list(_iter_lines(sub_file))
+    sub_results: dict[str, object] = {}
+    for entry in entries:
+        content = (entry.get("message") or {}).get("content")
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "tool_result":
+                    tuid = block.get("tool_use_id")
+                    if isinstance(tuid, str):
+                        sub_results[tuid] = block.get("content")
+    out: list[dict] = []
+    for entry in entries:
+        message = entry.get("message", {})
+        if message.get("role") != "assistant":
+            continue
+        content = message.get("content")
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_use":
+                continue
+            name = (block.get("name") or "").strip()
+            inp = block.get("input")
+            bid = block.get("id")
+            if name == "Agent" or name == "TodoWrite" or name.startswith("Task"):
+                continue
+            if name in _FILE_EDIT_TOOLS and isinstance(inp, dict):
+                path = inp.get("file_path") or inp.get("notebook_path")
+                if isinstance(path, str) and path:
+                    if vis["file_change"] == "off":
+                        continue
+                    if vis["file_change"] == "label":
+                        out.append({"type": "file_change", "path": path, "id": bid, "label": True, "parent": parent_id})
+                        continue
+                    out.append({"type": "file_change", "path": path, "diff_lines": _build_file_diff(name, inp, path), "id": bid, "parent": parent_id})
+                    continue
+            if vis["tool_use"] == "off":
+                continue
+            ev = {"type": "tool_use", "name": _display_tool_name(name), "text": _format_tool_input(inp), "id": bid, "parent": parent_id}
+            if vis["tool_use"] == "full":
+                result = _flatten_result_content(sub_results.get(bid or "")).strip()
+                if result:
+                    ev["result"] = result
+            out.append(ev)
+    return out
 
 
 def get_session_messages(project_key: str, session_id: str) -> list[dict]:
@@ -586,9 +642,12 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
     entries = _active_entries(list(_iter_lines(file)), session_id)
     # AskUserQuestion answers live in the tool_result, not in the tool_use input.
     tool_result_by_id: dict[str, object] = {}
+    agent_files: dict[str, str] = {}
     for entry in entries:
         msg = entry.get("message", {})
         content = msg.get("content")
+        tur = entry.get("toolUseResult")
+        aid = tur.get("agentId") if isinstance(tur, dict) else None
         if not isinstance(content, list):
             continue
         for block in content:
@@ -596,6 +655,8 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                 tuid = block.get("tool_use_id")
                 if isinstance(tuid, str):
                     tool_result_by_id[tuid] = block.get("content")
+                    if isinstance(aid, str) and aid:
+                        agent_files[tuid] = aid
     # Everything before the last compaction boundary is replaced by its summary.
     last_boundary = max(
         (i for i, e in enumerate(entries)
@@ -609,6 +670,7 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
     compact_block: dict | None = None
     for i, entry in enumerate(entries):
         messages.cur_ts = _parse_ts(entry.get("timestamp"))
+        messages.cur_parent = None
         etype = entry.get("type")
         if etype == "system" and entry.get("subtype") == "compact_boundary":
             if i != last_boundary:
@@ -632,11 +694,13 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
             if text:
                 messages.append({"type": "summary", "text": text})
             continue
-        if entry.get("isMeta") or entry.get("isSidechain"):
+        if entry.get("isMeta"):
             continue
         if i < last_boundary:
             continue
         message = entry.get("message", {})
+        if entry.get("isSidechain"):
+            continue
         if message.get("stop_reason") == "stop_sequence":
             continue
         role = message.get("role", etype)
@@ -713,6 +777,50 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                             "note": note,
                         })
                     messages.append({"type": "interaction", "kind": "questions", "questions": out_questions})
+                    continue
+                if name == "ExitPlanMode" and isinstance(inp, dict):
+                    if isinstance(bid, str):
+                        hidden_ids.add(bid)
+                    rc = tool_result_by_id.get(bid or "")
+                    if isinstance(rc, list):
+                        rtext = " ".join(b.get("text", "") for b in rc if isinstance(b, dict))
+                    elif isinstance(rc, str):
+                        rtext = rc
+                    else:
+                        rtext = ""
+                    if "redirect" in rtext:
+                        resolved = "different"
+                    elif "approved" in rtext:
+                        resolved = "allow"
+                    elif "proceed" in rtext or "reject" in rtext or "declined" in rtext:
+                        resolved = "deny"
+                    else:
+                        resolved = "allow"
+                    messages.append({
+                        "type": "interaction",
+                        "kind": "permission",
+                        "tool_name": "ExitPlanMode",
+                        "input": (inp.get("plan") or "").strip(),
+                        "resolved": resolved,
+                    })
+                    continue
+                if name == "Agent" and isinstance(inp, dict):
+                    if isinstance(bid, str):
+                        hidden_ids.add(bid)
+                    if vis["tool_use"] != "off":
+                        messages.append({
+                            "type": "agent",
+                            "id": bid,
+                            "subagent_type": inp.get("subagent_type"),
+                            "description": inp.get("description"),
+                            "label": vis["tool_use"] == "label",
+                        })
+                        aid = agent_files.get(bid or "")
+                        if aid:
+                            sub_file = file.parent / session_id / "subagents" / f"agent-{aid}.jsonl"
+                            if sub_file.is_file():
+                                for child in _subagent_blocks(sub_file, bid, vis):
+                                    messages.append(child)
                     continue
                 if name == "TodoWrite" or name.startswith("Task"):
                     if isinstance(bid, str):

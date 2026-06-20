@@ -33,6 +33,8 @@ data class SessionMessage(
     val result: String? = null,
     val images: List<String>? = null,
     val timestamp: Long? = null,
+    val parent: String? = null,
+    val toolUseId: String? = null,
 )
 
 data class SharedEntry(
