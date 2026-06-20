@@ -27,7 +27,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
-class ChatSocket(private val scope: CoroutineScope) {
+class ChatSocket(private val scope: CoroutineScope, private val config: () -> BackendConfig) {
     private var ws: WsConnection? = null
 
     // Per-connect token so callbacks from a superseded socket are ignored — lets a drop auto-reconnect cleanly.
@@ -71,7 +71,7 @@ class ChatSocket(private val scope: CoroutineScope) {
         val gen = ++generation
         ws?.cancel()
         emit(false, ServerEvent.Connecting)
-        ws = openWebSocket(Backend.wsUrl, Backend.authHeaders, object : WsListener {
+        ws = openWebSocket(config().wsUrl, config().authHeaders, object : WsListener {
             override fun onOpen() {
                 if (gen != generation) return
                 reconnectAttempts = 0
@@ -124,7 +124,7 @@ class ChatSocket(private val scope: CoroutineScope) {
             put("model", model)
             put("effort", effort)
             put("partial", partial)
-            put("base_url", Backend.baseUrl)
+            put("base_url", config().baseUrl)
             channel?.let { put("channel", it) }
             put("last_seq", lastSeq)
             sideChannel?.let { put("side_channel", it) }

@@ -1,5 +1,7 @@
 package com.jahirtrap.cconnect.ui
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -23,7 +25,9 @@ import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
@@ -69,14 +73,37 @@ fun Modifier.verticalScrollIndicator(state: ScrollState, thickness: Dp = 2.dp): 
 private val SCROLLBAR_HIT = 16.dp
 
 @Composable
-fun Modifier.horizontalScrollbar(state: ScrollState, thickness: Dp = 4.dp, touchIndicator: Boolean = true): Modifier {
+fun Modifier.horizontalScrollbar(state: ScrollState, thickness: Dp = 4.dp, touchIndicator: Boolean = true, wheelScroll: Boolean = false): Modifier {
     val active = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
     val idle = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
     val scope = rememberCoroutineScope()
     var hovered by remember { mutableStateOf(false) }
     var dragging by remember { mutableStateOf(false) }
     val touch = LocalIsTouch.current
+    val wheelTarget = remember { mutableStateOf<Float?>(null) }
+    val wheelJob = remember { mutableStateOf<Job?>(null) }
     return this
+        .then(if (wheelScroll) Modifier.pointerInput(state) {
+            awaitPointerEventScope {
+                while (true) {
+                    val event = awaitPointerEvent()
+                    if (event.type == PointerEventType.Scroll && state.maxValue > 0) {
+                        val d = event.changes.firstOrNull()?.scrollDelta ?: Offset.Zero
+                        if (abs(d.y) >= abs(d.x) && d.y != 0f) {
+                            val base = wheelTarget.value ?: state.value.toFloat()
+                            val tgt = (base + d.y * 64f).coerceIn(0f, state.maxValue.toFloat())
+                            wheelTarget.value = tgt
+                            wheelJob.value?.cancel()
+                            wheelJob.value = scope.launch {
+                                state.animateScrollTo(tgt.roundToInt(), tween(durationMillis = 150, easing = FastOutSlowInEasing))
+                                wheelTarget.value = null
+                            }
+                            event.changes.forEach { it.consume() }
+                        }
+                    }
+                }
+            }
+        } else Modifier)
         .pointerInput(state) {
             val hit = SCROLLBAR_HIT.toPx()
             awaitEachGesture {

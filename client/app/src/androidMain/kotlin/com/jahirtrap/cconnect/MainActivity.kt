@@ -34,6 +34,9 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import com.jahirtrap.cconnect.chat.LocalChatViewModelFactory
+import androidx.compose.runtime.key
+import com.jahirtrap.cconnect.chat.TabsController
 import com.jahirtrap.cconnect.chat.ChatScreen
 import com.jahirtrap.cconnect.claude.ClaudeScreen
 import com.jahirtrap.cconnect.data.AppPrefs
@@ -174,11 +177,7 @@ class MainActivity : AppCompatActivity() {
     private fun App() {
         val baseContext = LocalContext.current
         val settings = remember { Settings() }
-        val viewModelStoreOwner = remember {
-            object : ViewModelStoreOwner {
-                override val viewModelStore = ViewModelStore()
-            }
-        }
+        val activeTab = TabsController.active
 
         var themeMode by remember { mutableStateOf(settings.themeMode) }
         var dynamicColor by remember { mutableStateOf(settings.dynamicColor) }
@@ -253,7 +252,8 @@ class MainActivity : AppCompatActivity() {
         CompositionLocalProvider(
             LocalContext provides localizedContext,
             LocalConfiguration provides localizedContext.resources.configuration,
-            LocalViewModelStoreOwner provides viewModelStoreOwner,
+            LocalViewModelStoreOwner provides activeTab.owner,
+            LocalChatViewModelFactory provides activeTab.factory,
             LocalRefreshTick provides refreshRequests.intValue,
         ) {
             CConnectTheme(
@@ -307,7 +307,7 @@ class MainActivity : AppCompatActivity() {
 
                         showMarkdown -> MarkdownScreen(onClose = { showMarkdown = false })
 
-                        else -> ChatScreen(
+                        else -> key(activeTab.id) { ChatScreen(
                             onOpenSettings = { target -> settingsHighlight = target; showSettings = true },
                             onOpenExplorer = { target -> explorerArchive = target; showExplorer = true },
                             onOpenClaude = { showClaude = true },
@@ -318,7 +318,7 @@ class MainActivity : AppCompatActivity() {
                             expanded = sidebarExpanded,
                             onExpandedChange = { sidebarExpanded = it },
                             drawerState = chatDrawerState,
-                        )
+                        ) }
                     }
                     previewFile?.let { request ->
                         FilePreviewScreen(

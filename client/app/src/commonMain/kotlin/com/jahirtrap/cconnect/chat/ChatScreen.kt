@@ -189,7 +189,6 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.jahirtrap.cconnect.isWebPlatform
 import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.data.ChatMessage
@@ -254,7 +253,7 @@ fun ChatScreen(
     onExpandedChange: (Boolean) -> Unit,
     drawerState: DrawerState,
 ) {
-    val vm: ChatViewModel = viewModel(factory = chatViewModelFactory)
+    val vm: ChatViewModel = viewModel(factory = LocalChatViewModelFactory.current)
     val state by vm.state.collectAsState()
     val mobile = LocalMobileLayout.current
     val isTouch = LocalIsTouch.current
@@ -312,6 +311,14 @@ fun ChatScreen(
     }
 
     LaunchedEffect(Unit) { vm.connect() }
+    LaunchedEffect(state.connection) {
+        if (state.connection == ConnectionState.Connected) vm.ensureHistoryLoaded()
+    }
+    val tabLabel = state.historySessions.firstOrNull { it.sessionId == state.sessionId }
+        ?.let { it.title ?: it.preview } ?: state.sessionId?.take(8)
+    LaunchedEffect(tabLabel, state.sessionColor, state.streaming, state.sessionId, state.activeProjectKey) {
+        TabsController.updateActive(tabLabel, state.sessionColor, state.streaming, state.sessionId, state.activeProjectKey)
+    }
     val refreshTick = LocalRefreshTick.current
     LaunchedEffect(refreshTick) { if (refreshTick > 0) vm.loadHistory() }
 
@@ -383,8 +390,8 @@ fun ChatScreen(
             drawerState = drawerState,
             gesturesEnabled = mobile,
             drawerContent = {
-                if (mobile) ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surface) {
-                    ChatPanelContent(
+                ModalDrawerSheet(drawerContainerColor = MaterialTheme.colorScheme.surface) {
+                    if (mobile) ChatPanelContent(
                         state = state,
                         vm = vm,
                         showRefresh = !isTouch,
@@ -506,6 +513,8 @@ fun ChatScreen(
                                     state.streaming -> stringResource(Res.string.working)
                                     else -> state.sessionId?.take(8) ?: stringResource(Res.string.new_chat)
                                 }
+                                Column {
+                                if (!mobile) TabStrip()
                                 AppTopBar(
                                     title = stringResource(Res.string.app_name),
                                     subtitle = statusText,
@@ -516,6 +525,7 @@ fun ChatScreen(
                                         }
                                     },
                                     actions = {
+                                        if (mobile) TabSwitcher()
                                         TaskIndicator(todos = state.todos)
                                         if (state.sessionId != null && !state.streaming) {
                                             TooltipIconButton(
@@ -529,6 +539,7 @@ fun ChatScreen(
                                         ) { Icon(Lucide.SquarePen, contentDescription = null) }
                                     },
                                 )
+                                }
                             },
                         ) { padding ->
                             val sc = state.sideChat?.takeIf { it.boundSessionId == state.sessionId }
@@ -1212,7 +1223,7 @@ private fun ColumnScope.ChatPanelContent(
                         onRename = { onRename(s) },
                         onAutoRename = { vm.autoRenameSession(s) },
                         onColor = { onColor(s) },
-                        onOpenNewTab = { s.projectKey?.let { openChatInNewTab(s.sessionId, it) } },
+                        onOpenNewTab = { s.projectKey?.let { pk -> TabsController.openSessionTab(TabsController.active.ctx.environmentId, s.path.orEmpty(), s.sessionId, pk); onAfterSelect() } },
                         onDelete = { onDelete(s) },
                     )
                 }
@@ -1388,7 +1399,7 @@ private fun ChatToolbar(
         Row(
             modifier = Modifier
                 .weight(1f)
-                .horizontalScrollbar(selectorScroll, touchIndicator = false)
+                .horizontalScrollbar(selectorScroll, touchIndicator = false, wheelScroll = true)
                 .horizontalScroll(selectorScroll)
                 .padding(end = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1771,7 +1782,7 @@ private fun AttachmentsRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScrollbar(scroll, touchIndicator = false)
+            .horizontalScrollbar(scroll, touchIndicator = false, wheelScroll = true)
             .horizontalScroll(scroll)
             .padding(start = 8.dp, end = 8.dp, top = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1955,9 +1966,7 @@ private fun ConversationRow(
                 CompactDropdownItem(stringResource(Res.string.rename)) { menu = false; onRename() }
                 CompactDropdownItem(stringResource(Res.string.auto_rename)) { menu = false; onAutoRename() }
                 CompactDropdownItem(stringResource(Res.string.conversation_color)) { menu = false; onColor() }
-                if (isWebPlatform) {
-                    CompactDropdownItem(stringResource(Res.string.open_in_new_tab)) { menu = false; onOpenNewTab() }
-                }
+                CompactDropdownItem(stringResource(Res.string.open_in_new_tab)) { menu = false; onOpenNewTab() }
                 CompactDropdownItem(stringResource(Res.string.delete)) { menu = false; onDelete() }
             }
         }

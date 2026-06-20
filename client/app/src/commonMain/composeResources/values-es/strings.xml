@@ -285,6 +285,9 @@
     <string name="run">Ejecutar</string>
     <string name="markdown">Markdown</string>
     <string name="markdown_filename">archivo.md</string>
+    <string name="tabs">Pestañas</string>
+    <string name="new_tab">Nueva pestaña</string>
+    <string name="close_tab">Cerrar pestaña</string>
     <string name="local_server_bad_dir">Carpeta inválida</string>
     <string name="local_server_no_python">No se encontró Python</string>
     <string name="local_server_launch_failed">No se pudo lanzar el proceso</string>

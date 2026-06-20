@@ -60,7 +60,7 @@ import com.composables.icons.lucide.Wand
 import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.chat.ChatViewModel
-import com.jahirtrap.cconnect.chat.chatViewModelFactory
+import com.jahirtrap.cconnect.chat.LocalChatViewModelFactory
 import com.jahirtrap.cconnect.chat.ConnectionState
 import com.jahirtrap.cconnect.data.remote.Backend
 import com.jahirtrap.cconnect.data.remote.ClaudeApi
@@ -93,7 +93,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: String, onDelete: (() -> Unit)?) -> Unit) {
-    val vm: ChatViewModel = viewModel(factory = chatViewModelFactory)
+    val vm: ChatViewModel = viewModel(factory = LocalChatViewModelFactory.current)
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
     ClearFocusOnImeHide()

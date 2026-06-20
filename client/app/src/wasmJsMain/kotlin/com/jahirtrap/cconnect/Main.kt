@@ -31,6 +31,9 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.jahirtrap.cconnect.chat.ChatScreen
+import com.jahirtrap.cconnect.chat.LocalChatViewModelFactory
+import androidx.compose.runtime.key
+import com.jahirtrap.cconnect.chat.TabsController
 import com.jahirtrap.cconnect.claude.ClaudeScreen
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.files.FileExplorerScreen
@@ -50,6 +53,7 @@ import kotlinx.browser.document
 import kotlinx.browser.window
 import org.w3c.dom.HTMLElement
 import org.w3c.dom.events.Event
+import org.w3c.dom.events.KeyboardEvent
 
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalResourceApi::class)
 fun main() {
@@ -66,11 +70,7 @@ fun main() {
 @Composable
 private fun App() {
     val settings = remember { Settings() }
-    val viewModelStoreOwner = remember {
-        object : ViewModelStoreOwner {
-            override val viewModelStore = ViewModelStore()
-        }
-    }
+    val activeTab = TabsController.active
 
     var themeMode by remember { mutableStateOf(settings.themeMode) }
     var dynamicColor by remember { mutableStateOf(settings.dynamicColor) }
@@ -108,6 +108,27 @@ private fun App() {
         }
     }
 
+    DisposableEffect(Unit) {
+        val onKey: (Event) -> Unit = { e ->
+            val ke = e as? KeyboardEvent
+            if (ke != null) {
+                val ctrl = ke.ctrlKey || ke.metaKey
+                val handled = when {
+                    ctrl && ke.key == "Tab" && ke.shiftKey -> { TabsController.selectPrev(); true }
+                    ctrl && ke.key == "Tab" -> { TabsController.selectNext(); true }
+                    ctrl && (ke.key == "t" || ke.key == "T") -> { TabsController.newTab(); true }
+                    ctrl && (ke.key == "w" || ke.key == "W") -> { TabsController.closeActive(); true }
+                    ke.altKey && ke.key == "ArrowRight" -> { TabsController.moveActive(1); true }
+                    ke.altKey && ke.key == "ArrowLeft" -> { TabsController.moveActive(-1); true }
+                    else -> false
+                }
+                if (handled) ke.preventDefault()
+            }
+        }
+        window.addEventListener("keydown", onKey)
+        onDispose { window.removeEventListener("keydown", onKey) }
+    }
+
     fun navigate(target: String) {
         if (route == target) return
         window.history.pushState(null, "", target)
@@ -120,7 +141,8 @@ private fun App() {
     }
 
     CompositionLocalProvider(
-        LocalViewModelStoreOwner provides viewModelStoreOwner,
+        LocalViewModelStoreOwner provides activeTab.owner,
+        LocalChatViewModelFactory provides activeTab.factory,
         LocalRefreshTick provides 0,
     ) {
         CConnectTheme(
@@ -172,7 +194,7 @@ private fun App() {
 
                     "/markdown" -> MarkdownScreen(onClose = { goBack() })
 
-                    else -> ChatScreen(
+                    else -> key(activeTab.id) { ChatScreen(
                         onOpenSettings = { target -> settingsHighlight = target; navigate("/settings") },
                         onOpenExplorer = { target -> explorerArchive = target; navigate("/files") },
                         onOpenClaude = { navigate("/claude") },
@@ -183,7 +205,7 @@ private fun App() {
                         expanded = sidebarExpanded,
                         onExpandedChange = { sidebarExpanded = it; settings.sidebarExpanded = it },
                         drawerState = chatDrawerState,
-                    )
+                    ) }
                 }
                 previewFile?.let { request ->
                     FilePreviewScreen(

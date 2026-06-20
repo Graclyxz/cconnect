@@ -131,7 +131,7 @@ import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.chat.ChatViewModel
-import com.jahirtrap.cconnect.chat.chatViewModelFactory
+import com.jahirtrap.cconnect.chat.LocalChatViewModelFactory
 import com.jahirtrap.cconnect.chat.ConnectionState
 import com.jahirtrap.cconnect.isWebPlatform
 import com.jahirtrap.cconnect.data.Settings
@@ -218,7 +218,7 @@ fun FileExplorerScreen(
     onOpenPreview: (url: String, filename: String, onDelete: (() -> Unit)?) -> Unit,
     initialArchive: String? = null,
 ) {
-    val vm: ChatViewModel = viewModel(factory = chatViewModelFactory)
+    val vm: ChatViewModel = viewModel(factory = LocalChatViewModelFactory.current)
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
@@ -1049,7 +1049,7 @@ private fun Breadcrumb(path: String, onNavigate: (String) -> Unit) {
                 .size(20.dp),
         )
         Row(
-            modifier = Modifier.weight(1f).horizontalScrollbar(scroll, touchIndicator = false).horizontalScroll(scroll),
+            modifier = Modifier.weight(1f).horizontalScrollbar(scroll, touchIndicator = false, wheelScroll = true).horizontalScroll(scroll),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             var cumulative = ""

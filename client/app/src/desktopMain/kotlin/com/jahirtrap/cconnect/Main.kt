@@ -51,6 +51,9 @@ import com.jahirtrap.cconnect.resources.tray_exit
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
+import com.jahirtrap.cconnect.chat.LocalChatViewModelFactory
+import com.jahirtrap.cconnect.chat.TabsController
+import com.jahirtrap.cconnect.chat.tabShortcut
 import com.jahirtrap.cconnect.chat.ChatScreen
 import com.jahirtrap.cconnect.claude.ClaudeScreen
 import com.jahirtrap.cconnect.data.Settings
@@ -138,41 +141,65 @@ fun main() {
             size = DpSize((screen.width * 0.8f).dp, (screen.height * 0.85f).dp),
             position = WindowPosition(Alignment.Center),
         )
+        var fullscreen by remember { mutableStateOf(false) }
+        var prevPlacement by remember { mutableStateOf(WindowPlacement.Floating) }
+        var prevSize by remember { mutableStateOf(windowState.size) }
+        var prevPosition by remember { mutableStateOf(windowState.position) }
         LaunchedEffect(windowState.placement) {
-            settings.windowMaximized = windowState.placement == WindowPlacement.Maximized
+            if (!fullscreen) settings.windowMaximized = windowState.placement == WindowPlacement.Maximized
         }
         var refreshTick by remember { mutableIntStateOf(0) }
         var windowVisible by remember { mutableStateOf(true) }
-        Window(
-            onCloseRequest = {
-                if (settings.minimizeToTray && isTrayActive()) windowVisible = false
-                else exitApplication()
-            },
-            visible = windowVisible,
-            state = windowState,
-            title = "CConnect",
-            icon = painterResource(Res.drawable.app_icon),
-            onPreviewKeyEvent = { event ->
-                if (event.type == KeyEventType.KeyDown && event.isCtrlPressed && event.key == Key.R) {
-                    refreshTick++
-                    true
-                } else dispatchClipboardShortcut(event)
-            },
-        ) {
-            val showLabel = stringResource(Res.string.`open`)
-            val exitLabel = stringResource(Res.string.tray_exit)
-            DisposableEffect(window) {
-                val listener = object : WindowFocusListener {
-                    override fun windowGainedFocus(e: WindowEvent?) { Notifier.appInForeground = true }
-                    override fun windowLostFocus(e: WindowEvent?) { Notifier.appInForeground = false }
+        key(fullscreen) {
+            Window(
+                onCloseRequest = {
+                    if (settings.minimizeToTray && isTrayActive()) windowVisible = false
+                    else exitApplication()
+                },
+                visible = windowVisible,
+                state = windowState,
+                undecorated = fullscreen,
+                title = "CConnect",
+                icon = painterResource(Res.drawable.app_icon),
+                onPreviewKeyEvent = { event ->
+                    if (event.type == KeyEventType.KeyDown && event.isCtrlPressed && event.key == Key.R) {
+                        refreshTick++
+                        true
+                    } else if (event.type == KeyEventType.KeyDown && event.key == Key.F11) {
+                        if (fullscreen) {
+                            fullscreen = false
+                            windowState.placement = prevPlacement
+                            if (prevPlacement != WindowPlacement.Maximized) {
+                                windowState.size = prevSize
+                                windowState.position = prevPosition
+                            }
+                        } else {
+                            prevPlacement = windowState.placement
+                            prevSize = windowState.size
+                            prevPosition = windowState.position
+                            fullscreen = true
+                            windowState.placement = WindowPlacement.Maximized
+                        }
+                        true
+                    } else if (tabShortcut(event)) true
+                    else dispatchClipboardShortcut(event)
+                },
+            ) {
+                val showLabel = stringResource(Res.string.`open`)
+                val exitLabel = stringResource(Res.string.tray_exit)
+                DisposableEffect(window) {
+                    val listener = object : WindowFocusListener {
+                        override fun windowGainedFocus(e: WindowEvent?) { Notifier.appInForeground = true }
+                        override fun windowLostFocus(e: WindowEvent?) { Notifier.appInForeground = false }
+                    }
+                    window.addWindowFocusListener(listener)
+                    Notifier.init { windowVisible = true; window.toFront(); window.requestFocus() }
+                    configureTrayMenu(showLabel, exitLabel) { exitApplication() }
+                    desktopWindowToFront = { windowVisible = true; window.toFront(); window.requestFocus() }
+                    onDispose { window.removeWindowFocusListener(listener); desktopWindowToFront = null }
                 }
-                window.addWindowFocusListener(listener)
-                Notifier.init { windowVisible = true; window.toFront(); window.requestFocus() }
-                configureTrayMenu(showLabel, exitLabel) { exitApplication() }
-                desktopWindowToFront = { windowVisible = true; window.toFront(); window.requestFocus() }
-                onDispose { window.removeWindowFocusListener(listener); desktopWindowToFront = null }
+                App(systemLocale, refreshTick, window)
             }
-            App(systemLocale, refreshTick, window)
         }
     }
 }
@@ -182,11 +209,7 @@ fun main() {
 private fun App(systemLocale: Locale, refreshTick: Int, window: ComposeWindow) {
     val settings = remember { Settings() }
     val focusManager = LocalFocusManager.current
-    val viewModelStoreOwner = remember {
-        object : ViewModelStoreOwner {
-            override val viewModelStore = ViewModelStore()
-        }
-    }
+    val activeTab = TabsController.active
 
     var themeMode by remember { mutableStateOf(settings.themeMode) }
     var dynamicColor by remember { mutableStateOf(settings.dynamicColor) }
@@ -240,7 +263,8 @@ private fun App(systemLocale: Locale, refreshTick: Int, window: ComposeWindow) {
     }
 
     CompositionLocalProvider(
-        LocalViewModelStoreOwner provides viewModelStoreOwner,
+        LocalViewModelStoreOwner provides activeTab.owner,
+        LocalChatViewModelFactory provides activeTab.factory,
         LocalRefreshTick provides refreshTick,
     ) {
         CConnectTheme(
@@ -322,7 +346,7 @@ private fun App(systemLocale: Locale, refreshTick: Int, window: ComposeWindow) {
 
                     showMarkdown -> MarkdownScreen(onClose = { showMarkdown = false })
 
-                    else -> ChatScreen(
+                    else -> key(activeTab.id) { ChatScreen(
                         onOpenSettings = { target -> settingsHighlight = target; showSettings = true },
                         onOpenExplorer = { target -> explorerArchive = target; showExplorer = true },
                         onOpenClaude = { showClaude = true },
@@ -333,7 +357,7 @@ private fun App(systemLocale: Locale, refreshTick: Int, window: ComposeWindow) {
                         expanded = sidebarExpanded,
                         onExpandedChange = { sidebarExpanded = it },
                         drawerState = chatDrawerState,
-                    )
+                    ) }
                 }
                 previewFile?.let { request ->
                     FilePreviewScreen(

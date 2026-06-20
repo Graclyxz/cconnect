@@ -90,6 +90,10 @@ class Settings {
         get() = prefs.getString("local_server_mode", "local") ?: "local"
         set(value) = prefs.edit { putString("local_server_mode", value) }
 
+    var tabsState: String
+        get() = prefs.getString("tabs_state", "") ?: ""
+        set(value) = prefs.edit { putString("tabs_state", value) }
+
     var fileSortField: String
         get() = prefs.getString("file_sort_field", "date") ?: "date"
         set(value) = prefs.edit { putString("file_sort_field", value) }
@@ -113,6 +117,11 @@ class Settings {
 
     fun updateActiveEnvironment(transform: (EnvironmentProfile) -> EnvironmentProfile) {
         val env = activeEnvironment ?: return
+        upsertEnvironment(transform(env))
+    }
+
+    fun updateEnvironment(id: String?, transform: (EnvironmentProfile) -> EnvironmentProfile) {
+        val env = environments.firstOrNull { it.id == id } ?: activeEnvironment ?: return
         upsertEnvironment(transform(env))
     }
 

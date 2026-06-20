@@ -117,7 +117,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jahirtrap.cconnect.chat.ChatViewModel
-import com.jahirtrap.cconnect.chat.chatViewModelFactory
+import com.jahirtrap.cconnect.chat.LocalChatViewModelFactory
 import com.jahirtrap.cconnect.isAndroidPlatform
 import com.jahirtrap.cconnect.isWebPlatform
 import com.jahirtrap.cconnect.supportsTraySetting
@@ -214,7 +214,7 @@ fun SettingsScreen(
     var loading by remember { mutableStateOf(Backend.isConfigured) }
     var refreshing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    val chatVm = viewModel<ChatViewModel>(factory = chatViewModelFactory)
+    val chatVm = viewModel<ChatViewModel>(factory = LocalChatViewModelFactory.current)
     val chatState by chatVm.state.collectAsState()
 
     suspend fun loadServerSettings() {

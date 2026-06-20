@@ -33,6 +33,7 @@ import com.jahirtrap.cconnect.data.remote.GitHubApi
 import com.jahirtrap.cconnect.data.TodoItem
 import com.jahirtrap.cconnect.data.remote.CapabilitiesApi
 import com.jahirtrap.cconnect.data.remote.Backend
+import com.jahirtrap.cconnect.data.remote.toBackendConfig
 import com.jahirtrap.cconnect.data.remote.ChatSocket
 import com.jahirtrap.cconnect.data.remote.SessionsApi
 import com.jahirtrap.cconnect.data.remote.SettingsApi
@@ -122,10 +123,15 @@ data class Attachment(
 
 enum class CompatStatus { AppOutdated, ServerOutdated, CliOutdated, UpdateAvailable }
 
-class ChatViewModel : ViewModel() {
+class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     private val settings = Settings()
     val showTimestamps: Boolean get() = settings.showTimestamps
-    private val client = ChatSocket(viewModelScope)
+    private val client = ChatSocket(viewModelScope) { activeEnv()?.toBackendConfig() ?: Backend.snapshot() }
+
+    private fun activeEnv(): EnvironmentProfile? =
+        settings.environments.firstOrNull { it.id == ctx.environmentId } ?: settings.activeEnvironment
+
+    private fun baseUrl(): String = activeEnv()?.toBackendConfig()?.baseUrl ?: Backend.baseUrl
 
     // Generation settings (model/effort/permission/streaming) are backend-owned
     private val _state = MutableStateFlow(
@@ -136,7 +142,7 @@ class ChatViewModel : ViewModel() {
                 effort = d.effort,
                 streamTokens = true,
                 environments = settings.environments,
-                activeEnvironmentId = settings.activeEnvironment?.id,
+                activeEnvironmentId = ctx.environmentId,
             )
         }
     )
@@ -149,6 +155,7 @@ class ChatViewModel : ViewModel() {
     private var historyJob: Job? = null
     private var historyLoaded = false
     private var defaultProjectApplied = false
+    private var initialConsumed = false
 
     init {
         applyDefaultDirectory()
@@ -159,12 +166,12 @@ class ChatViewModel : ViewModel() {
     }
 
     private fun applyDefaultDirectory() {
-        settings.cwd = settings.activeEnvironment?.directory.orEmpty()
+        ctx.cwd = activeEnv()?.directory.orEmpty()
         defaultProjectApplied = false
     }
 
     private fun loadEnvOverrides() {
-        val env = settings.activeEnvironment
+        val env = activeEnv()
         _state.update {
             it.copy(
                 modelOverride = env?.model ?: "",
@@ -176,7 +183,7 @@ class ChatViewModel : ViewModel() {
     }
 
     fun connect() {
-        if (!settings.isConfigured) return
+        if (activeEnv() == null) return
         if (_state.value.connection != ConnectionState.Disconnected) return
         _state.update { it.copy(connection = ConnectionState.Connecting, error = null) }
         if (!releaseChecked) {
@@ -185,15 +192,14 @@ class ChatViewModel : ViewModel() {
             viewModelScope.launch { checkForUpdates() }
         }
         viewModelScope.launch {
-            refreshCompat()
-            SettingsApi.get()?.let { s ->
-                _state.update {
-                    it.copy(model = s.model, effort = s.effort, permissionMode = s.permissionMode, streamTokens = s.streaming, showWorking = s.showWorking)
-                }
-            }
+            refreshServerInfo()
             loadEnvOverrides()
             _state.update { it.copy(capabilitiesReady = true) }
             client.connect()
+            if (!initialConsumed) {
+                initialConsumed = true
+                ctx.initialSessionId?.let { restoreSession(it, ctx.initialProjectKey.orEmpty()) }
+            }
         }
     }
 
@@ -255,6 +261,15 @@ class ChatViewModel : ViewModel() {
         viewModelScope.launch { refreshCompat() }
     }
 
+    private suspend fun refreshServerInfo() {
+        refreshCompat()
+        SettingsApi.get()?.let { s ->
+            _state.update {
+                it.copy(model = s.model, effort = s.effort, permissionMode = s.permissionMode, streamTokens = s.streaming, showWorking = s.showWorking)
+            }
+        }
+    }
+
     fun dismissNotice(notice: CompatStatus) {
         dismissedNotices.add(notice)
         _state.update { it.copy(versionNotices = it.versionNotices - notice) }
@@ -263,7 +278,7 @@ class ChatViewModel : ViewModel() {
     private fun startSession(resume: String?) {
         val s = _state.value
         client.sendStart(
-            settings.cwd,
+            ctx.cwd,
             s.permissionOverride.ifEmpty { s.permissionMode },
             resume,
             s.modelOverride.ifEmpty { s.model },
@@ -424,26 +439,26 @@ class ChatViewModel : ViewModel() {
     }
 
     fun setPermissionMode(mode: String) {
-        settings.updateActiveEnvironment { it.copy(permissionMode = mode) }
+        settings.updateEnvironment(ctx.environmentId) { it.copy(permissionMode = mode) }
         _state.update { it.copy(permissionOverride = mode) }
         val effective = mode.ifEmpty { _state.value.permissionMode }
         if (_state.value.connection == ConnectionState.Connected) client.sendSetPermissionMode(effective)
     }
 
     fun setModel(model: String) {
-        settings.updateActiveEnvironment { it.copy(model = model) }
+        settings.updateEnvironment(ctx.environmentId) { it.copy(model = model) }
         _state.update { it.copy(modelOverride = model) }
     }
 
     fun setEffort(effort: String) {
-        settings.updateActiveEnvironment { it.copy(effort = effort) }
+        settings.updateEnvironment(ctx.environmentId) { it.copy(effort = effort) }
         _state.update { it.copy(effortOverride = effort) }
     }
 
     fun toggleStreaming() {
         val s = _state.value
         val next = !(s.streamingOverride ?: s.streamTokens)
-        settings.updateActiveEnvironment { it.copy(streaming = next) }
+        settings.updateEnvironment(ctx.environmentId) { it.copy(streaming = next) }
         _state.update { it.copy(streamingOverride = next) }
     }
 
@@ -469,11 +484,13 @@ class ChatViewModel : ViewModel() {
     }
 
     fun refreshEnvironments() {
-        _state.update { it.copy(environments = settings.environments, activeEnvironmentId = settings.activeEnvironment?.id) }
+        ctx.environmentId = settings.activeEnvironment?.id
+        _state.update { it.copy(environments = settings.environments, activeEnvironmentId = ctx.environmentId) }
     }
 
     fun selectEnvironment(id: String) {
-        if (id == settings.activeEnvironment?.id) return
+        if (id == ctx.environmentId) return
+        ctx.environmentId = id
         settings.activeEnvironmentId = id
         applyDefaultDirectory()
         currentAssistantId = null
@@ -514,7 +531,7 @@ class ChatViewModel : ViewModel() {
         historyJob = viewModelScope.launch {
             _state.update { it.copy(historyLoading = true) }
             val projects = SessionsApi.projects()
-            val dir = settings.activeEnvironment?.directory.orEmpty()
+            val dir = activeEnv()?.directory.orEmpty()
             var finalProjects = projects
             var selectedKey = _state.value.historyProjectKey
             if (dir.isNotBlank()) {
@@ -524,7 +541,7 @@ class ChatViewModel : ViewModel() {
                 if (!defaultProjectApplied) {
                     defaultProjectApplied = true
                     selectedKey = existing?.projectKey ?: targetKey
-                    settings.cwd = dir
+                    ctx.cwd = dir
                 }
             }
             val sessions = SessionsApi.sessions(selectedKey)
@@ -535,7 +552,7 @@ class ChatViewModel : ViewModel() {
     fun selectHistoryProject(projectKey: String?) {
         _state.update { it.copy(historyProjectKey = projectKey, historySessions = emptyList()) }
         if (projectKey != null) {
-            _state.value.historyProjects.firstOrNull { it.projectKey == projectKey }?.path?.let { settings.cwd = it }
+            _state.value.historyProjects.firstOrNull { it.projectKey == projectKey }?.path?.let { ctx.cwd = it }
         }
         loadHistory()
     }
@@ -560,7 +577,7 @@ class ChatViewModel : ViewModel() {
             nextId = loaded.size.toLong()
             currentAssistantId = null
             currentThinkingId = null
-            session.path?.let { settings.cwd = it }
+            session.path?.let { ctx.cwd = it }
             _state.update {
                 it.copy(
                     messages = loaded,
@@ -593,7 +610,7 @@ class ChatViewModel : ViewModel() {
 
     private fun currentProjectKey(): String? =
         _state.value.activeProjectKey
-            ?: settings.cwd.takeIf { it.isNotBlank() }?.replace(Regex("[^A-Za-z0-9]"), "-")
+            ?: ctx.cwd.takeIf { it.isNotBlank() }?.replace(Regex("[^A-Za-z0-9]"), "-")
 
     fun loadRewindPoints() {
         val sid = _state.value.sessionId ?: return
@@ -719,7 +736,7 @@ class ChatViewModel : ViewModel() {
 
     private fun imageUrls(m: SessionMessage, sessionId: String, projectKey: String?): List<String>? =
         m.images?.map { ref ->
-            "${Backend.baseUrl}/sessions/$sessionId/images/$ref?project=${UrlCodec.encode(projectKey.orEmpty())}"
+            "${baseUrl()}/sessions/$sessionId/images/$ref?project=${UrlCodec.encode(projectKey.orEmpty())}"
         }
 
     private fun SessionMessage.toRole(): Role = when (type) {
@@ -754,6 +771,7 @@ class ChatViewModel : ViewModel() {
                         messages = it.messages.filterNot { m -> m.ephemeral },
                     )
                 }
+                viewModelScope.launch { refreshServerInfo() }
             }
             is ServerEvent.AssistantText -> {
                 currentThinkingId = null
@@ -824,7 +842,7 @@ class ChatViewModel : ViewModel() {
                     val row = SessionInfo(
                         sessionId = sid,
                         projectKey = st.activeProjectKey,
-                        path = settings.cwd,
+                        path = ctx.cwd,
                         lastActive = nowMillis() / 1000.0,
                         size = 0L,
                         preview = st.messages.firstOrNull { it.role == Role.USER }?.text?.take(120),

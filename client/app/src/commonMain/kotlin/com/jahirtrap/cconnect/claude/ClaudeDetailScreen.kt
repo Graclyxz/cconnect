@@ -50,7 +50,7 @@ import com.jahirtrap.cconnect.ui.ActionButton
 import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.chat.ChatViewModel
-import com.jahirtrap.cconnect.chat.chatViewModelFactory
+import com.jahirtrap.cconnect.chat.LocalChatViewModelFactory
 import com.jahirtrap.cconnect.data.remote.ClaudeApi
 import com.jahirtrap.cconnect.ui.AppBottomSheet
 import com.jahirtrap.cconnect.ui.AppTopBar
@@ -78,7 +78,7 @@ fun ClaudeDetailScreen(
     onClose: () -> Unit,
     onOpenPreview: (url: String, filename: String, onDelete: (() -> Unit)?) -> Unit,
 ) {
-    val vm: ChatViewModel = viewModel(factory = chatViewModelFactory)
+    val vm: ChatViewModel = viewModel(factory = LocalChatViewModelFactory.current)
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
     ClearFocusOnImeHide()
