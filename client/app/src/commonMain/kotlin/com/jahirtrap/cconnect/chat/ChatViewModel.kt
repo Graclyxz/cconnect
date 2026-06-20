@@ -166,13 +166,11 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     init {
         if (ctx.cwd.isBlank()) ctx.cwd = activeEnv()?.directory.orEmpty()
         ctx.initialSessionId?.let { sid ->
-            defaultProjectApplied = true
             _state.update {
                 it.copy(
                     sessionId = sid,
                     activeProjectKey = ctx.initialProjectKey,
                     sessionColor = ctx.initialColor,
-                    historyProjectKey = ctx.initialProjectKey,
                 )
             }
         }
@@ -550,7 +548,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         historyJob = viewModelScope.launch {
             _state.update { it.copy(historyLoading = true) }
             val projects = SessionsApi.projects()
-            val dir = if (_state.value.sessionId != null) ctx.cwd else activeEnv()?.directory.orEmpty()
+            val dir = activeEnv()?.directory.orEmpty()
             var finalProjects = projects
             var selectedKey = _state.value.historyProjectKey
             if (dir.isNotBlank()) {
@@ -560,8 +558,10 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 if (!defaultProjectApplied) {
                     defaultProjectApplied = true
                     selectedKey = existing?.projectKey ?: targetKey
-                    ctx.cwd = dir
                 }
+            } else if (!defaultProjectApplied) {
+                defaultProjectApplied = true
+                selectedKey = null
             }
             val sessions = SessionsApi.sessions(selectedKey)
             _state.update { it.copy(historyProjects = finalProjects, historyProjectKey = selectedKey, historySessions = sessions, historyLoading = false) }

@@ -362,7 +362,12 @@ fun ChatScreen(
         snapshotFlow { listState.firstVisibleItemIndex }
             .collect { idx -> if (idx < 10) vm.loadMoreHistory() }
     }
-    LaunchedEffect(state.messages.lastOrNull()?.id, state.messages.lastOrNull()?.text) {
+    LaunchedEffect(
+        state.messages.lastOrNull()?.id,
+        state.messages.lastOrNull()?.text,
+        state.messages.lastOrNull()?.children?.size,
+        state.messages.lastOrNull()?.children?.lastOrNull()?.result,
+    ) {
         if (state.messages.isNotEmpty() && followBottom) {
             listState.scrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
         }
