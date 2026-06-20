@@ -606,7 +606,7 @@ fun ChatScreen(
                                                     awaitPointerEventScope {
                                                         while (true) {
                                                             val e = awaitPointerEvent(PointerEventPass.Initial)
-                                                            if (e.type == PointerEventType.Scroll) followBottom = false
+                                                            if (e.type == PointerEventType.Scroll && (e.changes.firstOrNull()?.scrollDelta?.y ?: 0f) < 0f) followBottom = false
                                                         }
                                                     }
                                                 },

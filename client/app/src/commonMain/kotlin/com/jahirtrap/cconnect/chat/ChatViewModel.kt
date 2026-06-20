@@ -550,7 +550,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         historyJob = viewModelScope.launch {
             _state.update { it.copy(historyLoading = true) }
             val projects = SessionsApi.projects()
-            val dir = activeEnv()?.directory.orEmpty()
+            val dir = if (_state.value.sessionId != null) ctx.cwd else activeEnv()?.directory.orEmpty()
             var finalProjects = projects
             var selectedKey = _state.value.historyProjectKey
             if (dir.isNotBlank()) {

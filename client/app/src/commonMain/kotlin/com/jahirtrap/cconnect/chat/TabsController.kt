@@ -76,8 +76,17 @@ object TabsController {
 
     val stripScroll = ScrollState(0)
 
+    init {
+        _tabs.forEach { bind(it) }
+    }
+
+    private fun bind(tab: Tab): Tab {
+        tab.ctx.onChange = { persist() }
+        return tab
+    }
+
     fun openTab(environmentId: String?, cwd: String): Tab {
-        val tab = Tab(nextId(), TabContext(environmentId, cwd))
+        val tab = bind(Tab(nextId(), TabContext(environmentId, cwd)))
         _tabs.add(tab)
         activeId = tab.id
         syncActiveEnv()
@@ -92,12 +101,12 @@ object TabsController {
     }
 
     fun openSessionTab(environmentId: String?, cwd: String, sessionId: String, projectKey: String, title: String? = null, color: String? = null): Tab {
-        val tab = Tab(nextId(), TabContext(environmentId, cwd, sessionId, projectKey, title, color)).also {
+        val tab = bind(Tab(nextId(), TabContext(environmentId, cwd, sessionId, projectKey, title, color)).also {
             it.sessionId = sessionId
             it.projectKey = projectKey
             it.title = title
             it.color = color
-        }
+        })
         _tabs.add(tab)
         activeId = tab.id
         syncActiveEnv()
@@ -133,7 +142,7 @@ object TabsController {
         if (idx < 0) return
         val tab = _tabs.removeAt(idx)
         tab.owner.viewModelStore.clear()
-        if (_tabs.isEmpty()) _tabs.add(defaultTab())
+        if (_tabs.isEmpty()) _tabs.add(bind(defaultTab()))
         if (activeId == id) activeId = _tabs[idx.coerceAtMost(_tabs.lastIndex)].id
         syncActiveEnv()
         persist()
@@ -157,6 +166,15 @@ object TabsController {
         val j = (i + delta).coerceIn(0, _tabs.lastIndex)
         if (i == j) return
         _tabs.add(j, _tabs.removeAt(i))
+        persist()
+    }
+
+    fun moveTab(id: String, toIndex: Int) {
+        val from = _tabs.indexOfFirst { it.id == id }
+        if (from < 0) return
+        val to = toIndex.coerceIn(0, _tabs.lastIndex)
+        if (from == to) return
+        _tabs.add(to, _tabs.removeAt(from))
         persist()
     }
 
