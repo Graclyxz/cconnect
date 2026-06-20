@@ -896,6 +896,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
             is ServerEvent.Interrupted -> {
                 resetStreaming()
                 dismissPendingInteractions()
+                addMessage(Role.INTERRUPTED, "")
             }
             is ServerEvent.Err -> {
                 resetStreaming()
@@ -984,7 +985,11 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
             }
             is ServerEvent.Done, is ServerEvent.Interrupted -> {
                 currentSideAssistantId = null
-                _state.update { it.copy(sideChat = it.sideChat?.copy(streaming = false)) }
+                _state.update { st ->
+                    val sc = st.sideChat ?: return@update st
+                    val msgs = if (event is ServerEvent.Interrupted) sc.messages + ChatMessage(nextId++, Role.INTERRUPTED, "") else sc.messages
+                    st.copy(sideChat = sc.copy(streaming = false, messages = msgs))
+                }
                 if (event is ServerEvent.Interrupted) dismissSidePendingInteractions()
             }
             is ServerEvent.Err -> {

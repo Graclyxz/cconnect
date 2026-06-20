@@ -91,6 +91,7 @@ import com.composables.icons.lucide.TriangleAlert
 import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.PlayFilled
+import com.jahirtrap.cconnect.ui.Stop
 import com.jahirtrap.cconnect.data.ChatMessage
 import com.jahirtrap.cconnect.data.CompactData
 import com.jahirtrap.cconnect.data.DiffKind
@@ -269,6 +270,19 @@ fun ChatMessageItem(
                 }
             }
 
+            Role.INTERRUPTED -> Band(palette.orange.copy(alpha = 0.15f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        CustomIcons.Stop,
+                        contentDescription = null,
+                        tint = palette.orange,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    SelectableText(stringResource(Res.string.interrupted), MaterialTheme.typography.bodyMedium, palette.orange, modifier = Modifier.weight(1f))
+                }
+            }
+
             Role.SYSTEM -> Plain {
                 SelectableText(message.text, MaterialTheme.typography.bodySmall, MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -305,24 +319,26 @@ fun StickyCollapsibleHeader(message: ChatMessage, onCollapse: () -> Unit, modifi
     }
 }
 
+private fun isNotice(role: Role?): Boolean = role == Role.ERROR || role == Role.INTERRUPTED
+
 private fun group(role: Role?): Int = when (role) {
     Role.THINKING, Role.WORKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION, Role.FILE_CHANGE, Role.COMPACT -> 0
     Role.ASSISTANT -> 1
-    Role.USER, Role.ERROR -> 2
+    Role.USER, Role.ERROR, Role.INTERRUPTED -> 2
     else -> 3
 }
 
 private fun bottomGap(cur: Role, next: Role?): Dp = when {
     next != null -> 0.dp
-    cur == Role.ERROR -> 0.dp
+    isNotice(cur) -> 0.dp
     else -> BIG
 }
 
 internal fun gapAbove(prev: Role?, cur: Role): Dp {
     if (prev == null) return BIG
     if (prev == cur) return 0.dp
-    if (cur == Role.ERROR || prev == Role.ERROR) {
-        val other = if (cur == Role.ERROR) prev else cur
+    if (isNotice(cur) || isNotice(prev)) {
+        val other = if (isNotice(cur)) prev else cur
         return if (other == Role.USER || other == Role.ASSISTANT) 0.dp else SMALL
     }
     val a = group(prev)

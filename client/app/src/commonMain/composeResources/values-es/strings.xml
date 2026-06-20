@@ -239,6 +239,7 @@
     <string name="compacting">Compactando</string>
     <string name="status_retrying">Reintentando</string>
     <string name="status_failed">Fallo temporal</string>
+    <string name="interrupted">Interrumpido</string>
     <string name="loading">Cargando</string>
     <string name="confirm">Confirmar</string>
     <string name="visibility">Visibilidad del chat</string>
