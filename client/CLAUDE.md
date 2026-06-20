@@ -54,7 +54,7 @@ each platform supplies the `actual` plumbing in `desktopMain` / `wasmJsMain`.
 client/app/src/
 ├── commonMain/kotlin/com/jahirtrap/cconnect/
 │   ├── Platform.kt              # expect isWebPlatform / isCoarsePointer() / bringAppToFront() + desktopWindowToFront hook
-│   ├── chat/                    # ChatScreen, ChatBlocks, ChatViewModel(+Factory), PermissionUi, ChatUrl(expect)
+│   ├── chat/                    # ChatScreen, ChatBlocks, ChatViewModel(+Factory), Tabs(Controller/Bar/Shortcuts/Context), PermissionUi, ChatUrl(expect)
 │   ├── claude/                  # ClaudeScreen + ClaudeDetailScreen (enum ClaudeKind) — same hub as mobile
 │   ├── data/
 │   │   ├── ChatModels / SessionModels / EnvironmentProfile / QrConnectionPayload / SshProfile+SshStore
@@ -63,7 +63,7 @@ client/app/src/
 │   │   ├── Settings.kt / AppPrefs.kt(expect)   # persisted prefs (desktop: java Prefs/file; web: localStorage)
 │   │   ├── MarkdownStore.kt(expect)            # markdown scratchpad text (desktop/android: a file; web: localStorage) — NOT AppPrefs (desktop java Prefs caps a value at 8KB)
 │   │   ├── Clock / DateFormat / NumberFormat    # expect time/number formatting (no kotlinx-datetime dep)
-│   │   └── remote/              # Backend, Http, ChatSocket, Sessions/Shared/Claude/Cli/Capabilities/Settings/System Api,
+│   │   └── remote/              # Backend(+Config), Http, ChatSocket, Sessions/Shared/Claude/Cli/Capabilities/Settings/System Api,
 │   │                           #   GitHubApi, + expect HttpTransport/WebSocketConn/SharedHttp/UrlCodec/AppImageLoader
 │   ├── files/                   # FileExplorerScreen, FilePreviewScreen, UploadManager, FileDrop, FilePicker(expect),
 │   │                           #   AttachmentFile(expect), ClipboardPaste(expect), FilesUrl(expect), SharedActions(expect: URL save/share + local-text save/share), PreviewKind
@@ -150,6 +150,44 @@ The chat's environments/projects/sessions panel adapts to `LocalMobileLayout`:
 - Matches mobile's `MaterialExpressiveTheme(MotionScheme...)` wrapping. The
   drawer's close button shows on non-touch (the desktop/web difference from
   mobile); on touch it's null (gesture/scrim only).
+
+## Tabs (multiple chat sessions)
+
+The chat runs as **tabs** — several independent sessions open at once, each with
+its own environment, working directory, session and project. `chat/TabsController`
+(an object) is the registry: a `mutableStateListOf<Tab>` + `activeId`, persisted
+to `Settings.tabsState` as JSON (`{active, tabs:[{env, cwd, sid, proj, title}]}`;
+the accent color is derived per session, not stored). Each `Tab` owns its own
+`ViewModelStoreOwner` and a `ChatViewModel` factory built from its `TabContext`
+(`environmentId`, `cwd`, `initialSessionId`, `initialProjectKey`), so every tab is
+a fully isolated chat with its own ViewModel.
+
+- **Per-tab wiring (the three Mains).** Each platform's App provides
+  `LocalViewModelStoreOwner` + `LocalChatViewModelFactory` from the active tab and
+  renders `key(activeTab.id) { ChatScreen(...) }`, so per-tab UI state is isolated
+  and a tab's session loads **lazily** — only when first selected. `ChatViewModel`
+  reads its `TabContext` (not the global `Settings.cwd`), and its `ChatSocket`
+  resolves a per-tab `BackendConfig` (`activeEnv()?.toBackendConfig()`), so a tab
+  can target a different environment than the one in front.
+- **Write-back.** `ChatScreen` pushes the live title / color / running / sessionId
+  / projectKey into `TabsController.updateActive(...)` from a `LaunchedEffect`;
+  persistence fires only on a structural or identity change.
+- **UI (`chat/TabBar.kt`).** `TabStrip` is the desktop/web strip (vertical wheel →
+  horizontal scroll via `horizontalScrollbar(wheelScroll = true)`, a
+  `BringIntoViewRequester` keeps the active tab in view); `TabSwitcher` is the
+  mobile dropdown. "Open in new tab" is offered on **every** platform (no longer
+  web-only) through `TabsController.openSessionTab(...)`.
+- **Shortcuts (`chat/TabShortcuts.kt`).** `tabShortcut(KeyEvent)` handles Ctrl+Tab /
+  Ctrl+Shift+Tab (next / prev), Ctrl+T (new), Ctrl+W (close) and Alt+Left /
+  Alt+Right (reorder), routed at the window level next to the clipboard shortcuts.
+- **Desktop full-screen.** F11 toggles a borderless full screen in `Main.kt` —
+  `key(fullscreen) { Window(undecorated = fullscreen, placement = Maximized) }`
+  (the window is recreated because `undecorated` can't change on a live frame), and
+  the previous placement / size / position is restored on exit.
+- **Backend reattach.** Two tabs may ride the same backend session; the server
+  reattaches a channel to a `LiveSession` by session id **only when the prior
+  channel is detached**, so switching tabs mid-load never steals the live one's
+  sink.
 
 ## Keyboard, mouse & clipboard (focus-independent)
 

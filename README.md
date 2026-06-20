@@ -115,6 +115,16 @@ Model, effort, permission mode, how much of each turn you see, and which Claude
 CLI the backend drives are all set from the app and shared across every client
 that connects.
 
+## Tabs
+
+Keep several chats open at once, each in its own tab with its own session,
+project and environment — start a long task in one, switch to another, and come
+back to find it where you left it. Desktop and web get a tab bar; on mobile a
+switcher does the same. Open any chat or session in a new tab, reorder them, and
+on desktop reach for the keyboard (Ctrl+T to open, Ctrl+W to close, Ctrl+Tab to
+cycle). The tabs you had open come back when you reopen the app, each loading
+only once you switch to it.
+
 ## Files
 
 The shared folder grew into a full file manager. Browse `backend/shared/` from

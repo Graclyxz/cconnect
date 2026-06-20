@@ -4,8 +4,9 @@
 
 Mobile, desktop and web interface for Claude Code. The apps drive Claude Code
 running on the user's PC — sessions, files, projects, file edits, interactive
-permission prompts, chat attachments, rewind — over HTTP/WS, reachable either
-locally via Tailscale or publicly via Tailscale Funnel. They also remote-manage
+permission prompts, chat attachments, rewind, several chats at once in tabs —
+over HTTP/WS, reachable either locally via Tailscale or publicly via Tailscale
+Funnel. They also remote-manage
 the Claude Code installation itself (CLI version/updates, plugins, marketplaces,
 MCP servers, skills, memories, user prompt), ship a full file manager over the
 backend's shared folder, and a live PC monitor (CPU/GPU/memory/disks + server
