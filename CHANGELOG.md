@@ -1,9 +1,6 @@
-- Added a local server panel on the desktop app to launch and manage the backend itself: point it at the backend folder, pick the Python environment (auto-detected, system, or a custom path), choose Local or Tailscale mode, start it on launch, and restart or stop it — with live status, URL and token
-- Added a Markdown editor with live preview to jot down notes that persist between sessions, with save, save as and share
-- Added a Windows system-tray icon with a right-click menu (open, exit) and an option to keep CConnect running in the tray when you close the window
-- Changed the Windows desktop updater to run the installer and restart the app automatically after downloading
-- Fixed sharing and "save as" in the file preview across desktop, web and Android
-- Fixed horizontal scrolling in code blocks, tables and diffs
+- Added a tab system to keep several chats open at once, each with its own session, project, model and environment: a tab bar on desktop and web, a tab switcher on mobile, "open in new tab" from any chat or session, keyboard shortcuts (Ctrl+T, Ctrl+W, Ctrl+Tab) to move between and manage them, and the tabs you had open reopen where you left them when you restart the app — loading only when you switch to them
+- Added a full-screen mode on the desktop app, toggled with F11, that restores the previous window state when you leave it
+- Fixed the chat list not loading on startup when the backend came up late, and model names in the toolbar showing as raw ids until the next reconnect
 
 > [!NOTE]
 > The web version is available at https://cconnect.pages.dev/
