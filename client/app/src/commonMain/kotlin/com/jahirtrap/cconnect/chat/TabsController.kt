@@ -49,11 +49,14 @@ object TabsController {
                 val o = el.jsonObject
                 val sid = o["sid"]?.jsonPrimitive?.contentOrNull
                 val proj = o["proj"]?.jsonPrimitive?.contentOrNull
+                val title = o["title"]?.jsonPrimitive?.contentOrNull
+                val color = o["color"]?.jsonPrimitive?.contentOrNull
                 Tab(
                     nextId(),
-                    TabContext(o["env"]?.jsonPrimitive?.contentOrNull, o["cwd"]?.jsonPrimitive?.contentOrNull.orEmpty(), sid, proj),
+                    TabContext(o["env"]?.jsonPrimitive?.contentOrNull, o["cwd"]?.jsonPrimitive?.contentOrNull.orEmpty(), sid, proj, title, color),
                 ).also { t ->
-                    t.title = o["title"]?.jsonPrimitive?.contentOrNull
+                    t.title = title
+                    t.color = color
                     t.sessionId = sid
                     t.projectKey = proj
                 }
@@ -88,10 +91,12 @@ object TabsController {
         return openTab(envId, dir)
     }
 
-    fun openSessionTab(environmentId: String?, cwd: String, sessionId: String, projectKey: String): Tab {
-        val tab = Tab(nextId(), TabContext(environmentId, cwd, sessionId, projectKey)).also {
+    fun openSessionTab(environmentId: String?, cwd: String, sessionId: String, projectKey: String, title: String? = null, color: String? = null): Tab {
+        val tab = Tab(nextId(), TabContext(environmentId, cwd, sessionId, projectKey, title, color)).also {
             it.sessionId = sessionId
             it.projectKey = projectKey
+            it.title = title
+            it.color = color
         }
         _tabs.add(tab)
         activeId = tab.id
@@ -103,11 +108,16 @@ object TabsController {
     fun updateActive(title: String?, color: String?, running: Boolean, sessionId: String?, projectKey: String?) {
         val tab = active
         tab.running = running
-        tab.color = color
-        val changed = tab.title != title || tab.sessionId != sessionId || tab.projectKey != projectKey
-        tab.title = title
+        var changed = tab.sessionId != sessionId || tab.projectKey != projectKey
         tab.sessionId = sessionId
         tab.projectKey = projectKey
+        if (sessionId == null) {
+            if (tab.title != null) { tab.title = null; changed = true }
+            if (tab.color != null) { tab.color = null; changed = true }
+        } else {
+            if (title != null && tab.title != title) { tab.title = title; changed = true }
+            if (color != null && tab.color != color) { tab.color = color; changed = true }
+        }
         if (changed) persist()
     }
 
@@ -169,6 +179,7 @@ object TabsController {
                         t.sessionId?.let { put("sid", it) }
                         t.projectKey?.let { put("proj", it) }
                         t.title?.let { put("title", it) }
+                        t.color?.let { put("color", it) }
                     }
                 }
             }

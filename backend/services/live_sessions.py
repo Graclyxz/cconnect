@@ -22,7 +22,7 @@ class LiveSession:
     def __init__(self, channel, state):
         self.channel = channel
         self.state = state
-        self._sink = None
+        self._sinks = set()
         self._worker = None
         self._pending = {}  # rid -> {"future": Future, "event": stamped dict | None}
         self._seq = 0
@@ -36,7 +36,7 @@ class LiveSession:
 
     @property
     def attached(self):
-        return self._sink is not None
+        return len(self._sinks) > 0
 
     async def attach(self, sink, last_seq=0, since_committed=False):
         """Bind the socket and replay what it missed, then re-emit any still-pending
@@ -44,22 +44,22 @@ class LiveSession:
         fresh client re-attaching by session id: it already loaded the committed
         transcript, so it only needs the in-progress turn (events after the last done)."""
         async with self._lock:
-            self._sink = sink
+            self._sinks.add(sink)
             floor = max(last_seq, self._committed_seq) if since_committed else last_seq
             for stamped in list(self._outbox):
                 if stamped["seq"] > floor:
-                    await self._send(stamped)
+                    await self._send_one(sink, stamped)
             for entry in list(self._pending.values()):
                 event = entry.get("event")
                 if event is not None and event["seq"] <= last_seq:
-                    await self._send(event)
+                    await self._send_one(sink, event)
 
     async def detach(self, sink):
-        """Drop the socket. The worker keeps running — it is not cancelled,
-        and pending permission waits are left intact."""
+        """Drop one socket. The worker keeps running — it is not cancelled,
+        and pending permission waits are left intact. Other attached sockets keep
+        receiving."""
         async with self._lock:
-            if self._sink is sink:
-                self._sink = None
+            self._sinks.discard(sink)
 
     async def _emit(self, event):
         async with self._lock:
@@ -72,14 +72,14 @@ class LiveSession:
             return stamped
 
     async def _send(self, stamped):
-        sink = self._sink
-        if sink is None:
-            return
+        for sink in list(self._sinks):
+            await self._send_one(sink, stamped)
+
+    async def _send_one(self, sink, stamped):
         try:
             await sink(stamped)
         except Exception:
-            if self._sink is sink:
-                self._sink = None
+            self._sinks.discard(sink)
 
     async def _ask(self, payload):
         """Bridge the SDK's permission/question callback to the client and wait

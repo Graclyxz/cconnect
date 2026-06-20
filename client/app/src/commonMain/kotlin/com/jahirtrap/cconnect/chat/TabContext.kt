@@ -5,4 +5,6 @@ class TabContext(
     var cwd: String,
     val initialSessionId: String? = null,
     val initialProjectKey: String? = null,
+    val initialTitle: String? = null,
+    val initialColor: String? = null,
 )

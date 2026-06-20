@@ -209,9 +209,7 @@ async def chat_ws(ws: WebSocket):
                 existing = registry.get(msg.channel) if msg.channel else None
                 by_session = None
                 if existing is None and msg.resume:
-                    candidate = registry.get_by_session(msg.resume)
-                    if candidate is not None and not candidate.attached:
-                        by_session = candidate
+                    by_session = registry.get_by_session(msg.resume)
                 existing = existing or by_session
                 reattaching = existing is not None
                 previous = session
@@ -244,9 +242,7 @@ async def chat_ws(ws: WebSocket):
                 side_resume = raw.get("side_resume")
                 existing_side = registry.get(side_channel) if side_channel else None
                 if existing_side is None and side_resume:
-                    cand = registry.get_by_session(side_resume)
-                    if cand is not None and not cand.attached:
-                        existing_side = cand
+                    existing_side = registry.get_by_session(side_resume)
                 if existing_side is not None:
                     side_session = existing_side
                     await side_session.attach(send, last_seq=raw.get("side_last_seq") or 0)

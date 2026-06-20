@@ -1,5 +1,8 @@
 package com.jahirtrap.cconnect.chat
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jahirtrap.cconnect.BuildConfig
@@ -148,6 +151,9 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     )
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
+    var draft by mutableStateOf("")
+    var sideDraft by mutableStateOf("")
+
     private var nextId = 0L
     private var currentAssistantId: Long? = null
     private var currentThinkingId: Long? = null
@@ -158,7 +164,18 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     private var initialConsumed = false
 
     init {
-        applyDefaultDirectory()
+        if (ctx.cwd.isBlank()) ctx.cwd = activeEnv()?.directory.orEmpty()
+        ctx.initialSessionId?.let { sid ->
+            defaultProjectApplied = true
+            _state.update {
+                it.copy(
+                    sessionId = sid,
+                    activeProjectKey = ctx.initialProjectKey,
+                    sessionColor = ctx.initialColor,
+                    historyProjectKey = ctx.initialProjectKey,
+                )
+            }
+        }
         loadEnvOverrides()
         viewModelScope.launch {
             client.events.collect { (side, event) -> if (side) onSideEvent(event) else onEvent(event) }
@@ -195,11 +212,13 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
             refreshServerInfo()
             loadEnvOverrides()
             _state.update { it.copy(capabilitiesReady = true) }
-            client.connect()
             if (!initialConsumed) {
                 initialConsumed = true
-                ctx.initialSessionId?.let { restoreSession(it, ctx.initialProjectKey.orEmpty()) }
+                ctx.initialSessionId?.let { sid ->
+                    runCatching { loadSessionInto(sessionInfoFor(sid, ctx.initialProjectKey)) }
+                }
             }
+            client.connect()
         }
     }
 
@@ -567,35 +586,44 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     }
 
     fun openSession(session: SessionInfo) {
-        val projectKey = session.projectKey ?: return
         viewModelScope.launch {
-            val page = SessionsApi.sessionMessages(session.sessionId, projectKey, limit = 100)
-            val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly || !it.images.isNullOrEmpty() }
-            val loaded = visible.mapIndexed { i, m ->
-                ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, session.sessionId, projectKey), timestamp = m.timestamp)
-            }
-            nextId = loaded.size.toLong()
-            currentAssistantId = null
-            currentThinkingId = null
-            session.path?.let { ctx.cwd = it }
-            _state.update {
-                it.copy(
-                    messages = loaded,
-                    sessionId = session.sessionId,
-                    activeProjectKey = projectKey,
-                    sessionColor = session.color,
-                    todos = emptyList(),
-                    streaming = false,
-                    oldestLoadedIndex = page.startIndex.takeIf { page.items.isNotEmpty() },
-                    transcriptLoading = false,
-                    transcriptExhausted = !page.hasMore,
-                    sideChat = it.sideChat.promote(session.sessionId),
-                    pendingToolIds = emptySet(),
-                )
-            }
+            if (!loadSessionInto(session)) return@launch
             client.resetResume()
             startSession(resume = session.sessionId)
         }
+    }
+
+    private suspend fun sessionInfoFor(sessionId: String, projectKey: String?): SessionInfo =
+        SessionsApi.sessions(projectKey.orEmpty()).firstOrNull { it.sessionId == sessionId }
+            ?: SessionInfo(sessionId, projectKey, null, null, 0L, null, null, null)
+
+    private suspend fun loadSessionInto(session: SessionInfo): Boolean {
+        val projectKey = session.projectKey ?: return false
+        val page = SessionsApi.sessionMessages(session.sessionId, projectKey, limit = 100)
+        val visible = page.items.filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly || !it.images.isNullOrEmpty() }
+        val loaded = visible.mapIndexed { i, m ->
+            ChatMessage(i.toLong(), m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, session.sessionId, projectKey), timestamp = m.timestamp)
+        }
+        nextId = loaded.size.toLong()
+        currentAssistantId = null
+        currentThinkingId = null
+        session.path?.let { ctx.cwd = it }
+        _state.update {
+            it.copy(
+                messages = loaded,
+                sessionId = session.sessionId,
+                activeProjectKey = projectKey,
+                sessionColor = session.color,
+                todos = emptyList(),
+                streaming = false,
+                oldestLoadedIndex = page.startIndex.takeIf { page.items.isNotEmpty() },
+                transcriptLoading = false,
+                transcriptExhausted = !page.hasMore,
+                sideChat = it.sideChat.promote(session.sessionId),
+                pendingToolIds = emptySet(),
+            )
+        }
+        return true
     }
 
     fun loadMoreHistory() {

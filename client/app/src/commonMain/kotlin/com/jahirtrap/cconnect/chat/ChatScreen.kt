@@ -314,10 +314,11 @@ fun ChatScreen(
     LaunchedEffect(state.connection) {
         if (state.connection == ConnectionState.Connected) vm.ensureHistoryLoaded()
     }
-    val tabLabel = state.historySessions.firstOrNull { it.sessionId == state.sessionId }
-        ?.let { it.title ?: it.preview } ?: state.sessionId?.take(8)
-    LaunchedEffect(tabLabel, state.sessionColor, state.streaming, state.sessionId, state.activeProjectKey) {
-        TabsController.updateActive(tabLabel, state.sessionColor, state.streaming, state.sessionId, state.activeProjectKey)
+    val activeSession = state.historySessions.firstOrNull { it.sessionId == state.sessionId }
+    val tabLabel: String? = activeSession?.let { it.title ?: it.preview ?: state.sessionId?.take(8) }
+    val tabColor: String? = if (activeSession != null) state.sessionColor else null
+    LaunchedEffect(tabLabel, tabColor, state.streaming, state.sessionId, state.activeProjectKey) {
+        TabsController.updateActive(tabLabel, tabColor, state.streaming, state.sessionId, state.activeProjectKey)
     }
     val refreshTick = LocalRefreshTick.current
     LaunchedEffect(refreshTick) { if (refreshTick > 0) vm.loadHistory() }
@@ -544,10 +545,8 @@ fun ChatScreen(
                         ) { padding ->
                             val sc = state.sideChat?.takeIf { it.boundSessionId == state.sessionId }
                             val sideActive = state.sideChatOpen && sc != null
-                            var mainDraft by rememberSaveable { mutableStateOf("") }
-                            var sideDraft by rememberSaveable { mutableStateOf("") }
                             LaunchedEffect(state.pendingInput) {
-                                state.pendingInput?.let { mainDraft = it; vm.consumePendingInput() }
+                                state.pendingInput?.let { vm.draft = it; vm.consumePendingInput() }
                             }
                             val composerFocus = remember { FocusRequester() }
                             val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
@@ -785,8 +784,8 @@ fun ChatScreen(
                                     }
                                 }
                                 Composer(
-                                    value = if (sideActive) sideDraft else mainDraft,
-                                    onValueChange = { if (sideActive) sideDraft = it else mainDraft = it },
+                                    value = if (sideActive) vm.sideDraft else vm.draft,
+                                    onValueChange = { if (sideActive) vm.sideDraft = it else vm.draft = it },
                                     streaming = if (sideActive) (sc?.streaming ?: false) else state.streaming,
                                     sessionColor = state.sessionColor,
                                     commands = state.capabilities.commands,
@@ -1223,7 +1222,7 @@ private fun ColumnScope.ChatPanelContent(
                         onRename = { onRename(s) },
                         onAutoRename = { vm.autoRenameSession(s) },
                         onColor = { onColor(s) },
-                        onOpenNewTab = { s.projectKey?.let { pk -> TabsController.openSessionTab(TabsController.active.ctx.environmentId, s.path.orEmpty(), s.sessionId, pk); onAfterSelect() } },
+                        onOpenNewTab = { s.projectKey?.let { pk -> TabsController.openSessionTab(TabsController.active.ctx.environmentId, s.path.orEmpty(), s.sessionId, pk, s.title ?: s.preview, s.color); onAfterSelect() } },
                         onDelete = { onDelete(s) },
                     )
                 }
