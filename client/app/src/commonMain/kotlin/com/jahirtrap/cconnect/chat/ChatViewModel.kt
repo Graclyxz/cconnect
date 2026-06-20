@@ -14,6 +14,7 @@ import com.jahirtrap.cconnect.resources.notif_permission
 import com.jahirtrap.cconnect.resources.permission_allow
 import com.jahirtrap.cconnect.resources.permission_allow_always
 import com.jahirtrap.cconnect.resources.permission_deny
+import com.jahirtrap.cconnect.resources.plan
 import com.jahirtrap.cconnect.data.AppCompat
 import com.jahirtrap.cconnect.data.AppUpdater
 import com.jahirtrap.cconnect.data.Capabilities
@@ -969,13 +970,19 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                     }
                     if (settings.notifyInteraction) {
                         val question = event.kind == "questions"
+                        val isPlan = event.toolName == "ExitPlanMode"
                         val actions = if (question) emptyList() else event.options
                             .filter { it.id != "different" }
                             .mapNotNull { opt -> notificationOptionLabel(opt)?.let { Notifier.Action(it, event.requestId, opt.id) } }
+                        val body = when {
+                            question -> event.questions.firstOrNull()?.question?.take(120)
+                            isPlan -> event.input.orEmpty().lineSequence().firstOrNull { it.isNotBlank() }?.trimStart('#', ' ')?.trim()?.take(120)?.ifBlank { null } ?: getString(Res.string.plan)
+                            else -> event.toolName
+                        }
                         Notifier.notify(
                             Notifier.Kind.Interaction,
                             getString(if (question) Res.string.notif_question else Res.string.notif_permission),
-                            if (question) event.questions.firstOrNull()?.question?.take(120) else event.toolName,
+                            body,
                             actions,
                         )
                     }

@@ -1,11 +1,11 @@
 [project]
 name = "cconnect-backend"
-version = "1.2.4"
+version = "1.2.5"
 description = "Remote bridge between the CConnect client and Claude Code"
 requires-python = ">=3.11"
 
 [tool.cconnect]
-supported-app = ">=1.1.5"
+supported-app = ">=1.2.5"
 supported-cli = ">=2.1.170"
 
 dependencies = [
