@@ -532,6 +532,27 @@ private fun MarkdownImage(url: String, alt: String) {
     }
 }
 
+@Composable
+fun RemoteImageThumb(url: String, modifier: Modifier = Modifier) {
+    val context = LocalPlatformContext.current
+    val loader = remember { AppImageLoader.get(context) }
+    val painter = rememberAsyncImagePainter(model = ImageRequest.Builder(context).data(url).build(), imageLoader = loader)
+    val state by painter.state.collectAsState()
+    val shape = RoundedCornerShape(8.dp)
+    val base = modifier.height(150.dp).clip(shape)
+    when (state) {
+        is AsyncImagePainter.State.Success -> {
+            val sz = painter.intrinsicSize
+            val aspect = if (sz.isSpecified && sz.height > 0f) sz.width / sz.height else 1f
+            Image(painter = painter, contentDescription = null, contentScale = ContentScale.Fit, modifier = base.aspectRatio(aspect))
+        }
+        is AsyncImagePainter.State.Error -> Box(base.aspectRatio(1f), contentAlignment = Alignment.Center) {
+            Icon(Lucide.ImageOff, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+        }
+        else -> CenteredProgress(base.aspectRatio(1f), size = 22.dp)
+    }
+}
+
 private fun filenameFromUrl(url: String): String {
     val raw = url.substringBefore('?').substringBefore('#').substringAfterLast('/')
     return (UrlCodec.decode(raw) ?: raw).ifBlank { "image" }

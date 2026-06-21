@@ -17,6 +17,8 @@ from loguru import logger
 # on-disk transcript via load_history.
 OUTBOX_MAX = 5000
 
+_CLOSE = object()
+
 
 class LiveSession:
     def __init__(self, channel, state):
@@ -29,6 +31,9 @@ class LiveSession:
         self._committed_seq = 0
         self._outbox = collections.deque(maxlen=OUTBOX_MAX)
         self._lock = asyncio.Lock()  # serialize emit vs. replay so seq order holds
+        self._inbox = asyncio.Queue()
+        self._queued = []
+        self._seen_ids = set()
 
     @property
     def running(self):
@@ -105,9 +110,45 @@ class LiveSession:
     async def announce_resolved(self, rid, option_id):
         await self._emit({"type": "interaction_resolved", "id": rid, "option_id": option_id})
 
+    async def enqueue(self, mid, text, attachments=None):
+        if mid and mid in self._seen_ids:
+            return False
+        if mid:
+            self._seen_ids.add(mid)
+        item = {"id": mid, "text": text, "attachments": list(attachments or [])}
+        self._queued.append(item)
+        await self._inbox.put(item)
+        await self._emit({"type": "queued", "id": mid, "text": text})
+        return True
+
+    async def drain(self):
+        while True:
+            item = await self._inbox.get()
+            if item is _CLOSE:
+                return
+            try:
+                self._queued.remove(item)
+            except ValueError:
+                pass
+            yield item
+
+    def already_consumed(self, mid):
+        return bool(mid) and mid in self._seen_ids
+
+    async def consumed(self, mid):
+        if mid:
+            self._seen_ids.add(mid)
+        await self._emit({"type": "dequeued", "id": mid})
+
     def start(self, runner_factory):
         if self.running:
             return False
+        while not self._inbox.empty():
+            try:
+                self._inbox.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+        self._queued.clear()
         self._worker = asyncio.create_task(self._run(runner_factory))
         return True
 
@@ -130,6 +171,8 @@ class LiveSession:
         try:
             async for event in runner_factory(self._ask, self._emit):
                 await self._emit(event)
+                if event.get("type") == "result" and not self._queued:
+                    self._inbox.put_nowait(_CLOSE)
         except asyncio.CancelledError:
             raise  # interrupt(): stop without a trailing `done`
         except Exception as exc:

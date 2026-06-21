@@ -64,7 +64,7 @@ class _Session:
         self.base_url: str | None = None
 
 
-def _build_turn_runner(state: _Session, text: str, attachments: list[str] | None = None):
+def _build_turn_runner(state: _Session, drain, text: str, attachments: list[str] | None = None):
     """Build the async-gen factory the LiveSession runs for one prompt. It wraps
     the run_prompt loop plus the post-turn session bookkeeping; the LiveSession
     appends the trailing ``done`` event itself."""
@@ -104,6 +104,7 @@ def _build_turn_runner(state: _Session, text: str, attachments: list[str] | None
                 ask_user=ask_user,
                 base_url=state.base_url,
                 emit=emit,
+                drain=drain(),
             ):
                 if event.get("type") == "compact":
                     compacted = True
@@ -259,8 +260,14 @@ async def chat_ws(ws: WebSocket):
                 except ValidationError as exc:
                     await send({"type": "error", "message": exc.errors()})
                     continue
-                if not session.start(_build_turn_runner(session.state, msg.text, msg.attachments)):
-                    await send({"type": "error", "message": "busy: a prompt is already running"})
+                if session.running:
+                    await session.enqueue(msg.id, msg.text, msg.attachments)
+                elif msg.id and session.already_consumed(msg.id):
+                    await session.consumed(msg.id)
+                else:
+                    if msg.id:
+                        await session.consumed(msg.id)
+                    session.start(_build_turn_runner(session.state, session.drain, msg.text, msg.attachments))
 
             elif mtype == "set_permission_mode":
                 try:

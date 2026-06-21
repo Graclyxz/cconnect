@@ -51,6 +51,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -93,6 +94,7 @@ import com.jahirtrap.cconnect.ui.AppBottomSheet
 import com.jahirtrap.cconnect.ui.AppLogo
 import com.jahirtrap.cconnect.ui.selectionTextCursor
 import com.jahirtrap.cconnect.ui.AttachmentChip
+import com.jahirtrap.cconnect.ui.CompactDialog
 import com.jahirtrap.cconnect.ui.NoticeCard
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CustomIcons
@@ -105,7 +107,9 @@ import com.jahirtrap.cconnect.ui.Stop
 import com.jahirtrap.cconnect.ui.theme.palette
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -199,6 +203,7 @@ import com.jahirtrap.cconnect.data.CommandOption
 import com.jahirtrap.cconnect.data.EnvironmentProfile
 import com.jahirtrap.cconnect.data.PermissionMode
 import com.jahirtrap.cconnect.data.ProjectInfo
+import com.jahirtrap.cconnect.data.QueuedMessage
 import com.jahirtrap.cconnect.data.Role
 import com.jahirtrap.cconnect.data.pending
 import com.jahirtrap.cconnect.data.SessionInfo
@@ -272,6 +277,7 @@ fun ChatScreen(
     var colorTarget by remember { mutableStateOf<SessionInfo?>(null) }
     var confirmCommand by remember { mutableStateOf<CommandOption?>(null) }
     var sharedLinkAction by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var queuePreview by remember { mutableStateOf<QueuedMessage?>(null) }
     var showRewindSheet by remember { mutableStateOf(false) }
     LaunchedEffect(expanded) {
         if (expanded) {
@@ -395,6 +401,7 @@ fun ChatScreen(
             listState.animateScrollToItem(state.messages.lastIndex, Int.MAX_VALUE)
         }
     }
+    BackInterceptor(enabled = drawerState.targetValue == DrawerValue.Open) { scope.launch { drawerState.close() }; true }
     MaterialExpressiveTheme(motionScheme = MotionScheme.standard()) {
         ModalNavigationDrawer(
             drawerState = drawerState,
@@ -722,12 +729,18 @@ fun ChatScreen(
                                         .background(MaterialTheme.colorScheme.background)
                                         .foundationClickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
                                     ) {
+                                        val queueScroll = rememberScrollState()
+                                        val attachScroll = rememberScrollState()
                                         if (state.compacting) CompactProgress()
                                         state.streamStatus?.let { StatusProgress(it) }
+                                        if (!sideActive && state.queue.isNotEmpty()) {
+                                            QueueRow(queue = state.queue, scroll = queueScroll, onOpen = { queuePreview = it })
+                                        }
                                         if (!sideActive && state.attachments.isNotEmpty()) {
                                             AttachmentsRow(
                                                 attachments = state.attachments,
                                                 uploading = state.uploadingAttachments,
+                                                scroll = attachScroll,
                                                 onRemove = vm::removeAttachment,
                                             )
                                         }
@@ -821,6 +834,41 @@ fun ChatScreen(
         }
     }
 
+    queuePreview?.let { q ->
+        CompactDialog(
+            onDismiss = { queuePreview = null },
+            title = stringResource(Res.string.queued_message),
+            buttons = {
+                TextButton(onClick = { queuePreview = null }) { Text(stringResource(Res.string.close)) }
+            },
+        ) {
+            if (q.text.isNotBlank()) {
+                OutlinedPanel(modifier = Modifier.fillMaxWidth()) {
+                    Text(q.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(4.dp))
+                }
+            }
+            if (q.attachments.isNotEmpty()) {
+                if (q.text.isNotBlank()) Spacer(Modifier.height(8.dp))
+                val attScroll = rememberScrollState()
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .horizontalScrollbar(attScroll, touchIndicator = false, wheelScroll = true)
+                        .horizontalScroll(attScroll),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    q.attachments.forEach { att ->
+                        val n = att.substringAfterLast('/')
+                        AttachmentChip(
+                            name = n,
+                            icon = if (isArchive(n)) Lucide.FolderArchive else Lucide.File,
+                            onClick = { queuePreview = null; sharedLinkAction = SharedApi.downloadUrl("uploads/$n") to n },
+                        )
+                    }
+                }
+            }
+        }
+    }
     renameTarget?.let { s ->
         RenameDialog(
             initial = s.title ?: s.preview ?: "",
@@ -1704,8 +1752,11 @@ private fun Composer(
     var field by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
     LaunchedEffect(value) { if (value != field.text) field = TextFieldValue(value, TextRange(value.length)) }
 
+    val busy = streaming || uploading
+    val canSubmit = value.isNotBlank() || attachments.isNotEmpty()
+
     fun trySend(): Boolean {
-        if ((value.isBlank() && attachments.isEmpty()) || !canSend || streaming || uploading) return false
+        if (!canSubmit) return false
         onSend(value)
         onValueChange("")
         return true
@@ -1796,7 +1847,7 @@ private fun Composer(
             },
         )
         Spacer(Modifier.width(6.dp))
-        if (streaming || uploading) {
+        if (busy && !canSubmit) {
             CircleActionButton(
                 icon = CustomIcons.Stop,
                 contentDescription = stringResource(Res.string.stop),
@@ -1807,8 +1858,28 @@ private fun Composer(
             CircleActionButton(
                 icon = Lucide.ArrowUp,
                 contentDescription = stringResource(Res.string.send),
-                enabled = (value.isNotBlank() || attachments.isNotEmpty()) && canSend,
+                enabled = canSubmit,
                 onClick = { onSend(value); onValueChange("") },
+            )
+        }
+    }
+}
+
+@Composable
+private fun QueueRow(queue: List<QueuedMessage>, scroll: ScrollState, onOpen: (QueuedMessage) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScrollbar(scroll, touchIndicator = false, wheelScroll = true)
+            .horizontalScroll(scroll)
+            .padding(start = 8.dp, end = 8.dp, top = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        queue.forEach { q ->
+            AttachmentChip(
+                name = q.text.ifBlank { q.attachments.joinToString(", ") { att -> att.substringAfterLast('/') } },
+                icon = Lucide.MessagesSquare,
+                onClick = { onOpen(q) },
             )
         }
     }
@@ -1818,9 +1889,9 @@ private fun Composer(
 private fun AttachmentsRow(
     attachments: List<Attachment>,
     uploading: Boolean,
+    scroll: ScrollState,
     onRemove: (Long) -> Unit,
 ) {
-    val scroll = rememberScrollState()
     Row(
         modifier = Modifier
             .fillMaxWidth()

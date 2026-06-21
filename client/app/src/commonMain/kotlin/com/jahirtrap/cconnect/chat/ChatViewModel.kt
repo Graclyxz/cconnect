@@ -19,6 +19,8 @@ import com.jahirtrap.cconnect.data.AppCompat
 import com.jahirtrap.cconnect.data.AppUpdater
 import com.jahirtrap.cconnect.data.Capabilities
 import com.jahirtrap.cconnect.data.ChatMessage
+import com.jahirtrap.cconnect.data.QueuedMessage
+import com.jahirtrap.cconnect.data.SendStatus
 import com.jahirtrap.cconnect.data.EnvironmentProfile
 import com.jahirtrap.cconnect.data.CommandOption
 import com.jahirtrap.cconnect.data.CompactData
@@ -117,6 +119,7 @@ data class ChatUiState(
     val versionNotices: List<CompatStatus> = emptyList(),  // dismissable startup notices
     val attachments: List<Attachment> = emptyList(), // files queued in the composer, uploaded on send
     val uploadingAttachments: Boolean = false,
+    val queue: List<QueuedMessage> = emptyList(),
 )
 
 data class Attachment(
@@ -310,11 +313,14 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     fun sendPrompt(text: String) {
         val trimmed = text.trim()
         val current = _state.value
-        if (current.streaming || current.uploadingAttachments) return
         if (current.attachments.isEmpty()) {
-            dispatchPrompt(trimmed)
+            enqueueOutgoing(trimmed, emptyList())
             return
         }
+        if (current.uploadingAttachments) return
+        val id = "q${outgoingSeq++}"
+        val placeholders = current.attachments.map { "uploads/${it.name}" }
+        _state.update { it.copy(queue = it.queue + QueuedMessage(id, trimmed, attachments = placeholders, uploading = true)) }
         uploadJob = viewModelScope.launch {
             _state.update { it.copy(uploadingAttachments = true) }
             try {
@@ -335,20 +341,28 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                                 attachments = it.attachments.map { a -> a.copy(progress = 0f) },
                                 error = getString(Res.string.connection_error),
                                 pendingInput = trimmed.ifEmpty { null },
+                                queue = it.queue.filterNot { q -> q.id == id },
                             )
                         }
                         return@launch
                     }
                     saved += rel
                 }
-                _state.update { it.copy(attachments = emptyList(), uploadingAttachments = false) }
-                dispatchPrompt(trimmed, saved)
+                _state.update {
+                    it.copy(
+                        attachments = emptyList(),
+                        uploadingAttachments = false,
+                        queue = it.queue.map { q -> if (q.id == id) q.copy(attachments = saved, uploading = false) else q },
+                    )
+                }
+                pumpQueue()
             } catch (e: CancellationException) {
                 _state.update {
                     it.copy(
                         uploadingAttachments = false,
                         attachments = it.attachments.map { a -> a.copy(progress = 0f) },
                         pendingInput = trimmed.ifEmpty { null },
+                        queue = it.queue.filterNot { q -> q.id == id },
                     )
                 }
                 throw e
@@ -369,6 +383,43 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
             resetToInitialWindow(it).copy(streaming = true, compacting = compacting, streamStatus = null, error = null, todos = todos)
         }
         client.sendPrompt(prompt, attachments)
+    }
+
+    private var outgoingSeq = 0L
+    private var inFlightId: String? = null
+
+    private fun enqueueOutgoing(text: String, attachments: List<String>) {
+        if (text.isEmpty() && attachments.isEmpty()) return
+        val id = "q${outgoingSeq++}"
+        _state.update { it.copy(queue = it.queue + QueuedMessage(id, text, attachments = attachments)) }
+        pumpQueue()
+    }
+
+    private fun pumpQueue() {
+        if (inFlightId != null) return
+        if (_state.value.connection != ConnectionState.Connected) return
+        val next = _state.value.queue.firstOrNull { !it.uploading } ?: return
+        inFlightId = next.id
+        client.sendPrompt(next.text, next.attachments, next.id)
+    }
+
+    private fun drainQueue() {
+        inFlightId = null
+        pumpQueue()
+    }
+
+    fun removeQueued(id: String) {
+        val wasInFlight = inFlightId == id
+        _state.update { it.copy(queue = it.queue.filterNot { q -> q.id == id }) }
+        if (wasInFlight) inFlightId = null
+        pumpQueue()
+    }
+
+    private fun requeueAfterInterrupt() {
+        inFlightId = null
+        if (_state.value.queue.isEmpty() || _state.value.connection != ConnectionState.Connected) return
+        _state.update { st -> st.copy(queue = st.queue.map { it.copy(id = "q${outgoingSeq++}") }) }
+        pumpQueue()
     }
 
     private var uploadJob: Job? = null
@@ -858,6 +909,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                     )
                 }
                 viewModelScope.launch { refreshServerInfo() }
+                drainQueue()
             }
             is ServerEvent.AssistantText -> {
                 currentThinkingId = null
@@ -963,14 +1015,21 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                     )
                 }
                 resetStreaming()
+                inFlightId = null
+                pumpQueue()
             }
             is ServerEvent.Interrupted -> {
                 resetStreaming()
                 dismissPendingInteractions()
                 addMessage(Role.INTERRUPTED, "")
+                requeueAfterInterrupt()
             }
             is ServerEvent.Err -> {
                 resetStreaming()
+                _state.update { st ->
+                    val idx = st.messages.indexOfLast { it.role == Role.USER }
+                    if (idx >= 0) st.copy(messages = st.messages.mapIndexed { i, m -> if (i == idx) m.copy(sendStatus = SendStatus.ERROR) else m }) else st
+                }
                 addMessage(Role.ERROR, event.message)
             }
             is ServerEvent.InteractionRequest -> {
@@ -1011,6 +1070,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 }
             }
             is ServerEvent.Closed -> {
+                inFlightId = null
                 currentAssistantId = null
                 currentThinkingId = null
                 currentSideAssistantId = null
@@ -1022,6 +1082,22 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                         sideChat = it.sideChat?.copy(streaming = false),
                     )
                 }
+            }
+            is ServerEvent.Queued -> {}
+            is ServerEvent.Dequeued -> {
+                val q = _state.value.queue.firstOrNull { it.id == event.id }
+                _state.update { it.copy(queue = it.queue.filterNot { m -> m.id == event.id }) }
+                if (event.id == inFlightId) inFlightId = null
+                if (q != null) {
+                    val compacting = q.text == "/compact" || q.text.startsWith("/compact ")
+                    if (!_state.value.streaming) {
+                        currentAssistantId = null
+                        currentThinkingId = null
+                        _state.update { st -> resetToInitialWindow(st).copy(streaming = true, compacting = compacting, streamStatus = null, error = null) }
+                    }
+                    if (!compacting) addMessage(Role.USER, q.text, attachments = q.attachments.map { it.substringAfterLast('/') }.takeIf { a -> a.isNotEmpty() })
+                }
+                pumpQueue()
             }
             is ServerEvent.HistoryChunk -> onHistoryChunk(event)
             else -> {}

@@ -243,7 +243,6 @@ private fun App(systemLocale: Locale, refreshTick: Int, window: ComposeWindow) {
                 if (terminalFromSettings) { terminalFromSettings = false; showSettings = true }
             }
             showMarkdown -> showMarkdown = false
-            sidebarExpanded -> sidebarExpanded = false
         }
     }
 

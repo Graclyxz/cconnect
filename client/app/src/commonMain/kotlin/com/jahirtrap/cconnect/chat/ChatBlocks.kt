@@ -101,6 +101,7 @@ import com.jahirtrap.cconnect.data.InteractionOption
 import com.jahirtrap.cconnect.data.InteractionQuestion
 import com.jahirtrap.cconnect.data.QuestionDraft
 import com.jahirtrap.cconnect.data.Role
+import com.jahirtrap.cconnect.data.SendStatus
 import com.jahirtrap.cconnect.ui.ActionButton
 import com.jahirtrap.cconnect.ui.CodeBlock
 import com.jahirtrap.cconnect.ui.MarkdownText
@@ -189,7 +190,7 @@ fun ChatMessageItem(
                     if (content.body.isNotEmpty()) {
                         SelectableText(content.body, MaterialTheme.typography.bodyMedium, MaterialTheme.colorScheme.onSurface)
                     }
-                    if (content.attachments.isNotEmpty() || (message.timestamp != null && showTime)) {
+                    if (content.attachments.isNotEmpty() || (message.timestamp != null && showTime) || message.sendStatus == SendStatus.ERROR) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.Bottom,
@@ -220,6 +221,14 @@ fun ChatMessageItem(
                                         modifier = Modifier.padding(start = 8.dp),
                                     )
                                 }
+                            }
+                            if (message.sendStatus == SendStatus.ERROR) {
+                                Icon(
+                                    Lucide.TriangleAlert,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(start = 6.dp).size(14.dp),
+                                )
                             }
                         }
                     }

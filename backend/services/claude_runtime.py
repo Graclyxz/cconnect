@@ -424,6 +424,7 @@ async def run_prompt(
     ask_user: Optional[Callable[[dict], Awaitable[dict]]] = None,
     base_url: Optional[str] = None,
     emit: Optional[Callable[[dict], Awaitable[None]]] = None,
+    drain: Optional[AsyncIterator[dict]] = None,
 ) -> AsyncIterator[dict]:
     from claude_agent_sdk import (
         query,
@@ -443,6 +444,8 @@ async def run_prompt(
     extra_args = {"name": name} if name else {}
     if resume and resume_at:
         extra_args["resume-session-at"] = resume_at
+    if drain is not None:
+        extra_args["replay-user-messages"] = None
 
     system_prompt: dict = {"type": "preset", "preset": "claude_code"}
     append = _system_append(base_url, cwd)
@@ -495,9 +498,24 @@ async def run_prompt(
 
     content = [{"type": "text", "text": prompt}, *images] if images else prompt
 
+    injected: list[dict] = []
+
     async def _prompt_stream():
         yield {"type": "user", "message": {"role": "user", "content": content}}
-    prompt_arg = _prompt_stream() if (ask_user is not None or images) else prompt
+        if drain is not None:
+            from services import attachments as attachments_service
+            async for item in drain:
+                atts = item.get("attachments")
+                if atts:
+                    itext, iimages = attachments_service.compose_prompt(item["text"], atts)
+                    icontent = [{"type": "text", "text": itext}, *iimages] if iimages else itext
+                    match_text = itext
+                else:
+                    icontent = item["text"]
+                    match_text = item["text"]
+                injected.append({"id": item.get("id"), "text": match_text})
+                yield {"type": "user", "message": {"role": "user", "content": icontent}}
+    prompt_arg = _prompt_stream() if (ask_user is not None or images or drain is not None) else prompt
 
     hidden_tool_ids: set[str] = set()
     first_chunk_pending: set[int] = set()
@@ -544,6 +562,20 @@ async def run_prompt(
                     if cctx:
                         yield {"type": "context", "context_tokens": cctx}
             elif isinstance(message, UserMessage):
+                if not parent and injected:
+                    mc = getattr(message, "content", None)
+                    if isinstance(mc, str):
+                        msg_text = mc
+                    elif isinstance(mc, list):
+                        msg_text = "".join(getattr(b, "text", "") for b in mc if type(b).__name__ == "TextBlock")
+                    else:
+                        msg_text = ""
+                    if msg_text:
+                        for _i, _it in enumerate(injected):
+                            if _it["text"] == msg_text:
+                                injected.pop(_i)
+                                yield {"type": "dequeued", "id": _it["id"]}
+                                break
                 tu_mode = settings_store.visibility_mode("tool_use")
                 if tu_mode != "off":
                     for block in getattr(message, "content", None) or []:

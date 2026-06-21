@@ -23,6 +23,7 @@ class PromptMessage(BaseModel):
     type: Literal["prompt"]
     text: str
     attachments: list[str] = []
+    id: Optional[str] = None
 
 
 class SetPermissionMessage(BaseModel):

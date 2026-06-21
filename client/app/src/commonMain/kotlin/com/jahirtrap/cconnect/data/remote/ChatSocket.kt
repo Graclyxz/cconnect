@@ -133,11 +133,12 @@ class ChatSocket(private val scope: CoroutineScope, private val config: () -> Ba
         })
     }
 
-    fun sendPrompt(text: String, attachments: List<String> = emptyList()) {
+    fun sendPrompt(text: String, attachments: List<String> = emptyList(), id: String? = null) {
         send(buildJsonObject {
             put("type", "prompt")
             put("text", text)
             if (attachments.isNotEmpty()) putJsonArray("attachments") { attachments.forEach { add(it) } }
+            if (id != null) put("id", id)
         })
     }
 
@@ -282,6 +283,8 @@ class ChatSocket(private val scope: CoroutineScope, private val config: () -> Ba
             "ask_done" -> ServerEvent.AskDone
             "command" -> ServerEvent.Command(str("markdown").orEmpty())
             "plan" -> ServerEvent.Plan(str("markdown").orEmpty())
+            "queued" -> ServerEvent.Queued(str("id"), str("text").orEmpty())
+            "dequeued" -> ServerEvent.Dequeued(str("id"))
             "agent" -> ServerEvent.Agent(str("id"), str("subagent_type"), str("description"), flag("label"))
             "compact_summary" -> ServerEvent.CompactSummary(
                 trigger = str("trigger"),

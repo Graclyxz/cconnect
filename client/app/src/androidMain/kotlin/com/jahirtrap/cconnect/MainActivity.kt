@@ -225,7 +225,6 @@ class MainActivity : AppCompatActivity() {
                     if (terminalFromSettings) { terminalFromSettings = false; showSettings = true }
                 }
                 showMarkdown -> showMarkdown = false
-                sidebarExpanded -> sidebarExpanded = false
                 else -> return false
             }
             return true

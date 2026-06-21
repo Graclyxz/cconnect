@@ -671,6 +671,18 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
     if not file.is_file():
         return []
     entries = _active_entries(list(_iter_lines(file)), session_id)
+    # The first prompt of each turn lands both as a `queue-operation` enqueue AND as a real
+    queued_user_texts: set[str] = set()
+    for entry in entries:
+        if entry.get("type") != "user" or entry.get("isMeta") or entry.get("isSidechain"):
+            continue
+        c = entry.get("message", {}).get("content")
+        if isinstance(c, str):
+            queued_user_texts.add(c.strip())
+        elif isinstance(c, list):
+            for b in c:
+                if isinstance(b, dict) and b.get("type") == "text":
+                    queued_user_texts.add((b.get("text") or "").strip())
     # AskUserQuestion answers live in the tool_result, not in the tool_use input.
     tool_result_by_id: dict[str, object] = {}
     agent_files: dict[str, str] = {}
@@ -728,6 +740,12 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
         if entry.get("isMeta"):
             continue
         if i < last_boundary:
+            continue
+        if etype == "queue-operation":
+            if entry.get("operation") == "enqueue":
+                qtext = (entry.get("content") or "").strip()
+                if qtext and qtext not in queued_user_texts and not _COMMAND_META_RE.search(qtext) and not _INTERRUPT_RE.match(qtext):
+                    messages.append({"type": "text", "role": "user", "text": qtext})
             continue
         message = entry.get("message", {})
         if entry.get("isSidechain"):

@@ -235,6 +235,7 @@
     <string name="quick_chat">Chat rápido</string>
     <string name="working">Trabajando</string>
     <string name="close">Cerrar</string>
+    <string name="queued_message">Mensaje en cola</string>
     <string name="clear">Limpiar</string>
     <string name="compacting">Compactando</string>
     <string name="status_retrying">Reintentando</string>
