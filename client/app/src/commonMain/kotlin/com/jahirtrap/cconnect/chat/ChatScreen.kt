@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -558,12 +559,14 @@ fun ChatScreen(
                             }
                             val composerFocus = remember { FocusRequester() }
                             val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-                            val expansion = remember { Animatable(0f) }
                             val peek = 0.58f
+                            val expansion = remember { Animatable(if (sideActive) (if (state.sideFullscreen) 1f else peek) else 0f) }
                             LaunchedEffect(sideActive) {
                                 if (sideActive) {
-                                    expansion.snapTo(0f)
-                                    expansion.animateTo(peek, spring(stiffness = Spring.StiffnessMediumLow))
+                                    if (expansion.value < peek) {
+                                        expansion.snapTo(0f)
+                                        expansion.animateTo(peek, spring(stiffness = Spring.StiffnessMediumLow))
+                                    }
                                     if (imeVisible) composerFocus.requestFocus()
                                 }
                             }
@@ -647,6 +650,7 @@ fun ChatScreen(
                                                         onQuestionNotes = vm::setQuestionNotes,
                                                         onSubmitQuestions = vm::submitQuestions,
                                                         onChatQuestions = vm::chatQuestions,
+                                                        onQuestionPage = vm::setActiveQuestion,
                                                         onSharedLink = { url, filename -> sharedLinkAction = url to filename },
                                                         gluedTop = separated,
                                                         showTime = showTime,
@@ -758,8 +762,8 @@ fun ChatScreen(
                                                         val v = expansion.value
                                                         when {
                                                             v < 0.32f -> { expansion.animateTo(0f, spring(stiffness = Spring.StiffnessMediumLow)); vm.closeSideChat() }
-                                                            v < (peek + 1f) / 2f -> expansion.animateTo(peek, spring(stiffness = Spring.StiffnessMediumLow))
-                                                            else -> expansion.animateTo(1f, spring(stiffness = Spring.StiffnessMediumLow))
+                                                            v < (peek + 1f) / 2f -> { expansion.animateTo(peek, spring(stiffness = Spring.StiffnessMediumLow)); vm.setSideFullscreen(false) }
+                                                            else -> { expansion.animateTo(1f, spring(stiffness = Spring.StiffnessMediumLow)); vm.setSideFullscreen(true) }
                                                         }
                                                     }
                                                 },
@@ -1783,7 +1787,7 @@ private fun Composer(
                                 modifier = Modifier
                                     .clip(CircleShape)
                                     .clickable(enabled = !uploading, onClick = onAttach)
-                                    .size(22.dp)
+                                    .requiredSize(22.dp)
                                     .padding(1.dp),
                             )
                         }

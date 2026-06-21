@@ -74,6 +74,7 @@ data class InteractionData(
     val declined: Boolean = false,                           // "Chat about this" — questions dismissed
     val summary: List<String> = emptyList(),                 // per-question answer text after submit
     val notes: List<String> = emptyList(),                   // per-question note text after submit
+    val activeQuestion: Int = 0,
 )
 
 val InteractionData.pending: Boolean
@@ -114,7 +115,7 @@ data class CapabilitiesDefaults(
 sealed interface ServerEvent {
     data object Connecting : ServerEvent
     data object Open : ServerEvent
-    data class Ready(val sessionId: String?, val project: String? = null, val channel: String? = null, val running: Boolean = false) : ServerEvent
+    data class Ready(val sessionId: String?, val project: String? = null, val channel: String? = null, val running: Boolean = false, val resumed: Boolean = false) : ServerEvent
     data class AssistantText(val text: String) : ServerEvent
     data class Thinking(val text: String, val labelOnly: Boolean = false) : ServerEvent
     data class ToolUse(val id: String?, val name: String?, val input: String?, val result: String? = null) : ServerEvent

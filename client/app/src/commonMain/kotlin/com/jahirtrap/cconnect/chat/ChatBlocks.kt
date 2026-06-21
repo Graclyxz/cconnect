@@ -37,6 +37,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -171,6 +172,7 @@ fun ChatMessageItem(
     onQuestionNotes: ((String, Int, String) -> Unit)? = null,
     onSubmitQuestions: ((String) -> Unit)? = null,
     onChatQuestions: ((String) -> Unit)? = null,
+    onQuestionPage: ((String, Int) -> Unit)? = null,
     onSharedLink: ((String, String) -> Unit)? = null,
     gluedTop: Boolean = false,
     showTime: Boolean = true,
@@ -247,6 +249,7 @@ fun ChatMessageItem(
                         onNotes = { qi, text -> onQuestionNotes?.invoke(it.requestId, qi, text) },
                         onSubmit = { onSubmitQuestions?.invoke(it.requestId) },
                         onChat = { onChatQuestions?.invoke(it.requestId) },
+                        onActivePage = { page -> onQuestionPage?.invoke(it.requestId, page) },
                     )
                 } else {
                     InteractionBlock(data = it, toolName = message.toolName, input = message.text, expanded = expanded, onToggle = onToggle, onAnswer = onAnswer)
@@ -859,6 +862,7 @@ private fun QuestionsBlock(
     onNotes: (Int, String) -> Unit,
     onSubmit: () -> Unit,
     onChat: () -> Unit,
+    onActivePage: (Int) -> Unit,
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -870,8 +874,9 @@ private fun QuestionsBlock(
             ResolvedQuestions(data)
         } else {
             val many = data.questions.size > 1
-            val pagerState = rememberPagerState(pageCount = { data.questions.size })
+            val pagerState = rememberPagerState(initialPage = data.activeQuestion.coerceIn(0, (data.questions.size - 1).coerceAtLeast(0)), pageCount = { data.questions.size })
             val scope = rememberCoroutineScope()
+            LaunchedEffect(pagerState.currentPage) { onActivePage(pagerState.currentPage) }
             if (many) {
                 Spacer(Modifier.height(4.dp))
                 QuestionTabs(data.questions, pagerState)

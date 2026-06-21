@@ -16,8 +16,8 @@ fun tabShortcut(event: KeyEvent): Boolean {
         event.isCtrlPressed && event.key == Key.Tab -> { TabsController.selectNext(); true }
         event.isCtrlPressed && event.key == Key.T -> { TabsController.newTab(); true }
         event.isCtrlPressed && event.key == Key.W -> { TabsController.closeActive(); true }
-        event.isAltPressed && event.key == Key.DirectionRight -> { TabsController.moveActive(1); true }
-        event.isAltPressed && event.key == Key.DirectionLeft -> { TabsController.moveActive(-1); true }
+        event.isAltPressed && event.key == Key.DirectionRight -> { TabsController.selectNext(); true }
+        event.isAltPressed && event.key == Key.DirectionLeft -> { TabsController.selectPrev(); true }
         else -> false
     }
 }

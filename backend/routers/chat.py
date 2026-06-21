@@ -233,6 +233,7 @@ async def chat_ws(ws: WebSocket):
                     "project": sessions_service.project_key_for(session.state.cwd or ""),
                     "channel": session.channel,
                     "running": session.running,
+                    "resumed": bool(by_session),
                 })
                 await session.attach(send, last_seq=msg.last_seq, since_committed=bool(by_session))
                 if not session.running and session.state.session_id:

@@ -100,6 +100,7 @@ data class ChatUiState(
     val streamStatus: String? = null,
     val sideChat: SideChatState? = null,             // persisted side conversation (kept while the session lives)
     val sideChatOpen: Boolean = false,               // whether the side panel is currently shown
+    val sideFullscreen: Boolean = false,
     val showWorking: String = "label",               // quick-chat working indicator visibility (label/off)
     val pendingToolIds: Set<String> = emptySet(),    // tools still running (tool_use seen, no result yet)
     val contextTokens: Int? = null,                  // approx context-window tokens used on the last turn
@@ -424,7 +425,12 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     }
 
     fun closeSideChat() {
-        _state.update { it.copy(sideChatOpen = false) }
+        _state.update { it.copy(sideChatOpen = false, sideFullscreen = false) }
+    }
+
+    fun setSideFullscreen(value: Boolean) {
+        if (_state.value.sideFullscreen == value) return
+        _state.update { it.copy(sideFullscreen = value) }
     }
 
     fun clearSideChat() {
@@ -837,13 +843,18 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 historyLoaded = false
                 _state.update {
                     val sid = event.sessionId ?: it.sessionId
+                    val kept = it.messages.filterNot { m -> m.ephemeral }
+                    val msgs = if (event.resumed && event.running) {
+                        val lastUser = kept.indexOfLast { m -> m.role == Role.USER }
+                        if (lastUser >= 0) kept.subList(0, lastUser + 1).toList() else kept
+                    } else kept
                     it.copy(
                         connection = ConnectionState.Connected,
                         sessionId = sid,
                         activeProjectKey = event.project ?: it.activeProjectKey,
                         streaming = event.running,
                         sideChat = it.sideChat.promote(sid),
-                        messages = it.messages.filterNot { m -> m.ephemeral },
+                        messages = msgs,
                     )
                 }
                 viewModelScope.launch { refreshServerInfo() }
@@ -1207,11 +1218,12 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     }
 
     fun answerInteraction(requestId: String, optionId: String, freeText: String?) {
-        client.sendInteractionResponse(requestId, optionId, freeText)
+        val text = freeText?.trim()
+        client.sendInteractionResponse(requestId, optionId, text)
         fun List<ChatMessage>.resolve() = map { m ->
             val data = m.interaction
             if (data != null && data.requestId == requestId && data.resolved == null) {
-                m.copy(interaction = data.copy(resolved = optionId, resolvedText = freeText))
+                m.copy(interaction = data.copy(resolved = optionId, resolvedText = text))
             } else m
         }
         _state.update { st ->
@@ -1274,16 +1286,20 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     fun setQuestionNotes(requestId: String, qIndex: Int, text: String) =
         editDraft(requestId, qIndex) { it.copy(notes = text) }
 
+    fun setActiveQuestion(requestId: String, index: Int) =
+        updateInteraction(requestId) { if (it.submitted || it.activeQuestion == index) it else it.copy(activeQuestion = index) }
+
     fun submitQuestions(requestId: String) {
         val data = findInteraction(requestId) ?: return
         if (data.submitted) return
-        client.sendQuestionsResponse(requestId, data.drafts)
+        val drafts = data.drafts.map { it.copy(freeText = it.freeText.trim(), notes = it.notes.trim()) }
+        client.sendQuestionsResponse(requestId, drafts)
         val summary = data.questions.mapIndexed { i, q ->
-            val draft = data.drafts.getOrElse(i) { QuestionDraft() }
+            val draft = drafts.getOrElse(i) { QuestionDraft() }
             val labels = q.options.filter { it.id in draft.selected }.mapNotNull { it.label }
             (labels + listOfNotNull(draft.freeText.ifBlank { null })).joinToString(", ")
         }
-        val notes = data.questions.indices.map { data.drafts.getOrElse(it) { QuestionDraft() }.notes }
+        val notes = data.questions.indices.map { drafts.getOrElse(it) { QuestionDraft() }.notes }
         updateInteraction(requestId) { it.copy(submitted = true, summary = summary, notes = notes) }
     }
 
