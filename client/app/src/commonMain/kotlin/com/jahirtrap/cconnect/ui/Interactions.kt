@@ -21,8 +21,8 @@ import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextLayoutResult
 
-internal fun Modifier.handCursor(enabled: Boolean = true): Modifier =
-    if (enabled) this.pointerHoverIcon(PointerIcon.Hand, overrideDescendants = true) else this
+internal fun Modifier.handCursor(enabled: Boolean = true, overrideDescendants: Boolean = true): Modifier =
+    if (enabled) this.pointerHoverIcon(PointerIcon.Hand, overrideDescendants = overrideDescendants) else this
 
 fun Modifier.textHoverCursor(
     layout: () -> TextLayoutResult?,

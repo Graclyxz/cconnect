@@ -102,6 +102,7 @@ data class ChatUiState(
     val sideChatOpen: Boolean = false,               // whether the side panel is currently shown
     val showWorking: String = "label",               // quick-chat working indicator visibility (label/off)
     val pendingToolIds: Set<String> = emptySet(),    // tools still running (tool_use seen, no result yet)
+    val contextTokens: Int? = null,                  // approx context-window tokens used on the last turn
     val rewindPoints: List<SessionsApi.RewindPoint> = emptyList(),
     val rewindLoading: Boolean = false,
     val rewindTarget: SessionsApi.RewindPoint? = null,
@@ -639,6 +640,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 transcriptExhausted = !page.hasMore,
                 sideChat = it.sideChat.promote(session.sessionId),
                 pendingToolIds = emptySet(),
+                contextTokens = page.contextTokens,
             )
         }
         return true
@@ -919,9 +921,11 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 addMessage(Role.ASSISTANT, event.markdown, ephemeral = true)
             }
             is ServerEvent.Todos -> _state.update { it.copy(todos = event.items) }
+            is ServerEvent.Context -> _state.update { it.copy(contextTokens = event.contextTokens ?: it.contextTokens) }
             is ServerEvent.Task -> upsertTask(event)
             is ServerEvent.Result -> _state.update { st ->
                 val sid = event.sessionId ?: st.sessionId
+                val ctxTokens = event.contextTokens ?: st.contextTokens
                 if (sid != null && st.historySessions.none { it.sessionId == sid }) {
                     val row = SessionInfo(
                         sessionId = sid,
@@ -933,9 +937,9 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                         title = null,
                         color = st.sessionColor,
                     )
-                    st.copy(sessionId = sid, historySessions = listOf(row) + st.historySessions, sideChat = st.sideChat.promote(sid))
+                    st.copy(sessionId = sid, historySessions = listOf(row) + st.historySessions, sideChat = st.sideChat.promote(sid), contextTokens = ctxTokens)
                 } else {
-                    st.copy(sessionId = sid, sideChat = st.sideChat.promote(sid))
+                    st.copy(sessionId = sid, sideChat = st.sideChat.promote(sid), contextTokens = ctxTokens)
                 }
             }
             is ServerEvent.Done -> {
@@ -989,7 +993,11 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 }
             }
             is ServerEvent.InteractionResolved -> updateInteraction(event.requestId) {
-                if (it.resolved == null) it.copy(resolved = event.optionId ?: "") else it
+                when {
+                    it.kind == "questions" -> if (it.submitted || it.declined) it else it.copy(submitted = true)
+                    it.resolved == null -> it.copy(resolved = event.optionId ?: "")
+                    else -> it
+                }
             }
             is ServerEvent.Closed -> {
                 currentAssistantId = null

@@ -503,10 +503,14 @@ async def run_prompt(
     first_chunk_pending: set[int] = set()
 
     try:
+        current_sid: str | None = None
         async for message in query(prompt=prompt_arg, options=options):
             if status_state["retrying"] and emit is not None:
                 status_state["retrying"] = False
                 await emit({"type": "status", "kind": "ok"})
+            _msid = getattr(message, "session_id", None)
+            if isinstance(_msid, str):
+                current_sid = _msid
             parent = getattr(message, "parent_tool_use_id", None)
             agent_mode = settings_store.visibility_mode("tool_use") if parent else None
             if parent and agent_mode == "off":
@@ -531,6 +535,14 @@ async def run_prompt(
                     if parent:
                         event["parent"] = parent
                     yield event
+                if not parent and current_sid and cwd:
+                    try:
+                        from services import sessions as _sessions
+                        cctx = _sessions.last_context_tokens(_sessions.project_key_for(cwd), current_sid)
+                    except Exception:
+                        cctx = None
+                    if cctx:
+                        yield {"type": "context", "context_tokens": cctx}
             elif isinstance(message, UserMessage):
                 tu_mode = settings_store.visibility_mode("tool_use")
                 if tu_mode != "off":
@@ -575,11 +587,20 @@ async def run_prompt(
                         yield {"type": "status", "kind": "failed"}
                     else:
                         yield {"type": "error", "message": _clean_error_text(detail)}
+                sid = getattr(message, "session_id", None)
+                ctx = None
+                if sid and cwd:
+                    try:
+                        from services import sessions as _sessions
+                        ctx = _sessions.last_context_tokens(_sessions.project_key_for(cwd), sid)
+                    except Exception:
+                        ctx = None
                 yield {
                     "type": "result",
-                    "session_id": getattr(message, "session_id", None),
+                    "session_id": sid,
                     "cost_usd": getattr(message, "total_cost_usd", None),
                     "is_error": getattr(message, "is_error", None),
+                    "context_tokens": ctx,
                 }
     except Exception as exc:
         logger.error(f"run_prompt failed: {type(exc).__name__}: {exc}")

@@ -37,6 +37,7 @@ fun TooltipIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    size: Dp = 40.dp,
     icon: @Composable () -> Unit,
 ) {
     val skikoTouch = !isAndroidPlatform && LocalIsTouch.current
@@ -51,7 +52,7 @@ fun TooltipIconButton(
         if (skikoTouch) {
             Box(
                 modifier = modifier
-                    .size(40.dp)
+                    .size(size)
                     .clip(CircleShape)
                     .combinedClickable(
                         enabled = enabled,
@@ -65,7 +66,7 @@ fun TooltipIconButton(
             IconButton(
                 onClick = onClick,
                 enabled = enabled,
-                modifier = modifier.size(40.dp).then(if (enabled) Modifier.pointerHoverIcon(PointerIcon.Hand) else Modifier),
+                modifier = modifier.size(size).then(if (enabled) Modifier.pointerHoverIcon(PointerIcon.Hand) else Modifier),
                 content = { icon() },
             )
         }
@@ -84,6 +85,27 @@ fun TooltipWrap(label: String, content: @Composable () -> Unit) {
         enableUserInput = !skikoTouch,
     ) {
         content()
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TooltipTap(label: String, content: @Composable () -> Unit) {
+    val skikoTouch = !isAndroidPlatform && LocalIsTouch.current
+    val tooltipState = rememberTooltipState()
+    val scope = rememberCoroutineScope()
+    TooltipBox(
+        positionProvider = rememberAboveOrBelowPositionProvider(),
+        tooltip = { PlainTooltip { Text(label) } },
+        state = tooltipState,
+        enableUserInput = !skikoTouch,
+    ) {
+        Box(
+            modifier = Modifier.clip(CircleShape).combinedClickable(onClick = { scope.launch { tooltipState.show() } }),
+            contentAlignment = Alignment.Center,
+        ) {
+            content()
+        }
     }
 }
 

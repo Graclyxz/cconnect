@@ -300,7 +300,8 @@ class ChatSocket(private val scope: CoroutineScope, private val config: () -> Ba
                 } ?: emptyList()
             )
             "task" -> ServerEvent.Task(str("id").orEmpty(), str("content"), str("status"))
-            "result" -> ServerEvent.Result(str("session_id"))
+            "result" -> ServerEvent.Result(str("session_id"), obj["context_tokens"]?.jsonPrimitive?.intOrNull)
+            "context" -> ServerEvent.Context(obj["context_tokens"]?.jsonPrimitive?.intOrNull)
             "done" -> ServerEvent.Done
             "interrupted" -> ServerEvent.Interrupted
             "error" -> ServerEvent.Err(

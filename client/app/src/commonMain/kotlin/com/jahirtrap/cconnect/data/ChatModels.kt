@@ -133,7 +133,8 @@ sealed interface ServerEvent {
     data class Agent(val id: String?, val subagentType: String?, val description: String?, val labelOnly: Boolean) : ServerEvent
     data class Todos(val items: List<TodoItem>) : ServerEvent
     data class Task(val id: String, val content: String?, val status: String?) : ServerEvent
-    data class Result(val sessionId: String?) : ServerEvent
+    data class Result(val sessionId: String?, val contextTokens: Int? = null) : ServerEvent
+    data class Context(val contextTokens: Int?) : ServerEvent
     data object Done : ServerEvent
     data object Interrupted : ServerEvent
     data class Err(val message: String) : ServerEvent

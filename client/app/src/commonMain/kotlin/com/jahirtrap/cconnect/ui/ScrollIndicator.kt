@@ -140,7 +140,7 @@ fun Modifier.horizontalScrollbar(state: ScrollState, thickness: Dp = 4.dp, touch
                 }
             }
         }
-        .then(if (hovered) Modifier.handCursor() else Modifier)
+        .then(if (hovered) Modifier.handCursor(overrideDescendants = false) else Modifier)
         .drawWithContent {
             drawContent()
             if (state.maxValue <= 0) return@drawWithContent
@@ -204,7 +204,7 @@ fun Modifier.verticalScrollbar(state: ScrollState, thickness: Dp = 6.dp): Modifi
                 }
             }
         }
-        .then(if (hovered) Modifier.handCursor() else Modifier)
+        .then(if (hovered) Modifier.handCursor(overrideDescendants = false) else Modifier)
         .drawWithContent {
             drawContent()
             if (state.maxValue <= 0) return@drawWithContent

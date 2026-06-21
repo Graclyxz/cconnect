@@ -4,7 +4,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +40,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
@@ -54,6 +56,7 @@ import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.horizontalScrollbar
 import com.jahirtrap.cconnect.ui.theme.sessionColorOf
+import kotlin.math.abs
 import org.jetbrains.compose.resources.stringResource
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -63,11 +66,12 @@ fun TabStrip() {
     val activeId = TabsController.activeId
     val scroll = TabsController.stripScroll
     val density = LocalDensity.current
-    val spacingPx = with(density) { 4.dp.toPx() }
+    val spacingPx = with(density) { 6.dp.toPx() }
     val widths = remember { mutableStateMapOf<String, Float>() }
     val centers = remember { mutableStateMapOf<String, Float>() }
     var draggingId by remember { mutableStateOf<String?>(null) }
     var dragDx by remember { mutableStateOf(0f) }
+    var plusLeft by remember { mutableStateOf(0f) }
 
     fun reorder(id: String) {
         val from = tabs.indexOfFirst { it.id == id }
@@ -124,9 +128,9 @@ fun TabStrip() {
             .background(MaterialTheme.colorScheme.surface)
             .horizontalScrollbar(scroll, touchIndicator = false, wheelScroll = true)
             .horizontalScroll(scroll)
-            .padding(horizontal = 4.dp, vertical = 4.dp),
+            .padding(horizontal = 4.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         tabs.forEach { tab ->
             key(tab.id) {
@@ -140,19 +144,41 @@ fun TabStrip() {
                         .zIndex(if (dragging) 1f else 0f)
                         .graphicsLayer { translationX = if (dragging) dragDx else 0f }
                         .pointerInput(tab.id) {
-                            detectDragGestures(
-                                onDragStart = {
-                                    draggingId = tab.id
+                            val threshold = 8.dp.toPx()
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                var started = false
+                                var clickedUp = false
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull { it.id == down.id }
+                                    if (change == null) break
+                                    if (!change.pressed) {
+                                        clickedUp = !change.isConsumed
+                                        break
+                                    }
+                                    if (!started) {
+                                        val dx = change.position.x - down.position.x
+                                        val dy = change.position.y - down.position.y
+                                        if (abs(dx) > threshold && abs(dx) >= abs(dy)) {
+                                            started = true
+                                            draggingId = tab.id
+                                            dragDx = 0f
+                                        }
+                                    }
+                                    if (started) {
+                                        dragDx += change.positionChange().x
+                                        change.consume()
+                                        reorder(tab.id)
+                                    }
+                                }
+                                if (started) {
+                                    draggingId = null
                                     dragDx = 0f
-                                },
-                                onDragEnd = { draggingId = null; dragDx = 0f },
-                                onDragCancel = { draggingId = null; dragDx = 0f },
-                                onDrag = { change, delta ->
-                                    change.consume()
-                                    dragDx += delta.x
-                                    reorder(tab.id)
-                                },
-                            )
+                                } else if (clickedUp) {
+                                    TabsController.selectTab(tab.id)
+                                }
+                            }
                         },
                     label = tab.title ?: stringResource(Res.string.new_chat),
                     dot = sessionColorOf(tab.color),
@@ -163,8 +189,20 @@ fun TabStrip() {
                 )
             }
         }
-        TooltipIconButton(label = stringResource(Res.string.new_tab), onClick = { TabsController.newTab() }) {
-            Icon(Lucide.Plus, contentDescription = null)
+        Box(
+            modifier = Modifier
+                .onGloballyPositioned { plusLeft = it.positionInParent().x }
+                .graphicsLayer {
+                    val d = draggingId
+                    translationX = if (d != null && plusLeft > 0f) {
+                        val right = (centers[d] ?: 0f) + (widths[d] ?: 0f) / 2f + dragDx
+                        (right + spacingPx - plusLeft).coerceAtLeast(0f)
+                    } else 0f
+                },
+        ) {
+            TooltipIconButton(label = stringResource(Res.string.new_tab), size = 32.dp, onClick = { TabsController.newTab() }) {
+                Icon(Lucide.Plus, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
         }
     }
 }

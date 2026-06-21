@@ -13,6 +13,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
 import com.jahirtrap.cconnect.ui.clickable
 import com.jahirtrap.cconnect.ui.combinedClickable
+import androidx.compose.foundation.clickable as foundationClickable
 import com.jahirtrap.cconnect.ui.secondaryClick
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -42,6 +43,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyColumn
@@ -233,6 +235,7 @@ import com.jahirtrap.cconnect.ui.RenameDialog
 import com.jahirtrap.cconnect.ui.SharedLinkActionsDialog
 import com.jahirtrap.cconnect.ui.OutlinedPanel
 import com.jahirtrap.cconnect.ui.TooltipIconButton
+import com.jahirtrap.cconnect.ui.TooltipTap
 import com.jahirtrap.cconnect.ui.TooltipWrap
 import com.jahirtrap.cconnect.ui.dayIndex
 import com.jahirtrap.cconnect.ui.theme.sessionColorOf
@@ -531,14 +534,14 @@ fun ChatScreen(
                                         }
                                     },
                                     actions = {
-                                        if (mobile) TabSwitcher()
-                                        TaskIndicator(todos = state.todos)
                                         if (state.sessionId != null && !state.streaming) {
                                             TooltipIconButton(
                                                 label = stringResource(Res.string.rewind),
                                                 onClick = { vm.loadRewindPoints(); showRewindSheet = true },
                                             ) { Icon(Lucide.History, contentDescription = null) }
                                         }
+                                        TaskIndicator(todos = state.todos)
+                                        if (mobile) TabSwitcher()
                                         TooltipIconButton(
                                             label = stringResource(Res.string.new_session),
                                             onClick = { vm.newSession() },
@@ -593,7 +596,7 @@ fun ChatScreen(
                                 }
                             }
                             Column(
-                                modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()
+                                modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).navigationBarsPadding().imePadding()
                                 .fileDropTarget(enabled = !sideActive, onDragChange = { dropOver = it }) { vm.addAttachments(it) }
                                 .then(if (dropOver) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier),
                             ) {
@@ -601,7 +604,7 @@ fun ChatScreen(
                                     val boxHeightPx = constraints.maxHeight.toFloat()
                                     val toolbarReveal = (1f - expansion.value / peek).coerceIn(0f, 1f)
                                     val panelH = expansion.value.coerceAtLeast(peek)
-                                    var toolbarHeightPx by remember { mutableStateOf(0) }
+                                    var toolbarHeightPx by remember { mutableStateOf(TabsController.lastToolbarHeightPx) }
                                     val showTime = vm.showTimestamps
                                     Box(modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().fillMaxHeight((1f - panelH * (1f - toolbarReveal)).coerceAtMost(1f - toolbarHeightPx / boxHeightPx).coerceIn(0.0001f, 1f)).clipToBounds()) {
                                         SelectionContainer(modifier = Modifier.fillMaxSize().selectionTextCursor()) {
@@ -711,9 +714,9 @@ fun ChatScreen(
                                         modifier = Modifier
                                         .align(Alignment.BottomCenter)
                                         .fillMaxWidth()
-                                        .onSizeChanged { toolbarHeightPx = it.height }
+                                        .onSizeChanged { toolbarHeightPx = it.height; TabsController.lastToolbarHeightPx = it.height }
                                         .background(MaterialTheme.colorScheme.background)
-                                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
+                                        .foundationClickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
                                     ) {
                                         if (state.compacting) CompactProgress()
                                         state.streamStatus?.let { StatusProgress(it) }
@@ -744,6 +747,7 @@ fun ChatScreen(
                                             onStreaming = vm::toggleStreaming,
                                             onQuickChat = vm::openSideChat,
                                             quickChatActive = sc != null && sc.messages.isNotEmpty(),
+                                            contextTokens = state.contextTokens,
                                         )
                                     }
                                     if (sideActive && sc != null) {
@@ -1370,6 +1374,7 @@ private fun ChatToolbar(
     onStreaming: () -> Unit,
     onQuickChat: () -> Unit = {},
     quickChatActive: Boolean = false,
+    contextTokens: Int? = null,
 ) {
     val accent = MaterialTheme.colorScheme.primary
     val pstyle = permissionStyle(permissionMode)
@@ -1387,7 +1392,7 @@ private fun ChatToolbar(
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Lucide.MessagesSquare, contentDescription = stringResource(Res.string.quick_chat), tint = accent, modifier = Modifier.size(18.dp))
+                    Icon(Lucide.MessagesSquare, contentDescription = stringResource(Res.string.quick_chat), tint = accent, modifier = Modifier.size(16.dp))
                 }
                 if (quickChatActive) {
                     Box(
@@ -1401,7 +1406,7 @@ private fun ChatToolbar(
             }
         }
         Spacer(Modifier.width(6.dp))
-        val selectorScroll = rememberScrollState()
+        val selectorScroll = TabsController.selectorsScroll
         Row(
             modifier = Modifier
                 .weight(1f)
@@ -1459,8 +1464,35 @@ private fun ChatToolbar(
                 StreamToggle(streaming = streaming, onClick = onStreaming)
             }
         }
+        if (ready && !disconnected && !connecting && contextTokens != null && contextTokens > 0) {
+            ContextRing(tokens = contextTokens, limit = if (model.contains("1m")) 1_000_000 else 200_000)
+        }
     }
 }
+
+@Composable
+private fun ContextRing(tokens: Int, limit: Int) {
+    val progress = (tokens.toFloat() / limit).coerceIn(0f, 1f)
+    val pct = (progress * 100).toInt()
+    Box(modifier = Modifier.padding(start = 4.dp, end = 8.dp)) {
+        TooltipTap("${fmtTokens(tokens)} / ${fmtTokens(limit)} • $pct%") {
+            Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.5.dp,
+                    color = if (pct >= 90) palette.red else MaterialTheme.colorScheme.primary,
+                )
+            }
+        }
+    }
+}
+
+private fun fmtTokens(n: Int): String =
+    if (n >= 1_000_000) {
+        val m = n / 1_000_000.0
+        if (m % 1.0 == 0.0) "${m.toInt()}M" else "${(m * 10).toInt() / 10.0}M"
+    } else "${n / 1000}K"
 
 @Composable
 private fun StreamToggle(streaming: Boolean, onClick: () -> Unit) {
@@ -1473,7 +1505,7 @@ private fun StreamToggle(streaming: Boolean, onClick: () -> Unit) {
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Lucide.Radio, contentDescription = stringResource(Res.string.streaming), tint = color, modifier = Modifier.size(18.dp))
+        Icon(Lucide.Radio, contentDescription = stringResource(Res.string.streaming), tint = color, modifier = Modifier.size(16.dp))
     }
 }
 
@@ -1486,7 +1518,7 @@ private fun ToolbarLoadingChip(label: String = stringResource(Res.string.loading
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LoadingIndicator(modifier = Modifier.size(18.dp))
+        LoadingIndicator(modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(4.dp))
         Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
     }
@@ -1501,7 +1533,7 @@ private fun DisconnectedChip() {
             .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        StatusDot(palette.red, box = 18.dp, dot = 10.dp)
+        StatusDot(palette.red, box = 16.dp, dot = 10.dp)
         Spacer(Modifier.width(4.dp))
         Text(stringResource(Res.string.disconnected), style = MaterialTheme.typography.labelMedium, maxLines = 1)
     }

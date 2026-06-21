@@ -60,6 +60,7 @@ object SessionsApi {
         val items: List<SessionMessage>,
         val startIndex: Int,
         val hasMore: Boolean,
+        val contextTokens: Int? = null,
     )
 
     suspend fun sessionMessages(
@@ -77,6 +78,7 @@ object SessionsApi {
             items = items,
             startIndex = data["start_index"]?.jsonPrimitive?.intOrNull ?: 0,
             hasMore = data["has_more"]?.jsonPrimitive?.contentOrNull == "true",
+            contextTokens = data["context_tokens"]?.jsonPrimitive?.intOrNull,
         )
     }
 

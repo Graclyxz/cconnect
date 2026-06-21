@@ -90,6 +90,37 @@ def _iter_lines(path: Path):
                 continue
 
 
+def last_context_tokens(project_key: str, session_id: str) -> Optional[int]:
+    try:
+        file = _session_file(project_key, session_id)
+    except ValueError:
+        return None
+    if not file.is_file():
+        return None
+    try:
+        with file.open("rb") as fh:
+            fh.seek(0, 2)
+            size = fh.tell()
+            fh.seek(max(0, size - 131072))
+            chunk = fh.read().decode("utf-8", errors="ignore")
+    except OSError:
+        return None
+    for line in reversed(chunk.splitlines()):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        msg = entry.get("message")
+        usage = msg.get("usage") if isinstance(msg, dict) else None
+        if isinstance(usage, dict):
+            total = (usage.get("input_tokens") or 0) + (usage.get("cache_read_input_tokens") or 0) + (usage.get("cache_creation_input_tokens") or 0)
+            return total or None
+    return None
+
+
 def _text_from_content(content: Any) -> str:
     if isinstance(content, str):
         return content

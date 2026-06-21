@@ -173,4 +173,5 @@ def get_session_messages(
         "total": total,
         "start_index": start,
         "has_more": start > 0,
+        "context_tokens": sessions_service.last_context_tokens(project, session_id),
     })

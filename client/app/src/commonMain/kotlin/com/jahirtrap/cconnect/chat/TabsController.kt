@@ -76,6 +76,10 @@ object TabsController {
 
     val stripScroll = ScrollState(0)
 
+    val selectorsScroll = ScrollState(0)
+
+    var lastToolbarHeightPx by mutableStateOf(0)
+
     init {
         _tabs.forEach { bind(it) }
     }
