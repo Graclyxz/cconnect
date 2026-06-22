@@ -387,6 +387,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
 
     private var outgoingSeq = 0L
     private var inFlightId: String? = null
+    private var turnUserId: Long? = null
 
     private fun enqueueOutgoing(text: String, attachments: List<String>) {
         if (text.isEmpty() && attachments.isEmpty()) return
@@ -962,6 +963,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
             is ServerEvent.Compact -> {
                 currentAssistantId = null
                 currentThinkingId = null
+                turnUserId = null
                 _state.update {
                     it.copy(
                         messages = listOf(ChatMessage(nextId++, Role.COMPACT, compact = CompactData(event.trigger, event.preTokens, event.postTokens, event.summary), timestamp = nowMillis())),
@@ -987,6 +989,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
             is ServerEvent.Context -> _state.update { it.copy(contextTokens = event.contextTokens ?: it.contextTokens) }
             is ServerEvent.Task -> upsertTask(event)
             is ServerEvent.Result -> _state.update { st ->
+                turnUserId = null
                 val sid = event.sessionId ?: st.sessionId
                 val ctxTokens = event.contextTokens ?: st.contextTokens
                 if (sid != null && st.historySessions.none { it.sessionId == sid }) {
@@ -1016,10 +1019,12 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 }
                 resetStreaming()
                 inFlightId = null
+                turnUserId = null
                 pumpQueue()
             }
             is ServerEvent.Interrupted -> {
                 resetStreaming()
+                turnUserId = null
                 dismissPendingInteractions()
                 addMessage(Role.INTERRUPTED, "")
                 requeueAfterInterrupt()
@@ -1093,9 +1098,27 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                     if (!_state.value.streaming) {
                         currentAssistantId = null
                         currentThinkingId = null
+                        turnUserId = null
                         _state.update { st -> resetToInitialWindow(st).copy(streaming = true, compacting = compacting, streamStatus = null, error = null) }
                     }
-                    if (!compacting) addMessage(Role.USER, q.text, attachments = q.attachments.map { it.substringAfterLast('/') }.takeIf { a -> a.isNotEmpty() })
+                    if (!compacting) {
+                        val atts = q.attachments.map { it.substringAfterLast('/') }
+                        val mergeId = turnUserId
+                        val mergeInto = mergeId?.let { id -> _state.value.messages.firstOrNull { it.id == id && it.role == Role.USER } }
+                        if (mergeInto != null) {
+                            _state.update { st ->
+                                st.copy(messages = st.messages.map { m ->
+                                    if (m.id == mergeId) m.copy(
+                                        text = if (m.text.isBlank()) q.text else m.text + "\n" + q.text,
+                                        attachments = ((m.attachments ?: emptyList()) + atts).takeIf { it.isNotEmpty() },
+                                    ) else m
+                                })
+                            }
+                        } else {
+                            addMessage(Role.USER, q.text, attachments = atts.takeIf { it.isNotEmpty() })
+                            turnUserId = _state.value.messages.lastOrNull()?.id
+                        }
+                    }
                 }
                 pumpQueue()
             }

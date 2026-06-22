@@ -78,6 +78,10 @@ object TabsController {
 
     val selectorsScroll = ScrollState(0)
 
+    val queueScroll = ScrollState(0)
+
+    val attachmentsScroll = ScrollState(0)
+
     var lastToolbarHeightPx by mutableStateOf(0)
 
     init {

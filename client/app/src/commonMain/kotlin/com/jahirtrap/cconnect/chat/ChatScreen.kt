@@ -73,6 +73,7 @@ import com.composables.icons.lucide.Folder
 import com.composables.icons.lucide.FolderArchive
 import com.composables.icons.lucide.FolderOpen
 import com.composables.icons.lucide.Gauge
+import com.composables.icons.lucide.Hourglass
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Menu
 import com.composables.icons.lucide.MessagesSquare
@@ -213,6 +214,7 @@ import com.jahirtrap.cconnect.files.clipboardHasFiles
 import com.jahirtrap.cconnect.files.readClipboardFiles
 import com.jahirtrap.cconnect.files.fileDropTarget
 import com.jahirtrap.cconnect.files.pickFiles
+import com.jahirtrap.cconnect.files.FilePreviewScreen
 import com.jahirtrap.cconnect.files.downloadShared
 import com.jahirtrap.cconnect.files.saveSharedAs
 import com.jahirtrap.cconnect.files.openSharedExternally
@@ -278,6 +280,7 @@ fun ChatScreen(
     var confirmCommand by remember { mutableStateOf<CommandOption?>(null) }
     var sharedLinkAction by remember { mutableStateOf<Pair<String, String>?>(null) }
     var queuePreview by remember { mutableStateOf<QueuedMessage?>(null) }
+    var queueFilePreview by remember { mutableStateOf<Pair<String, String>?>(null) }
     var showRewindSheet by remember { mutableStateOf(false) }
     LaunchedEffect(expanded) {
         if (expanded) {
@@ -729,8 +732,8 @@ fun ChatScreen(
                                         .background(MaterialTheme.colorScheme.background)
                                         .foundationClickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
                                     ) {
-                                        val queueScroll = rememberScrollState()
-                                        val attachScroll = rememberScrollState()
+                                        val queueScroll = TabsController.queueScroll
+                                        val attachScroll = TabsController.attachmentsScroll
                                         if (state.compacting) CompactProgress()
                                         state.streamStatus?.let { StatusProgress(it) }
                                         if (!sideActive && state.queue.isNotEmpty()) {
@@ -834,36 +837,42 @@ fun ChatScreen(
         }
     }
 
-    queuePreview?.let { q ->
-        CompactDialog(
-            onDismiss = { queuePreview = null },
-            title = stringResource(Res.string.queued_message),
-            buttons = {
-                TextButton(onClick = { queuePreview = null }) { Text(stringResource(Res.string.close)) }
-            },
-        ) {
-            if (q.text.isNotBlank()) {
-                OutlinedPanel(modifier = Modifier.fillMaxWidth()) {
-                    Text(q.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(4.dp))
-                }
-            }
-            if (q.attachments.isNotEmpty()) {
-                if (q.text.isNotBlank()) Spacer(Modifier.height(8.dp))
-                val attScroll = rememberScrollState()
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .horizontalScrollbar(attScroll, touchIndicator = false, wheelScroll = true)
-                        .horizontalScroll(attScroll),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+    if (queueFilePreview == null) {
+        queuePreview?.let { snap ->
+            state.queue.firstOrNull { it.id == snap.id }?.let { q ->
+                CompactDialog(
+                    onDismiss = { queuePreview = null },
+                    title = stringResource(Res.string.queued_message),
+                    buttons = {
+                        TextButton(onClick = { queuePreview = null }) { Text(stringResource(Res.string.close)) }
+                    },
                 ) {
-                    q.attachments.forEach { att ->
-                        val n = att.substringAfterLast('/')
-                        AttachmentChip(
-                            name = n,
-                            icon = if (isArchive(n)) Lucide.FolderArchive else Lucide.File,
-                            onClick = { queuePreview = null; sharedLinkAction = SharedApi.downloadUrl("uploads/$n") to n },
-                        )
+                    if (q.text.isNotBlank()) {
+                        OutlinedPanel(modifier = Modifier.fillMaxWidth()) {
+                            SelectionContainer(modifier = Modifier.selectionTextCursor()) {
+                                Text(q.text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(4.dp))
+                            }
+                        }
+                    }
+                    if (q.attachments.isNotEmpty()) {
+                        if (q.text.isNotBlank()) Spacer(Modifier.height(8.dp))
+                        val attScroll = rememberScrollState()
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .horizontalScrollbar(attScroll, touchIndicator = false, wheelScroll = true)
+                                .horizontalScroll(attScroll),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            q.attachments.forEach { att ->
+                                val n = att.substringAfterLast('/')
+                                AttachmentChip(
+                                    name = n,
+                                    icon = if (isArchive(n)) Lucide.FolderArchive else Lucide.File,
+                                    onClick = { queueFilePreview = SharedApi.downloadUrl("uploads/$n") to n },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -935,6 +944,9 @@ fun ChatScreen(
             onConfirm = { both -> vm.confirmRewind(both) },
             onDismiss = { vm.dismissRewind() },
         )
+    }
+    queueFilePreview?.let { (url, name) ->
+        FilePreviewScreen(url = url, filename = name, onClose = { queueFilePreview = null })
     }
 }
 
@@ -1878,7 +1890,7 @@ private fun QueueRow(queue: List<QueuedMessage>, scroll: ScrollState, onOpen: (Q
         queue.forEach { q ->
             AttachmentChip(
                 name = q.text.ifBlank { q.attachments.joinToString(", ") { att -> att.substringAfterLast('/') } },
-                icon = Lucide.MessagesSquare,
+                icon = Lucide.Hourglass,
                 onClick = { onOpen(q) },
             )
         }

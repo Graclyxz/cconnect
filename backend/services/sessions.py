@@ -481,10 +481,33 @@ def session_tasks(session_id: str) -> list[dict]:
     return tasks
 
 
+def _entry_context_tokens(entry: dict) -> Optional[int]:
+    """Context size recorded on a transcript entry's usage (input + cache reads)."""
+    msg = entry.get("message")
+    usage = msg.get("usage") if isinstance(msg, dict) else None
+    if not isinstance(usage, dict):
+        return None
+    total = (usage.get("input_tokens") or 0) + (usage.get("cache_read_input_tokens") or 0) + (usage.get("cache_creation_input_tokens") or 0)
+    return total or None
+
+
+def _post_compact_context(entries: list[dict], boundary_idx: int) -> Optional[int]:
+    """First real turn's context size after a compaction boundary. The summary's own usage
+    reflects the pre-compaction read, so it's skipped."""
+    for e in entries[boundary_idx + 1:]:
+        if e.get("isCompactSummary"):
+            continue
+        total = _entry_context_tokens(e)
+        if total:
+            return total
+    return None
+
+
 def latest_compact(cwd: str, session_id: str) -> Optional[dict]:
     """The most recent compaction's metadata + summary from the transcript. Live compaction
     omits the token counts and summary, so the client finalizes the block after the turn to
-    match the resumed view."""
+    match the resumed view. ``postTokens`` was dropped from the CLI's compactMetadata, so the
+    post-compaction size is recovered from the first real turn's usage after the boundary."""
     try:
         file = _session_file(project_key_for(cwd), session_id)
     except ValueError:
@@ -493,17 +516,29 @@ def latest_compact(cwd: str, session_id: str) -> Optional[dict]:
         return None
     meta: dict = {}
     summary = ""
+    post: Optional[int] = None
+    post_locked = False
     for entry in _iter_lines(file):
         if entry.get("type") == "system" and entry.get("subtype") == "compact_boundary":
             meta = entry.get("compactMetadata") or {}
-        elif entry.get("isCompactSummary"):
+            summary = ""
+            post = None
+            post_locked = False
+            continue
+        if entry.get("isCompactSummary"):
             summary = _compact_summary_text(entry)
+            continue
+        if not post_locked:
+            total = _entry_context_tokens(entry)
+            if total:
+                post = total
+                post_locked = True
     if not meta and not summary:
         return None
     return {
         "trigger": meta.get("trigger"),
         "pre_tokens": meta.get("preTokens"),
-        "post_tokens": meta.get("postTokens"),
+        "post_tokens": meta.get("postTokens") or post,
         "summary": summary,
     }
 
@@ -673,16 +708,28 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
     entries = _active_entries(list(_iter_lines(file)), session_id)
     # The first prompt of each turn lands both as a `queue-operation` enqueue AND as a real
     queued_user_texts: set[str] = set()
+
+    def _register_user_text(t: str) -> None:
+        t = (t or "").strip()
+        if not t:
+            return
+        queued_user_texts.add(t)
+        # CLI joins consecutive queued messages into one turn separated by newlines
+        for line in t.split("\n"):
+            line = line.strip()
+            if line:
+                queued_user_texts.add(line)
+
     for entry in entries:
         if entry.get("type") != "user" or entry.get("isMeta") or entry.get("isSidechain"):
             continue
         c = entry.get("message", {}).get("content")
         if isinstance(c, str):
-            queued_user_texts.add(c.strip())
+            _register_user_text(c)
         elif isinstance(c, list):
             for b in c:
                 if isinstance(b, dict) and b.get("type") == "text":
-                    queued_user_texts.add((b.get("text") or "").strip())
+                    _register_user_text(b.get("text") or "")
     # AskUserQuestion answers live in the tool_result, not in the tool_use input.
     tool_result_by_id: dict[str, object] = {}
     agent_files: dict[str, str] = {}
@@ -723,7 +770,7 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                 "type": "compact",
                 "trigger": meta.get("trigger"),
                 "pre_tokens": meta.get("preTokens"),
-                "post_tokens": meta.get("postTokens"),
+                "post_tokens": meta.get("postTokens") or _post_compact_context(entries, i),
                 "summary": "",
             }
             messages.append(compact_block)
