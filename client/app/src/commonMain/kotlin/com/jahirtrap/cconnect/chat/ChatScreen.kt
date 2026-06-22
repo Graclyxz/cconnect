@@ -673,6 +673,9 @@ fun ChatScreen(
                                                 if (status != null) {
                                                     item(key = "stream-status") { StatusProgress(status) }
                                                 }
+                                                if (state.compacting) {
+                                                    item(key = "compacting") { CompactProgress() }
+                                                }
                                             }
                                         }
                                         var stickyHeaderHeight by remember { mutableStateOf(0) }
@@ -741,7 +744,6 @@ fun ChatScreen(
                                     ) {
                                         val queueScroll = TabsController.queueScroll
                                         val attachScroll = TabsController.attachmentsScroll
-                                        if (state.compacting) CompactProgress()
                                         if (!sideActive && state.queue.isNotEmpty()) {
                                             QueueRow(queue = state.queue, scroll = queueScroll, onOpen = { queuePreview = it })
                                         }
@@ -1656,14 +1658,24 @@ private fun SelectorChip(
 
 @Composable
 private fun CompactProgress() {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+    val color = palette.blue
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(color.copy(alpha = 0.15f))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Lucide.Archive, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+            Icon(Lucide.Archive, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(Res.string.compacting), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+            Text(
+                stringResource(Res.string.compacting),
+                style = MaterialTheme.typography.bodyMedium,
+                color = color,
+            )
         }
-        Spacer(Modifier.size(6.dp))
-        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        Spacer(Modifier.size(8.dp))
+        LinearProgressIndicator(color = color, modifier = Modifier.fillMaxWidth())
     }
 }
 

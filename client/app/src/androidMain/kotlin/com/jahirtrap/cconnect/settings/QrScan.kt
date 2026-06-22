@@ -6,6 +6,7 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.jahirtrap.cconnect.appContext
+import com.jahirtrap.cconnect.currentActivity
 
 actual object QrScan {
     actual fun isAvailable(): Boolean = runCatching {
@@ -17,7 +18,7 @@ actual object QrScan {
             val options = GmsBarcodeScannerOptions.Builder()
                 .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
                 .build()
-            GmsBarcodeScanning.getClient(appContext, options).startScan()
+            GmsBarcodeScanning.getClient(currentActivity ?: appContext, options).startScan()
                 .addOnSuccessListener { onResult(it.rawValue) }
                 .addOnFailureListener { onResult(null) }
                 .addOnCanceledListener { onResult(null) }
