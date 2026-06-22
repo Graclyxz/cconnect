@@ -148,6 +148,7 @@ sealed interface ServerEvent {
     data class Closed(val reason: String) : ServerEvent
     data class Queued(val id: String?, val text: String) : ServerEvent
     data class Dequeued(val id: String?) : ServerEvent
+    data class UserMsg(val text: String) : ServerEvent
     data class HistoryChunk(
         val sessionId: String,
         val startIndex: Int,

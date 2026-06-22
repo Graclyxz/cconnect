@@ -268,10 +268,14 @@ async def chat_ws(ws: WebSocket):
                     await session.enqueue(msg.id, msg.text, msg.attachments)
                 elif msg.id and session.already_consumed(msg.id):
                     await session.consumed(msg.id)
-                else:
-                    if msg.id:
-                        await session.consumed(msg.id)
-                    session.start(_build_turn_runner(session.state, session.drain, msg.text, msg.attachments))
+                elif not session.start(_build_turn_runner(session.state, session.drain, msg.text, msg.attachments), seed_id=msg.id):
+                    await session.enqueue(msg.id, msg.text, msg.attachments)
+                elif msg.id:
+                    ptext = msg.text
+                    if msg.attachments:
+                        from services import attachments as attachments_service
+                        ptext, _ = attachments_service.compose_prompt(msg.text, msg.attachments)
+                    await session.commit_user(msg.id, ptext)
 
             elif mtype == "set_permission_mode":
                 try:

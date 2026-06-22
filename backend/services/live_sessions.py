@@ -34,6 +34,7 @@ class LiveSession:
         self._inbox = asyncio.Queue()
         self._queued = []
         self._seen_ids = set()
+        self._unconsumed = 0
 
     @property
     def running(self):
@@ -111,10 +112,8 @@ class LiveSession:
         await self._emit({"type": "interaction_resolved", "id": rid, "option_id": option_id})
 
     async def enqueue(self, mid, text, attachments=None):
-        if mid and mid in self._seen_ids:
+        if mid and (mid in self._seen_ids or any(it["id"] == mid for it in self._queued)):
             return False
-        if mid:
-            self._seen_ids.add(mid)
         item = {"id": mid, "text": text, "attachments": list(attachments or [])}
         self._queued.append(item)
         await self._inbox.put(item)
@@ -130,6 +129,7 @@ class LiveSession:
                 self._queued.remove(item)
             except ValueError:
                 pass
+            self._unconsumed += 1
             yield item
 
     def already_consumed(self, mid):
@@ -140,16 +140,30 @@ class LiveSession:
             self._seen_ids.add(mid)
         await self._emit({"type": "dequeued", "id": mid})
 
-    def start(self, runner_factory):
+    async def commit_user(self, mid, text):
+        if mid:
+            self._seen_ids.add(mid)
+        await self._emit({"type": "dequeued", "id": mid})
+
+    def start(self, runner_factory, seed_id=None):
         if self.running:
             return False
+        carried = []
         while not self._inbox.empty():
             try:
-                self._inbox.get_nowait()
+                item = self._inbox.get_nowait()
             except asyncio.QueueEmpty:
                 break
-        self._queued.clear()
+            if item is _CLOSE:
+                continue
+            if seed_id and item.get("id") == seed_id:
+                continue
+            carried.append(item)
+        self._queued = list(carried)
+        self._unconsumed = 0
         self._worker = asyncio.create_task(self._run(runner_factory))
+        for item in carried:
+            self._inbox.put_nowait(item)
         return True
 
     async def interrupt(self):
@@ -170,8 +184,11 @@ class LiveSession:
     async def _run(self, runner_factory):
         try:
             async for event in runner_factory(self._ask, self._emit):
+                if event.get("type") == "dequeued" and event.get("id"):
+                    self._seen_ids.add(event["id"])
+                    self._unconsumed -= 1
                 await self._emit(event)
-                if event.get("type") == "result" and not self._queued:
+                if event.get("type") == "result" and not self._queued and self._unconsumed <= 0:
                     self._inbox.put_nowait(_CLOSE)
         except asyncio.CancelledError:
             raise  # interrupt(): stop without a trailing `done`

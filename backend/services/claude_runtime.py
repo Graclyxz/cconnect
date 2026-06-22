@@ -585,11 +585,27 @@ async def run_prompt(
                     else:
                         msg_text = ""
                     if msg_text:
-                        for _i, _it in enumerate(injected):
-                            if _it["text"] == msg_text:
-                                injected.pop(_i)
-                                yield {"type": "dequeued", "id": _it["id"]}
-                                break
+                        matched_ids: list = []
+                        matched_lines: list = []
+                        exact = next((i for i, _it in enumerate(injected) if _it["text"] == msg_text), None)
+                        if exact is not None:
+                            _it = injected.pop(exact)
+                            matched_ids.append(_it["id"])
+                            matched_lines.append(_it["text"])
+                        else:
+                            used = set()
+                            for line in msg_text.split("\n"):
+                                for i, _it in enumerate(injected):
+                                    if i not in used and _it["text"] == line:
+                                        used.add(i)
+                                        matched_ids.append(_it["id"])
+                                        matched_lines.append(line)
+                                        break
+                            if used:
+                                injected[:] = [it for i, it in enumerate(injected) if i not in used]
+                        if matched_ids:
+                            for _id in matched_ids:
+                                yield {"type": "dequeued", "id": _id}
                 tu_mode = settings_store.visibility_mode("tool_use")
                 if tu_mode != "off":
                     for block in getattr(message, "content", None) or []:

@@ -285,6 +285,7 @@ class ChatSocket(private val scope: CoroutineScope, private val config: () -> Ba
             "plan" -> ServerEvent.Plan(str("markdown").orEmpty())
             "queued" -> ServerEvent.Queued(str("id"), str("text").orEmpty())
             "dequeued" -> ServerEvent.Dequeued(str("id"))
+            "user_message" -> ServerEvent.UserMsg(str("text").orEmpty())
             "agent" -> ServerEvent.Agent(str("id"), str("subagent_type"), str("description"), flag("label"))
             "compact_summary" -> ServerEvent.CompactSummary(
                 trigger = str("trigger"),

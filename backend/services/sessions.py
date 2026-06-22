@@ -721,6 +721,11 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                 queued_user_texts.add(line)
 
     for entry in entries:
+        if entry.get("type") == "attachment":
+            att = entry.get("attachment") or {}
+            if att.get("type") == "queued_command":
+                _register_user_text(_text_from_content(att.get("prompt")))
+            continue
         if entry.get("type") != "user" or entry.get("isMeta") or entry.get("isSidechain"):
             continue
         c = entry.get("message", {}).get("content")
@@ -787,6 +792,13 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
         if entry.get("isMeta"):
             continue
         if i < last_boundary:
+            continue
+        if etype == "attachment":
+            att = entry.get("attachment") or {}
+            if att.get("type") == "queued_command":
+                qtext = _text_from_content(att.get("prompt")).strip()
+                if qtext and not _COMMAND_META_RE.search(qtext) and not _INTERRUPT_RE.match(qtext):
+                    messages.append({"type": "text", "role": "user", "text": qtext})
             continue
         if etype == "queue-operation":
             if entry.get("operation") == "enqueue":

@@ -377,6 +377,8 @@ fun ChatScreen(
             .collect { idx -> if (idx < 10) vm.loadMoreHistory() }
     }
     LaunchedEffect(
+        state.messages.size,
+        state.messages.sumOf { it.text.length },
         state.messages.lastOrNull()?.id,
         state.messages.lastOrNull()?.text,
         state.messages.lastOrNull()?.children?.size,
