@@ -32,8 +32,9 @@ marketplaces, MCP servers, skills, memories) and a shared-folder file manager.
   a dropped connection does **not** cancel the turn. The socket is a detachable
   transport — a reconnecting client re-attaches by `channel` (handed out in
   `ready`), gets the current `running` state, and any still-pending permission
-  prompt is re-emitted so it can be answered over the new connection. One prompt
-  at a time per session; multi-turn resumes the session id from each `result`.
+  prompt is re-emitted so it can be answered over the new connection. One turn
+  at a time per session — a prompt sent mid-turn is queued and injected (see
+  **Message queue**); multi-turn resumes the session id from each `result`.
   (In-memory only — turns survive socket drops, not a backend restart.)
 
 ## Project Structure
@@ -74,8 +75,8 @@ backend/
 │   └── chat.py              # Inbound WebSocket message models
 ├── mcps/                    # In-process MCP server (auto-registered tools) — see below
 └── services/
-    ├── live_sessions.py     # In-memory LiveSession + SessionRegistry — turns decoupled from the WS connection; reattach by channel, idle reaper, seq'd outbox replay
-    ├── claude_runtime.py    # SDK query() -> normalized event stream; system-prompt append; side-question + usage helpers; title generation; PreCompact hook emits `compacting`; stderr callback + result/exception classification emit `status` (transient retries) vs clean `error` (usage limits/auth)
+    ├── live_sessions.py     # In-memory LiveSession + SessionRegistry — turns decoupled from the WS connection; reattach by channel, idle reaper, seq'd outbox replay; message queue (enqueue/drain, carry-over)
+    ├── claude_runtime.py    # SDK query() -> normalized event stream; system-prompt append; side-question + usage helpers; title generation; streaming-input drain injects queued messages (`dequeued`); PreCompact hook emits `compacting`; idle watchdog + stderr callback + result/exception classification emit `status` (`slow`/retry, suppressed during compact/tool/await) vs clean `error` (usage limits/auth)
     ├── sessions.py          # Read transcripts from ~/.claude/projects (path-traversal safe); checkpoints; image extraction
     ├── rewind.py            # Rewind preview/execute via SDK control requests; pending rewind id in rewind_pending.json
     ├── attachments.py       # compose_prompt(): native image blocks + @-mentions for chat attachments
@@ -188,7 +189,7 @@ Every REST endpoint returns `core.responses.api_response()` —
 Client → server (JSON):
 
 - `{"type":"start","cwd":"...","permission_mode":"...","resume":"...","fork":false,"model":"...","effort":"...","partial":false,"base_url":"...","channel":"...","last_seq":N}` — `channel` is optional: when it matches a still-live session the server re-attaches to it (keeping the running turn) instead of starting fresh. `last_seq` (default 0) is the highest event `seq` the client has rendered; on re-attach the server replays buffered events with a greater `seq`. Side-chat re-attach uses the parallel `side_channel` / `side_resume` / `side_last_seq` fields.
-- `{"type":"prompt","text":"...","attachments":["uploads/a.png", ...]}` — `attachments` are relpaths under `shared/` previously uploaded via `PUT /api/shared/...`; the server composes them into the prompt (see Attachments below).
+- `{"type":"prompt","text":"...","attachments":["uploads/a.png", ...]}` — `attachments` are relpaths under `shared/` previously uploaded via `PUT /api/shared/...`; the server composes them into the prompt (see Attachments below). A prompt sent while a turn is running is **enqueued** rather than rejected and injected when reached (see **Message queue**).
 - `{"type":"set_permission_mode","mode":"..."}`
 - `{"type":"interrupt"}` — optional `"lane":"side"` interrupts the quick chat instead of the main turn.
 - `{"type":"interaction_response","id":"...","option_id":"...","free_text":"...","answers":[...],"chat":false}`
@@ -225,16 +226,21 @@ Control/ephemeral messages (`ready`, `permission_mode`, `history_chunk`,
   surface it in time.
 - `compact` / `compact_summary` — compaction block and its summary, filled in
   live; `compact` (the boundary) also turns the progress bar back off.
-- `status` (`kind ∈ retrying | ok | failed`) — transient retry/reconnect
+- `status` (`kind ∈ retrying | slow | ok | failed`) — transient progress
   indicator for the client's status bar. While the CLI is retrying the API,
   `run_prompt`'s `stderr` callback emits `retrying` (out-of-band via `emit`),
   cleared with `ok` on the next real message; a final transient failure yields
-  `failed`. **Error classification** (`_looks_transient`): a failing
-  `ResultMessage` (`is_error` + `api_error_status` 5xx, or "no response from
-  API" / connection text) or a `ProcessError` → `status`; usage-limit (429 /
-  rate-limit), auth, billing, etc. → a normal `error` with a clean message
-  (no Python wrapper). The client shows `status` as an orange/red bar and
-  `error` as a block with a warning icon.
+  `failed`. An **idle watchdog** additionally emits `slow` when no SDK message
+  has arrived for >12s, surfacing a genuinely slow generation as "taking longer
+  than usual" — but it is **suppressed** while the turn is legitimately quiet:
+  during compaction (`compacting`), while any tool is in flight (a `pending` set
+  of `tool_use` ids, drained on each `tool_result`), and while awaiting the user
+  (a permission / `AskUserQuestion` prompt). **Error classification**
+  (`_looks_transient`): a failing `ResultMessage` (`is_error` + `api_error_status`
+  5xx, or "no response from API" / connection text) or a `ProcessError` →
+  `status`; usage-limit (429 / rate-limit), auth, billing, etc. → a normal
+  `error` with a clean message (no Python wrapper). The client shows `status`
+  as an orange/red bar and `error` as a block with a warning icon.
 - `command` (markdown) — output of local slash commands.
 - `permission_mode` — ack of `set_permission_mode`.
 - **`file_change`** (id, path, diff_lines) — emitted instead of `tool_use` for
@@ -247,6 +253,10 @@ Control/ephemeral messages (`ready`, `permission_mode`, `history_chunk`,
   per-tool permission prompts. Paired by id with the client's
   `interaction_response`.
 - `system`, `result` (carries `session_id`), `done`, `interrupted`, `error`.
+- `queued` (id, text) / `dequeued` (id) — message-queue lifecycle: `queued`
+  acknowledges a prompt accepted into the queue while a turn was running;
+  `dequeued` fires when it is injected into the running turn, so the client
+  renders its bubble in place. See **Message queue**.
 - `history_chunk` (session_id, start_index, items, has_more) — push response to `load_history`. Each `item` matches the resume transcript shape and carries its `index`. When `has_more=false` the client stops requesting.
 
 `permission_mode` ∈
@@ -268,6 +278,39 @@ Control/ephemeral messages (`ready`, `permission_mode`, `history_chunk`,
 
 History parity: pasted/attached images in old transcripts are served by
 `GET /api/sessions/{id}/images/...` so resumed chats render them too.
+
+## Message queue (`live_sessions` + `claude_runtime`)
+
+A prompt sent while a turn is running is **queued** instead of refused, then fed
+into the same turn — matching the CLI's own behaviour.
+
+- **Enqueue.** `LiveSession.enqueue(id, text, attachments)` appends to the
+  session queue and echoes `queued` (id, text) to every attached socket. The
+  `id` is the client-generated queue id.
+- **Drain into the turn.** `run_prompt` runs the SDK in **streaming-input** mode:
+  after the first user message it keeps yielding queued items from the session's
+  `drain` async iterator, each as another `user` message (with composed
+  attachments). The CLI's `replay-user-messages` echoes each injected message
+  back as a `UserMessage`; `run_prompt` matches it against the pending
+  `injected` list (exact text, then per-line) and emits `dequeued` (id) so the
+  client renders the bubble **at its real position** in the turn — not grouped
+  at the top.
+- **Consume / close.** The session counts unconsumed items; the turn is held
+  open (the `_keep_stream_open` PreToolUse hook) until the queue is drained and
+  the final `result` lands. A turn that ends with items still queued carries
+  them over to the next `start`.
+- **Resume.** The CLI persists queued messages two ways in the JSONL: a
+  `queue-operation enqueue` entry (at enqueue time, no tree position) and a
+  `queued_command` **attachment** (at consume time, **with** a `parentUuid`).
+  `sessions.get_session_messages` renders the `queued_command` attachment at its
+  tree position so a resumed chat shows the queued message **in the middle** of
+  the turn, where it ran, and dedups against the enqueue entry. Image-queued
+  prompts store `prompt` as a content-block list, so text is pulled via
+  `_text_from_content`.
+- **Client.** `ChatViewModel` renders the bubble on `dequeued` (render-on-dequeue,
+  no extra round-trip) and gives each item a per-instance unique id (`q<tag>-N`)
+  so a fresh ViewModel never collides with a reattached `LiveSession`'s
+  already-seen ids. See `client/CLAUDE.md`.
 
 ## Rewind (`services/rewind.py`)
 

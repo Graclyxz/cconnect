@@ -228,7 +228,8 @@ environment form offers only HTTPS** (`kind` defaults to "https", the protocol
 SelectField hides HTTP) because the HTTPS page can't reach `http://`/`ws://`
 backends (mixed content); desktop keeps both for local backends. QR setup is
 desktop/web manual (paste URL + token); the camera-scan flow is Android-only
-(`androidMain` `QrScan`).
+(`androidMain` `QrScan` → `GmsBarcodeScanning`, which needs the **Activity**
+context — tracked in `AppContext` — to launch its scanner UI).
 
 **Per-host overrides:** `EnvironmentProfile` also stores `model` / `effort` /
 `permissionMode` (`""` = inherit the server default) and `streaming` (`Boolean?`,
@@ -253,9 +254,10 @@ each into a `ChatMessage` or state mutation — identical to mobile. Notable:
 | `interaction_request` | INTERACTION block (permission buttons or question form) |
 | `todos` / `task` | top-bar todos / task indicator |
 | `command` / `usage` | local-command markdown / ephemeral plan-usage markdown |
-| **`compacting`** | sets `state.compacting=true` → the "Compactando" progress bar (fired by the backend's PreCompact hook, so it shows on **auto**-compaction too, not just manual `/compact`) |
+| **`compacting`** | sets `state.compacting=true` → an inline "Compactando" progress band (`CompactProgress`, same band style as `status`); fired by the backend's PreCompact hook, so it shows on **auto**-compaction too, not just manual `/compact` |
 | `compact` / `compact_summary` | compaction block + summary; `compact` also clears `compacting` |
-| **`status`** | transient retry/reconnect indicator (`streamStatus`) → orange "Reintentando" bar (kind `retrying`) / red "Fallo temporal" (`failed`); `ok` clears it. The backend classifies API failures: transient (5xx / connection / "no response from API") → `status`, usage-limit/auth/etc → `error` |
+| **`status`** | transient progress indicator (`streamStatus`) → an inline band: orange "tardando más de lo normal" (`slow`) / orange "Reintentando" (`retrying`) / red "Fallo temporal" (`failed`); `ok` clears it, and `slow` is hidden while `compacting`. The backend emits `slow` from an idle watchdog (suppressed during compact / tool-in-flight / awaiting-user) and classifies API failures: transient (5xx / connection / "no response from API") → `status`, usage-limit/auth/etc → `error` |
+| **`queued`** / **`dequeued`** | message queue: `queued` (id, text) acks an enqueued prompt; `dequeued` (id) renders its user bubble in place (render-on-dequeue) and drops the chip — see **Message queue** |
 | `result` / `done` / `interrupted` / `error` | session id / UI transitions; an `error` block now shows a red warning icon + the clean SDK message |
 | `history_chunk` | older messages backfill (prepended; non-active session dropped) |
 
@@ -279,6 +281,20 @@ markdown rendering, code-edit diffs, and rewind all behave as documented in
   URL for a file preview, the text for the markdown notes) and "save as" uses
   tinyfd / `showSaveFilePicker`. Android keeps the real share sheet
   (`ACTION_SEND` / `ACTION_SEND_MULTIPLE`) and SAF `CreateDocument`.
+
+## Message queue
+
+Keep typing while a turn runs. The composer calls `ChatViewModel.enqueueOutgoing`,
+which adds a `QueuedMessage` to `state.queue` and pumps it to the backend; the
+first idle (non-queued) message is flagged `silent` so it never flashes in the
+queue UI. Each item gets a per-instance unique id (`nextOutgoingId()` →
+`q<tag>-N`, `tag` seeded once per ViewModel) so a fresh ViewModel reusing a
+reattached `LiveSession` can't collide with its already-seen ids — a collision
+would make the backend treat the first message as already-consumed and hang on a
+phantom turn. On `dequeued` the bubble is drawn from the chip (`appendOrMergeUser`,
+render-on-dequeue — no extra `user_message` round-trip, so a resume never
+duplicates it) and the chip is dropped. `QueueRow` lists the pending,
+non-`silent` items above the composer.
 
 ## Version compatibility & updates
 

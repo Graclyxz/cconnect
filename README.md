@@ -101,6 +101,11 @@ of your plan's token limits. A **quick chat** button opens a side panel for a
 throwaway question — handy to ask something while a long task keeps running,
 without derailing it.
 
+**Queue** keeps your messages flowing: send another while Claude is still
+working and it's held, then picked up in order and placed in the conversation
+as each one runs — and anything still waiting comes back if you reload or
+resume the chat.
+
 **Attachments** travel with your message: tap the clip, pick any files or
 photos on your device, and they land on the PC before the prompt runs. Images
 reach Claude as real vision input — it sees them, not a path — and other files
