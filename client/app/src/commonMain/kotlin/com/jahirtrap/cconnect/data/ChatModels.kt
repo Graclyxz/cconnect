@@ -4,7 +4,7 @@ enum class Role { USER, ASSISTANT, THINKING, WORKING, TOOL, TOOL_RESULT, SUMMARY
 
 enum class SendStatus { SENT, ERROR }
 
-data class QueuedMessage(val id: String, val text: String, val attachments: List<String> = emptyList(), val uploading: Boolean = false)
+data class QueuedMessage(val id: String, val text: String, val attachments: List<String> = emptyList(), val uploading: Boolean = false, val silent: Boolean = false)
 
 data class ChatMessage(
     val id: Long,

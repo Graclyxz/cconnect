@@ -470,15 +470,38 @@ async def run_prompt(
     )
     if ultracode:
         options_kwargs["settings"] = json.dumps({"ultracode": True})
-    status_state = {"slow": False, "last": 0.0}
+    status_state = {"slow": False, "last": 0.0, "compacting": False, "awaiting_user": False, "pending": set()}
     hooks_map: dict[str, Any] = {}
+    loop = asyncio.get_running_loop() if emit is not None else None
     if ask_user is not None:
-        options_kwargs["can_use_tool"] = _build_can_use_tool(ask_user)
+        base_can_use_tool = _build_can_use_tool(ask_user)
+        if emit is not None:
+            async def _can_use_tool_status(tool_name, tool_input, ctx):
+                status_state["awaiting_user"] = True
+                if status_state["slow"]:
+                    status_state["slow"] = False
+                    try:
+                        await emit({"type": "status", "kind": "ok"})
+                    except Exception:
+                        pass
+                try:
+                    return await base_can_use_tool(tool_name, tool_input, ctx)
+                finally:
+                    status_state["awaiting_user"] = False
+                    status_state["last"] = loop.time()
+            options_kwargs["can_use_tool"] = _can_use_tool_status
+        else:
+            options_kwargs["can_use_tool"] = base_can_use_tool
         hooks_map["PreToolUse"] = [HookMatcher(matcher=None, hooks=[_keep_stream_open])]
     if emit is not None:
-        loop = asyncio.get_running_loop()
-
         async def _pre_compact(input_data, tool_use_id, context):
+            status_state["compacting"] = True
+            if status_state["slow"]:
+                status_state["slow"] = False
+                try:
+                    await emit({"type": "status", "kind": "ok"})
+                except Exception:
+                    pass
             await emit({"type": "compacting", "trigger": (input_data or {}).get("trigger")})
             return {}
         hooks_map["PreCompact"] = [HookMatcher(matcher=None, hooks=[_pre_compact])]
@@ -486,7 +509,13 @@ async def run_prompt(
         async def _idle_watchdog():
             while True:
                 await asyncio.sleep(4)
-                if not status_state["slow"] and loop.time() - status_state["last"] > 12:
+                if (
+                    not status_state["slow"]
+                    and not status_state["compacting"]
+                    and not status_state["awaiting_user"]
+                    and not status_state["pending"]
+                    and loop.time() - status_state["last"] > 12
+                ):
                     status_state["slow"] = True
                     try:
                         await emit({"type": "status", "kind": "slow"})
@@ -529,6 +558,7 @@ async def run_prompt(
         async for message in query(prompt=prompt_arg, options=options):
             if emit is not None:
                 status_state["last"] = loop.time()
+                status_state["compacting"] = False
                 if status_state["slow"]:
                     status_state["slow"] = False
                     await emit({"type": "status", "kind": "ok"})
@@ -563,6 +593,12 @@ async def run_prompt(
                     ).strip() or f"API Error: {_err}"
                     yield {"type": "api_error", "text": _text}
                 else:
+                    if emit is not None:
+                        for _b in message.content or []:
+                            if type(_b).__name__ == "ToolUseBlock":
+                                _bid = getattr(_b, "id", None)
+                                if _bid:
+                                    status_state["pending"].add(_bid)
                     for event in _blocks_to_events(message.content, skip_streamed=partial, hidden_tool_ids=hidden_tool_ids):
                         if parent:
                             event["parent"] = parent
@@ -576,6 +612,10 @@ async def run_prompt(
                         if cctx:
                             yield {"type": "context", "context_tokens": cctx}
             elif isinstance(message, UserMessage):
+                if emit is not None:
+                    for _b in getattr(message, "content", None) or []:
+                        if type(_b).__name__ == "ToolResultBlock":
+                            status_state["pending"].discard(getattr(_b, "tool_use_id", None))
                 if not parent and injected:
                     mc = getattr(message, "content", None)
                     if isinstance(mc, str):
@@ -639,6 +679,8 @@ async def run_prompt(
                 else:
                     yield {"type": "system", "subtype": subtype, "data": data}
             elif isinstance(message, ResultMessage):
+                if emit is not None:
+                    status_state["pending"].clear()
                 if getattr(message, "is_error", None):
                     api_status = getattr(message, "api_error_status", None)
                     errs = getattr(message, "errors", None) or []

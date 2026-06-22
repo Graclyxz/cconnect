@@ -319,7 +319,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
             return
         }
         if (current.uploadingAttachments) return
-        val id = "q${outgoingSeq++}"
+        val id = nextOutgoingId()
         val placeholders = current.attachments.map { "uploads/${it.name}" }
         _state.update { it.copy(queue = it.queue + QueuedMessage(id, trimmed, attachments = placeholders, uploading = true)) }
         uploadJob = viewModelScope.launch {
@@ -384,12 +384,15 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     }
 
     private var outgoingSeq = 0L
+    private val outgoingTag = nowMillis().toString(36)
+    private fun nextOutgoingId() = "q$outgoingTag-${outgoingSeq++}"
     private val sentIds = mutableSetOf<String>()
 
     private fun enqueueOutgoing(text: String, attachments: List<String>) {
         if (text.isEmpty() && attachments.isEmpty()) return
-        val id = "q${outgoingSeq++}"
-        _state.update { it.copy(queue = it.queue + QueuedMessage(id, text, attachments = attachments)) }
+        val silent = !_state.value.streaming && _state.value.queue.isEmpty() && sentIds.isEmpty()
+        val id = nextOutgoingId()
+        _state.update { it.copy(queue = it.queue + QueuedMessage(id, text, attachments = attachments, silent = silent)) }
         pumpQueue()
     }
 
@@ -412,7 +415,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     }
 
     private fun requeueAfterInterrupt() {
-        _state.update { st -> st.copy(queue = st.queue.map { it.copy(id = "q${outgoingSeq++}") }) }
+        _state.update { st -> st.copy(queue = st.queue.map { it.copy(id = nextOutgoingId()) }) }
         sentIds.clear()
         pumpQueue()
     }

@@ -670,7 +670,7 @@ fun ChatScreen(
                                                     )
                                                 }
                                                 val status = state.streamStatus
-                                                if (status != null) {
+                                                if (status != null && !(state.compacting && status == "slow")) {
                                                     item(key = "stream-status") { StatusProgress(status) }
                                                 }
                                                 if (state.compacting) {
@@ -744,8 +744,9 @@ fun ChatScreen(
                                     ) {
                                         val queueScroll = TabsController.queueScroll
                                         val attachScroll = TabsController.attachmentsScroll
-                                        if (!sideActive && state.queue.isNotEmpty()) {
-                                            QueueRow(queue = state.queue, scroll = queueScroll, onOpen = { queuePreview = it })
+                                        val visibleQueue = state.queue.filterNot { it.silent }
+                                        if (!sideActive && visibleQueue.isNotEmpty()) {
+                                            QueueRow(queue = visibleQueue, scroll = queueScroll, onOpen = { queuePreview = it })
                                         }
                                         if (!sideActive && state.attachments.isNotEmpty()) {
                                             AttachmentsRow(
@@ -1721,6 +1722,7 @@ private fun CommandMenuButton(
                 .size(42.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.surfaceVariant)
+                .then(if (ready) Modifier.pointerHoverIcon(PointerIcon.Hand) else Modifier)
                 .pointerInput(ready) {
                     detectTapGestures { if (ready) open = true }
                 },
