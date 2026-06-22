@@ -856,6 +856,9 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         "summary" -> Role.SUMMARY
         "agent" -> Role.AGENT
         "plan" -> Role.PLAN
+        "api_error" -> Role.API_ERROR
+        "error" -> Role.ERROR
+        "interrupted" -> Role.INTERRUPTED
         else -> Role.SYSTEM
     }
 
@@ -1037,6 +1040,12 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 }
                 addMessage(Role.ERROR, event.message)
             }
+            is ServerEvent.ApiError -> {
+                currentAssistantId = null
+                currentThinkingId = null
+                _state.update { it.copy(streamStatus = null) }
+                addMessage(Role.API_ERROR, event.message)
+            }
             is ServerEvent.InteractionRequest -> {
                 if (_state.value.messages.none { it.interaction?.requestId == event.requestId }) {
                     currentAssistantId = null
@@ -1196,7 +1205,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
             return
         }
         val older = event.items
-            .filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly || !it.images.isNullOrEmpty() }
+            .filter { it.text.isNotBlank() || it.interaction != null || !it.diffLines.isNullOrEmpty() || it.compact != null || it.labelOnly || !it.images.isNullOrEmpty() || it.toRole() == Role.INTERRUPTED }
         _state.update { st ->
             val prepended = older.mapIndexed { i, m ->
                 ChatMessage(nextId + i, m.toRole(), m.text, toolName = m.name, path = m.path, interaction = m.interaction, diffLines = m.diffLines, compact = m.compact, sourceIndex = m.index, labelOnly = m.labelOnly, result = m.result, images = imageUrls(m, event.sessionId, st.activeProjectKey), timestamp = m.timestamp)

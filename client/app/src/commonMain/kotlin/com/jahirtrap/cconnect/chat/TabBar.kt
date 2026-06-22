@@ -183,7 +183,7 @@ fun TabStrip() {
                     label = tab.title ?: stringResource(Res.string.new_chat),
                     dot = sessionColorOf(tab.color),
                     active = tab.id == activeId,
-                    showClose = tabs.size > 1,
+                    showClose = true,
                     onClick = { TabsController.selectTab(tab.id) },
                     onClose = { TabsController.closeTab(tab.id) },
                 )
@@ -281,18 +281,16 @@ fun TabSwitcher() {
                             Box(Modifier.size(10.dp).clip(CircleShape).background(c))
                         },
                         trailing = {
-                            if (tabs.size > 1) {
-                                Box(
-                                    modifier = Modifier.size(22.dp).clip(CircleShape).clickable { TabsController.closeTab(tab.id) }.pointerHoverIcon(PointerIcon.Hand),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Icon(
-                                        Lucide.X,
-                                        contentDescription = stringResource(Res.string.close_tab),
-                                        modifier = Modifier.size(15.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
+                            Box(
+                                modifier = Modifier.size(22.dp).clip(CircleShape).clickable { TabsController.closeTab(tab.id) }.pointerHoverIcon(PointerIcon.Hand),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    Lucide.X,
+                                    contentDescription = stringResource(Res.string.close_tab),
+                                    modifier = Modifier.size(15.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         },
                         onClick = { TabsController.selectTab(tab.id); open = false },

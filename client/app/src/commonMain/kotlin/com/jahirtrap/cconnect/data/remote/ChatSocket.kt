@@ -312,6 +312,7 @@ class ChatSocket(private val scope: CoroutineScope, private val config: () -> Ba
                     ?: obj["message"]?.toString()
                     ?: "error"
             )
+            "api_error" -> ServerEvent.ApiError(str("text").orEmpty())
             "history_chunk" -> ServerEvent.HistoryChunk(
                 sessionId = str("session_id").orEmpty(),
                 startIndex = obj["start_index"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0,

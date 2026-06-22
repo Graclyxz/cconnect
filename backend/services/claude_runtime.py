@@ -470,7 +470,7 @@ async def run_prompt(
     )
     if ultracode:
         options_kwargs["settings"] = json.dumps({"ultracode": True})
-    status_state = {"retrying": False}
+    status_state = {"slow": False, "last": 0.0}
     hooks_map: dict[str, Any] = {}
     if ask_user is not None:
         options_kwargs["can_use_tool"] = _build_can_use_tool(ask_user)
@@ -483,15 +483,15 @@ async def run_prompt(
             return {}
         hooks_map["PreCompact"] = [HookMatcher(matcher=None, hooks=[_pre_compact])]
 
-        def _on_stderr(line: str):
-            low = line.lower()
-            if "retry" in low or _looks_transient(None, line):
-                status_state["retrying"] = True
-                try:
-                    loop.create_task(emit({"type": "status", "kind": "retrying"}))
-                except RuntimeError:
-                    pass
-        options_kwargs["stderr"] = _on_stderr
+        async def _idle_watchdog():
+            while True:
+                await asyncio.sleep(4)
+                if not status_state["slow"] and loop.time() - status_state["last"] > 12:
+                    status_state["slow"] = True
+                    try:
+                        await emit({"type": "status", "kind": "slow"})
+                    except Exception:
+                        pass
     if hooks_map:
         options_kwargs["hooks"] = hooks_map
     options = ClaudeAgentOptions(**options_kwargs)
@@ -520,12 +520,18 @@ async def run_prompt(
     hidden_tool_ids: set[str] = set()
     first_chunk_pending: set[int] = set()
 
+    watchdog_task = None
     try:
         current_sid: str | None = None
+        if emit is not None:
+            status_state["last"] = loop.time()
+            watchdog_task = asyncio.create_task(_idle_watchdog())
         async for message in query(prompt=prompt_arg, options=options):
-            if status_state["retrying"] and emit is not None:
-                status_state["retrying"] = False
-                await emit({"type": "status", "kind": "ok"})
+            if emit is not None:
+                status_state["last"] = loop.time()
+                if status_state["slow"]:
+                    status_state["slow"] = False
+                    await emit({"type": "status", "kind": "ok"})
             _msid = getattr(message, "session_id", None)
             if isinstance(_msid, str):
                 current_sid = _msid
@@ -549,18 +555,26 @@ async def run_prompt(
                         event["parent"] = parent
                     yield event
             elif isinstance(message, AssistantMessage):
-                for event in _blocks_to_events(message.content, skip_streamed=partial, hidden_tool_ids=hidden_tool_ids):
-                    if parent:
-                        event["parent"] = parent
-                    yield event
-                if not parent and current_sid and cwd:
-                    try:
-                        from services import sessions as _sessions
-                        cctx = _sessions.last_context_tokens(_sessions.project_key_for(cwd), current_sid)
-                    except Exception:
-                        cctx = None
-                    if cctx:
-                        yield {"type": "context", "context_tokens": cctx}
+                _err = getattr(message, "error", None)
+                if _err and not parent:
+                    _text = "".join(
+                        getattr(b, "text", "") for b in (message.content or [])
+                        if type(b).__name__ == "TextBlock"
+                    ).strip() or f"API Error: {_err}"
+                    yield {"type": "api_error", "text": _text}
+                else:
+                    for event in _blocks_to_events(message.content, skip_streamed=partial, hidden_tool_ids=hidden_tool_ids):
+                        if parent:
+                            event["parent"] = parent
+                        yield event
+                    if not parent and current_sid and cwd:
+                        try:
+                            from services import sessions as _sessions
+                            cctx = _sessions.last_context_tokens(_sessions.project_key_for(cwd), current_sid)
+                        except Exception:
+                            cctx = None
+                        if cctx:
+                            yield {"type": "context", "context_tokens": cctx}
             elif isinstance(message, UserMessage):
                 if not parent and injected:
                     mc = getattr(message, "content", None)
@@ -641,6 +655,9 @@ async def run_prompt(
             yield {"type": "status", "kind": "failed"}
         else:
             yield {"type": "error", "message": _clean_error_text(detail)}
+    finally:
+        if watchdog_task is not None:
+            watchdog_task.cancel()
 
 
 async def generate_title(transcript: str) -> str:

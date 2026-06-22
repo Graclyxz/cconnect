@@ -797,10 +797,20 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
         message = entry.get("message", {})
         if entry.get("isSidechain"):
             continue
+        if entry.get("isApiErrorMessage"):
+            err_text = _text_from_content(message.get("content")).strip()
+            if err_text:
+                messages.append({"type": "api_error", "text": err_text})
+            continue
         if message.get("stop_reason") == "stop_sequence":
             continue
         role = message.get("role", etype)
         content = message.get("content")
+        if role == "user":
+            interrupt_text = content if isinstance(content, str) else _text_from_content(content)
+            if _INTERRUPT_RE.match((interrupt_text or "").strip()):
+                messages.append({"type": "interrupted"})
+                continue
         if isinstance(content, str):
             text = content.strip()
             if text and not _COMMAND_META_RE.search(text) and not _INTERRUPT_RE.match(text):

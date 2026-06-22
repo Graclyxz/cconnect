@@ -240,6 +240,7 @@
     <string name="compacting">Compacting</string>
     <string name="status_retrying">Retrying</string>
     <string name="status_failed">Temporary failure</string>
+    <string name="status_slow">The response is taking longer than usual</string>
     <string name="interrupted">Interrupted</string>
     <string name="plan">Plan</string>
     <string name="agent">Agent</string>

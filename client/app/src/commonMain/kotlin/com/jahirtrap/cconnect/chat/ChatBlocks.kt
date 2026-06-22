@@ -286,6 +286,19 @@ fun ChatMessageItem(
                 }
             }
 
+            Role.API_ERROR -> Band(palette.orange.copy(alpha = 0.15f)) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Icon(
+                        Lucide.TriangleAlert,
+                        contentDescription = null,
+                        tint = palette.orange,
+                        modifier = Modifier.padding(top = 1.dp).size(18.dp),
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    SelectableText(message.text, MaterialTheme.typography.bodyMedium, palette.orange, modifier = Modifier.weight(1f))
+                }
+            }
+
             Role.INTERRUPTED -> Band(palette.orange.copy(alpha = 0.15f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
@@ -337,12 +350,12 @@ fun StickyCollapsibleHeader(message: ChatMessage, onCollapse: () -> Unit, modifi
     }
 }
 
-private fun isNotice(role: Role?): Boolean = role == Role.ERROR || role == Role.INTERRUPTED
+private fun isNotice(role: Role?): Boolean = role == Role.ERROR || role == Role.API_ERROR || role == Role.INTERRUPTED
 
 private fun group(role: Role?): Int = when (role) {
     Role.THINKING, Role.WORKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION, Role.FILE_CHANGE, Role.COMPACT, Role.PLAN, Role.AGENT -> 0
     Role.ASSISTANT -> 1
-    Role.USER, Role.ERROR, Role.INTERRUPTED -> 2
+    Role.USER, Role.ERROR, Role.API_ERROR, Role.INTERRUPTED -> 2
     else -> 3
 }
 

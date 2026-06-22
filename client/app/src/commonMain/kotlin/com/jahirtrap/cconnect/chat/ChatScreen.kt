@@ -66,6 +66,7 @@ import com.composables.icons.lucide.ArrowUp
 import com.composables.icons.lucide.Check
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.CircleDot
+import com.composables.icons.lucide.Clock3
 import com.composables.icons.lucide.EllipsisVertical
 import com.composables.icons.lucide.Eraser
 import com.composables.icons.lucide.File
@@ -666,6 +667,10 @@ fun ChatScreen(
                                                         showTime = showTime,
                                                     )
                                                 }
+                                                val status = state.streamStatus
+                                                if (status != null) {
+                                                    item(key = "stream-status") { StatusProgress(status) }
+                                                }
                                             }
                                         }
                                         var stickyHeaderHeight by remember { mutableStateOf(0) }
@@ -735,7 +740,6 @@ fun ChatScreen(
                                         val queueScroll = TabsController.queueScroll
                                         val attachScroll = TabsController.attachmentsScroll
                                         if (state.compacting) CompactProgress()
-                                        state.streamStatus?.let { StatusProgress(it) }
                                         if (!sideActive && state.queue.isNotEmpty()) {
                                             QueueRow(queue = state.queue, scroll = queueScroll, onOpen = { queuePreview = it })
                                         }
@@ -1665,18 +1669,23 @@ private fun CompactProgress() {
 private fun StatusProgress(kind: String) {
     val failed = kind == "failed"
     val color = if (failed) palette.red else palette.orange
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(color.copy(alpha = 0.15f))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Lucide.TriangleAlert, contentDescription = null, tint = color, modifier = Modifier.size(16.dp))
+            Icon(if (failed) Lucide.TriangleAlert else Lucide.Clock3, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text(
-                stringResource(if (failed) Res.string.status_failed else Res.string.status_retrying),
+                stringResource(if (failed) Res.string.status_failed else Res.string.status_slow),
                 style = MaterialTheme.typography.bodyMedium,
                 color = color,
             )
         }
         if (!failed) {
-            Spacer(Modifier.size(6.dp))
+            Spacer(Modifier.size(8.dp))
             LinearProgressIndicator(color = color, modifier = Modifier.fillMaxWidth())
         }
     }
