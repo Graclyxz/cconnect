@@ -238,7 +238,7 @@ class ChatSocket(private val scope: CoroutineScope, private val config: () -> Ba
                 channel = newChannel
                 lastSeq = 0
             }
-            return Triple(false, null, ServerEvent.Ready(str("session_id"), str("project"), newChannel, flag("running"), flag("resumed")))
+            return Triple(false, null, ServerEvent.Ready(str("session_id"), str("project"), newChannel, flag("running"), flag("resumed"), obj["committed_count"]?.jsonPrimitive?.intOrNull))
         }
         val ch = str("channel")
         val side = ch != null && channel != null && ch != channel
@@ -284,8 +284,10 @@ class ChatSocket(private val scope: CoroutineScope, private val config: () -> Ba
             "command" -> ServerEvent.Command(str("markdown").orEmpty())
             "plan" -> ServerEvent.Plan(str("markdown").orEmpty())
             "queued" -> ServerEvent.Queued(str("id"), str("text").orEmpty())
-            "dequeued" -> ServerEvent.Dequeued(str("id"))
-            "user_message" -> ServerEvent.UserMsg(str("text").orEmpty())
+            "dequeued" -> ServerEvent.Dequeued(
+                obj["ids"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList(),
+                str("text"),
+            )
             "agent" -> ServerEvent.Agent(str("id"), str("subagent_type"), str("description"), flag("label"))
             "compact_summary" -> ServerEvent.CompactSummary(
                 trigger = str("trigger"),

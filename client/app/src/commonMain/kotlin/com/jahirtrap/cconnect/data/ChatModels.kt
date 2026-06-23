@@ -120,7 +120,7 @@ data class CapabilitiesDefaults(
 sealed interface ServerEvent {
     data object Connecting : ServerEvent
     data object Open : ServerEvent
-    data class Ready(val sessionId: String?, val project: String? = null, val channel: String? = null, val running: Boolean = false, val resumed: Boolean = false) : ServerEvent
+    data class Ready(val sessionId: String?, val project: String? = null, val channel: String? = null, val running: Boolean = false, val resumed: Boolean = false, val committedCount: Int? = null) : ServerEvent
     data class AssistantText(val text: String) : ServerEvent
     data class Thinking(val text: String, val labelOnly: Boolean = false) : ServerEvent
     data class ToolUse(val id: String?, val name: String?, val input: String?, val result: String? = null) : ServerEvent
@@ -147,8 +147,7 @@ sealed interface ServerEvent {
     data class ApiError(val message: String) : ServerEvent
     data class Closed(val reason: String) : ServerEvent
     data class Queued(val id: String?, val text: String) : ServerEvent
-    data class Dequeued(val id: String?) : ServerEvent
-    data class UserMsg(val text: String) : ServerEvent
+    data class Dequeued(val ids: List<String> = emptyList(), val text: String? = null) : ServerEvent
     data class HistoryChunk(
         val sessionId: String,
         val startIndex: Int,

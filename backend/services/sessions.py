@@ -121,6 +121,52 @@ def last_context_tokens(project_key: str, session_id: str) -> Optional[int]:
     return None
 
 
+def tail_user_messages(project_key: str, session_id: str) -> list[dict]:
+    try:
+        file = _session_file(project_key, session_id)
+    except ValueError:
+        return []
+    if not file.is_file():
+        return []
+    try:
+        with file.open("rb") as fh:
+            fh.seek(0, 2)
+            size = fh.tell()
+            fh.seek(max(0, size - 131072))
+            chunk = fh.read().decode("utf-8", errors="ignore")
+    except OSError:
+        return []
+    out: list[dict] = []
+    for line in chunk.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if entry.get("type") != "user" or entry.get("isMeta") or entry.get("isSidechain"):
+            continue
+        u = entry.get("uuid")
+        if not u:
+            continue
+        content = (entry.get("message") or {}).get("content")
+        if isinstance(content, str):
+            text = content.strip()
+        elif isinstance(content, list):
+            if any(isinstance(b, dict) and b.get("type") == "tool_result" for b in content):
+                continue
+            text = "\n".join(
+                b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"
+            ).strip()
+        else:
+            continue
+        if not text or _COMMAND_META_RE.search(text) or _INTERRUPT_RE.match(text):
+            continue
+        out.append({"uuid": u, "text": text})
+    return out
+
+
 def _text_from_content(content: Any) -> str:
     if isinstance(content, str):
         return content
@@ -706,35 +752,38 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
     if not file.is_file():
         return []
     entries = _active_entries(list(_iter_lines(file)), session_id)
-    # The first prompt of each turn lands both as a `queue-operation` enqueue AND as a real
     queued_user_texts: set[str] = set()
+    real_user_texts: set[str] = set()
 
-    def _register_user_text(t: str) -> None:
+    def _register_user_text(t: str, real: bool) -> None:
         t = (t or "").strip()
         if not t:
             return
         queued_user_texts.add(t)
-        # CLI joins consecutive queued messages into one turn separated by newlines
+        if real:
+            real_user_texts.add(t)
         for line in t.split("\n"):
             line = line.strip()
             if line:
                 queued_user_texts.add(line)
+                if real:
+                    real_user_texts.add(line)
 
     for entry in entries:
         if entry.get("type") == "attachment":
             att = entry.get("attachment") or {}
             if att.get("type") == "queued_command":
-                _register_user_text(_text_from_content(att.get("prompt")))
+                _register_user_text(_text_from_content(att.get("prompt")), real=False)
             continue
         if entry.get("type") != "user" or entry.get("isMeta") or entry.get("isSidechain"):
             continue
         c = entry.get("message", {}).get("content")
         if isinstance(c, str):
-            _register_user_text(c)
+            _register_user_text(c, real=True)
         elif isinstance(c, list):
             for b in c:
                 if isinstance(b, dict) and b.get("type") == "text":
-                    _register_user_text(b.get("text") or "")
+                    _register_user_text(b.get("text") or "", real=True)
     # AskUserQuestion answers live in the tool_result, not in the tool_use input.
     tool_result_by_id: dict[str, object] = {}
     agent_files: dict[str, str] = {}
@@ -797,7 +846,9 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
             att = entry.get("attachment") or {}
             if att.get("type") == "queued_command":
                 qtext = _text_from_content(att.get("prompt")).strip()
-                if qtext and not _COMMAND_META_RE.search(qtext) and not _INTERRUPT_RE.match(qtext):
+                qlines = [ln.strip() for ln in qtext.split("\n") if ln.strip()]
+                consumed = bool(qlines) and all(ln in real_user_texts for ln in qlines)
+                if qtext and not consumed and not _COMMAND_META_RE.search(qtext) and not _INTERRUPT_RE.match(qtext):
                     messages.append({"type": "text", "role": "user", "text": qtext})
             continue
         if etype == "queue-operation":

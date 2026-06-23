@@ -64,7 +64,7 @@ class _Session:
         self.base_url: str | None = None
 
 
-def _build_turn_runner(state: _Session, drain, text: str, attachments: list[str] | None = None):
+def _build_turn_runner(state: _Session, drain, text: str, attachments: list[str] | None = None, seed_id: str | None = None):
     """Build the async-gen factory the LiveSession runs for one prompt. It wraps
     the run_prompt loop plus the post-turn session bookkeeping; the LiveSession
     appends the trailing ``done`` event itself."""
@@ -105,6 +105,7 @@ def _build_turn_runner(state: _Session, drain, text: str, attachments: list[str]
                 base_url=state.base_url,
                 emit=emit,
                 drain=drain(),
+                seed_id=seed_id,
             ):
                 if event.get("type") == "compact":
                     compacted = True
@@ -239,6 +240,7 @@ async def chat_ws(ws: WebSocket):
                     "channel": session.channel,
                     "running": session.running,
                     "resumed": bool(by_session),
+                    "committed_count": session.turn_start_index,
                 })
                 await session.attach(send, last_seq=msg.last_seq, since_committed=bool(by_session))
                 if not session.running and session.state.session_id:
@@ -268,14 +270,20 @@ async def chat_ws(ws: WebSocket):
                     await session.enqueue(msg.id, msg.text, msg.attachments)
                 elif msg.id and session.already_consumed(msg.id):
                     await session.consumed(msg.id)
-                elif not session.start(_build_turn_runner(session.state, session.drain, msg.text, msg.attachments), seed_id=msg.id):
-                    await session.enqueue(msg.id, msg.text, msg.attachments)
-                elif msg.id:
-                    ptext = msg.text
-                    if msg.attachments:
-                        from services import attachments as attachments_service
-                        ptext, _ = attachments_service.compose_prompt(msg.text, msg.attachments)
-                    await session.commit_user(msg.id, ptext)
+                else:
+                    turn_start = 0
+                    if session.state.session_id and session.state.cwd:
+                        try:
+                            turn_start = len(sessions_service.get_session_messages(
+                                sessions_service.project_key_for(session.state.cwd), session.state.session_id))
+                        except Exception:
+                            turn_start = 0
+                    if not session.start(_build_turn_runner(session.state, session.drain, msg.text, msg.attachments, seed_id=msg.id), seed_id=msg.id):
+                        await session.enqueue(msg.id, msg.text, msg.attachments)
+                    else:
+                        session.turn_start_index = turn_start
+                        if msg.id:
+                            await session.commit_user(msg.id, msg.text)
 
             elif mtype == "set_permission_mode":
                 try:

@@ -425,6 +425,7 @@ async def run_prompt(
     base_url: Optional[str] = None,
     emit: Optional[Callable[[dict], Awaitable[None]]] = None,
     drain: Optional[AsyncIterator[dict]] = None,
+    seed_id: Optional[str] = None,
 ) -> AsyncIterator[dict]:
     from claude_agent_sdk import (
         query,
@@ -527,7 +528,49 @@ async def run_prompt(
 
     content = [{"type": "text", "text": prompt}, *images] if images else prompt
 
-    injected: list[dict] = []
+    chips: list[dict] = [{"id": seed_id, "sent": prompt, "drained": False}]
+    seen_users: set[str] = set()
+    if drain is not None and resume and cwd:
+        try:
+            from services import sessions as _seed
+            for _u in _seed.tail_user_messages(_seed.project_key_for(cwd), resume):
+                seen_users.add(_u["uuid"])
+        except Exception:
+            pass
+
+    def _flush_users(sid: str | None) -> list[dict]:
+        if drain is None or not sid or not cwd or not chips:
+            return []
+        try:
+            from services import sessions as _q
+            users = _q.tail_user_messages(_q.project_key_for(cwd), sid)
+        except Exception:
+            return []
+        events: list[dict] = []
+        for u in users:
+            uid = u["uuid"]
+            if uid in seen_users:
+                continue
+            seen_users.add(uid)
+            text = u["text"]
+            matched = None
+            acc = ""
+            for i, c in enumerate(chips):
+                acc = c["sent"] if i == 0 else acc + "\n" + c["sent"]
+                if acc == text:
+                    matched = i + 1
+                    break
+                if len(acc) >= len(text):
+                    break
+            k = matched if matched is not None else 1
+            taken, chips[:k] = chips[:k], []
+            events.append({
+                "type": "dequeued",
+                "ids": [c["id"] for c in taken if c["id"]],
+                "text": text,
+                "consumed": sum(1 for c in taken if c["drained"]),
+            })
+        return events
 
     async def _prompt_stream():
         yield {"type": "user", "message": {"role": "user", "content": content}}
@@ -538,11 +581,11 @@ async def run_prompt(
                 if atts:
                     itext, iimages = attachments_service.compose_prompt(item["text"], atts)
                     icontent = [{"type": "text", "text": itext}, *iimages] if iimages else itext
-                    match_text = itext
+                    sent = itext
                 else:
                     icontent = item["text"]
-                    match_text = item["text"]
-                injected.append({"id": item.get("id"), "text": match_text})
+                    sent = item["text"]
+                chips.append({"id": item.get("id"), "sent": sent, "drained": True})
                 yield {"type": "user", "message": {"role": "user", "content": icontent}}
     prompt_arg = _prompt_stream() if (ask_user is not None or images or drain is not None) else prompt
 
@@ -572,8 +615,12 @@ async def run_prompt(
             if isinstance(message, StreamEvent):
                 raw = message.event
                 idx = raw.get("index") if isinstance(raw, dict) else None
-                if isinstance(raw, dict) and raw.get("type") == "content_block_start" and isinstance(idx, int):
-                    first_chunk_pending.add(idx)
+                if isinstance(raw, dict) and raw.get("type") == "content_block_start":
+                    if isinstance(idx, int):
+                        first_chunk_pending.add(idx)
+                    if not parent:
+                        for ev in _flush_users(current_sid):
+                            yield ev
                 stream_thinking = settings_store.visibility_mode("thinking") == "full"
                 for event in _stream_event_to_events(raw):
                     if event.get("type") == "thinking" and not stream_thinking:
@@ -585,6 +632,9 @@ async def run_prompt(
                         event["parent"] = parent
                     yield event
             elif isinstance(message, AssistantMessage):
+                if not parent:
+                    for ev in _flush_users(current_sid):
+                        yield ev
                 _err = getattr(message, "error", None)
                 if _err and not parent:
                     _text = "".join(
@@ -616,36 +666,6 @@ async def run_prompt(
                     for _b in getattr(message, "content", None) or []:
                         if type(_b).__name__ == "ToolResultBlock":
                             status_state["pending"].discard(getattr(_b, "tool_use_id", None))
-                if not parent and injected:
-                    mc = getattr(message, "content", None)
-                    if isinstance(mc, str):
-                        msg_text = mc
-                    elif isinstance(mc, list):
-                        msg_text = "".join(getattr(b, "text", "") for b in mc if type(b).__name__ == "TextBlock")
-                    else:
-                        msg_text = ""
-                    if msg_text:
-                        matched_ids: list = []
-                        matched_lines: list = []
-                        exact = next((i for i, _it in enumerate(injected) if _it["text"] == msg_text), None)
-                        if exact is not None:
-                            _it = injected.pop(exact)
-                            matched_ids.append(_it["id"])
-                            matched_lines.append(_it["text"])
-                        else:
-                            used = set()
-                            for line in msg_text.split("\n"):
-                                for i, _it in enumerate(injected):
-                                    if i not in used and _it["text"] == line:
-                                        used.add(i)
-                                        matched_ids.append(_it["id"])
-                                        matched_lines.append(line)
-                                        break
-                            if used:
-                                injected[:] = [it for i, it in enumerate(injected) if i not in used]
-                        if matched_ids:
-                            for _id in matched_ids:
-                                yield {"type": "dequeued", "id": _id}
                 tu_mode = settings_store.visibility_mode("tool_use")
                 if tu_mode != "off":
                     for block in getattr(message, "content", None) or []:
@@ -679,6 +699,8 @@ async def run_prompt(
                 else:
                     yield {"type": "system", "subtype": subtype, "data": data}
             elif isinstance(message, ResultMessage):
+                for ev in _flush_users(getattr(message, "session_id", None) or current_sid):
+                    yield ev
                 if emit is not None:
                     status_state["pending"].clear()
                 if getattr(message, "is_error", None):

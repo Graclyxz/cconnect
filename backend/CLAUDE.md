@@ -290,27 +290,38 @@ into the same turn — matching the CLI's own behaviour.
 - **Drain into the turn.** `run_prompt` runs the SDK in **streaming-input** mode:
   after the first user message it keeps yielding queued items from the session's
   `drain` async iterator, each as another `user` message (with composed
-  attachments). The CLI's `replay-user-messages` echoes each injected message
-  back as a `UserMessage`; `run_prompt` matches it against the pending
-  `injected` list (exact text, then per-line) and emits `dequeued` (id) so the
-  client renders the bubble **at its real position** in the turn — not grouped
-  at the top.
-- **Consume / close.** The session counts unconsumed items; the turn is held
-  open (the `_keep_stream_open` PreToolUse hook) until the queue is drained and
-  the final `result` lands. A turn that ends with items still queued carries
-  them over to the next `start`.
-- **Resume.** The CLI persists queued messages two ways in the JSONL: a
-  `queue-operation enqueue` entry (at enqueue time, no tree position) and a
-  `queued_command` **attachment** (at consume time, **with** a `parentUuid`).
-  `sessions.get_session_messages` renders the `queued_command` attachment at its
-  tree position so a resumed chat shows the queued message **in the middle** of
-  the turn, where it ran, and dedups against the enqueue entry. Image-queued
-  prompts store `prompt` as a content-block list, so text is pulled via
-  `_text_from_content`.
-- **Client.** `ChatViewModel` renders the bubble on `dequeued` (render-on-dequeue,
-  no extra round-trip) and gives each item a per-instance unique id (`q<tag>-N`)
-  so a fresh ViewModel never collides with a reattached `LiveSession`'s
-  already-seen ids. See `client/CLAUDE.md`.
+  attachments). It records, in send order, the text it actually sent for the
+  initial (`prompt`) and each drained item into `chips` (`{id, sent, drained}`).
+- **Render from the transcript (source of truth).** When the CLI consumes a
+  message it writes a normal `user` entry to the transcript — the same entries
+  `get_session_messages` renders on resume, **joined exactly as the CLI joined
+  them** (it batches consecutive messages, even the initial, into one entry split
+  by `\n`). `run_prompt._flush_users` tail-reads them (`sessions.tail_user_messages`,
+  same 128 KB tail-read as `last_context_tokens`) at every message boundary
+  (`content_block_start`, `AssistantMessage`, `result`) and, for each **new**
+  entry, **greedily** matches it against the longest run of leading `chips` whose
+  `sent` texts joined by `\n` reproduce it — so a joined entry maps to ALL the chips
+  it covers, disambiguating a join from a multi-line message without guessing.
+  Emits `dequeued` (`ids` = covered chip ids, `text` = the entry verbatim,
+  `consumed` = how many were drained). The initial is **not** special-cased — it's
+  the first `chip` and renders from the transcript like the rest, so a joined
+  initial shows joined (== resume). `seen_users` is seeded with the pre-turn
+  history (via `resume`) so only this turn renders.
+- **Consume / close.** Each `drain` increments `_unconsumed`; each `dequeued`
+  decrements it by `consumed`. The turn is held open (the `_keep_stream_open`
+  PreToolUse hook) until the queue is drained, `_unconsumed` hits 0, and the final
+  `result` lands. `chips` is consumed front-to-back (≥1 per entry) and each chip is
+  taken exactly once, so `sum(consumed) == #drained` → `_unconsumed` always reaches
+  0 (no working-infinite, even if a greedy match falls back). A turn that ends with
+  items still queued carries them over to the next `start`.
+- **Resume position.** `get_session_messages` renders each `user` entry as one
+  bubble at its tree position. A client resuming **mid-turn** drops the in-progress
+  turn (messages at `sourceIndex >= committed_count`, sent in `ready`) and lets the
+  live replay re-add it, so neither side duplicates the turn.
+- **Client.** `ChatViewModel` renders each `dequeued` as one user bubble from the
+  event's `text` and removes every chip in `ids`. `commit_user` only marks the seed
+  consumed (no render). Chip ids are per-instance unique (`q<tag>-N`) so a fresh
+  ViewModel never collides with a reattached `LiveSession`'s ids. See `client/CLAUDE.md`.
 
 ## Rewind (`services/rewind.py`)
 

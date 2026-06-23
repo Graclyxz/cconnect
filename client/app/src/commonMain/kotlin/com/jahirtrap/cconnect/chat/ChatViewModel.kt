@@ -163,6 +163,8 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     private var nextId = 0L
     private var currentAssistantId: Long? = null
     private var currentThinkingId: Long? = null
+    private var optimisticChipId: String? = null
+    private var optimisticMsgId: Long? = null
     private var turnFirstResponseId: Long? = null
     private var currentSideAssistantId: Long? = null
     private var historyJob: Job? = null
@@ -393,6 +395,17 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         val silent = !_state.value.streaming && _state.value.queue.isEmpty() && sentIds.isEmpty()
         val id = nextOutgoingId()
         _state.update { it.copy(queue = it.queue + QueuedMessage(id, text, attachments = attachments, silent = silent)) }
+        if (silent && attachments.isEmpty() && text.isNotEmpty()) {
+            val compacting = text == "/compact" || text.startsWith("/compact ")
+            currentAssistantId = null
+            currentThinkingId = null
+            _state.update { st -> resetToInitialWindow(st).copy(streaming = true, compacting = compacting, streamStatus = null, error = null) }
+            if (!compacting) {
+                addMessage(Role.USER, text)
+                optimisticChipId = id
+                optimisticMsgId = _state.value.messages.lastOrNull()?.id
+            }
+        }
         pumpQueue()
     }
 
@@ -415,7 +428,13 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     }
 
     private fun requeueAfterInterrupt() {
-        _state.update { st -> st.copy(queue = st.queue.map { it.copy(id = nextOutgoingId()) }) }
+        _state.update { st ->
+            st.copy(queue = st.queue.map { q ->
+                val newId = nextOutgoingId()
+                if (q.id == optimisticChipId) optimisticChipId = newId
+                q.copy(id = newId)
+            })
+        }
         sentIds.clear()
         pumpQueue()
     }
@@ -539,6 +558,8 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     fun newSession() {
         currentAssistantId = null
         currentThinkingId = null
+        optimisticChipId = null
+        optimisticMsgId = null
         _state.update {
             it.copy(
                 messages = emptyList(),
@@ -897,8 +918,12 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                     val sid = event.sessionId ?: it.sessionId
                     val kept = it.messages.filterNot { m -> m.ephemeral }
                     val msgs = if (event.resumed && event.running) {
-                        val lastUser = kept.indexOfLast { m -> m.role == Role.USER }
-                        if (lastUser >= 0) kept.subList(0, lastUser + 1).toList() else kept
+                        val n = event.committedCount
+                        if (n != null) kept.filter { m -> m.sourceIndex in 0 until n }
+                        else {
+                            val lastUser = kept.indexOfLast { m -> m.role == Role.USER }
+                            if (lastUser >= 0) kept.subList(0, lastUser + 1).toList() else kept
+                        }
                     } else kept
                     it.copy(
                         connection = ConnectionState.Connected,
@@ -1099,22 +1124,32 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
             }
             is ServerEvent.Queued -> {}
             is ServerEvent.Dequeued -> {
-                val chip = _state.value.queue.firstOrNull { it.id == event.id }
-                if (chip != null) {
-                    val compacting = chip.text == "/compact" || chip.text.startsWith("/compact ")
-                    currentAssistantId = null
-                    currentThinkingId = null
-                    if (!_state.value.streaming) {
-                        _state.update { st -> resetToInitialWindow(st).copy(streaming = true, compacting = compacting, streamStatus = null, error = null) }
-                    }
-                    if (!compacting && (chip.text.isNotEmpty() || chip.attachments.isNotEmpty())) {
-                        appendOrMergeUser(chip.text, chip.attachments.map { it.substringAfterLast('/') }.takeIf { it.isNotEmpty() })
+                val text = event.text.orEmpty()
+                val ids = event.ids.toSet()
+                val opt = optimisticChipId
+                val reconcile = opt != null && opt in ids
+                if (text.isNotEmpty()) {
+                    val compacting = text == "/compact" || text.startsWith("/compact ")
+                    val mid = optimisticMsgId
+                    if (reconcile && mid != null) {
+                        if (!compacting) _state.update { st -> st.copy(messages = st.messages.map { if (it.id == mid) it.copy(text = text) else it }) }
+                    } else {
+                        currentAssistantId = null
+                        currentThinkingId = null
+                        if (!_state.value.streaming) {
+                            _state.update { st -> resetToInitialWindow(st).copy(streaming = true, compacting = compacting, streamStatus = null, error = null) }
+                        }
+                        if (!compacting) addMessage(Role.USER, text)
                     }
                 }
-                _state.update { it.copy(queue = it.queue.filterNot { m -> m.id == event.id }) }
-                event.id?.let { sentIds.remove(it) }
-            }
-            is ServerEvent.UserMsg -> {
+                if (reconcile) {
+                    optimisticChipId = null
+                    optimisticMsgId = null
+                }
+                if (ids.isNotEmpty()) {
+                    _state.update { it.copy(queue = it.queue.filterNot { m -> m.id in ids }) }
+                    sentIds.removeAll(ids)
+                }
             }
             is ServerEvent.HistoryChunk -> onHistoryChunk(event)
             else -> {}
@@ -1293,22 +1328,6 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
 
     private fun isResponseRole(role: Role): Boolean =
         role !in setOf(Role.USER, Role.ERROR, Role.API_ERROR, Role.INTERRUPTED, Role.SUMMARY, Role.SYSTEM)
-
-    private fun appendOrMergeUser(text: String, attachments: List<String>? = null) {
-        _state.update { st ->
-            val last = st.messages.lastOrNull()
-            if (last != null && last.role == Role.USER) {
-                val merged = st.messages.toMutableList()
-                merged[merged.lastIndex] = last.copy(
-                    text = listOf(last.text, text).filter { it.isNotEmpty() }.joinToString("\n"),
-                    attachments = (last.attachments.orEmpty() + attachments.orEmpty()).takeIf { it.isNotEmpty() },
-                )
-                applyTailCap(st.copy(messages = merged))
-            } else {
-                applyTailCap(st.copy(messages = st.messages + ChatMessage(nextId++, Role.USER, text, attachments = attachments, timestamp = nowMillis())))
-            }
-        }
-    }
 
     private fun applyTailCap(st: ChatUiState): ChatUiState = capFromTail(st, MESSAGE_TAIL_CAP)
 

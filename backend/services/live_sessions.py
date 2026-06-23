@@ -35,6 +35,7 @@ class LiveSession:
         self._queued = []
         self._seen_ids = set()
         self._unconsumed = 0
+        self.turn_start_index = 0
 
     @property
     def running(self):
@@ -138,12 +139,11 @@ class LiveSession:
     async def consumed(self, mid):
         if mid:
             self._seen_ids.add(mid)
-        await self._emit({"type": "dequeued", "id": mid})
+        await self._emit({"type": "dequeued", "ids": [mid], "text": "", "consumed": 0})
 
     async def commit_user(self, mid, text):
         if mid:
             self._seen_ids.add(mid)
-        await self._emit({"type": "dequeued", "id": mid})
 
     def start(self, runner_factory, seed_id=None):
         if self.running:
@@ -184,9 +184,10 @@ class LiveSession:
     async def _run(self, runner_factory):
         try:
             async for event in runner_factory(self._ask, self._emit):
-                if event.get("type") == "dequeued" and event.get("id"):
-                    self._seen_ids.add(event["id"])
-                    self._unconsumed -= 1
+                if event.get("type") == "dequeued":
+                    for _id in event.get("ids", []):
+                        self._seen_ids.add(_id)
+                    self._unconsumed -= event.get("consumed", 0)
                 await self._emit(event)
                 if event.get("type") == "result" and not self._queued and self._unconsumed <= 0:
                     self._inbox.put_nowait(_CLOSE)
