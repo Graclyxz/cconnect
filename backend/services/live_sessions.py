@@ -145,6 +145,8 @@ class LiveSession:
     async def commit_user(self, mid, text):
         if mid:
             self._seen_ids.add(mid)
+        if mid and (text or "").strip().startswith("/"):
+            await self._emit({"type": "dequeued", "ids": [mid], "text": "", "consumed": 0})
 
     def start(self, runner_factory, seed_id=None):
         if self.running:
@@ -179,6 +181,12 @@ class LiveSession:
             await worker
         except asyncio.CancelledError:
             pass
+        self._queued = []
+        while not self._inbox.empty():
+            try:
+                self._inbox.get_nowait()
+            except asyncio.QueueEmpty:
+                break
         if worker.cancelled():
             await self._emit({"type": "interrupted"})
 

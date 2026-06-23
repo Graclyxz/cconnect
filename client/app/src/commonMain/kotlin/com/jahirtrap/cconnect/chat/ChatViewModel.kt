@@ -165,6 +165,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     private var currentThinkingId: Long? = null
     private var optimisticChipId: String? = null
     private var optimisticMsgId: Long? = null
+    private var interrupting = false
     private var turnFirstResponseId: Long? = null
     private var currentSideAssistantId: Long? = null
     private var historyJob: Job? = null
@@ -400,7 +401,10 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
             currentAssistantId = null
             currentThinkingId = null
             _state.update { st -> resetToInitialWindow(st).copy(streaming = true, compacting = compacting, streamStatus = null, error = null) }
-            if (!compacting) {
+            val isCommand = _state.value.capabilities.commands.any { text == "/${it.name}" || text.startsWith("/${it.name} ") }
+            if (isCommand) {
+                if (!compacting) addMessage(Role.USER, text, ephemeral = true)
+            } else {
                 addMessage(Role.USER, text)
                 optimisticChipId = id
                 optimisticMsgId = _state.value.messages.lastOrNull()?.id
@@ -411,6 +415,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
 
     private fun pumpQueue() {
         if (_state.value.connection != ConnectionState.Connected) return
+        if (interrupting) return
         for (q in _state.value.queue) {
             if (q.uploading || q.id in sentIds) continue
             sentIds.add(q.id)
@@ -460,7 +465,11 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
             uploadJob?.cancel()
             return
         }
-        if (_state.value.streaming) client.sendInterrupt()
+        if (_state.value.streaming) {
+            interrupting = true
+            _state.update { it.copy(streamStatus = it.streamStatus?.takeIf { s -> s == "failed" }) }
+            client.sendInterrupt()
+        }
     }
 
     fun stopSide() {
@@ -561,6 +570,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         optimisticChipId = null
         optimisticMsgId = null
         sentIds.clear()
+        interrupting = false
         _state.update {
             it.copy(
                 messages = emptyList(),
@@ -707,6 +717,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         optimisticChipId = null
         optimisticMsgId = null
         sentIds.clear()
+        interrupting = false
         session.path?.let { ctx.cwd = it }
         _state.update {
             it.copy(
@@ -803,6 +814,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         optimisticChipId = null
         optimisticMsgId = null
         sentIds.clear()
+        interrupting = false
         _state.update {
             it.copy(
                 messages = loaded,
@@ -993,7 +1005,11 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 addMessage(Role.FILE_CHANGE, text = "", toolUseId = event.id, path = event.path, diffLines = event.diffLines, labelOnly = event.labelOnly)
             }
             is ServerEvent.Compacting -> _state.update { it.copy(compacting = true) }
-            is ServerEvent.Status -> _state.update { it.copy(streamStatus = if (event.kind == "ok") null else event.kind) }
+            is ServerEvent.Status -> {
+                if (!(interrupting && event.kind == "slow")) {
+                    _state.update { it.copy(streamStatus = if (event.kind == "ok") null else event.kind) }
+                }
+            }
             is ServerEvent.Compact -> {
                 currentAssistantId = null
                 currentThinkingId = null
@@ -1056,11 +1072,12 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                     )
                 }
                 resetStreaming()
+                interrupting = false
                 turnFirstResponseId = null
-                sentIds.clear()
                 pumpQueue()
             }
             is ServerEvent.Interrupted -> {
+                interrupting = false
                 currentAssistantId = null
                 currentThinkingId = null
                 turnFirstResponseId = null

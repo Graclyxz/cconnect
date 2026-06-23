@@ -19,6 +19,7 @@ _ASK_ANSWERS_RE = re.compile(r'"([^"]+)"="([^"]*)"')
 
 # Slash-command invocations and their output are stored as user messages.
 _COMMAND_META_RE = re.compile(r"<command-(name|message|args)>|<local-command-stdout>")
+_COMMAND_NAME_RE = re.compile(r"<command-name>\s*([^<]+?)\s*</command-name>")
 # The CLI writes interruption notices as plain user text.
 _INTERRUPT_RE = re.compile(r"^\[Request interrupted by user")
 
@@ -779,7 +780,8 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
             continue
         c = entry.get("message", {}).get("content")
         if isinstance(c, str):
-            _register_user_text(c, real=True)
+            cmd = _COMMAND_NAME_RE.search(c)
+            _register_user_text(cmd.group(1) if cmd else c, real=True)
         elif isinstance(c, list):
             for b in c:
                 if isinstance(b, dict) and b.get("type") == "text":

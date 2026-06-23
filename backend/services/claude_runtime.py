@@ -701,6 +701,10 @@ async def run_prompt(
             elif isinstance(message, ResultMessage):
                 for ev in _flush_users(getattr(message, "session_id", None) or current_sid):
                     yield ev
+                _cmd = [c for c in chips if str(c.get("sent") or "").lstrip().startswith("/")]
+                if _cmd:
+                    chips[:] = [c for c in chips if not str(c.get("sent") or "").lstrip().startswith("/")]
+                    yield {"type": "dequeued", "ids": [c["id"] for c in _cmd if c["id"]], "text": "", "consumed": sum(1 for c in _cmd if c["drained"])}
                 if emit is not None:
                     status_state["pending"].clear()
                 if getattr(message, "is_error", None):
