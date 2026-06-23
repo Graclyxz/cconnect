@@ -393,6 +393,14 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
 
     private fun enqueueOutgoing(text: String, attachments: List<String>) {
         if (text.isEmpty() && attachments.isEmpty()) return
+        if (!_state.value.streaming) {
+            sentIds.clear()
+            optimisticChipId = null
+            optimisticMsgId = null
+            if (_state.value.queue.any { !it.uploading }) {
+                _state.update { it.copy(queue = it.queue.filter { q -> q.uploading }) }
+            }
+        }
         val silent = !_state.value.streaming && _state.value.queue.isEmpty() && sentIds.isEmpty()
         val id = nextOutgoingId()
         _state.update { it.copy(queue = it.queue + QueuedMessage(id, text, attachments = attachments, silent = silent)) }

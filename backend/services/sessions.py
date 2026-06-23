@@ -146,7 +146,16 @@ def tail_user_messages(project_key: str, session_id: str) -> list[dict]:
             entry = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if entry.get("type") != "user" or entry.get("isMeta") or entry.get("isSidechain"):
+        etype = entry.get("type")
+        if etype == "attachment":
+            att = entry.get("attachment") or {}
+            if att.get("type") == "queued_command":
+                au = entry.get("uuid")
+                qtext = _text_from_content(att.get("prompt")).strip()
+                if au and qtext and not _COMMAND_META_RE.search(qtext) and not _INTERRUPT_RE.match(qtext):
+                    out.append({"uuid": au, "text": qtext})
+            continue
+        if etype != "user" or entry.get("isMeta") or entry.get("isSidechain"):
             continue
         u = entry.get("uuid")
         if not u:

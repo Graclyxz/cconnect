@@ -33,6 +33,7 @@ class LiveSession:
         self._lock = asyncio.Lock()  # serialize emit vs. replay so seq order holds
         self._inbox = asyncio.Queue()
         self._queued = []
+        self._inflight = []
         self._seen_ids = set()
         self._unconsumed = 0
         self.turn_start_index = 0
@@ -132,6 +133,7 @@ class LiveSession:
             except ValueError:
                 pass
             self._unconsumed += 1
+            self._inflight.append(item)
             yield item
 
     def already_consumed(self, mid):
@@ -166,6 +168,7 @@ class LiveSession:
                 continue
             carried.append(item)
         self._queued = list(carried)
+        self._inflight = []
         self._unconsumed = 0
         self._worker = asyncio.create_task(self._run(runner_factory))
         for item in carried:
@@ -185,15 +188,34 @@ class LiveSession:
         except asyncio.CancelledError:
             pass
         if worker.cancelled():
+            leftover = [it for it in self._inflight if it.get("id") not in self._seen_ids]
+            self._inflight = []
+            self._unconsumed = 0
+            if leftover:
+                pending = []
+                while not self._inbox.empty():
+                    try:
+                        it = self._inbox.get_nowait()
+                    except asyncio.QueueEmpty:
+                        break
+                    if it is not _CLOSE:
+                        pending.append(it)
+                self._queued = leftover + pending
+                for it in self._queued:
+                    self._inbox.put_nowait(it)
             await self._emit({"type": "interrupted"})
 
     async def _run(self, runner_factory):
         try:
             async for event in runner_factory(self._ask, self._emit):
                 if event.get("type") == "dequeued":
-                    for _id in event.get("ids", []):
+                    ids = event.get("ids", [])
+                    for _id in ids:
                         self._seen_ids.add(_id)
                     self._unconsumed -= event.get("consumed", 0)
+                    if ids:
+                        done = set(ids)
+                        self._inflight = [it for it in self._inflight if it.get("id") not in done]
                 await self._emit(event)
                 if event.get("type") == "result" and not self._queued and self._unconsumed <= 0:
                     self._inbox.put_nowait(_CLOSE)
