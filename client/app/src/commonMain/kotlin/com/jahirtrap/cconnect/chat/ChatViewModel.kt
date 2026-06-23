@@ -560,6 +560,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         currentThinkingId = null
         optimisticChipId = null
         optimisticMsgId = null
+        sentIds.clear()
         _state.update {
             it.copy(
                 messages = emptyList(),
@@ -568,6 +569,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 todos = emptyList(),
                 streaming = false,
                 streamStatus = null,
+                queue = emptyList(),
                 oldestLoadedIndex = null,
                 transcriptLoading = false,
                 transcriptExhausted = false,
@@ -702,6 +704,9 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         nextId = visible.size.toLong()
         currentAssistantId = null
         currentThinkingId = null
+        optimisticChipId = null
+        optimisticMsgId = null
+        sentIds.clear()
         session.path?.let { ctx.cwd = it }
         _state.update {
             it.copy(
@@ -711,6 +716,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 sessionColor = session.color,
                 todos = emptyList(),
                 streaming = false,
+                queue = emptyList(),
                 oldestLoadedIndex = page.startIndex.takeIf { page.items.isNotEmpty() },
                 transcriptLoading = false,
                 transcriptExhausted = !page.hasMore,
@@ -794,10 +800,14 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         nextId = visible.size.toLong()
         currentAssistantId = null
         currentThinkingId = null
+        optimisticChipId = null
+        optimisticMsgId = null
+        sentIds.clear()
         _state.update {
             it.copy(
                 messages = loaded,
                 todos = emptyList(),
+                queue = emptyList(),
                 oldestLoadedIndex = page.startIndex.takeIf { page.items.isNotEmpty() },
                 transcriptLoading = false,
                 transcriptExhausted = !page.hasMore,
@@ -1051,10 +1061,20 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 pumpQueue()
             }
             is ServerEvent.Interrupted -> {
-                resetStreaming()
+                currentAssistantId = null
+                currentThinkingId = null
                 turnFirstResponseId = null
                 dismissPendingInteractions()
                 addMessage(Role.INTERRUPTED, "")
+                val keepWorking = _state.value.queue.isNotEmpty()
+                _state.update {
+                    it.copy(
+                        streaming = keepWorking,
+                        compacting = false,
+                        pendingToolIds = emptySet(),
+                        streamStatus = it.streamStatus?.takeIf { s -> s == "failed" },
+                    )
+                }
                 requeueAfterInterrupt()
             }
             is ServerEvent.Err -> {
