@@ -875,7 +875,6 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         "agent" -> Role.AGENT
         "plan" -> Role.PLAN
         "api_error" -> Role.API_ERROR
-        "error" -> Role.ERROR
         "interrupted" -> Role.INTERRUPTED
         else -> Role.SYSTEM
     }
@@ -1064,7 +1063,6 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                     val idx = st.messages.indexOfLast { it.role == Role.USER }
                     if (idx >= 0) st.copy(messages = st.messages.mapIndexed { i, m -> if (i == idx) m.copy(sendStatus = SendStatus.ERROR) else m }) else st
                 }
-                addMessage(Role.ERROR, event.message)
             }
             is ServerEvent.ApiError -> {
                 currentAssistantId = null
@@ -1205,7 +1203,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 currentSideAssistantId = null
                 _state.update { st ->
                     val sc = st.sideChat ?: return@update st
-                    st.copy(sideChat = sc.copy(streaming = false, messages = sc.messages + ChatMessage(nextId++, Role.ERROR, event.message)))
+                    st.copy(sideChat = sc.copy(streaming = false))
                 }
             }
             else -> {}
@@ -1327,7 +1325,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     }
 
     private fun isResponseRole(role: Role): Boolean =
-        role !in setOf(Role.USER, Role.ERROR, Role.API_ERROR, Role.INTERRUPTED, Role.SUMMARY, Role.SYSTEM)
+        role !in setOf(Role.USER, Role.API_ERROR, Role.INTERRUPTED, Role.SUMMARY, Role.SYSTEM)
 
     private fun applyTailCap(st: ChatUiState): ChatUiState = capFromTail(st, MESSAGE_TAIL_CAP)
 

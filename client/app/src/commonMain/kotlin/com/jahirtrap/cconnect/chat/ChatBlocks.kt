@@ -273,19 +273,6 @@ fun ChatMessageItem(
 
             Role.AGENT -> AgentBlock(message = message, running = running, expanded = expanded, onToggle = onToggle)
 
-            Role.ERROR -> Band(MaterialTheme.colorScheme.errorContainer) {
-                Row(verticalAlignment = Alignment.Top) {
-                    Icon(
-                        Lucide.TriangleAlert,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = 1.dp).size(18.dp),
-                    )
-                    Spacer(Modifier.size(8.dp))
-                    SelectableText(message.text, MaterialTheme.typography.bodyMedium, MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.weight(1f))
-                }
-            }
-
             Role.API_ERROR -> Band(palette.orange.copy(alpha = 0.15f)) {
                 Row(verticalAlignment = Alignment.Top) {
                     Icon(
@@ -350,12 +337,12 @@ fun StickyCollapsibleHeader(message: ChatMessage, onCollapse: () -> Unit, modifi
     }
 }
 
-private fun isNotice(role: Role?): Boolean = role == Role.ERROR || role == Role.API_ERROR || role == Role.INTERRUPTED
+private fun isNotice(role: Role?): Boolean = role == Role.API_ERROR || role == Role.INTERRUPTED
 
 private fun group(role: Role?): Int = when (role) {
     Role.THINKING, Role.WORKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION, Role.FILE_CHANGE, Role.COMPACT, Role.PLAN, Role.AGENT -> 0
     Role.ASSISTANT -> 1
-    Role.USER, Role.ERROR, Role.API_ERROR, Role.INTERRUPTED -> 2
+    Role.USER, Role.API_ERROR, Role.INTERRUPTED -> 2
     else -> 3
 }
 

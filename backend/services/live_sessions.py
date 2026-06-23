@@ -72,7 +72,8 @@ class LiveSession:
         async with self._lock:
             self._seq += 1
             stamped = {**event, "seq": self._seq, "channel": self.channel}
-            self._outbox.append(stamped)
+            if event.get("type") != "command":
+                self._outbox.append(stamped)
             if event.get("type") in ("done", "interrupted"):
                 self._committed_seq = self._seq
             await self._send(stamped)

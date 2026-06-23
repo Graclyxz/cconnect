@@ -711,8 +711,6 @@ async def run_prompt(
                         detail = f"API error {api_status}"
                     if _looks_transient(api_status, detail):
                         yield {"type": "status", "kind": "failed"}
-                    else:
-                        yield {"type": "error", "message": _clean_error_text(detail)}
                 sid = getattr(message, "session_id", None)
                 ctx = None
                 if sid and cwd:
