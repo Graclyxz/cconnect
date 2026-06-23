@@ -137,6 +137,9 @@ class LiveSession:
     def already_consumed(self, mid):
         return bool(mid) and mid in self._seen_ids
 
+    def peek_queued(self):
+        return self._queued[0] if self._queued else None
+
     async def consumed(self, mid):
         if mid:
             self._seen_ids.add(mid)
@@ -181,12 +184,6 @@ class LiveSession:
             await worker
         except asyncio.CancelledError:
             pass
-        self._queued = []
-        while not self._inbox.empty():
-            try:
-                self._inbox.get_nowait()
-            except asyncio.QueueEmpty:
-                break
         if worker.cancelled():
             await self._emit({"type": "interrupted"})
 

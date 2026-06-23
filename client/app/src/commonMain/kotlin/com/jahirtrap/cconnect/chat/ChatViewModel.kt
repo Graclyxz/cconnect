@@ -415,7 +415,6 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
 
     private fun pumpQueue() {
         if (_state.value.connection != ConnectionState.Connected) return
-        if (interrupting) return
         for (q in _state.value.queue) {
             if (q.uploading || q.id in sentIds) continue
             sentIds.add(q.id)
@@ -430,18 +429,6 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     fun removeQueued(id: String) {
         _state.update { it.copy(queue = it.queue.filterNot { q -> q.id == id }) }
         sentIds.remove(id)
-    }
-
-    private fun requeueAfterInterrupt() {
-        _state.update { st ->
-            st.copy(queue = st.queue.map { q ->
-                val newId = nextOutgoingId()
-                if (q.id == optimisticChipId) optimisticChipId = newId
-                q.copy(id = newId)
-            })
-        }
-        sentIds.clear()
-        pumpQueue()
     }
 
     private var uploadJob: Job? = null
@@ -1092,7 +1079,6 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                         streamStatus = it.streamStatus?.takeIf { s -> s == "failed" },
                     )
                 }
-                requeueAfterInterrupt()
             }
             is ServerEvent.Err -> {
                 resetStreaming()

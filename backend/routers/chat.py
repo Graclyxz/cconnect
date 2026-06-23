@@ -144,6 +144,22 @@ def _build_turn_runner(state: _Session, drain, text: str, attachments: list[str]
     return factory
 
 
+async def _start_turn(session, mid, text, attachments):
+    turn_start = 0
+    if session.state.session_id and session.state.cwd:
+        try:
+            turn_start = len(sessions_service.get_session_messages(
+                sessions_service.project_key_for(session.state.cwd), session.state.session_id))
+        except Exception:
+            turn_start = 0
+    if not session.start(_build_turn_runner(session.state, session.drain, text, attachments, seed_id=mid), seed_id=mid):
+        return False
+    session.turn_start_index = turn_start
+    if mid:
+        await session.commit_user(mid, text)
+    return True
+
+
 def _build_side_runner(main_state: _Session, side_state: _Session, question: str, resume_id: str | None):
     """LiveSession runner for one quick-chat turn: runs the isolated side question (with the
     interaction callback for permissions/AskUserQuestion) and records the side SDK session id
@@ -270,20 +286,8 @@ async def chat_ws(ws: WebSocket):
                     await session.enqueue(msg.id, msg.text, msg.attachments)
                 elif msg.id and session.already_consumed(msg.id):
                     await session.consumed(msg.id)
-                else:
-                    turn_start = 0
-                    if session.state.session_id and session.state.cwd:
-                        try:
-                            turn_start = len(sessions_service.get_session_messages(
-                                sessions_service.project_key_for(session.state.cwd), session.state.session_id))
-                        except Exception:
-                            turn_start = 0
-                    if not session.start(_build_turn_runner(session.state, session.drain, msg.text, msg.attachments, seed_id=msg.id), seed_id=msg.id):
-                        await session.enqueue(msg.id, msg.text, msg.attachments)
-                    else:
-                        session.turn_start_index = turn_start
-                        if msg.id:
-                            await session.commit_user(msg.id, msg.text)
+                elif not await _start_turn(session, msg.id, msg.text, msg.attachments):
+                    await session.enqueue(msg.id, msg.text, msg.attachments)
 
             elif mtype == "set_permission_mode":
                 try:
@@ -318,6 +322,10 @@ async def chat_ws(ws: WebSocket):
                 target = side_session if raw.get("lane") == "side" else session
                 if target is not None:
                     await target.interrupt()
+                    if target is session:
+                        item = session.peek_queued()
+                        if item is not None:
+                            await _start_turn(session, item["id"], item["text"], item["attachments"])
 
             elif mtype == "interaction_response":
                 rid = raw.get("id")
