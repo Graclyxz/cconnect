@@ -7,8 +7,8 @@ plugins {
     alias(libs.plugins.compose.multiplatform)
 }
 
-val appVersionName = "1.2.7"
-val appVersionCode = 25
+val appVersionName = "1.3.0"
+val appVersionCode = 26
 
 kotlin {
     compilerOptions {
