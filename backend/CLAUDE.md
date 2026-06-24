@@ -177,6 +177,7 @@ Every REST endpoint returns `core.responses.api_response()` —
 | GET | `/api/claude/memories/file?scope=&name=&project=` | A memory file (text/markdown) |
 | DELETE | `/api/claude/memories` | Delete a memory (also prunes its MEMORY.md index line) |
 | GET | `/api/claude/usage` | Structured plan usage: `plan` ("Max (20x)", from the CLI credentials' subscriptionType + rateLimitTier) + `windows` (id/percent/resets_at per limit window) |
+| GET | `/api/claude/status` | Claude service status from status.claude.com (Statuspage `summary.json`): `indicator` + `components` + active `incidents`; cached 60s |
 | GET | `/api/system` | Resource snapshot: hostname, os, os_id, arch, cpu_name, uptime, cpu (percent/cores), memory, gpu (NVML; null without NVIDIA), disks |
 | GET | `/api/system/logs?after=&limit=` | Server log entries past byte offset `after` (0 = tail window); returns `{items, offset}` |
 | POST | `/api/system/restart` | Replies, then exits with the restart code + flag file; run.py's supervisor relaunches the server |

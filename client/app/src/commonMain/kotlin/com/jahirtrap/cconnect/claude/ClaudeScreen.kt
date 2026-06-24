@@ -43,6 +43,7 @@ import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.composables.icons.lucide.Activity
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.Blocks
 import com.composables.icons.lucide.Brain
@@ -106,6 +107,7 @@ fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: Str
     var projects by remember { mutableStateOf<List<ProjectInfo>>(emptyList()) }
     var editingProjectPrompt by remember { mutableStateOf(false) }
     var usage by remember { mutableStateOf<ClaudeApi.Usage?>(null) }
+    var serviceStatus by remember { mutableStateOf<ClaudeApi.ServiceStatus?>(null) }
     var loaded by remember { mutableStateOf(false) }
     var refreshing by remember { mutableStateOf(false) }
     var envMenu by remember { mutableStateOf(false) }
@@ -123,6 +125,7 @@ fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: Str
         userPrompt = ClaudeApi.userPrompt()
         projects = ChatListStore.forConfig(Backend.snapshot())?.projects?.value ?: emptyList()
         usage = ClaudeApi.usage()
+        serviceStatus = ClaudeApi.status()
         loaded = true
         refreshing = false
     }
@@ -192,6 +195,28 @@ fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: Str
                         .imePadding()
                         .padding(horizontal = 16.dp),
                 ) {
+                    SettingsGroup(
+                        label = stringResource(Res.string.service_status),
+                        labelTrailing = {
+                            val st = serviceStatus
+                            StatusDot(
+                                if (st != null && st.error == null) serviceIndicatorColor(st.indicator) else palette.gray,
+                                box = 20.dp, dot = 12.dp,
+                            )
+                        },
+                    ) {
+                        val st = serviceStatus
+                        DetailLink(
+                            Lucide.Activity,
+                            stringResource(Res.string.service_status),
+                            when {
+                                st == null -> "—"
+                                st.error != null -> stringResource(Res.string.status_unknown)
+                                else -> serviceIndicatorLabel(st.indicator)
+                            },
+                            enabled = serverReady,
+                        ) { detail = ClaudeKind.Status }
+                    }
                     SettingsGroup(stringResource(Res.string.cli)) {
                         PreferenceRow(
                             CustomIcons.Claude,
@@ -571,7 +596,7 @@ fun ClaudeChangelogSheet(cliVersion: String?, onDismiss: () -> Unit) {
                             color = MaterialTheme.colorScheme.primary,
                         )
                         Spacer(Modifier.height(4.dp))
-                        MarkdownText(release.body, modifier = Modifier.fillMaxWidth(), selectable = false)
+                        MarkdownText(release.body, modifier = Modifier.fillMaxWidth(), selectable = true)
                     }
                 }
             }

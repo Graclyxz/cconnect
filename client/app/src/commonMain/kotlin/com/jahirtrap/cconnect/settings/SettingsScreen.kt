@@ -1568,7 +1568,7 @@ private fun ChangelogSheet(onDismiss: () -> Unit) {
                             color = MaterialTheme.colorScheme.primary,
                         )
                         Spacer(Modifier.height(4.dp))
-                        MarkdownText(release.body, modifier = Modifier.fillMaxWidth(), selectable = false)
+                        MarkdownText(release.body, modifier = Modifier.fillMaxWidth(), selectable = true)
                     }
                 }
             }

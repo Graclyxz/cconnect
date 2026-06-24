@@ -36,12 +36,18 @@ import com.jahirtrap.cconnect.ui.ClearFocusOnImeHide
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.composables.icons.lucide.ArrowLeft
 import com.composables.icons.lucide.CirclePlus
+import com.composables.icons.lucide.ExternalLink
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Store
 import com.composables.icons.lucide.X
@@ -51,6 +57,8 @@ import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.chat.ChatViewModel
 import com.jahirtrap.cconnect.chat.LocalChatViewModelFactory
+import com.jahirtrap.cconnect.data.formatDateShort
+import com.jahirtrap.cconnect.data.parseIsoMillis
 import com.jahirtrap.cconnect.data.remote.ClaudeApi
 import com.jahirtrap.cconnect.ui.AppBottomSheet
 import com.jahirtrap.cconnect.ui.AppTopBar
@@ -69,7 +77,7 @@ import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.theme.palette
 import kotlinx.coroutines.launch
 
-enum class ClaudeKind { Plugins, Skills, Mcp, Marketplaces, Memories }
+enum class ClaudeKind { Plugins, Skills, Mcp, Marketplaces, Memories, Status }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -81,6 +89,7 @@ fun ClaudeDetailScreen(
     val vm: ChatViewModel = viewModel(factory = LocalChatViewModelFactory.current)
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
+    val uriHandler = LocalUriHandler.current
     ClearFocusOnImeHide()
 
     var extensions by remember { mutableStateOf<ClaudeApi.Extensions?>(null) }
@@ -92,6 +101,7 @@ fun ClaudeDetailScreen(
     var mcpServers by remember { mutableStateOf<List<ClaudeApi.McpServer>?>(null) }
     var memories by remember { mutableStateOf<ClaudeApi.Memories?>(null) }
     var memoriesProject by remember { mutableStateOf<String?>(null) }
+    var serviceStatus by remember { mutableStateOf<ClaudeApi.ServiceStatus?>(null) }
     var loaded by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var actionError by remember { mutableStateOf<String?>(null) }
@@ -115,6 +125,7 @@ fun ClaudeDetailScreen(
             ClaudeKind.Skills -> skills = ClaudeApi.skills()
             ClaudeKind.Mcp -> mcpServers = ClaudeApi.mcp()
             ClaudeKind.Memories -> memories = ClaudeApi.memories(memoriesProject)
+            ClaudeKind.Status -> serviceStatus = ClaudeApi.status()
         }
         loaded = true
     }
@@ -160,6 +171,7 @@ fun ClaudeDetailScreen(
         ClaudeKind.Mcp -> stringResource(Res.string.mcp_servers)
         ClaudeKind.Marketplaces -> stringResource(Res.string.marketplaces)
         ClaudeKind.Memories -> stringResource(Res.string.memories)
+        ClaudeKind.Status -> stringResource(Res.string.service_status)
     }
 
     Scaffold(
@@ -185,6 +197,10 @@ fun ClaudeDetailScreen(
                         ClaudeKind.Mcp -> TooltipIconButton(label = stringResource(Res.string.add), onClick = { addingMcp = true }) {
                             Icon(Lucide.CirclePlus, contentDescription = null)
                         }
+                        ClaudeKind.Status -> TooltipIconButton(
+                            label = stringResource(Res.string.status_open_page),
+                            onClick = { uriHandler.openUri("https://status.claude.com") },
+                        ) { Icon(Lucide.ExternalLink, contentDescription = null) }
                         else -> {}
                     }
                 },
@@ -285,6 +301,114 @@ fun ClaudeDetailScreen(
                                         }
                                     },
                                 )
+                            }
+                        }
+                        ClaudeKind.Status -> {
+                            val st = serviceStatus
+                            if (st == null || st.error != null) {
+                                item { EmptyState(stringResource(Res.string.status_unknown), Modifier.fillParentMaxSize()) }
+                            } else {
+                                item {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        StatusDot(serviceIndicatorColor(st.indicator), box = 18.dp, dot = 12.dp)
+                                        Spacer(Modifier.width(12.dp))
+                                        Text(
+                                            serviceIndicatorLabel(st.indicator),
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                        )
+                                    }
+                                }
+                                items(st.components, key = { it.name }) { component ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            component.name,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        Text(
+                                            componentStatusLabel(component.status),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        Spacer(Modifier.width(10.dp))
+                                        StatusDot(componentStatusColor(component.status), box = 16.dp, dot = 10.dp)
+                                    }
+                                }
+                                item {
+                                    Text(
+                                        stringResource(Res.string.status_incidents),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp),
+                                    )
+                                }
+                                if (st.incidents.isEmpty()) {
+                                    item {
+                                        Text(
+                                            stringResource(Res.string.status_no_incidents),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                        )
+                                    }
+                                } else {
+                                    items(st.incidents) { incident ->
+                                        val color = serviceIndicatorColor(incident.impact)
+                                        val statusLabel = if (incident.status.isNotBlank()) incidentStatusLabel(incident.status) else null
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .then(if (incident.shortlink != null) Modifier.clickable { incident.shortlink?.let(uriHandler::openUri) } else Modifier)
+                                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                StatusDot(color, box = 14.dp, dot = 9.dp)
+                                                Spacer(Modifier.width(8.dp))
+                                                Text(
+                                                    incident.name,
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    color = MaterialTheme.colorScheme.onSurface,
+                                                    modifier = Modifier.weight(1f),
+                                                )
+                                            }
+                                            incident.latest?.let { body ->
+                                                Spacer(Modifier.height(4.dp))
+                                                Text(
+                                                    buildAnnotatedString {
+                                                        if (statusLabel != null) {
+                                                            withStyle(SpanStyle(color = color, fontWeight = FontWeight.Bold)) { append(statusLabel) }
+                                                            append(" • ")
+                                                        }
+                                                        append(body)
+                                                    },
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 4,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                )
+                                            }
+                                            incident.updatedAt?.let { iso ->
+                                                parseIsoMillis(iso)?.let { millis ->
+                                                    Spacer(Modifier.height(2.dp))
+                                                    Text(
+                                                        formatDateShort(millis),
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                item { Spacer(Modifier.height(16.dp)) }
                             }
                         }
                     }

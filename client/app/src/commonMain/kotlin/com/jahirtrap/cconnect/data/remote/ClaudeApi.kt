@@ -70,6 +70,52 @@ object ClaudeApi {
         )
     }
 
+    data class ServiceComponent(val name: String, val status: String)
+
+    data class ServiceIncident(
+        val name: String,
+        val impact: String,
+        val status: String,
+        val latest: String?,
+        val updatedAt: String?,
+        val shortlink: String?,
+    )
+
+    data class ServiceStatus(
+        val indicator: String,
+        val description: String,
+        val components: List<ServiceComponent>,
+        val incidents: List<ServiceIncident>,
+        val error: String?,
+    )
+
+    suspend fun status(): ServiceStatus? {
+        val o = Http.get("/claude/status")?.jsonObject ?: return null
+        return ServiceStatus(
+            indicator = o["indicator"]?.jsonPrimitive?.contentOrNull ?: "none",
+            description = o["description"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+            components = o["components"]?.jsonArray?.mapNotNull { el ->
+                val c = el.jsonObject
+                ServiceComponent(
+                    name = c["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                    status = c["status"]?.jsonPrimitive?.contentOrNull ?: "operational",
+                )
+            }.orEmpty(),
+            incidents = o["incidents"]?.jsonArray?.mapNotNull { el ->
+                val i = el.jsonObject
+                ServiceIncident(
+                    name = i["name"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null,
+                    impact = i["impact"]?.jsonPrimitive?.contentOrNull ?: "none",
+                    status = i["status"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    latest = i["latest"]?.jsonPrimitive?.contentOrNull,
+                    updatedAt = i["updated_at"]?.jsonPrimitive?.contentOrNull,
+                    shortlink = i["shortlink"]?.jsonPrimitive?.contentOrNull,
+                )
+            }.orEmpty(),
+            error = o["error"]?.jsonPrimitive?.contentOrNull,
+        )
+    }
+
     suspend fun userPrompt(): String? =
         Http.get("/claude/prompt")?.jsonObject?.get("text")?.jsonPrimitive?.contentOrNull
 

@@ -88,7 +88,6 @@ import com.composables.icons.lucide.MessagesSquare
 import com.composables.icons.lucide.Paperclip
 import com.composables.icons.lucide.PanelLeftOpen
 import com.composables.icons.lucide.PanelRightOpen
-import com.composables.icons.lucide.RotateCw
 import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Slash
 import com.composables.icons.lucide.Sparkles
@@ -648,8 +647,6 @@ fun ChatScreen(
                                                     }
                                                 },
                                             ) {
-                                                val statusKind = state.streamStatus
-                                                val hasTrailing = (statusKind != null && !(state.compacting && statusKind == "slow")) || state.compacting
                                                 itemsIndexed(state.messages, key = { _, it -> it.id }) { index, message ->
                                                     val ts = message.timestamp
                                                     var separated = false
@@ -668,7 +665,7 @@ fun ChatScreen(
                                                     ChatMessageItem(
                                                         message,
                                                         prevRole = state.messages.getOrNull(index - 1)?.role,
-                                                        nextRole = state.messages.getOrNull(index + 1)?.role ?: if (hasTrailing) Role.SYSTEM else null,
+                                                        nextRole = state.messages.getOrNull(index + 1)?.role,
                                                         running = running,
                                                         expanded = expandedState[message.id] ?: false,
                                                         onToggle = { expandedState[message.id] = !(expandedState[message.id] ?: false) },

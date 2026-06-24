@@ -357,7 +357,11 @@ internal fun gapAbove(prev: Role?, cur: Role): Dp {
     if (prev == cur) return 0.dp
     if (isNotice(cur) || isNotice(prev)) {
         val other = if (isNotice(cur)) prev else cur
-        return if (other == Role.USER || other == Role.ASSISTANT) 0.dp else SMALL
+        return when (other) {
+            Role.ASSISTANT -> BIG
+            Role.USER -> 0.dp
+            else -> SMALL
+        }
     }
     val a = group(prev)
     val b = group(cur)
