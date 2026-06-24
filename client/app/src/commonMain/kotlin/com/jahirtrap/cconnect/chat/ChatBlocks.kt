@@ -134,6 +134,9 @@ private fun userContent(message: ChatMessage): UserContent {
             val url = SharedApi.downloadUrl("uploads/$name")
             if (previewKindOf(name) == PreviewKind.Image) media += url to name else files += url to name
         }
+        body = body.lineSequence().filterNot {
+            it.startsWith("@") && (it.contains("shared/uploads/") || it.contains("shared\\uploads\\"))
+        }.joinToString("\n")
     } else if (body.contains('@')) {
         val imgRefs = message.images.orEmpty()
         var imgIdx = 0
