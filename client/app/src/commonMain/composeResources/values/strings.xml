@@ -49,6 +49,7 @@
     <string name="ssh_closed">Disconnected</string>
     <string name="ssh_failed">Failed: %1$s</string>
     <string name="connection_error">Connection error</string>
+    <string name="file_unavailable">File unavailable</string>
     <string name="delete_environment_confirm">Delete the environment \"%1$s\"?</string>
     <string name="no_environments">No environments yet</string>
     <string name="cli">Claude CLI</string>

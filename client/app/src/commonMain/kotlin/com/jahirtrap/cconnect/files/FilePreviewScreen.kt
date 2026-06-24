@@ -58,6 +58,7 @@ import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.remote.SharedApi
+import com.jahirtrap.cconnect.data.remote.UrlCodec
 import com.jahirtrap.cconnect.data.remote.SharedWatchSocket
 import com.jahirtrap.cconnect.data.remote.fetchSharedText
 import com.jahirtrap.cconnect.ui.AppTopBar
@@ -197,14 +198,18 @@ fun FilePreviewScreen(
         },
     ) { padding ->
         when {
-            kind == PreviewKind.Image -> ImagePreview(if (version > 0) "$url?cb=$version" else url, Modifier.fillMaxSize().padding(padding))
+            kind == PreviewKind.Image -> {
+                val imgBase = url.substringBefore("?fb=")
+                val imgFallback = url.substringAfter("?fb=", "").takeIf { it.isNotEmpty() }?.let { UrlCodec.decode(it) }
+                ImagePreview(if (version > 0) "$imgBase?cb=$version" else imgBase, imgFallback, Modifier.fillMaxSize().padding(padding))
+            }
             kind == PreviewKind.Html -> HtmlPreview(
                 url = url,
                 filename = filename,
                 onOpenExternally = { scope.launch { openSharedExternally(url, filename) } },
                 modifier = Modifier.fillMaxSize().padding(padding),
             )
-            failed -> EmptyState(stringResource(Res.string.connection_error), Modifier.fillMaxSize().padding(padding))
+            failed -> EmptyState(stringResource(Res.string.file_unavailable), Modifier.fillMaxSize().padding(padding))
             text == null -> CenteredProgress(Modifier.fillMaxSize().padding(padding))
             else -> Column(
                 modifier = Modifier
@@ -230,11 +235,14 @@ fun FilePreviewScreen(
 }
 
 @Composable
-private fun ImagePreview(url: String, modifier: Modifier = Modifier) {
+private fun ImagePreview(url: String, fallbackUrl: String? = null, modifier: Modifier = Modifier) {
     val context = LocalPlatformContext.current
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var imageState by remember { mutableStateOf<AsyncImagePainter.State>(AsyncImagePainter.State.Empty) }
+    var useFallback by remember(url) { mutableStateOf(false) }
+    var failedFinal by remember(url) { mutableStateOf(false) }
+    val model = if (useFallback && fallbackUrl != null) fallbackUrl else url
     val transformState = rememberTransformableState { zoomChange, panChange, _ ->
         scale = (scale * zoomChange).coerceIn(1f, 6f)
         offset = if (scale > 1f) offset + panChange else Offset.Zero
@@ -256,11 +264,18 @@ private fun ImagePreview(url: String, modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center,
     ) {
         AsyncImage(
-            model = url,
+            model = model,
             imageLoader = AppImageLoader.get(context),
             contentDescription = null,
             contentScale = ContentScale.Fit,
-            onState = { imageState = it },
+            onState = {
+                imageState = it
+                when (it) {
+                    is AsyncImagePainter.State.Error -> if (fallbackUrl != null && !useFallback) useFallback = true else failedFinal = true
+                    is AsyncImagePainter.State.Success -> failedFinal = false
+                    else -> {}
+                }
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
@@ -270,9 +285,9 @@ private fun ImagePreview(url: String, modifier: Modifier = Modifier) {
                     translationY = offset.y
                 },
         )
-        when (imageState) {
-            is AsyncImagePainter.State.Error -> EmptyState(stringResource(Res.string.connection_error), Modifier.fillMaxSize())
-            is AsyncImagePainter.State.Success -> Unit
+        when {
+            failedFinal -> EmptyState(stringResource(Res.string.file_unavailable), Modifier.fillMaxSize())
+            imageState is AsyncImagePainter.State.Success -> Unit
             else -> CenteredProgress(Modifier.fillMaxSize())
         }
     }

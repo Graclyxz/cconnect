@@ -1,6 +1,6 @@
-"""Composes composer attachments into the prompt, mirroring the CLI's native forms:
-images become embedded base64 blocks with an ``[Image #N]`` marker, every file gets
-an ``@``-mention of its absolute host path."""
+"""Composes composer attachments into the prompt: every attachment gets an ``@``-mention
+of its absolute host path; images additionally become embedded base64 blocks so the model
+can see them."""
 
 import base64
 import io
@@ -52,8 +52,6 @@ def compose_prompt(text: str, relpaths: list[str]) -> tuple[str, list[dict]]:
                     "type": "image",
                     "source": {"type": "base64", "media_type": media, "data": data},
                 })
-                body = f"{body}[Image #{len(images)}]"
-                continue
         mentions.append(f"@{path}")
     prompt = body
     if mentions:

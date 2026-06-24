@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.sp
 import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.data.remote.SharedApi
+import com.jahirtrap.cconnect.data.remote.UrlCodec
 import com.jahirtrap.cconnect.files.PreviewKind
 import com.jahirtrap.cconnect.files.isArchive
 import com.jahirtrap.cconnect.files.previewKindOf
@@ -132,27 +133,25 @@ private fun userContent(message: ChatMessage): UserContent {
             val url = SharedApi.downloadUrl("uploads/$name")
             if (previewKindOf(name) == PreviewKind.Image) media += url to name else files += url to name
         }
-    } else {
-        val imageNames = mutableListOf<String>()
-        if (body.contains('@')) {
-            body = body.lines().filter { line ->
-                val mentionLine = line.startsWith("@") &&
-                    (line.contains("shared/uploads/") || line.contains("shared\\uploads\\"))
-                if (mentionLine) {
-                    line.split(" @").forEach { raw ->
-                        val name = raw.removePrefix("@").substringAfterLast('/').substringAfterLast('\\')
-                        if (previewKindOf(name) == PreviewKind.Image) imageNames += name
-                        else files += SharedApi.downloadUrl("uploads/$name") to name
-                    }
+    } else if (body.contains('@')) {
+        val imgRefs = message.images.orEmpty()
+        var imgIdx = 0
+        body = body.lines().filter { line ->
+            val mentionLine = line.startsWith("@") &&
+                (line.contains("shared/uploads/") || line.contains("shared\\uploads\\"))
+            if (mentionLine) {
+                line.split(" @").forEach { raw ->
+                    val name = raw.removePrefix("@").substringAfterLast('/').substringAfterLast('\\')
+                    val url = SharedApi.downloadUrl("uploads/$name")
+                    if (previewKindOf(name) == PreviewKind.Image) {
+                        val fb = imgRefs.getOrNull(imgIdx)?.let { "?fb=${UrlCodec.encode(it)}" } ?: ""
+                        imgIdx++
+                        media += (url + fb) to name
+                    } else files += url to name
                 }
-                !mentionLine
-            }.joinToString("\n")
-        }
-        message.images?.forEachIndexed { i, url ->
-            media += url to (imageNames.getOrNull(i) ?: "image-${i + 1}.png")
-        }
-        val unembedded = if (message.images == null) imageNames else imageNames.drop(message.images.size)
-        unembedded.forEach { files += SharedApi.downloadUrl("uploads/$it") to it }
+            }
+            !mentionLine
+        }.joinToString("\n")
     }
 
     body = body.replace(IMAGE_MARKER_REGEX, "").trim()

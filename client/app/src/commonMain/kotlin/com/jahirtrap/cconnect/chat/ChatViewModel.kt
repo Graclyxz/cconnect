@@ -328,9 +328,6 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
             return
         }
         if (current.uploadingAttachments) return
-        val id = nextOutgoingId()
-        val placeholders = current.attachments.map { "uploads/${it.name}" }
-        _state.update { it.copy(queue = it.queue + QueuedMessage(id, trimmed, attachments = placeholders, uploading = true)) }
         uploadJob = viewModelScope.launch {
             _state.update { it.copy(uploadingAttachments = true) }
             try {
@@ -351,28 +348,20 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                                 attachments = it.attachments.map { a -> a.copy(progress = 0f) },
                                 error = getString(Res.string.connection_error),
                                 pendingInput = trimmed.ifEmpty { null },
-                                queue = it.queue.filterNot { q -> q.id == id },
                             )
                         }
                         return@launch
                     }
                     saved += rel
                 }
-                _state.update {
-                    it.copy(
-                        attachments = emptyList(),
-                        uploadingAttachments = false,
-                        queue = it.queue.map { q -> if (q.id == id) q.copy(attachments = saved, uploading = false) else q },
-                    )
-                }
-                pumpQueue()
+                _state.update { it.copy(attachments = emptyList(), uploadingAttachments = false) }
+                enqueueOutgoing(trimmed, saved)
             } catch (e: CancellationException) {
                 _state.update {
                     it.copy(
                         uploadingAttachments = false,
                         attachments = it.attachments.map { a -> a.copy(progress = 0f) },
                         pendingInput = trimmed.ifEmpty { null },
-                        queue = it.queue.filterNot { q -> q.id == id },
                     )
                 }
                 throw e
@@ -383,7 +372,6 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                         attachments = it.attachments.map { a -> a.copy(progress = 0f) },
                         error = getString(Res.string.connection_error),
                         pendingInput = trimmed.ifEmpty { null },
-                        queue = it.queue.filterNot { q -> q.id == id },
                     )
                 }
             } finally {
@@ -410,16 +398,16 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         val silent = !_state.value.streaming && _state.value.queue.isEmpty() && sentIds.isEmpty()
         val id = nextOutgoingId()
         _state.update { it.copy(queue = it.queue + QueuedMessage(id, text, attachments = attachments, silent = silent)) }
-        if (silent && attachments.isEmpty() && text.isNotEmpty()) {
+        if (silent && (text.isNotEmpty() || attachments.isNotEmpty())) {
             val compacting = text == "/compact" || text.startsWith("/compact ")
             currentAssistantId = null
             currentThinkingId = null
             _state.update { st -> resetToInitialWindow(st).copy(streaming = true, compacting = compacting, streamStatus = null, error = null) }
-            val isCommand = _state.value.capabilities.commands.any { text == "/${it.name}" || text.startsWith("/${it.name} ") }
+            val isCommand = attachments.isEmpty() && _state.value.capabilities.commands.any { text == "/${it.name}" || text.startsWith("/${it.name} ") }
             if (isCommand) {
                 if (!compacting) addMessage(Role.USER, text, ephemeral = true)
             } else {
-                addMessage(Role.USER, text)
+                addMessage(Role.USER, text, attachments = attachments.map { it.removePrefix("uploads/") }.ifEmpty { null })
                 optimisticChipId = id
                 optimisticMsgId = _state.value.messages.lastOrNull()?.id
             }
@@ -1177,7 +1165,9 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 val ids = event.ids.toSet()
                 val opt = optimisticChipId
                 val reconcile = opt != null && opt in ids
-                if (text.isNotEmpty()) {
+                val atts = _state.value.queue.filter { it.id in ids }
+                    .flatMap { it.attachments }.map { it.removePrefix("uploads/") }.distinct().ifEmpty { null }
+                if (text.isNotEmpty() || atts != null) {
                     val compacting = text == "/compact" || text.startsWith("/compact ")
                     val mid = optimisticMsgId
                     if (reconcile && mid != null) {
@@ -1188,7 +1178,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                         if (!_state.value.streaming) {
                             _state.update { st -> resetToInitialWindow(st).copy(streaming = true, compacting = compacting, streamStatus = null, error = null) }
                         }
-                        if (!compacting) addMessage(Role.USER, text)
+                        if (!compacting) addMessage(Role.USER, text, attachments = atts)
                     }
                 }
                 if (reconcile) {

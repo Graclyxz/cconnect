@@ -49,6 +49,7 @@
     <string name="ssh_closed">Desconectado</string>
     <string name="ssh_failed">Falló: %1$s</string>
     <string name="connection_error">Error de conexión</string>
+    <string name="file_unavailable">Archivo no disponible</string>
     <string name="delete_environment_confirm">¿Eliminar el entorno «%1$s»?</string>
     <string name="no_environments">Sin entornos aún</string>
     <string name="cli">CLI de Claude</string>
