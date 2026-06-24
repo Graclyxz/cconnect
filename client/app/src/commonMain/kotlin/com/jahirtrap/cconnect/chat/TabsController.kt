@@ -133,7 +133,7 @@ object TabsController {
             if (tab.color != null) { tab.color = null; changed = true }
         } else {
             if (title != null && tab.title != title) { tab.title = title; changed = true }
-            if (color != null && tab.color != color) { tab.color = color; changed = true }
+            if (tab.color != color) { tab.color = color; changed = true }
         }
         if (changed) persist()
     }

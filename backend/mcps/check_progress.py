@@ -8,7 +8,8 @@ from claude_agent_sdk import tool
 from loguru import logger
 
 from core.config import AI_WORKDIR
-from services.sessions import _iter_lines, _project_dir, _session_file, list_all_sessions, list_projects
+from services.chat_list import hub
+from services.sessions import _iter_lines, _project_dir, _session_file
 
 
 def _resolve_target(reference: str) -> Optional[tuple[str, Optional[str]]]:
@@ -16,7 +17,7 @@ def _resolve_target(reference: str) -> Optional[tuple[str, Optional[str]]]:
     ref = (reference or "").strip()
     if not ref:
         return None
-    projects = list_projects()
+    projects = hub.projects()
     for p in projects:
         if p.get("project_key") == ref:
             return (p["project_key"], None)
@@ -26,7 +27,7 @@ def _resolve_target(reference: str) -> Optional[tuple[str, Optional[str]]]:
         if path and needle in path:
             return (p["project_key"], None)
     matches = [
-        s for s in list_all_sessions()
+        s for s in hub.sessions()
         if needle in (s.get("title") or "").lower()
     ]
     if matches:

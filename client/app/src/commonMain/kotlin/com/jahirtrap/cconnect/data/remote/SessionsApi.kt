@@ -10,6 +10,7 @@ import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.SessionMessage
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
@@ -23,38 +24,24 @@ import kotlinx.serialization.json.put
 
 object SessionsApi {
 
-    suspend fun projects(): List<ProjectInfo> =
-        Http.get("/projects")?.jsonArray?.map { el ->
-            val o = el.jsonObject
-            ProjectInfo(
-                projectKey = o["project_key"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                path = o["path"]?.jsonPrimitive?.contentOrNull,
-                name = o["name"]?.jsonPrimitive?.contentOrNull,
-                sessionCount = o["session_count"]?.jsonPrimitive?.intOrNull ?: 0,
-                lastActive = o["last_active"]?.jsonPrimitive?.doubleOrNull,
-            )
-        } ?: emptyList()
+    fun parseProject(o: JsonObject): ProjectInfo = ProjectInfo(
+        projectKey = o["project_key"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+        path = o["path"]?.jsonPrimitive?.contentOrNull,
+        name = o["name"]?.jsonPrimitive?.contentOrNull,
+        sessionCount = o["session_count"]?.jsonPrimitive?.intOrNull ?: 0,
+        lastActive = o["last_active"]?.jsonPrimitive?.doubleOrNull,
+    )
 
-    // null project => all conversations across projects.
-    suspend fun sessions(project: String? = null): List<SessionInfo> {
-        val query = project?.let { mapOf("project" to it) } ?: emptyMap()
-        return parseSessions(Http.get("/sessions", query))
-    }
-
-    private fun parseSessions(data: JsonElement?): List<SessionInfo> =
-        data?.jsonArray?.map { el ->
-            val o = el.jsonObject
-            SessionInfo(
-                sessionId = o["session_id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                projectKey = o["project_key"]?.jsonPrimitive?.contentOrNull,
-                path = o["path"]?.jsonPrimitive?.contentOrNull,
-                lastActive = o["last_active"]?.jsonPrimitive?.doubleOrNull,
-                size = o["size"]?.jsonPrimitive?.longOrNull ?: 0L,
-                preview = o["preview"]?.jsonPrimitive?.contentOrNull,
-                title = o["title"]?.jsonPrimitive?.contentOrNull,
-                color = o["color"]?.jsonPrimitive?.contentOrNull,
-            )
-        } ?: emptyList()
+    fun parseSession(o: JsonObject): SessionInfo = SessionInfo(
+        sessionId = o["session_id"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+        projectKey = o["project_key"]?.jsonPrimitive?.contentOrNull,
+        path = o["path"]?.jsonPrimitive?.contentOrNull,
+        lastActive = o["last_active"]?.jsonPrimitive?.doubleOrNull,
+        size = o["size"]?.jsonPrimitive?.longOrNull ?: 0L,
+        preview = o["preview"]?.jsonPrimitive?.contentOrNull,
+        title = o["title"]?.jsonPrimitive?.contentOrNull,
+        color = o["color"]?.jsonPrimitive?.contentOrNull,
+    )
 
     data class MessagesPage(
         val items: List<SessionMessage>,

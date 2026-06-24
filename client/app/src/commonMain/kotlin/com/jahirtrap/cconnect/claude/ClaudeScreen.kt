@@ -66,7 +66,7 @@ import com.jahirtrap.cconnect.data.remote.Backend
 import com.jahirtrap.cconnect.data.remote.ClaudeApi
 import com.jahirtrap.cconnect.data.remote.CliApi
 import com.jahirtrap.cconnect.data.remote.GitHubApi
-import com.jahirtrap.cconnect.data.remote.SessionsApi
+import com.jahirtrap.cconnect.data.ChatListStore
 import com.jahirtrap.cconnect.data.ProjectInfo
 import com.jahirtrap.cconnect.settings.PreferenceRow
 import com.jahirtrap.cconnect.settings.SettingsGroup
@@ -121,7 +121,7 @@ fun ClaudeScreen(onClose: () -> Unit, onOpenPreview: (url: String, filename: Str
         skills = ClaudeApi.skills()
         mcpServers = ClaudeApi.mcp()
         userPrompt = ClaudeApi.userPrompt()
-        projects = SessionsApi.projects()
+        projects = ChatListStore.forConfig(Backend.snapshot())?.projects?.value ?: emptyList()
         usage = ClaudeApi.usage()
         loaded = true
         refreshing = false

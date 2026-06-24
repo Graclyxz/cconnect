@@ -28,7 +28,10 @@ async def lifespan(app: FastAPI):
     system_monitor.setup_log_capture()
     ensure_subscription_auth()
     await ensure_sdk_installed()
+    from services import chat_list
+    await chat_list.hub.start()
     yield
+    chat_list.hub.stop()
 
 
 app = FastAPI(

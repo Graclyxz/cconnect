@@ -1,7 +1,5 @@
 """Browse Claude Code projects and session transcripts."""
 
-from typing import Optional
-
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -72,24 +70,6 @@ def set_session_color(session_id: str, body: ColorBody):
     if not updated:
         raise HTTPException(status_code=404, detail="session not found")
     return api_response(message="updated")
-
-
-@router.get("/projects")
-def get_projects():
-    return api_response(data=sessions_service.list_projects())
-
-
-@router.get("/sessions")
-def get_sessions(project: Optional[str] = None):
-    try:
-        items = (
-            sessions_service.list_sessions(project)
-            if project
-            else sessions_service.list_all_sessions()
-        )
-        return api_response(data=items)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
 
 
 class RewindPreviewBody(BaseModel):

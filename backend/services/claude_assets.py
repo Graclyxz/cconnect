@@ -230,8 +230,8 @@ def marketplace_catalog(name: str) -> list[dict]:
 
 
 def _project_path(project_key: str) -> Path | None:
-    from services import sessions
-    for project in sessions.list_projects():
+    from services.chat_list import hub
+    for project in hub.projects():
         if project.get("project_key") == project_key and project.get("path"):
             return Path(project["path"])
     return None

@@ -109,7 +109,6 @@ import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CustomIcons
 import com.jahirtrap.cconnect.ui.DropdownScrim
 import com.jahirtrap.cconnect.ui.EmptyState
-import com.jahirtrap.cconnect.ui.LocalRefreshTick
 import com.jahirtrap.cconnect.ui.Claude
 import com.jahirtrap.cconnect.ui.StatusDot
 import com.jahirtrap.cconnect.ui.Stop
@@ -135,7 +134,6 @@ import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.Scaffold
-import com.jahirtrap.cconnect.ui.AppPullToRefresh
 import com.jahirtrap.cconnect.ui.BackInterceptor
 import com.jahirtrap.cconnect.ui.ClearFocusOnImeHide
 import com.jahirtrap.cconnect.ui.LocalIsTouch
@@ -341,9 +339,6 @@ fun ChatScreen(
     LaunchedEffect(tabLabel, tabColor, state.streaming, state.sessionId, state.activeProjectKey) {
         TabsController.updateActive(tabLabel, tabColor, state.streaming, state.sessionId, state.activeProjectKey)
     }
-    val refreshTick = LocalRefreshTick.current
-    LaunchedEffect(refreshTick) { if (refreshTick > 0) vm.loadHistory() }
-
     val tabIndex = remember { TabsController.tabs.indexOfFirst { it.id == TabsController.activeId } }
     val chatLoc = remember { readChatLocation() }
     var hadSession by remember { mutableStateOf(false) }
@@ -427,7 +422,6 @@ fun ChatScreen(
                     if (mobile) ChatPanelContent(
                         state = state,
                         vm = vm,
-                        showRefresh = !isTouch,
                         onClose = if (isTouch) null else ({ scope.launch { drawerState.close() } }),
                         drawerMode = true,
                         onAfterSelect = { scope.launch { drawerState.close() } },
@@ -465,7 +459,6 @@ fun ChatScreen(
                                     ChatPanelContent(
                                         state = state,
                                         vm = vm,
-                                        showRefresh = !isTouch,
                                         onClose = { onExpandedChange(false) },
                                         drawerMode = false,
                                         onAfterSelect = {},
@@ -1256,7 +1249,6 @@ private fun SidePanel(
 private fun ColumnScope.ChatPanelContent(
     state: ChatUiState,
     vm: ChatViewModel,
-    showRefresh: Boolean,
     onClose: (() -> Unit)?,
     drawerMode: Boolean,
     onAfterSelect: () -> Unit,
@@ -1297,42 +1289,32 @@ private fun ColumnScope.ChatPanelContent(
             onSelect = vm::selectHistoryProject,
             modifier = Modifier.weight(1f),
         )
-        if (showRefresh) {
-            TooltipIconButton(label = stringResource(Res.string.refresh), onClick = { vm.loadHistory() }) {
-                Icon(Lucide.RotateCw, contentDescription = null)
-            }
-        }
     }
     val drawerListState = rememberLazyListState()
     LaunchedEffect(state.historySessions.size) {
         if (state.historySessions.isNotEmpty()) drawerListState.scrollToItem(0)
     }
-    AppPullToRefresh(
-        isRefreshing = state.historyLoading,
-        onRefresh = { vm.loadHistory() },
+    LazyColumn(
+        state = drawerListState,
         modifier = Modifier.weight(1f).fillMaxWidth(),
+        contentPadding = PaddingValues(vertical = 6.dp),
     ) {
-        LazyColumn(
-            state = drawerListState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(vertical = 6.dp),
-        ) {
-            when {
-                state.historySessions.isNotEmpty() -> items(state.historySessions, key = { it.sessionId }) { s ->
-                    ConversationRow(
-                        title = s.title ?: s.preview ?: s.sessionId.take(8),
-                        selected = s.sessionId == state.sessionId,
-                        onOpen = { vm.openSession(s); onAfterSelect() },
-                        onRename = { onRename(s) },
-                        onAutoRename = { vm.autoRenameSession(s) },
-                        onColor = { onColor(s) },
-                        onOpenNewTab = { s.projectKey?.let { pk -> TabsController.openSessionTab(TabsController.active.ctx.environmentId, s.path.orEmpty(), s.sessionId, pk, s.title ?: s.preview, s.color); onAfterSelect() } },
-                        onDelete = { onDelete(s) },
-                    )
-                }
-
-                !state.historyLoading -> item { EmptyState(stringResource(Res.string.no_chats), Modifier.fillParentMaxSize()) }
+        when {
+            state.historySessions.isNotEmpty() -> items(state.historySessions, key = { it.sessionId }) { s ->
+                ConversationRow(
+                    title = s.title ?: s.preview ?: s.sessionId.take(8),
+                    selected = s.sessionId == state.sessionId,
+                    onOpen = { vm.openSession(s); onAfterSelect() },
+                    onRename = { onRename(s) },
+                    onAutoRename = { vm.autoRenameSession(s) },
+                    onColor = { onColor(s) },
+                    onOpenNewTab = { s.projectKey?.let { pk -> TabsController.openSessionTab(TabsController.active.ctx.environmentId, s.path.orEmpty(), s.sessionId, pk, s.title ?: s.preview, s.color); onAfterSelect() } },
+                    onDelete = { onDelete(s) },
+                )
             }
+
+            state.historyLoading -> item { CenteredProgress(Modifier.fillParentMaxSize()) }
+            else -> item { EmptyState(stringResource(Res.string.no_chats), Modifier.fillParentMaxSize()) }
         }
     }
     Row(

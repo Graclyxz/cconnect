@@ -148,8 +148,6 @@ Every REST endpoint returns `core.responses.api_response()` —
 | POST | `/api/settings/reset` | Restore settings to defaults |
 | GET / POST | `/api/cli` | Read / set the active Claude CLI (system, bundled, or custom path) |
 | POST | `/api/cli/update` | Update the bundled/system CLI (invalidates the version cache) |
-| GET | `/api/projects` | Claude Code projects under `~/.claude/projects` (each carries `path` + display `name` = last path segment) |
-| GET | `/api/sessions?project=<key>` | Sessions in a project (or all when omitted) |
 | GET | `/api/sessions/{id}/messages?project=<key>&limit=200&before_index=N` | Cursor-based transcript slice. Without `before_index` returns the most recent `limit` items. Each item carries its `index`; clients pass the smallest index they have to pull the slice before it. Response: `{items, total, start_index, has_more}`. |
 | GET | `/api/sessions/{id}/checkpoints` | Rewind points (one per user prompt on the active branch) |
 | POST | `/api/sessions/{id}/rewind/preview` | Dry-run: `{can_rewind, files_changed, insertions, deletions}` |
@@ -183,6 +181,7 @@ Every REST endpoint returns `core.responses.api_response()` —
 | GET | `/api/system/logs?after=&limit=` | Server log entries past byte offset `after` (0 = tail window); returns `{items, offset}` |
 | POST | `/api/system/restart` | Replies, then exits with the restart code + flag file; run.py's supervisor relaunches the server |
 | WS | `/api/system/ws` | Live monitor stream (what the app uses): pushes `{type:"system",...}` every 2s and `{type:"logs",items}` as entries land (server-side 0.5s file tail). Bearer checked on handshake via `middleware.public_auth.ws_bearer_ok` (shared with chat). |
+| WS | `/api/list/ws` | Live chat/project list (`services/chat_list.py`): sends `{type:"snapshot", projects, sessions}` on connect, then per-item deltas (`session_changed`/`session_removed`/`project_changed`/`project_removed`) as the projects dir changes — including external CLI edits. A `watchdog` watcher (polling fallback) debounces, re-scans (reusing cached metadata for unchanged files) and diffs against an in-memory snapshot, so the app loads the list once and stays fresh without re-fetching. Bearer checked via `ws_bearer_ok`. |
 
 ## WebSocket protocol (`/api/chat/ws`)
 

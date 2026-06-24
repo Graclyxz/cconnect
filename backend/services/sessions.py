@@ -239,68 +239,6 @@ def _project_name(path: str | None) -> str | None:
     return path.replace("\\", "/").rstrip("/").rsplit("/", 1)[-1] or None
 
 
-def list_projects() -> list[dict]:
-    base = _base()
-    if not base.is_dir():
-        return []
-    projects = []
-    for directory in base.iterdir():
-        if not directory.is_dir() or directory.name == _AI_PROJECT_KEY:
-            continue
-        sessions = sorted(directory.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
-        path = _read_cwd(sessions[0]) if sessions else None
-        projects.append({
-            "project_key": directory.name,
-            "path": path,
-            "name": _project_name(path),
-            "session_count": len(sessions),
-            "last_active": sessions[0].stat().st_mtime if sessions else None,
-        })
-    projects.sort(key=lambda p: p["last_active"] or 0, reverse=True)
-    return projects
-
-
-def _sessions_from_files(files: list[tuple[Path, str]]) -> list[dict]:
-    files = sorted(files, key=lambda t: t[0].stat().st_mtime, reverse=True)
-    items: list[dict] = []
-    for file, project_key in files:
-        stat = file.stat()
-        cwd, preview, title, color, entrypoint, has_content = _session_meta(file)
-        if entrypoint != "cli" or (not has_content and not title):
-            continue
-        items.append({
-            "session_id": file.stem,
-            "project_key": project_key,
-            "path": cwd,
-            "last_active": stat.st_mtime,
-            "size": stat.st_size,
-            "preview": preview,
-            "title": title,
-            "color": color,
-        })
-    return items
-
-
-def list_sessions(project_key: str) -> list[dict]:
-    directory = _project_dir(project_key)
-    if not directory.is_dir():
-        return []
-    files = [(file, project_key) for file in directory.glob("*.jsonl")]
-    return _sessions_from_files(files)
-
-
-def list_all_sessions() -> list[dict]:
-    base = _base()
-    if not base.is_dir():
-        return []
-    files = [
-        (file, directory.name)
-        for directory in base.iterdir() if directory.is_dir() and directory.name != _AI_PROJECT_KEY
-        for file in directory.glob("*.jsonl")
-    ]
-    return _sessions_from_files(files)
-
-
 def rename_session(project_key: str, session_id: str, title: str) -> bool:
     """Set the session's display title (the `custom-title`/`agent-name` entries the
     CLI uses), so it shows renamed in the picker and the app history."""

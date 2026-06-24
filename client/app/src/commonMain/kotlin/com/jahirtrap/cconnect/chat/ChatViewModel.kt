@@ -18,6 +18,7 @@ import com.jahirtrap.cconnect.resources.plan
 import com.jahirtrap.cconnect.data.AppCompat
 import com.jahirtrap.cconnect.data.AppUpdater
 import com.jahirtrap.cconnect.data.Capabilities
+import com.jahirtrap.cconnect.data.ChatListStore
 import com.jahirtrap.cconnect.data.ChatMessage
 import com.jahirtrap.cconnect.data.QueuedMessage
 import com.jahirtrap.cconnect.data.SendStatus
@@ -52,6 +53,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.getString
@@ -70,7 +72,7 @@ data class SideChatState(
 )
 
 data class ChatUiState(
-    val connection: ConnectionState = ConnectionState.Disconnected,
+    val connection: ConnectionState = ConnectionState.Connecting,
     val messages: List<ChatMessage> = emptyList(),
     val streaming: Boolean = false,
     val permissionMode: String = "bypassPermissions",
@@ -91,7 +93,7 @@ data class ChatUiState(
     val historyProjects: List<ProjectInfo> = emptyList(),
     val historySessions: List<SessionInfo> = emptyList(),
     val historyProjectKey: String? = null,
-    val historyLoading: Boolean = false,
+    val historyLoading: Boolean = true,
     val environments: List<EnvironmentProfile> = emptyList(),
     val activeEnvironmentId: String? = null,
     val oldestLoadedIndex: Int? = null,
@@ -142,6 +144,8 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
 
     private fun baseUrl(): String = activeEnv()?.toBackendConfig()?.baseUrl ?: Backend.baseUrl
 
+    private fun listConfig() = activeEnv()?.toBackendConfig() ?: Backend.snapshot()
+
     // Generation settings (model/effort/permission/streaming) are backend-owned
     private val _state = MutableStateFlow(
         Capabilities().defaults.let { d ->
@@ -168,7 +172,8 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     private var interrupting = false
     private var turnFirstResponseId: Long? = null
     private var currentSideAssistantId: Long? = null
-    private var historyJob: Job? = null
+    private var connectInvoked = false
+    private var historyJobs: List<Job> = emptyList()
     private var historyLoaded = false
     private var defaultProjectApplied = false
     private var initialConsumed = false
@@ -209,7 +214,8 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
 
     fun connect() {
         if (activeEnv() == null) return
-        if (_state.value.connection != ConnectionState.Disconnected) return
+        if (connectInvoked && _state.value.connection != ConnectionState.Disconnected) return
+        connectInvoked = true
         _state.update { it.copy(connection = ConnectionState.Connecting, error = null) }
         if (!releaseChecked) {
             releaseChecked = true
@@ -532,7 +538,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         val sid = _state.value.sessionId ?: return
         val proj = _state.value.activeProjectKey ?: return
         viewModelScope.launch { SessionsApi.deleteSession(sid, proj) }
-        _state.update { it.copy(historySessions = it.historySessions.filterNot { s -> s.sessionId == sid }) }
+        ChatListStore.forConfig(listConfig())?.removeSession(sid)
     }
 
     fun setPermissionMode(mode: String) {
@@ -613,6 +619,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 historyProjects = emptyList(),
                 historySessions = emptyList(),
                 historyProjectKey = null,
+                historyLoading = true,
                 oldestLoadedIndex = null,
                 transcriptLoading = false,
                 transcriptExhausted = false,
@@ -627,47 +634,64 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         if (!historyLoaded) loadHistory()
     }
 
-    fun loadHistory() {
-        historyJob?.cancel()
-        historyLoaded = true
-        historyJob = viewModelScope.launch {
-            _state.update { it.copy(historyLoading = true) }
-            val projects = SessionsApi.projects()
-            val dir = activeEnv()?.directory.orEmpty()
-            var finalProjects = projects
-            var selectedKey = _state.value.historyProjectKey
-            if (dir.isNotBlank()) {
-                val targetKey = dir.replace(Regex("[^A-Za-z0-9]"), "-")
-                val existing = projects.firstOrNull { it.projectKey == targetKey || it.path == dir }
-                if (existing == null) finalProjects = listOf(ProjectInfo(targetKey, dir, null, 0, null)) + projects
-                if (!defaultProjectApplied) {
-                    defaultProjectApplied = true
-                    selectedKey = existing?.projectKey ?: targetKey
+    private fun observeHistory() {
+        historyJobs.forEach { it.cancel() }
+        val backend = ChatListStore.forConfig(listConfig()) ?: run { historyJobs = emptyList(); return }
+        historyJobs = listOf(
+            viewModelScope.launch {
+                combine(backend.projects, backend.sessions, backend.loading) { p, s, l -> Triple(p, s, l) }.collect { (p, s, l) ->
+                    val key = _state.value.historyProjectKey
+                    _state.update {
+                        it.copy(
+                            historyProjects = withDefaultProject(p),
+                            historySessions = if (key == null) s else s.filter { x -> x.projectKey == key },
+                            historyLoading = l,
+                        )
+                    }
                 }
-            } else if (!defaultProjectApplied) {
-                defaultProjectApplied = true
-                selectedKey = null
+            },
+        )
+    }
+
+    private fun withDefaultProject(projects: List<ProjectInfo>): List<ProjectInfo> {
+        val dir = activeEnv()?.directory.orEmpty()
+        if (dir.isBlank()) return projects
+        val targetKey = dir.replace(Regex("[^A-Za-z0-9]"), "-")
+        return if (projects.any { it.projectKey == targetKey || it.path == dir }) projects
+        else listOf(ProjectInfo(targetKey, dir, null, 0, null)) + projects
+    }
+
+    private fun applyStoreSessions(all: List<SessionInfo>) {
+        val key = _state.value.historyProjectKey
+        _state.update { it.copy(historySessions = if (key == null) all else all.filter { s -> s.projectKey == key }) }
+    }
+
+    fun loadHistory() {
+        historyLoaded = true
+        if (!defaultProjectApplied) {
+            defaultProjectApplied = true
+            val dir = activeEnv()?.directory.orEmpty()
+            val selectedKey = if (dir.isBlank()) null else {
+                val targetKey = dir.replace(Regex("[^A-Za-z0-9]"), "-")
+                ChatListStore.forConfig(listConfig())?.projects?.value
+                    ?.firstOrNull { it.projectKey == targetKey || it.path == dir }?.projectKey ?: targetKey
             }
-            val sessions = SessionsApi.sessions(selectedKey)
-            _state.update { it.copy(historyProjects = finalProjects, historyProjectKey = selectedKey, historySessions = sessions, historyLoading = false) }
+            _state.update { it.copy(historyProjectKey = selectedKey) }
         }
+        observeHistory()
     }
 
     fun selectHistoryProject(projectKey: String?) {
-        _state.update { it.copy(historyProjectKey = projectKey, historySessions = emptyList()) }
+        _state.update { it.copy(historyProjectKey = projectKey) }
         if (projectKey != null) {
             _state.value.historyProjects.firstOrNull { it.projectKey == projectKey }?.path?.let { ctx.cwd = it }
         }
-        loadHistory()
+        ChatListStore.forConfig(listConfig())?.let { applyStoreSessions(it.sessions.value) }
     }
 
     fun restoreSession(sessionId: String, projectKey: String) {
         if (_state.value.sessionId == sessionId) return
-        viewModelScope.launch {
-            val info = SessionsApi.sessions(projectKey).firstOrNull { it.sessionId == sessionId }
-                ?: SessionInfo(sessionId, projectKey, null, null, 0L, null, null, null)
-            openSession(info)
-        }
+        openSession(sessionInfoFor(sessionId, projectKey))
     }
 
     fun openSession(session: SessionInfo) {
@@ -678,8 +702,8 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         }
     }
 
-    private suspend fun sessionInfoFor(sessionId: String, projectKey: String?): SessionInfo =
-        SessionsApi.sessions(projectKey.orEmpty()).firstOrNull { it.sessionId == sessionId }
+    private fun sessionInfoFor(sessionId: String, projectKey: String?): SessionInfo =
+        ChatListStore.forConfig(listConfig())?.sessions?.value?.firstOrNull { it.sessionId == sessionId }
             ?: SessionInfo(sessionId, projectKey, null, null, 0L, null, null, null)
 
     private fun nestAgents(flat: List<Pair<ChatMessage, String?>>): List<ChatMessage> {
@@ -827,9 +851,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         val projectKey = session.projectKey ?: return
         viewModelScope.launch {
             if (SessionsApi.deleteSession(session.sessionId, projectKey)) {
-                _state.update {
-                    it.copy(historySessions = it.historySessions.filterNot { s -> s.sessionId == session.sessionId })
-                }
+                ChatListStore.forConfig(listConfig())?.removeSession(session.sessionId)
                 if (session.sessionId == _state.value.sessionId) newSession()
             }
         }
@@ -859,19 +881,17 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
         val projectKey = session.projectKey ?: return
         viewModelScope.launch {
             if (SessionsApi.setSessionColor(session.sessionId, projectKey, color.orEmpty())) {
-                _state.update { s ->
-                    s.copy(
-                        historySessions = s.historySessions.map { if (it.sessionId == session.sessionId) it.copy(color = color) else it },
-                        sessionColor = if (s.sessionId == session.sessionId) color else s.sessionColor,
-                    )
+                ChatListStore.forConfig(listConfig())?.let { b ->
+                    b.sessions.value.firstOrNull { it.sessionId == session.sessionId }?.let { b.upsertSession(it.copy(color = color)) }
                 }
+                _state.update { s -> s.copy(sessionColor = if (s.sessionId == session.sessionId) color else s.sessionColor) }
             }
         }
     }
 
     private fun updateHistoryTitle(sessionId: String, title: String) {
-        _state.update {
-            it.copy(historySessions = it.historySessions.map { s -> if (s.sessionId == sessionId) s.copy(title = title) else s })
+        ChatListStore.forConfig(listConfig())?.let { b ->
+            b.sessions.value.firstOrNull { it.sessionId == sessionId }?.let { b.upsertSession(it.copy(title = title)) }
         }
     }
 
@@ -1037,25 +1057,25 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 currentAssistantId = null
                 currentThinkingId = null
                 turnFirstResponseId = null
-                _state.update { st ->
-                val sid = event.sessionId ?: st.sessionId
-                val ctxTokens = event.contextTokens ?: st.contextTokens
-                if (sid != null && st.historySessions.none { it.sessionId == sid }) {
-                    val row = SessionInfo(
-                        sessionId = sid,
-                        projectKey = st.activeProjectKey,
-                        path = ctx.cwd,
-                        lastActive = nowMillis() / 1000.0,
-                        size = 0L,
-                        preview = st.messages.firstOrNull { it.role == Role.USER }?.text?.take(120),
-                        title = null,
-                        color = st.sessionColor,
+                val st0 = _state.value
+                val sid = event.sessionId ?: st0.sessionId
+                val ctxTokens = event.contextTokens ?: st0.contextTokens
+                val backend = ChatListStore.forConfig(listConfig())
+                if (sid != null && backend != null && backend.sessions.value.none { it.sessionId == sid }) {
+                    backend.upsertSession(
+                        SessionInfo(
+                            sessionId = sid,
+                            projectKey = st0.activeProjectKey,
+                            path = ctx.cwd,
+                            lastActive = nowMillis() / 1000.0,
+                            size = 0L,
+                            preview = st0.messages.firstOrNull { it.role == Role.USER }?.text?.take(120),
+                            title = null,
+                            color = st0.sessionColor,
+                        )
                     )
-                    st.copy(sessionId = sid, historySessions = listOf(row) + st.historySessions, sideChat = st.sideChat.promote(sid), contextTokens = ctxTokens)
-                } else {
-                    st.copy(sessionId = sid, sideChat = st.sideChat.promote(sid), contextTokens = ctxTokens)
                 }
-                }
+                _state.update { it.copy(sessionId = sid, sideChat = it.sideChat.promote(sid), contextTokens = ctxTokens) }
             }
             is ServerEvent.Done -> {
                 if (_state.value.streaming && settings.notifyTaskDone) {
