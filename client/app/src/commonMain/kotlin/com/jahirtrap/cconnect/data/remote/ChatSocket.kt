@@ -283,6 +283,7 @@ class ChatSocket(private val scope: CoroutineScope, private val config: () -> Ba
             "ask_done" -> ServerEvent.AskDone
             "command" -> ServerEvent.Command(str("markdown").orEmpty())
             "plan" -> ServerEvent.Plan(str("markdown").orEmpty())
+            "notification" -> ServerEvent.Notification(str("text").orEmpty(), str("result"))
             "queued" -> ServerEvent.Queued(str("id"), str("text").orEmpty())
             "dequeued" -> ServerEvent.Dequeued(
                 obj["ids"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: emptyList(),

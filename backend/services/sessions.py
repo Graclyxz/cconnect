@@ -695,6 +695,17 @@ def _subagent_blocks(sub_file: Path, parent_id: Optional[str], vis: dict) -> lis
     return out
 
 
+def _notification_item(text: str) -> dict | None:
+    if not text.startswith("<task-notification>"):
+        return None
+
+    def _tag(name: str) -> str | None:
+        m = re.search(rf"<{name}>(.*?)</{name}>", text, re.DOTALL)
+        return m.group(1).strip() if m else None
+
+    return {"type": "notification", "text": _tag("summary") or "", "result": _tag("status")}
+
+
 def get_session_messages(project_key: str, session_id: str) -> list[dict]:
     file = _session_file(project_key, session_id)
     if not file.is_file():
@@ -825,7 +836,10 @@ def get_session_messages(project_key: str, session_id: str) -> list[dict]:
                 continue
         if isinstance(content, str):
             text = content.strip()
-            if text and not _COMMAND_META_RE.search(text) and not _INTERRUPT_RE.match(text):
+            notif = _notification_item(text)
+            if notif is not None:
+                messages.append(notif)
+            elif text and not _COMMAND_META_RE.search(text) and not _INTERRUPT_RE.match(text):
                 messages.append({"type": "text", "role": role, "text": text})
             continue
         if not isinstance(content, list):

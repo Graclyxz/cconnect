@@ -81,6 +81,7 @@ import com.composables.icons.lucide.CornerDownRight
 import com.composables.icons.lucide.File
 import com.composables.icons.lucide.FilePen
 import com.composables.icons.lucide.FolderArchive
+import com.composables.icons.lucide.Bell
 import com.composables.icons.lucide.Bot
 import com.composables.icons.lucide.Calendar
 import com.composables.icons.lucide.Check
@@ -301,6 +302,8 @@ fun ChatMessageItem(
             Role.SYSTEM -> Plain {
                 SelectableText(message.text, MaterialTheme.typography.bodySmall, MaterialTheme.colorScheme.onSurfaceVariant)
             }
+
+            Role.NOTIFICATION -> NotificationBlock(message.text)
         }
     }
 }
@@ -339,7 +342,7 @@ fun StickyCollapsibleHeader(message: ChatMessage, onCollapse: () -> Unit, modifi
 private fun isNotice(role: Role?): Boolean = role == Role.API_ERROR || role == Role.INTERRUPTED
 
 private fun group(role: Role?): Int = when (role) {
-    Role.THINKING, Role.WORKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION, Role.FILE_CHANGE, Role.COMPACT, Role.PLAN, Role.AGENT -> 0
+    Role.THINKING, Role.WORKING, Role.TOOL, Role.TOOL_RESULT, Role.INTERACTION, Role.FILE_CHANGE, Role.COMPACT, Role.PLAN, Role.AGENT, Role.NOTIFICATION -> 0
     Role.ASSISTANT -> 1
     Role.USER, Role.API_ERROR, Role.INTERRUPTED -> 2
     else -> 3
@@ -620,6 +623,34 @@ private fun ToolBlock(name: String?, input: String, result: String? = null, runn
                 CodeBlock(result, MaterialTheme.colorScheme.surfaceContainerHigh, stringResource(Res.string.result))
             }
         }
+    }
+}
+
+@Composable
+private fun NotificationBlock(summary: String) {
+    val label = stringResource(Res.string.notification)
+    val accent = MaterialTheme.colorScheme.primary
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    val header = buildAnnotatedString {
+        withStyle(SpanStyle(color = accent)) { append(label) }
+        if (summary.isNotBlank()) {
+            append("  ")
+            withStyle(SpanStyle(color = muted)) { append(summary) }
+        }
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Lucide.Bell, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.size(6.dp))
+        Text(
+            text = header,
+            style = MaterialTheme.typography.labelLarge,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
     }
 }
 

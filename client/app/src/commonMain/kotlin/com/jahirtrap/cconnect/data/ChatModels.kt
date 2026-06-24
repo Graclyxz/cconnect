@@ -1,6 +1,6 @@
 package com.jahirtrap.cconnect.data
 
-enum class Role { USER, ASSISTANT, THINKING, WORKING, TOOL, TOOL_RESULT, SUMMARY, INTERACTION, FILE_CHANGE, COMPACT, SYSTEM, API_ERROR, INTERRUPTED, PLAN, AGENT }
+enum class Role { USER, ASSISTANT, THINKING, WORKING, TOOL, TOOL_RESULT, SUMMARY, INTERACTION, FILE_CHANGE, COMPACT, SYSTEM, API_ERROR, INTERRUPTED, PLAN, AGENT, NOTIFICATION }
 
 enum class SendStatus { SENT, ERROR }
 
@@ -137,6 +137,7 @@ sealed interface ServerEvent {
     data class Command(val markdown: String) : ServerEvent
     data class Plan(val markdown: String) : ServerEvent
     data class Agent(val id: String?, val subagentType: String?, val description: String?, val labelOnly: Boolean) : ServerEvent
+    data class Notification(val summary: String, val status: String?) : ServerEvent
     data class Todos(val items: List<TodoItem>) : ServerEvent
     data class Task(val id: String, val content: String?, val status: String?) : ServerEvent
     data class Result(val sessionId: String?, val contextTokens: Int? = null) : ServerEvent

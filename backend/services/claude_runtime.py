@@ -539,7 +539,7 @@ async def run_prompt(
             pass
 
     def _flush_users(sid: str | None) -> list[dict]:
-        if drain is None or not sid or not cwd or not chips:
+        if drain is None or not sid or not cwd:
             return []
         try:
             from services import sessions as _q
@@ -551,8 +551,15 @@ async def run_prompt(
             uid = u["uuid"]
             if uid in seen_users:
                 continue
-            seen_users.add(uid)
             text = u["text"]
+            notif = _q._notification_item(text)
+            if notif is not None:
+                seen_users.add(uid)
+                events.append(notif)
+                continue
+            if not chips:
+                continue
+            seen_users.add(uid)
             matched = None
             acc = ""
             for i, c in enumerate(chips):

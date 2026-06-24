@@ -891,6 +891,7 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
     private fun SessionMessage.toRole(): Role = when (type) {
         "text" -> if (role == "assistant") Role.ASSISTANT else Role.USER
         "thinking" -> Role.THINKING
+        "notification" -> Role.NOTIFICATION
         "tool_use" -> Role.TOOL
         "tool_result" -> Role.TOOL_RESULT
         "file_change" -> Role.FILE_CHANGE
@@ -979,6 +980,11 @@ class ChatViewModel(private val ctx: TabContext) : ViewModel() {
                 currentAssistantId = null
                 currentThinkingId = null
                 addMessage(Role.PLAN, event.markdown)
+            }
+            is ServerEvent.Notification -> {
+                currentAssistantId = null
+                currentThinkingId = null
+                addMessage(Role.NOTIFICATION, event.summary, result = event.status)
             }
             is ServerEvent.Agent -> {
                 currentAssistantId = null
