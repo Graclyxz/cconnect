@@ -6,7 +6,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -31,12 +36,15 @@ fun AppTopBar(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     subtitleLeading: (@Composable () -> Unit)? = null,
+    fullWidth: Boolean = true,
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit = {},
 ) {
+    val barSides = if (fullWidth) WindowInsetsSides.Horizontal + WindowInsetsSides.Top else WindowInsetsSides.End
     TopAppBar(
         modifier = modifier,
         expandedHeight = 56.dp,
+        windowInsets = TopAppBarDefaults.windowInsets.union(WindowInsets.displayCutout).only(barSides),
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.background,
             scrolledContainerColor = MaterialTheme.colorScheme.background,

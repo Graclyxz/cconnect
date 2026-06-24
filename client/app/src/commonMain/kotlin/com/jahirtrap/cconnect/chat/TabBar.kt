@@ -63,6 +63,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
@@ -140,6 +141,7 @@ fun TabStrip() {
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
+            .statusBarsPadding()
             .horizontalScrollbar(scroll, touchIndicator = false, wheelScroll = true)
             .horizontalScroll(scroll)
             .padding(horizontal = 4.dp, vertical = 6.dp),
@@ -331,26 +333,26 @@ private fun TabSwitcherSheet(onDismiss: () -> Unit) {
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TooltipIconButton(label = stringResource(Res.string.back), size = 32.dp, onClick = onDismiss) {
-                        Icon(Lucide.X, contentDescription = null, modifier = Modifier.size(18.dp))
+                    TooltipIconButton(label = stringResource(Res.string.back), onClick = onDismiss) {
+                        Icon(Lucide.X, contentDescription = null, modifier = Modifier.size(24.dp))
                     }
                     Text(
                         stringResource(Res.string.tabs),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.weight(1f).padding(start = 6.dp),
                     )
-                    TooltipIconButton(label = stringResource(Res.string.new_tab), size = 32.dp, onClick = { TabsController.newTab(); onDismiss() }) {
-                        Icon(Lucide.Plus, contentDescription = null, modifier = Modifier.size(18.dp))
+                    TooltipIconButton(label = stringResource(Res.string.new_tab), onClick = { TabsController.newTab(); onDismiss() }) {
+                        Icon(Lucide.Plus, contentDescription = null, modifier = Modifier.size(24.dp))
                     }
                 }
                 Column(
                     modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     tabs.chunked(2).forEach { rowTabs ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
                         ) {
                             rowTabs.forEach { tab ->
                                 val weightMod = Modifier.weight(1f)
@@ -460,7 +462,7 @@ private fun TabCard(
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(if (active) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            .background(if (active) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent)
             .border(
                 if (active) 1.5.dp else 1.dp,
                 if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
@@ -468,7 +470,7 @@ private fun TabCard(
             )
             .clickable(onClick = onClick)
             .pointerHoverIcon(PointerIcon.Hand)
-            .heightIn(min = 38.dp)
+            .heightIn(min = 40.dp)
             .padding(start = 10.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -479,14 +481,14 @@ private fun TabCard(
             style = MaterialTheme.typography.labelLarge,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
         Box(
-            modifier = Modifier.size(20.dp).clip(CircleShape).clickable(onClick = onClose).pointerHoverIcon(PointerIcon.Hand),
+            modifier = Modifier.size(28.dp).clip(CircleShape).clickable(onClick = onClose).pointerHoverIcon(PointerIcon.Hand),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Lucide.X, contentDescription = stringResource(Res.string.close_tab), modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(Lucide.X, contentDescription = stringResource(Res.string.close_tab), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

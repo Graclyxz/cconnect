@@ -44,8 +44,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -441,11 +448,19 @@ fun ChatScreen(
                 Row(modifier = Modifier.fillMaxSize()) {
                     if (!mobile) {
                         val sidebarWidth by animateDpAsState(if (expanded) 300.dp else 64.dp, label = "sidebar")
+                        val sidebarInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
+                            .only(WindowInsetsSides.Start + WindowInsetsSides.Vertical)
+                        val sidebarStart = with(LocalDensity.current) {
+                            sidebarInsets.getLeft(this, LocalLayoutDirection.current).toDp()
+                        }
                         Surface(
                             color = MaterialTheme.colorScheme.surface,
-                            modifier = Modifier.fillMaxHeight().width(sidebarWidth),
+                            modifier = Modifier.fillMaxHeight().width(sidebarWidth + sidebarStart),
                         ) {
-                            Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Column(
+                                modifier = Modifier.fillMaxSize().windowInsetsPadding(sidebarInsets),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                            ) {
                                 if (expanded) {
                                     ChatPanelContent(
                                         state = state,
@@ -498,6 +513,7 @@ fun ChatScreen(
                     }
                     Box(modifier = Modifier.weight(1f)) {
                         Scaffold(
+                            contentWindowInsets = WindowInsets.systemBars.only(WindowInsetsSides.End + WindowInsetsSides.Vertical),
                             snackbarHost = {
                                 Column(
                                     modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
@@ -545,6 +561,7 @@ fun ChatScreen(
                                     title = stringResource(Res.string.app_name),
                                     subtitle = statusText,
                                     subtitleLeading = statusLeading,
+                                    fullWidth = mobile,
                                     navigationIcon = {
                                         if (mobile) TooltipIconButton(label = stringResource(Res.string.menu), onClick = { scope.launch { drawerState.open() } }) {
                                             Icon(Lucide.Menu, contentDescription = null)
@@ -615,7 +632,7 @@ fun ChatScreen(
                                 }
                             }
                             Column(
-                                modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).navigationBarsPadding().imePadding()
+                                modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.End + WindowInsetsSides.Bottom)).imePadding()
                                 .fileDropTarget(enabled = !sideActive, onDragChange = { dropOver = it }) { vm.addAttachments(it) }
                                 .then(if (dropOver) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)) else Modifier),
                             ) {

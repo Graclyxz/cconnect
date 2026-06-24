@@ -1,6 +1,8 @@
 package com.jahirtrap.cconnect.files
 
+import android.app.DownloadManager
 import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -20,7 +22,7 @@ import java.io.OutputStream
 private val client = OkHttpClient()
 
 actual suspend fun downloadShared(url: String, filename: String): Boolean =
-    saveToDownloads(url, filename)
+    enqueueToDownloads(url, filename)
 
 var androidSaveAs: (suspend (filename: String) -> Uri?)? = null
 
@@ -32,9 +34,8 @@ actual suspend fun saveSharedAs(url: String, filename: String): Boolean {
 actual suspend fun openSharedExternally(url: String, filename: String): Boolean =
     openExternally(url, filename)
 
-actual suspend fun saveAllShared(items: List<Pair<String, String>>): Boolean = withContext(Dispatchers.IO) {
-    items.all { (url, filename) -> saveToDownloads(url, filename) }
-}
+actual suspend fun saveAllShared(items: List<Pair<String, String>>): Boolean =
+    items.all { (url, filename) -> enqueueToDownloads(url, filename) }
 
 actual suspend fun openAllSharedExternally(items: List<Pair<String, String>>): Boolean = withContext(Dispatchers.IO) {
     runCatching {
@@ -60,15 +61,19 @@ actual suspend fun openAllSharedExternally(items: List<Pair<String, String>>): B
     }.getOrDefault(false)
 }
 
-private suspend fun saveToDownloads(url: String, filename: String): Boolean = withContext(Dispatchers.IO) {
-    runCatching {
-        client.newCall(authorizedRequest(url)).execute().use { resp ->
-            val body = resp.body ?: return@use false
-            if (!resp.isSuccessful) return@use false
-            writeToDownloads(filename) { out -> body.byteStream().copyTo(out) }
-        }
-    }.getOrDefault(false)
-}
+private fun enqueueToDownloads(url: String, filename: String): Boolean = runCatching {
+    val request = DownloadManager.Request(Uri.parse(url))
+        .setTitle(filename)
+        .setMimeType(mimeOf(filename))
+        .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+        .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename)
+    if (url.startsWith(Backend.baseUrl)) {
+        Backend.authHeaders.forEach { (name, value) -> request.addRequestHeader(name, value) }
+    }
+    val manager = appContext.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+    manager.enqueue(request)
+    true
+}.getOrDefault(false)
 
 private fun writeToDownloads(filename: String, copy: (OutputStream) -> Unit): Boolean {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
