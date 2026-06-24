@@ -1,5 +1,6 @@
 package com.jahirtrap.cconnect.chat
 
+import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,7 +19,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -52,12 +52,26 @@ import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.X
 import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
-import com.jahirtrap.cconnect.ui.CompactDropdownItem
 import com.jahirtrap.cconnect.ui.TooltipIconButton
 import com.jahirtrap.cconnect.ui.horizontalScrollbar
 import com.jahirtrap.cconnect.ui.theme.sessionColorOf
 import kotlin.math.abs
 import org.jetbrains.compose.resources.stringResource
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Surface
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.jahirtrap.cconnect.ui.LocalIsTouch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -257,51 +271,222 @@ private fun TabChip(
 fun TabSwitcher() {
     var open by remember { mutableStateOf(false) }
     val tabs = TabsController.tabs
+    TooltipIconButton(label = stringResource(Res.string.tabs), onClick = { open = true }) {
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .border(1.5.dp, LocalContentColor.current, RoundedCornerShape(6.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("${tabs.size}", style = MaterialTheme.typography.labelMedium, color = LocalContentColor.current)
+        }
+    }
+    if (open) TabSwitcherSheet(onDismiss = { open = false })
+}
+
+@Composable
+private fun TabSwitcherSheet(onDismiss: () -> Unit) {
+    val tabs = TabsController.tabs
     val activeId = TabsController.activeId
-    Box {
-        TooltipIconButton(label = stringResource(Res.string.tabs), onClick = { open = true }) {
-            Box(
-                modifier = Modifier
-                    .size(22.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .border(1.5.dp, LocalContentColor.current, RoundedCornerShape(6.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("${tabs.size}", style = MaterialTheme.typography.labelMedium, color = LocalContentColor.current)
+    val isTouch = LocalIsTouch.current
+    val centers = remember { mutableStateMapOf<String, Offset>() }
+    var draggingId by remember { mutableStateOf<String?>(null) }
+    var dragOffset by remember { mutableStateOf(Offset.Zero) }
+    var dragTarget by remember { mutableStateOf(-1) }
+    val draggingFrom = draggingId?.let { id -> tabs.indexOfFirst { it.id == id } } ?: -1
+    var releaseReq by remember { mutableStateOf<Pair<String, Int>?>(null) }
+    LaunchedEffect(releaseReq) {
+        val req = releaseReq ?: return@LaunchedEffect
+        val id = req.first
+        val to = req.second
+        val from = tabs.indexOfFirst { it.id == id }
+        val gridFrom = centers[id]
+        val gridTo = tabs.getOrNull(to)?.id?.let { centers[it] }
+        if (from in tabs.indices && gridFrom != null && gridTo != null) {
+            val start = dragOffset
+            val target = gridTo - gridFrom
+            var elapsed = 0f
+            var last = 0L
+            while (elapsed < 140f) {
+                withFrameNanos { now ->
+                    if (last != 0L) elapsed += (now - last) / 1_000_000f
+                    last = now
+                }
+                val t = (elapsed / 140f).coerceIn(0f, 1f)
+                val e = 1f - (1f - t) * (1f - t)
+                dragOffset = Offset(start.x + (target.x - start.x) * e, start.y + (target.y - start.y) * e)
             }
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            tabs.forEach { tab ->
-                key(tab.id) {
-                    CompactDropdownItem(
-                        text = tab.title ?: stringResource(Res.string.new_chat),
-                        selected = tab.id == activeId,
-                        leadingIcon = {
-                            val c = sessionColorOf(tab.color) ?: MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                            Box(Modifier.size(10.dp).clip(CircleShape).background(c))
-                        },
-                        trailing = {
-                            Box(
-                                modifier = Modifier.size(22.dp).clip(CircleShape).clickable { TabsController.closeTab(tab.id) }.pointerHoverIcon(PointerIcon.Hand),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(
-                                    Lucide.X,
-                                    contentDescription = stringResource(Res.string.close_tab),
-                                    modifier = Modifier.size(15.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        },
-                        onClick = { TabsController.selectTab(tab.id); open = false },
+        if (from in tabs.indices) TabsController.moveTab(id, to)
+        draggingId = null
+        dragOffset = Offset.Zero
+        dragTarget = -1
+        releaseReq = null
+    }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+            Column(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TooltipIconButton(label = stringResource(Res.string.back), size = 32.dp, onClick = onDismiss) {
+                        Icon(Lucide.X, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                    Text(
+                        stringResource(Res.string.tabs),
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.weight(1f).padding(start = 6.dp),
                     )
+                    TooltipIconButton(label = stringResource(Res.string.new_tab), size = 32.dp, onClick = { TabsController.newTab(); onDismiss() }) {
+                        Icon(Lucide.Plus, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                }
+                Column(
+                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    tabs.chunked(2).forEach { rowTabs ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            rowTabs.forEach { tab ->
+                                val weightMod = Modifier.weight(1f)
+                                key(tab.id) {
+                                    val i = tabs.indexOfFirst { it.id == tab.id }
+                                    val isDragged = tab.id == draggingId
+                                    val shiftTo = when {
+                                        draggingFrom < 0 || isDragged -> i
+                                        dragTarget >= draggingFrom && i > draggingFrom && i <= dragTarget -> i - 1
+                                        dragTarget in 0 until draggingFrom && i < draggingFrom && i >= dragTarget -> i + 1
+                                        else -> i
+                                    }
+                                    val shift = if (shiftTo != i && shiftTo in tabs.indices) {
+                                        val a = centers[tabs[shiftTo].id]
+                                        val b = centers[tab.id]
+                                        if (a != null && b != null) a - b else Offset.Zero
+                                    } else Offset.Zero
+                                    val animShift by animateOffsetAsState(shift, label = "tabShift")
+                                    val effShift = if (draggingId != null) animShift else shift
+                                    TabCard(
+                                        modifier = weightMod
+                                            .onGloballyPositioned { c ->
+                                                val b = c.boundsInRoot()
+                                                centers[tab.id] = Offset(b.left + b.width / 2f, b.top + b.height / 2f)
+                                            }
+                                            .zIndex(if (isDragged) 1f else 0f)
+                                            .graphicsLayer {
+                                                if (isDragged) {
+                                                    translationX = dragOffset.x
+                                                    translationY = dragOffset.y
+                                                } else {
+                                                    translationX = effShift.x
+                                                    translationY = effShift.y
+                                                }
+                                            }
+                                            .pointerInput(tab.id, isTouch) {
+                                                val onStart: (Offset) -> Unit = {
+                                                    draggingId = tab.id
+                                                    dragOffset = Offset.Zero
+                                                    dragTarget = tabs.indexOfFirst { it.id == tab.id }
+                                                }
+                                                val onMove: (PointerInputChange, Offset) -> Unit = { ch, amt ->
+                                                    ch.consume()
+                                                    dragOffset += amt
+                                                    val origin = centers[tab.id]
+                                                    if (origin != null) {
+                                                        val pos = origin + dragOffset
+                                                        var best = -1
+                                                        var bestD = Float.MAX_VALUE
+                                                        tabs.forEachIndexed { idx, t ->
+                                                            val c = centers[t.id]
+                                                            if (c != null) {
+                                                                val d = (c - pos).getDistanceSquared()
+                                                                if (d < bestD) { bestD = d; best = idx }
+                                                            }
+                                                        }
+                                                        if (best >= 0) dragTarget = best
+                                                    }
+                                                }
+                                                val onEnd = {
+                                                    val from = tabs.indexOfFirst { it.id == tab.id }
+                                                    if (from >= 0 && dragTarget >= 0 && dragTarget != from) {
+                                                        releaseReq = tab.id to dragTarget
+                                                    } else {
+                                                        draggingId = null
+                                                        dragOffset = Offset.Zero
+                                                        dragTarget = -1
+                                                    }
+                                                }
+                                                val onCancel = {
+                                                    draggingId = null
+                                                    dragOffset = Offset.Zero
+                                                    dragTarget = -1
+                                                }
+                                                if (isTouch) {
+                                                    detectDragGesturesAfterLongPress(onDragStart = onStart, onDrag = onMove, onDragEnd = onEnd, onDragCancel = onCancel)
+                                                } else {
+                                                    detectDragGestures(onDragStart = onStart, onDrag = onMove, onDragEnd = onEnd, onDragCancel = onCancel)
+                                                }
+                                            },
+                                        label = tab.title ?: stringResource(Res.string.new_chat),
+                                        dot = sessionColorOf(tab.color),
+                                        active = tab.id == activeId,
+                                        onClick = { TabsController.selectTab(tab.id); onDismiss() },
+                                        onClose = { TabsController.closeTab(tab.id) },
+                                    )
+                                }
+                            }
+                            if (rowTabs.size == 1) Spacer(Modifier.weight(1f))
+                        }
+                    }
                 }
             }
-            CompactDropdownItem(
-                text = stringResource(Res.string.new_tab),
-                leadingIcon = { Icon(Lucide.Plus, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                onClick = { TabsController.newTab(); open = false },
+        }
+    }
+}
+
+@Composable
+private fun TabCard(
+    modifier: Modifier = Modifier,
+    label: String,
+    dot: Color?,
+    active: Boolean,
+    onClick: () -> Unit,
+    onClose: () -> Unit,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (active) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+            .border(
+                if (active) 1.5.dp else 1.dp,
+                if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                RoundedCornerShape(8.dp),
             )
+            .clickable(onClick = onClick)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .heightIn(min = 38.dp)
+            .padding(start = 10.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(dot ?: MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Box(
+            modifier = Modifier.size(20.dp).clip(CircleShape).clickable(onClick = onClose).pointerHoverIcon(PointerIcon.Hand),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Lucide.X, contentDescription = stringResource(Res.string.close_tab), modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
