@@ -35,7 +35,7 @@ private fun copyToClipboard(text: String) {
 
 actual suspend fun saveTextToDownloads(filename: String, text: String): Boolean = withContext(Dispatchers.IO) {
     runCatching {
-        val dir = File(System.getProperty("user.home"), "Downloads").apply { mkdirs() }
+        val dir = FileTransfer.userDownloadsDir().apply { mkdirs() }
         File(dir, filename).writeText(text)
         true
     }.getOrDefault(false)

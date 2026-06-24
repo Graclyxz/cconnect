@@ -11,7 +11,23 @@ import java.io.File
 object FileTransfer {
 
     private val client = OkHttpClient()
-    private val downloadsDir: File get() = File(System.getProperty("user.home"), "Downloads").apply { mkdirs() }
+    private val downloadsDir: File get() = userDownloadsDir().apply { mkdirs() }
+
+    fun userDownloadsDir(): File {
+        val home = System.getProperty("user.home")
+        if (System.getProperty("os.name").orEmpty().lowercase().contains("linux")) {
+            runCatching {
+                val cfg = File(home, ".config/user-dirs.dirs")
+                if (cfg.isFile) {
+                    cfg.readLines().firstOrNull { it.trimStart().startsWith("XDG_DOWNLOAD_DIR") }?.let { line ->
+                        val raw = line.substringAfter('=').trim().trim('"').replace("\$HOME", home)
+                        if (raw.isNotBlank()) return File(raw)
+                    }
+                }
+            }
+        }
+        return File(home, "Downloads")
+    }
 
     suspend fun enqueueToDownloads(url: String, filename: String): Boolean =
         download(url, dedup(downloadsDir, filename))

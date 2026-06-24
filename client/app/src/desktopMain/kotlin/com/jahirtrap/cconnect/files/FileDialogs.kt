@@ -1,6 +1,9 @@
 package com.jahirtrap.cconnect.files
 
 import org.lwjgl.util.tinyfd.TinyFileDialogs
+import java.awt.EventQueue
+import java.awt.FileDialog
+import java.awt.Frame
 import java.io.File
 
 object FileDialogs {
@@ -16,8 +19,21 @@ object FileDialogs {
     }.getOrDefault(emptyList())
 
     fun save(name: String): File? = runCatching {
-        TinyFileDialogs.tinyfd_saveFileDialog("Save", lastDir + File.separator + name, null, null)
-            ?.let { path -> File(path).also { f -> f.parent?.let { lastDir = it } } }
+        val pick: () -> File? = {
+            val dialog = FileDialog(null as Frame?, "Save", FileDialog.SAVE)
+            dialog.directory = lastDir
+            dialog.file = name
+            dialog.isVisible = true
+            val dir = dialog.directory
+            val file = dialog.file
+            if (dir == null || file == null) null else File(dir, file).also { lastDir = dir }
+        }
+        if (EventQueue.isDispatchThread()) pick()
+        else {
+            var result: File? = null
+            EventQueue.invokeAndWait { result = pick() }
+            result
+        }
     }.getOrNull()
 
     fun chooseDirectory(): File? = runCatching {

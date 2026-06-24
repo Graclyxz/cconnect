@@ -44,7 +44,6 @@ def compose_prompt(text: str, relpaths: list[str]) -> tuple[str, list[dict]]:
         path = shared_service.resolve_file(rel)
         if path is None:
             continue
-        mentions.append(f"@{path}")
         if is_image(path.name):
             encoded = _encode_image(path)
             if encoded:
@@ -54,6 +53,8 @@ def compose_prompt(text: str, relpaths: list[str]) -> tuple[str, list[dict]]:
                     "source": {"type": "base64", "media_type": media, "data": data},
                 })
                 body = f"{body}[Image #{len(images)}]"
+                continue
+        mentions.append(f"@{path}")
     prompt = body
     if mentions:
         prompt = f"{prompt}\n{' '.join(mentions)}".strip()

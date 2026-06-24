@@ -24,18 +24,19 @@ private fun onChatRoute(): Boolean = when (window.location.pathname) {
     else -> true
 }
 
-actual fun readChatLocation(): Pair<String, String>? {
+actual fun readChatLocation(): Triple<Int, String, String>? {
     if (!onChatRoute()) return null
     val q = parseQuery(window.location.search)
     val c = q["c"] ?: return null
     val p = q["p"] ?: return null
-    return c to p
+    val t = q["t"]?.toIntOrNull() ?: 0
+    return Triple(t, c, p)
 }
 
-actual fun syncChatLocation(sessionId: String?, projectKey: String?) {
+actual fun syncChatLocation(tab: Int, sessionId: String?, projectKey: String?) {
     if (!onChatRoute()) return
     val target = if (sessionId != null && projectKey != null) {
-        "/?c=" + encodeUri(sessionId) + "&p=" + encodeUri(projectKey)
+        "/?t=" + tab + "&c=" + encodeUri(sessionId) + "&p=" + encodeUri(projectKey)
     } else {
         "/"
     }
@@ -45,13 +46,13 @@ actual fun syncChatLocation(sessionId: String?, projectKey: String?) {
 }
 
 @Composable
-actual fun ChatPopstate(onLocation: (String?, String?) -> Unit) {
+actual fun ChatPopstate(onLocation: (Int, String?, String?) -> Unit) {
     val current by rememberUpdatedState(onLocation)
     DisposableEffect(Unit) {
         val listener: (Event) -> Unit = {
             if (onChatRoute()) {
                 val loc = readChatLocation()
-                current(loc?.first, loc?.second)
+                current(loc?.first ?: 0, loc?.second, loc?.third)
             }
         }
         window.addEventListener("popstate", listener)

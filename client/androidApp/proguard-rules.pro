@@ -13,6 +13,9 @@
 -dontwarn org.slf4j.**
 -dontwarn javax.annotation.**
 
-# connectbot/termlib renderer (used by the SSH terminal screen).
--keep class org.connectbot.** { *; }
--dontwarn org.connectbot.**
+# ML Kit / Google code scanner: R8 strips the ComponentRegistrar no-arg constructors,
+# breaking ML Kit init (NoSuchMethodException ...Registrar.<init>) and the QR scanner.
+-keep class com.google.mlkit.** { *; }
+-keep class com.google.android.gms.internal.mlkit_** { *; }
+-keep class com.google.android.gms.vision.** { *; }
+-dontwarn com.google.mlkit.**

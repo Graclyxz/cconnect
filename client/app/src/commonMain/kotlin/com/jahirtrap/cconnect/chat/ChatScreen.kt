@@ -337,13 +337,14 @@ fun ChatScreen(
     val refreshTick = LocalRefreshTick.current
     LaunchedEffect(refreshTick) { if (refreshTick > 0) vm.loadHistory() }
 
+    val tabIndex = remember { TabsController.tabs.indexOfFirst { it.id == TabsController.activeId } }
     val chatLoc = remember { readChatLocation() }
     var hadSession by remember { mutableStateOf(false) }
     var restoreTriggered by remember { mutableStateOf(false) }
     LaunchedEffect(state.connection) {
-        if (!restoreTriggered && chatLoc != null && state.connection == ConnectionState.Connected) {
+        if (!restoreTriggered && chatLoc != null && chatLoc.first == tabIndex && state.connection == ConnectionState.Connected) {
             restoreTriggered = true
-            vm.restoreSession(chatLoc.first, chatLoc.second)
+            vm.restoreSession(chatLoc.second, chatLoc.third)
         }
     }
     LaunchedEffect(state.sessionId, state.activeProjectKey) {
@@ -351,13 +352,15 @@ fun ChatScreen(
         val pr = state.activeProjectKey
         if (sid != null && pr != null) {
             hadSession = true
-            syncChatLocation(sid, pr)
+            syncChatLocation(tabIndex, sid, pr)
         } else if (hadSession) {
-            syncChatLocation(null, null)
+            syncChatLocation(tabIndex, null, null)
         }
     }
-    ChatPopstate { sid, pr ->
-        if (sid != null && pr != null) vm.restoreSession(sid, pr) else vm.newSession()
+    ChatPopstate { tab, sid, pr ->
+        if (tab == tabIndex) {
+            if (sid != null && pr != null) vm.restoreSession(sid, pr) else vm.newSession()
+        }
     }
 
     // A user drag stops the follow immediately so streaming can't fight the gesture.
@@ -1454,13 +1457,14 @@ private fun ChatToolbar(
     val accent = MaterialTheme.colorScheme.primary
     val pstyle = permissionStyle(permissionMode)
     Row(
-        modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(top = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         TooltipWrap(stringResource(Res.string.quick_chat)) {
-            Box(modifier = Modifier.padding(start = 8.dp)) {
+            Box(modifier = Modifier.fillMaxHeight().padding(start = 8.dp)) {
                 Row(
                     modifier = Modifier
+                        .fillMaxHeight()
                         .clip(RoundedCornerShape(8.dp))
                         .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
                         .clickable(onClick = onQuickChat)
@@ -1489,6 +1493,7 @@ private fun ChatToolbar(
                 .horizontalScroll(selectorScroll)
                 .padding(end = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
             if (disconnected) {
                 DisconnectedChip()
@@ -1574,6 +1579,7 @@ private fun StreamToggle(streaming: Boolean, onClick: () -> Unit) {
     val color = if (streaming) palette.green else MaterialTheme.colorScheme.onSurfaceVariant
     Row(
         modifier = Modifier
+            .fillMaxHeight()
             .clip(RoundedCornerShape(8.dp))
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)

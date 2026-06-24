@@ -2,9 +2,9 @@ package com.jahirtrap.cconnect.chat
 
 import androidx.compose.runtime.Composable
 
-expect fun readChatLocation(): Pair<String, String>?
+expect fun readChatLocation(): Triple<Int, String, String>?
 
-expect fun syncChatLocation(sessionId: String?, projectKey: String?)
+expect fun syncChatLocation(tab: Int, sessionId: String?, projectKey: String?)
 
 @Composable
-expect fun ChatPopstate(onLocation: (String?, String?) -> Unit)
+expect fun ChatPopstate(onLocation: (Int, String?, String?) -> Unit)
