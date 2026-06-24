@@ -333,6 +333,7 @@ fun ClaudeDetailScreen(
                                             color = MaterialTheme.colorScheme.onSurface,
                                             modifier = Modifier.weight(1f),
                                         )
+                                        Spacer(Modifier.width(12.dp))
                                         Text(
                                             componentStatusLabel(component.status),
                                             style = MaterialTheme.typography.bodySmall,

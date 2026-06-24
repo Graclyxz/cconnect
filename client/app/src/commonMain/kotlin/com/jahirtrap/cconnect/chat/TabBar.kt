@@ -64,6 +64,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
@@ -87,6 +92,7 @@ fun TabStrip() {
     var draggingId by remember { mutableStateOf<String?>(null) }
     var dragDx by remember { mutableStateOf(0f) }
     var plusLeft by remember { mutableStateOf(0f) }
+    val isTouch = LocalIsTouch.current
 
     fun reorder(id: String) {
         val from = tabs.indexOfFirst { it.id == id }
@@ -142,6 +148,7 @@ fun TabStrip() {
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface)
             .statusBarsPadding()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End))
             .horizontalScrollbar(scroll, touchIndicator = false, wheelScroll = true)
             .horizontalScroll(scroll)
             .padding(horizontal = 4.dp, vertical = 6.dp),
@@ -159,40 +166,61 @@ fun TabStrip() {
                         }
                         .zIndex(if (dragging) 1f else 0f)
                         .graphicsLayer { translationX = if (dragging) dragDx else 0f }
-                        .pointerInput(tab.id) {
-                            val threshold = 8.dp.toPx()
-                            awaitEachGesture {
-                                val down = awaitFirstDown(requireUnconsumed = false)
-                                var started = false
-                                var clickedUp = false
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    val change = event.changes.firstOrNull { it.id == down.id }
-                                    if (change == null) break
-                                    if (!change.pressed) {
-                                        clickedUp = !change.isConsumed
-                                        break
-                                    }
-                                    if (!started) {
-                                        val dx = change.position.x - down.position.x
-                                        val dy = change.position.y - down.position.y
-                                        if (abs(dx) > threshold && abs(dx) >= abs(dy)) {
-                                            started = true
-                                            draggingId = tab.id
-                                            dragDx = 0f
+                        .pointerInput(tab.id, isTouch) {
+                            if (isTouch) {
+                                val onStart: (Offset) -> Unit = {
+                                    draggingId = tab.id
+                                    dragDx = 0f
+                                }
+                                val onMove: (PointerInputChange, Offset) -> Unit = { ch, amt ->
+                                    ch.consume()
+                                    dragDx += amt.x
+                                    reorder(tab.id)
+                                }
+                                val onEnd = {
+                                    draggingId = null
+                                    dragDx = 0f
+                                }
+                                val onCancel = {
+                                    draggingId = null
+                                    dragDx = 0f
+                                }
+                                detectDragGesturesAfterLongPress(onDragStart = onStart, onDrag = onMove, onDragEnd = onEnd, onDragCancel = onCancel)
+                            } else {
+                                val threshold = 8.dp.toPx()
+                                awaitEachGesture {
+                                    val down = awaitFirstDown(requireUnconsumed = false)
+                                    var started = false
+                                    var clickedUp = false
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        val change = event.changes.firstOrNull { it.id == down.id }
+                                        if (change == null) break
+                                        if (!change.pressed) {
+                                            clickedUp = !change.isConsumed
+                                            break
+                                        }
+                                        if (!started) {
+                                            val dx = change.position.x - down.position.x
+                                            val dy = change.position.y - down.position.y
+                                            if (abs(dx) > threshold && abs(dx) >= abs(dy)) {
+                                                started = true
+                                                draggingId = tab.id
+                                                dragDx = 0f
+                                            }
+                                        }
+                                        if (started) {
+                                            dragDx += change.positionChange().x
+                                            change.consume()
+                                            reorder(tab.id)
                                         }
                                     }
                                     if (started) {
-                                        dragDx += change.positionChange().x
-                                        change.consume()
-                                        reorder(tab.id)
+                                        draggingId = null
+                                        dragDx = 0f
+                                    } else if (clickedUp) {
+                                        TabsController.selectTab(tab.id)
                                     }
-                                }
-                                if (started) {
-                                    draggingId = null
-                                    dragDx = 0f
-                                } else if (clickedUp) {
-                                    TabsController.selectTab(tab.id)
                                 }
                             }
                         },

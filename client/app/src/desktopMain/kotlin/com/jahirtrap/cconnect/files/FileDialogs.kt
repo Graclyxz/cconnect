@@ -10,11 +10,20 @@ object FileDialogs {
     private var lastDir: String = System.getProperty("user.home") ?: "."
 
     fun openMultiple(): List<File> = runCatching {
-        val result = TinyFileDialogs.tinyfd_openFileDialog(
-            "Open", lastDir + File.separator, null, null, true,
-        ) ?: return@runCatching emptyList()
-        result.split("|").map(::File).also { files ->
-            files.firstOrNull()?.parent?.let { lastDir = it }
+        val pick: () -> List<File> = {
+            val dialog = FileDialog(null as Frame?, "Open", FileDialog.LOAD)
+            dialog.directory = lastDir
+            dialog.isMultipleMode = true
+            dialog.isVisible = true
+            dialog.files?.toList().orEmpty().also { files ->
+                files.firstOrNull()?.parent?.let { lastDir = it }
+            }
+        }
+        if (EventQueue.isDispatchThread()) pick()
+        else {
+            var result: List<File> = emptyList()
+            EventQueue.invokeAndWait { result = pick() }
+            result
         }
     }.getOrDefault(emptyList())
 
