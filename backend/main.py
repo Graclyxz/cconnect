@@ -30,8 +30,11 @@ async def lifespan(app: FastAPI):
     await ensure_sdk_installed()
     from services import chat_list
     await chat_list.hub.start()
+    from services import shared_watch
+    await shared_watch.hub.start()
     yield
     chat_list.hub.stop()
+    shared_watch.hub.stop()
 
 
 app = FastAPI(

@@ -515,7 +515,7 @@ async def run_prompt(
                     and not status_state["compacting"]
                     and not status_state["awaiting_user"]
                     and not status_state["pending"]
-                    and loop.time() - status_state["last"] > 12
+                    and loop.time() - status_state["last"] > 15
                 ):
                     status_state["slow"] = True
                     try:

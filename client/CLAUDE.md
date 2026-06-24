@@ -134,7 +134,9 @@ divergence behind an expect/actual.
   (SelectField, the chat SelectorChip, AbovePopupMenu) — touch keeps `false`
   like mobile (a focusable popup misbehaves on touch); mouse gets `true` so Esc
   closes them; reload/refresh buttons hidden when `LocalIsTouch`; pull-to-refresh
-  gated by touch; interactive scrollbars not drawn on touch.
+  gated by touch (Settings/Claude/Monitor — the chat list and Files are live over
+  `/api/list/ws` + `/api/shared/ws`, no manual refresh); interactive scrollbars
+  not drawn on touch.
 
 ## Responsive left panel
 

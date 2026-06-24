@@ -1,15 +1,46 @@
 """Browse, download, upload and manage files in the backend's shared/ folder from the mobile app."""
 
+import asyncio
 from urllib.parse import quote
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, StreamingResponse
+from loguru import logger
 from pydantic import BaseModel
 
 from core.responses import api_response
+from middleware.public_auth import ws_bearer_ok
 from services import shared as shared_service
+from services.shared_watch import hub as watch_hub
 
 router = APIRouter(tags=["Shared"])
+
+
+@router.websocket("/shared/ws")
+async def shared_ws(ws: WebSocket):
+    if not ws_bearer_ok(ws):
+        await ws.close(code=1008)
+        return
+    await ws.accept()
+    queue = watch_hub.subscribe()
+
+    async def pump():
+        while True:
+            await ws.send_json(await queue.get())
+
+    pump_task = asyncio.create_task(pump())
+    try:
+        while True:
+            msg = await ws.receive_json()
+            if msg.get("type") == "watch":
+                watch_hub.set_path(queue, msg.get("path") or "")
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:
+        logger.debug(f"shared_ws ended: {type(exc).__name__}: {exc}")
+    finally:
+        pump_task.cancel()
+        watch_hub.unsubscribe(queue)
 
 
 class FolderBody(BaseModel):
@@ -28,14 +59,6 @@ class TransferBody(BaseModel):
 
 class PathsBody(BaseModel):
     paths: list[str]
-
-
-@router.get("/shared")
-def list_shared(path: str = ""):
-    try:
-        return api_response(data=shared_service.list_entries(path))
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post("/shared/folder")

@@ -157,7 +157,7 @@ Every REST endpoint returns `core.responses.api_response()` —
 | POST | `/api/sessions/{id}/auto-rename` | Ask the SDK (haiku) to generate a title |
 | POST | `/api/sessions/{id}/color` | Set the session color |
 | DELETE | `/api/sessions/{id}?project=<key>` | Delete a session |
-| GET | `/api/shared` | List entries (name, is_dir, size, modified, items) |
+| WS | `/api/shared/ws` | Live folder listing for the file explorer (`services/shared_watch.py`): client sends `{type:"watch", path}`; server replies `{type:"snapshot", path, entries}` on connect and re-pushes it as that folder changes (watchdog watcher on `backend/shared/`, polling fallback). Replaces the removed `GET /api/shared`. Bearer via `ws_bearer_ok`. |
 | GET | `/api/shared/{path:path}` | Download a file |
 | PUT | `/api/shared/{path:path}` | Upload (streamed body). Name collisions dedupe with ` (n)`; returns the final saved relpath |
 | POST | `/api/shared/folder` | Create a folder |
@@ -230,7 +230,7 @@ Control/ephemeral messages (`ready`, `permission_mode`, `history_chunk`,
   `run_prompt`'s `stderr` callback emits `retrying` (out-of-band via `emit`),
   cleared with `ok` on the next real message; a final transient failure yields
   `failed`. An **idle watchdog** additionally emits `slow` when no SDK message
-  has arrived for >12s, surfacing a genuinely slow generation as "taking longer
+  has arrived for >15s, surfacing a genuinely slow generation as "taking longer
   than usual" — but it is **suppressed** while the turn is legitimately quiet:
   during compaction (`compacting`), while any tool is in flight (a `pending` set
   of `tool_use` ids, drained on each `tool_result`), and while awaiting the user

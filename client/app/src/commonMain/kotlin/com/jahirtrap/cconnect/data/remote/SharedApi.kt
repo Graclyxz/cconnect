@@ -17,11 +17,6 @@ import kotlinx.serialization.json.putJsonArray
 
 object SharedApi {
 
-    suspend fun list(path: String = ""): List<SharedEntry>? {
-        val query = if (path.isEmpty()) emptyMap() else mapOf("path" to path)
-        return Http.get("/shared", query)?.jsonArray?.map(::parseEntry)
-    }
-
     suspend fun delete(path: String): Boolean = Http.delete("/shared/${encode(path)}") != null
 
     suspend fun search(path: String, query: String): List<SharedEntry>? =
@@ -33,7 +28,7 @@ object SharedApi {
     fun archiveFileUrl(path: String, inner: String): String =
         "${Backend.baseUrl}/shared-archive-file?path=${UrlCodec.encode(path)}&inner=${UrlCodec.encode(inner)}"
 
-    private fun parseEntry(el: JsonElement): SharedEntry {
+    fun parseEntry(el: JsonElement): SharedEntry {
         val o = el.jsonObject
         return SharedEntry(
             name = o["name"]?.jsonPrimitive?.contentOrNull.orEmpty(),

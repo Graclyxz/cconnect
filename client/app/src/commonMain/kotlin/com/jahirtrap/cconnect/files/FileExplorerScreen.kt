@@ -57,10 +57,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import com.jahirtrap.cconnect.ui.TextButton
-import com.jahirtrap.cconnect.ui.AppPullToRefresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -121,7 +121,6 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.PackageOpen
 import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.Plus
-import com.composables.icons.lucide.RotateCw
 import com.composables.icons.lucide.Save
 import com.composables.icons.lucide.Search
 import com.composables.icons.lucide.Server
@@ -132,11 +131,12 @@ import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.chat.ChatViewModel
 import com.jahirtrap.cconnect.chat.LocalChatViewModelFactory
-import com.jahirtrap.cconnect.chat.ConnectionState
 import com.jahirtrap.cconnect.isWebPlatform
 import com.jahirtrap.cconnect.data.Settings
 import com.jahirtrap.cconnect.data.SharedEntry
+import com.jahirtrap.cconnect.data.remote.Backend
 import com.jahirtrap.cconnect.data.remote.SharedApi
+import com.jahirtrap.cconnect.data.remote.SharedWatchSocket
 import com.jahirtrap.cconnect.ui.AbovePopupMenu
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.BackInterceptor
@@ -156,7 +156,6 @@ import com.jahirtrap.cconnect.ui.SelectField
 import com.jahirtrap.cconnect.ui.EmptyState
 import com.jahirtrap.cconnect.ui.EnvironmentSelectDialog
 import com.jahirtrap.cconnect.ui.ListRow
-import com.jahirtrap.cconnect.ui.LocalRefreshTick
 import com.jahirtrap.cconnect.ui.RenameDialog
 import com.jahirtrap.cconnect.ui.SelectionDot
 import com.jahirtrap.cconnect.ui.StatusDot
@@ -221,6 +220,11 @@ fun FileExplorerScreen(
     val vm: ChatViewModel = viewModel(factory = LocalChatViewModelFactory.current)
     val state by vm.state.collectAsState()
     val scope = rememberCoroutineScope()
+    val watcher = remember(state.activeEnvironmentId) { SharedWatchSocket(scope) { Backend.snapshot() } }
+    DisposableEffect(watcher) {
+        watcher.connect()
+        onDispose { watcher.close() }
+    }
     val listState = rememberLazyListState()
     val haptics = LocalHapticFeedback.current
     val clipboard = LocalClipboardManager.current
@@ -238,7 +242,6 @@ fun FileExplorerScreen(
     var compressing by remember { mutableStateOf<List<String>?>(null) }
     var entries by remember { mutableStateOf<List<SharedEntry>>(emptyList()) }
     var loaded by remember { mutableStateOf(false) }
-    var refreshing by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
     var selecting by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -282,19 +285,34 @@ fun FileExplorerScreen(
     }
 
     fun reload() {
+        val arc = archive
+        if (arc == null) {
+            watcher.refresh()
+            return
+        }
         scope.launch {
-            val result = runCatching {
-                archive?.let { SharedApi.archiveList(it, archiveDir) } ?: SharedApi.list(path)
-            }.getOrNull()
-            failed = result == null && archive == null
-            entries = result ?: emptyList()
+            entries = runCatching { SharedApi.archiveList(arc, archiveDir) }.getOrNull() ?: emptyList()
             loaded = true
-            refreshing = false
         }
     }
-    LaunchedEffect(state.activeEnvironmentId, path, archive, archiveDir) { exitSelection(); loaded = false; entries = emptyList(); reload() }
+    LaunchedEffect(watcher) {
+        watcher.entries.collect { live ->
+            if (live == null) return@collect
+            if (archive == null) {
+                entries = live
+                loaded = true
+                failed = false
+            } else {
+                reload()
+            }
+        }
+    }
+    LaunchedEffect(state.activeEnvironmentId, path, archive, archiveDir) {
+        exitSelection(); loaded = false; entries = emptyList()
+        val arc = archive
+        if (arc != null) watcher.watch(arc.substringBeforeLast('/', "")) else watcher.watch(path)
+    }
     LaunchedEffect(state.activeEnvironmentId) { transfer = null }
-    LaunchedEffect(state.connection) { if (state.connection == ConnectionState.Connected) reload() }
     LaunchedEffect(path) {
         var seen = UploadManager.uploads.value.filter { it.status != UploadManager.Status.Uploading }.map { it.id }.toSet()
         UploadManager.uploads.collect { list ->
@@ -304,8 +322,6 @@ fun FileExplorerScreen(
             if (fresh.any { it.dir == path && it.status == UploadManager.Status.Done }) reload()
         }
     }
-    val refreshTick = LocalRefreshTick.current
-    LaunchedEffect(refreshTick) { if (refreshTick > 0) { refreshing = true; reload() } }
     LaunchedEffect(path, archive, archiveDir) { syncFilesLocation(path, archive, archiveDir) }
     FilesPopstate { p, a, ad -> path = p; archive = a; archiveDir = ad }
     LaunchedEffect(path, archive, archiveDir) {
@@ -520,11 +536,6 @@ fun FileExplorerScreen(
                                             },
                                         )
                                     }
-                                }
-                            }
-                            if (!LocalIsTouch.current) {
-                                TooltipIconButton(label = stringResource(Res.string.refresh), onClick = { refreshing = true; reload() }) {
-                                    Icon(Lucide.RotateCw, contentDescription = null)
                                 }
                             }
                         },
@@ -746,11 +757,7 @@ fun FileExplorerScreen(
                     }
                 })
             }
-            AppPullToRefresh(
-                isRefreshing = refreshing,
-                onRefresh = { refreshing = true; reload() },
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            ) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 fun itemIndexAt(y: Float): Int? = listState.layoutInfo.visibleItemsInfo
                     .firstOrNull { y >= it.offset && y < it.offset + it.size }?.index
                 LazyColumn(

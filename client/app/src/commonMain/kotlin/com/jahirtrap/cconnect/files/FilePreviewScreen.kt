@@ -57,6 +57,8 @@ import com.composables.icons.lucide.Type
 import com.jahirtrap.cconnect.resources.Res
 import com.jahirtrap.cconnect.resources.*
 import com.jahirtrap.cconnect.data.Settings
+import com.jahirtrap.cconnect.data.remote.SharedApi
+import com.jahirtrap.cconnect.data.remote.SharedWatchSocket
 import com.jahirtrap.cconnect.data.remote.fetchSharedText
 import com.jahirtrap.cconnect.ui.AppTopBar
 import com.jahirtrap.cconnect.ui.CenteredProgress
@@ -83,6 +85,26 @@ fun FilePreviewScreen(
     var failed by remember(url) { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     var confirmingDelete by remember { mutableStateOf(false) }
+    var version by remember(url) { mutableStateOf(0) }
+
+    val relPath = remember(url) { SharedApi.relativeFromUrl(url) }
+    val watcher = remember { SharedWatchSocket(scope) { Backend.snapshot() } }
+    DisposableEffect(Unit) {
+        watcher.connect()
+        onDispose { watcher.close() }
+    }
+    LaunchedEffect(url, relPath) {
+        val parent = relPath?.substringBeforeLast('/', "") ?: return@LaunchedEffect
+        val fileName = relPath.substringAfterLast('/')
+        watcher.watch(parent)
+        var lastSig: Pair<Long, Double>? = null
+        var first = true
+        watcher.entries.collect { live ->
+            if (live == null) return@collect
+            val sig = live.firstOrNull { it.name == fileName }?.let { it.size to it.modified }
+            if (first) { first = false; lastSig = sig } else if (sig != lastSig) { lastSig = sig; version++ }
+        }
+    }
 
     val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(Unit) { keyboard?.hide() }
@@ -95,7 +117,7 @@ fun FilePreviewScreen(
     }
 
     val kind = previewKindOf(filename)
-    LaunchedEffect(url) {
+    LaunchedEffect(url, version) {
         if (kind == PreviewKind.Html) return@LaunchedEffect
         if (kind == PreviewKind.Image) return@LaunchedEffect  // Coil streams the image itself
         val result = fetchSharedText(url)
@@ -175,7 +197,7 @@ fun FilePreviewScreen(
         },
     ) { padding ->
         when {
-            kind == PreviewKind.Image -> ImagePreview(url, Modifier.fillMaxSize().padding(padding))
+            kind == PreviewKind.Image -> ImagePreview(if (version > 0) "$url?cb=$version" else url, Modifier.fillMaxSize().padding(padding))
             kind == PreviewKind.Html -> HtmlPreview(
                 url = url,
                 filename = filename,
