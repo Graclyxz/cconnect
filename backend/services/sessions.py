@@ -155,7 +155,7 @@ def tail_user_messages(project_key: str, session_id: str) -> list[dict]:
                 if au and qtext and not _COMMAND_META_RE.search(qtext) and not _INTERRUPT_RE.match(qtext):
                     out.append({"uuid": au, "text": qtext})
             continue
-        if etype != "user" or entry.get("isMeta") or entry.get("isSidechain"):
+        if etype != "user" or entry.get("isMeta") or entry.get("isSidechain") or entry.get("isCompactSummary") or entry.get("isVisibleInTranscriptOnly"):
             continue
         u = entry.get("uuid")
         if not u:
