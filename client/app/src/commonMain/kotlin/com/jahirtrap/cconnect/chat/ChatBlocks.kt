@@ -353,7 +353,7 @@ private fun group(role: Role?): Int = when (role) {
 
 private fun bottomGap(cur: Role, next: Role?): Dp = when {
     next != null -> 0.dp
-    isNotice(cur) -> 0.dp
+    isNotice(cur) || cur == Role.USER -> 0.dp
     else -> BIG
 }
 

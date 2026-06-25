@@ -211,5 +211,12 @@ object TabsController {
             }
         }
         runCatching { settings.tabsState = json.toString() }
+        syncUrl()
+    }
+
+    private fun syncUrl() {
+        val idx = _tabs.indexOfFirst { it.id == activeId }.coerceAtLeast(0)
+        val a = active
+        syncChatLocation(idx, a.sessionId, a.projectKey)
     }
 }

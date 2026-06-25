@@ -340,22 +340,11 @@ fun ChatScreen(
     }
     val tabIndex = remember { TabsController.tabs.indexOfFirst { it.id == TabsController.activeId } }
     val chatLoc = remember { readChatLocation() }
-    var hadSession by remember { mutableStateOf(false) }
     var restoreTriggered by remember { mutableStateOf(false) }
     LaunchedEffect(state.connection) {
         if (!restoreTriggered && chatLoc != null && chatLoc.first == tabIndex && state.connection == ConnectionState.Connected) {
             restoreTriggered = true
             vm.restoreSession(chatLoc.second, chatLoc.third)
-        }
-    }
-    LaunchedEffect(state.sessionId, state.activeProjectKey) {
-        val sid = state.sessionId
-        val pr = state.activeProjectKey
-        if (sid != null && pr != null) {
-            hadSession = true
-            syncChatLocation(tabIndex, sid, pr)
-        } else if (hadSession) {
-            syncChatLocation(tabIndex, null, null)
         }
     }
     ChatPopstate { tab, sid, pr ->
