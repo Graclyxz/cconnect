@@ -31,5 +31,7 @@ actual object AppImageLoader {
                 add(SvgDecoder.Factory())
             }
             .crossfade(true)
+            .memoryCache { null }
+            .diskCache { null }
             .build()
 }
