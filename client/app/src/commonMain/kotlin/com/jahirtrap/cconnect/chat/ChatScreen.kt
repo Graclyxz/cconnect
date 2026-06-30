@@ -537,6 +537,7 @@ fun ChatScreen(
                                     else -> state.sessionId?.take(8) ?: stringResource(Res.string.new_chat)
                                 }
                                 Column {
+                                TabTitleSync()
                                 if (!mobile) TabStrip()
                                 AppTopBar(
                                     title = stringResource(Res.string.app_name),

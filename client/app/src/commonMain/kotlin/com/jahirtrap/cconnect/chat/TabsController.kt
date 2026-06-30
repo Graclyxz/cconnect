@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
+import com.jahirtrap.cconnect.data.SessionInfo
 import com.jahirtrap.cconnect.data.Settings
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.addJsonObject
@@ -134,6 +135,20 @@ object TabsController {
         } else {
             if (title != null && tab.title != title) { tab.title = title; changed = true }
             if (tab.color != color) { tab.color = color; changed = true }
+        }
+        if (changed) persist()
+    }
+
+    fun applyLiveSessions(sessions: List<SessionInfo>) {
+        if (sessions.isEmpty()) return
+        val byId = sessions.associateBy { it.sessionId }
+        var changed = false
+        _tabs.forEach { tab ->
+            val sid = tab.sessionId ?: return@forEach
+            val s = byId[sid] ?: return@forEach
+            val newTitle = s.title ?: s.preview ?: sid.take(8)
+            if (tab.title != newTitle) { tab.title = newTitle; changed = true }
+            if (tab.color != s.color) { tab.color = s.color; changed = true }
         }
         if (changed) persist()
     }

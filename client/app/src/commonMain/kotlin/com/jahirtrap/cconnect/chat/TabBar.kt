@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
@@ -78,6 +79,10 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.jahirtrap.cconnect.ui.LocalIsTouch
+import com.jahirtrap.cconnect.data.ChatListStore
+import com.jahirtrap.cconnect.data.Settings
+import com.jahirtrap.cconnect.data.remote.Backend
+import com.jahirtrap.cconnect.data.remote.toBackendConfig
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -246,6 +251,22 @@ fun TabStrip() {
         ) {
             TooltipIconButton(label = stringResource(Res.string.new_tab), size = 32.dp, onClick = { TabsController.newTab() }) {
                 Icon(Lucide.Plus, contentDescription = null, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun TabTitleSync() {
+    val settings = remember { Settings() }
+    val envIds = TabsController.tabs.map { it.ctx.environmentId }.distinct()
+    envIds.forEach { envId ->
+        key(envId ?: "__default__") {
+            val env = settings.environments.firstOrNull { it.id == envId } ?: settings.activeEnvironment
+            val backend = ChatListStore.forConfig(env?.toBackendConfig() ?: Backend.snapshot())
+            if (backend != null) {
+                val sessions by backend.sessions.collectAsState()
+                LaunchedEffect(sessions) { TabsController.applyLiveSessions(sessions) }
             }
         }
     }
