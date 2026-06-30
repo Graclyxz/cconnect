@@ -63,8 +63,8 @@ MODELS = [
     {"id": "fable[1m]", "label": "Fable 5 (1M)"},
     {"id": "opus", "label": "Opus 4.8"},
     {"id": "opus[1m]", "label": "Opus 4.8 (1M)"},
-    {"id": "sonnet", "label": "Sonnet 4.6"},
-    {"id": "sonnet[1m]", "label": "Sonnet 4.6 (1M)"},
+    {"id": "sonnet", "label": "Sonnet 5"},
+    {"id": "sonnet[1m]", "label": "Sonnet 5 (1M)"},
     {"id": "haiku", "label": "Haiku 4.5"},
 ]
 DEFAULT_MODEL = os.environ.get("DEFAULT_MODEL", "opus[1m]")
