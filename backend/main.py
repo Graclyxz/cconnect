@@ -14,6 +14,7 @@ from core.db import init_db
 from core.rate_limit import limiter
 from core.responses import api_response
 from core.sdk import ensure_sdk_installed, ensure_subscription_auth
+from services import admin as admin_service
 from services import settings_store, system_monitor
 from middleware.error_handler import register_error_handlers
 from middleware.public_auth import register_public_auth_middleware
@@ -25,6 +26,7 @@ import routers as routers_pkg
 async def lifespan(app: FastAPI):
     init_db()
     settings_store.load()
+    admin_service.load()
     system_monitor.setup_log_capture()
     ensure_subscription_auth()
     await ensure_sdk_installed()
@@ -71,6 +73,12 @@ for module_info in pkgutil.iter_modules(routers_pkg.__path__):
     module = importlib.import_module(f"routers.{module_info.name}")
     if hasattr(module, "router"):
         app.include_router(module.router, prefix="/api")
+
+from routers.admin import page_router as admin_page_router
+from routers.admin import ws_router as admin_ws_router
+
+app.include_router(admin_ws_router, prefix="/api")
+app.include_router(admin_page_router)
 
 
 @app.api_route(

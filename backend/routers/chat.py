@@ -18,6 +18,7 @@ from core.config import DEFAULT_CWD, permission_modes
 from core.responses import api_response
 from middleware.public_auth import ws_bearer_ok
 from schemas.chat import PromptMessage, SetPermissionMessage, StartMessage
+from services import admin as admin_service
 from services import rewind as rewind_service
 from services import sessions as sessions_service
 from services import settings_store
@@ -198,7 +199,11 @@ async def chat_ws(ws: WebSocket):
         # Close before accept() so the handshake is rejected at the HTTP layer.
         await ws.close(code=1008)
         return
+    if not admin_service.can_accept():
+        await ws.close(code=1013)
+        return
     await ws.accept()
+    conn = admin_service.register(ws, ws.client.host if ws.client else "?")
     send_lock = asyncio.Lock()
     session = None        # main lane
     side_session = None   # quick-chat lane
@@ -258,6 +263,7 @@ async def chat_ws(ws: WebSocket):
                     "resumed": bool(by_session),
                     "committed_count": session.turn_start_index,
                 })
+                admin_service.note_start(conn, session.channel, session.state.session_id)
                 await session.attach(send, last_seq=msg.last_seq, since_committed=bool(by_session))
                 if not session.running and session.state.session_id:
                     for t in sessions_service.session_tasks(session.state.session_id):
@@ -281,6 +287,12 @@ async def chat_ws(ws: WebSocket):
                     msg = PromptMessage(**raw)
                 except ValidationError as exc:
                     await send({"type": "error", "message": exc.errors()})
+                    continue
+                if not admin_service.allow_prompt(conn):
+                    await send({"type": "error", "message": "Rate limit exceeded — slow down."})
+                    continue
+                if session.running and admin_service.queue_full(session):
+                    await send({"type": "error", "message": "Message queue is full."})
                     continue
                 if session.running:
                     await session.enqueue(msg.id, msg.text, msg.attachments)
@@ -372,6 +384,7 @@ async def chat_ws(ws: WebSocket):
     except Exception as exc:
         logger.error(f"chat_ws error: {type(exc).__name__}: {exc}")
     finally:
+        admin_service.unregister(conn.id)
         # Detach only — the workers keep running so a reconnect can re-attach.
         if session is not None:
             await session.detach(send)

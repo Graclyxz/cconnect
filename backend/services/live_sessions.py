@@ -19,6 +19,14 @@ OUTBOX_MAX = 5000
 
 _CLOSE = object()
 
+# Optional hook fired when session/turn state changes, so the admin panel can push.
+state_changed = None
+
+
+def _fire():
+    if state_changed is not None:
+        state_changed()
+
 
 class LiveSession:
     def __init__(self, channel, state):
@@ -45,6 +53,14 @@ class LiveSession:
     @property
     def attached(self):
         return len(self._sinks) > 0
+
+    @property
+    def socket_count(self):
+        return len(self._sinks)
+
+    @property
+    def queued_count(self):
+        return len(self._queued)
 
     async def attach(self, sink, last_seq=0, since_committed=False):
         """Bind the socket and replay what it missed, then re-emit any still-pending
@@ -121,6 +137,7 @@ class LiveSession:
         self._queued.append(item)
         await self._inbox.put(item)
         await self._emit({"type": "queued", "id": mid, "text": text})
+        _fire()
         return True
 
     async def drain(self):
@@ -171,8 +188,10 @@ class LiveSession:
         self._inflight = []
         self._unconsumed = 0
         self._worker = asyncio.create_task(self._run(runner_factory))
+        self._worker.add_done_callback(lambda _: _fire())
         for item in carried:
             self._inbox.put_nowait(item)
+        _fire()
         return True
 
     async def interrupt(self):
@@ -244,10 +263,19 @@ class SessionRegistry:
         channel = uuid.uuid4().hex
         session = LiveSession(channel, state)
         self._sessions[channel] = session
+        _fire()
         return session
 
     def get(self, channel):
         return self._sessions.get(channel)
+
+    def all(self):
+        return list(self._sessions.values())
+
+    def discard(self, channel):
+        self._sessions.pop(channel, None)
+        self._idle_since.pop(channel, None)
+        _fire()
 
     def get_by_session(self, session_id):
         if not session_id:
@@ -273,6 +301,7 @@ class SessionRegistry:
             if now - since >= self._grace:
                 del self._sessions[channel]
                 self._idle_since.pop(channel, None)
+                _fire()
 
 
 registry = SessionRegistry()

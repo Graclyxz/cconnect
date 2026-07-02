@@ -8,8 +8,15 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from core.config import PUBLIC_ACCESS_TOKEN
 from core.responses import api_response
 
-# Open so the mobile app can probe connectivity before it has a token.
-_OPEN_PATHS = frozenset({"/api/health"})
+# The /admin shell is static and secret-free; the admin API under /api/admin/* has
+# its own token (routers/admin.require_admin), so both bypass the PUBLIC_ACCESS_TOKEN gate.
+_OPEN_PATHS = frozenset({
+    "/api/health",
+    "/admin",
+    "/admin/admin.css",
+    "/admin/admin.js",
+})
+_OPEN_PREFIXES = ("/api/admin/",)
 
 
 def ws_bearer_ok(ws: WebSocket) -> bool:
@@ -34,7 +41,7 @@ class PublicAuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if PUBLIC_ACCESS_TOKEN is None:
             return await call_next(request)
-        if request.url.path in _OPEN_PATHS:
+        if request.url.path in _OPEN_PATHS or request.url.path.startswith(_OPEN_PREFIXES):
             return await call_next(request)
 
         provided = _extract_bearer(request)

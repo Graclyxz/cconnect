@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="noindex">
+  <title>CConnect · Admin</title>
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">C</span>
+      <div>
+        <div class="brand-title">CConnect</div>
+        <div class="brand-sub">Admin console</div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span id="status-dot" class="dot" title="Connection status"></span>
+      <span id="status-text" class="muted">…</span>
+      <button id="refresh-btn" class="btn ghost" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <div id="gate" class="gate hidden">
+    <form id="gate-form" class="gate-card">
+      <h2>Admin token</h2>
+      <p class="muted">Enter the admin console token — separate from the app's connection token.</p>
+      <input id="gate-token" type="password" placeholder="Admin token" autocomplete="off">
+      <button class="btn primary" type="submit">Unlock</button>
+      <p id="gate-error" class="error hidden">Invalid token.</p>
+    </form>
+  </div>
+
+  <main id="panel" class="panel hidden">
+    <section class="stats">
+      <div class="stat"><div class="stat-val" id="stat-conns">0</div><div class="stat-lbl">Connections</div></div>
+      <div class="stat"><div class="stat-val" id="stat-sessions">0</div><div class="stat-lbl">Live sessions</div></div>
+      <div class="stat"><div class="stat-val" id="stat-running">0</div><div class="stat-lbl">Running turns</div></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Global controls</h2>
+      </div>
+      <div class="controls">
+        <label class="switch">
+          <input id="accept-toggle" type="checkbox">
+          <span class="slider"></span>
+          <span class="switch-label">Accept new connections</span>
+        </label>
+        <button id="disconnect-all-btn" class="btn danger" type="button">Disconnect all</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Limits</h2>
+        <button id="save-config-btn" class="btn primary" type="button">Save</button>
+      </div>
+      <div class="config-grid">
+        <label class="field">
+          <span>Max concurrent connections</span>
+          <input id="cfg-max-connections" type="number" min="0" step="1">
+          <small class="muted">0 = unlimited</small>
+        </label>
+        <label class="field">
+          <span>Rate limit (messages / min per connection)</span>
+          <input id="cfg-rate-limit" type="number" min="0" step="1">
+          <small class="muted">0 = unlimited</small>
+        </label>
+        <label class="field">
+          <span>Max queued messages per session</span>
+          <input id="cfg-max-queue" type="number" min="0" step="1">
+          <small class="muted">0 = unlimited</small>
+        </label>
+      </div>
+      <p id="config-saved" class="saved hidden">Saved.</p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Connections</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>ID</th><th>IP</th><th>Uptime</th><th>Session</th><th></th></tr>
+          </thead>
+          <tbody id="conn-rows"></tbody>
+        </table>
+        <p id="conn-empty" class="empty hidden">No active connections.</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Live sessions</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Channel</th><th>Project</th><th>State</th><th>Sockets</th><th>Queued</th><th></th></tr>
+          </thead>
+          <tbody id="session-rows"></tbody>
+        </table>
+        <p id="session-empty" class="empty hidden">No live sessions.</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/admin/admin.js"></script>
+</body>
+</html>
