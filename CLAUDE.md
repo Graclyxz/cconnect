@@ -65,5 +65,5 @@ cd tauri   && npm run dev
    database `COMMENT`s, where it is mandatory.
 3. **English** for code, docstrings and docs; user-facing strings live in the i18n files.
 4. **No secrets in the repo** — `.env`, `key.properties`, `keystore.jks` and
-   `backend/prompts/USER.md` are gitignored.
+   `backend/data/` (settings, accounts and your own prompts) are gitignored.
 5. **Read before acting** — check the existing conventions and helpers before adding new ones.

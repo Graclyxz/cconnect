@@ -105,7 +105,7 @@ python run.py --stop
 Meant for a VPS you reach over SSH: `--detach` prints the URL, token and QR as
 usual, then hands the terminal back and keeps the server running in its own
 process — closing the session (or the terminal) no longer takes it down. Output
-goes to `backend/logs/detached.log`, the funnel stays up, and `--stop` shuts
+goes to `backend/data/logs/detached.log`, the funnel stays up, and `--stop` shuts
 both down. It survives the terminal, not a reboot.
 
 ## Run the backend from the desktop app

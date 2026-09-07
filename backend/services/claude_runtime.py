@@ -15,7 +15,7 @@ from core import cli_manager, paths
 from core.config import PORT, ULTRACODE_EFFORT
 from mcps import build_cconnect_server
 from mcps.media import block_types
-from services import cli_info, providers, settings_store, visibility
+from services import claude_assets, cli_info, providers, settings_store, visibility
 from services.questions import DECLINE_MESSAGE, DISMISS, SUBMIT_KEY, answers_from_values, questions_to_blocks
 
 _FILE_EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
@@ -119,7 +119,7 @@ def _join(text: str, block: str) -> str:
 def _extra_guides(cwd: Optional[str], capabilities: Optional[list[str]]) -> list[str]:
     caps = list(capabilities or ())
     guides = [_blocks_guide(caps), _browser_guide(caps), _suggestions_guide()]
-    user = _prompt_file("USER.md")
+    user = claude_assets.get_user_prompt().strip()
     if user:
         guides.append(
             "# User instructions\n\n"
@@ -129,7 +129,7 @@ def _extra_guides(cwd: Optional[str], capabilities: Optional[list[str]]) -> list
         )
     project = ""
     if cwd:
-        from services import claude_assets, sessions
+        from services import sessions
         project = claude_assets.get_project_prompt(sessions.project_key_for(cwd)).strip()
     if project:
         guides.append(
