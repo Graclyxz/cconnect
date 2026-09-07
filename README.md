@@ -379,12 +379,16 @@ required for a plain local run.
 | `PORT` | `8723` | Port the backend binds to |
 | `CCONNECT_DATA_DIR` | `backend/data` | Everything the backend owns on disk — settings, accounts, your prompts, caches, logs, the shared folder and the trash. Point it at another drive and the whole tree moves with it |
 | `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Where Claude Code keeps its sessions |
+| `DEFAULT_CWD` | parent of `backend/` | Directory a chat starts in when neither the app nor the connection picks one |
+| `AI_WORKDIR` | `backend/data/state/internal_task` | Throwaway cwd for the internal helper actions (titles, quick questions), kept out of your history |
 | `DEFAULT_MODEL` | `opus` | Model used when the app doesn't override it |
 | `DEFAULT_EFFORT` | `max` | Same, for the effort level |
 | `DEFAULT_PERMISSION_MODE` | `default` | Same, for the permission mode |
 | `PUBLIC_ACCESS_TOKEN` | — | Bearer token for `--expose`; generated and saved on first use. Only honoured while an expose mode is active, so a leftover token never locks down a local run |
 | `PUBLIC_HOSTNAME` | — | Hostname your proxy serves, for `--expose caddy`. `--public-host` on the command line wins over it |
+| `PUBLIC_URL` | — | Public address the backend reports in `/api/health`. Set by `run.py` when it exposes the server, so you rarely write it yourself |
 | `TERMINAL_ACCESS_KEY` | — | Unlocks the terminal. Generated and saved on first start, then printed on every start; `--terminal-key --rotate` replaces it. It is the only gate |
+| `WEB_CONCURRENCY` | `2` | Uvicorn workers with `run.py --production`. Ignored on Windows, which always runs one |
 | `BROWSER_EXECUTABLE` | autodetected | Chromium the browser pane drives. Falls back to Chrome, Chromium or Edge, whichever is installed |
 | `BROWSER_DEBUG_PORT` | `9333` | Remote debugging port it is launched with |
 | `BROWSER_HEADLESS` | `1` | Runs it without a window; set `0` to watch the real browser on the server |
