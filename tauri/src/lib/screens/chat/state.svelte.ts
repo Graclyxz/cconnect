@@ -112,16 +112,26 @@ export type Attachment =
   | (AttachmentBase & { file: File; path?: undefined })
   | (AttachmentBase & { path: string; file?: undefined });
 
+export interface ChatOverrides {
+  model: string;
+  effort: string;
+  account: string;
+  permissionMode: string;
+  streaming: boolean | null;
+}
+
 export interface ChatContext {
   environmentId: string | null;
   sessionId: string | null;
   projectKey: string | null;
   cwd: string;
   color?: string | null;
+  overrides?: ChatOverrides;
 }
 
 export class ChatState {
   onContextChange: (() => void) | null = null;
+  onOverrides: ((patch: Partial<ChatOverrides>) => void) | null = null;
   tabId: string | null = null;
 
   connection = $state<ConnectionState>("connecting");
@@ -304,7 +314,7 @@ export class ChatState {
           }
         : null;
     this.transcriptLoading = this.#initial !== null;
-    this.#loadEnvOverrides();
+    this.#loadOverrides(context.overrides);
     this.#applyDefaultProject();
     this.#connect();
   }
@@ -333,7 +343,6 @@ export class ChatState {
     this.sessionColor = null;
     this.streaming = false;
     this.#resetTranscript();
-    this.#loadEnvOverrides();
     this.historyProjectKey = null;
     this.#applyDefaultProject();
     this.#connect();
@@ -346,7 +355,6 @@ export class ChatState {
 
   async #openSocket() {
     await this.refreshServerInfo();
-    this.#loadEnvOverrides();
     await this.#consumeInitialSession();
     this.#socket.connect();
   }
@@ -362,13 +370,13 @@ export class ChatState {
     this.#initialConsumed = await this.#loadSessionInto(target);
   }
 
-  #loadEnvOverrides() {
+  #loadOverrides(overrides?: ChatOverrides) {
     const profile = this.environment;
-    this.accountOverride = profile?.account ?? "";
-    this.modelOverride = profile?.model ?? "";
-    this.effortOverride = profile?.effort ?? "";
-    this.permissionOverride = profile?.permissionMode ?? "";
-    this.streamingOverride = profile?.streaming ?? null;
+    this.accountOverride = overrides?.account ?? profile?.account ?? "";
+    this.modelOverride = overrides?.model ?? profile?.model ?? "";
+    this.effortOverride = overrides?.effort ?? profile?.effort ?? "";
+    this.permissionOverride = overrides?.permissionMode ?? profile?.permissionMode ?? "";
+    this.streamingOverride = overrides?.streaming ?? profile?.streaming ?? null;
   }
 
   defaultProjectKey(projects: ProjectInfo[] = this.list?.projects ?? []): string | null {
@@ -972,7 +980,7 @@ export class ChatState {
     if (stale.model) this.modelOverride = "";
     if (stale.effort) this.effortOverride = "";
     if (stale.permissionMode) this.permissionOverride = "";
-    this.#updateEnvironment({
+    this.onOverrides?.({
       ...(stale.account ? { account: "" } : {}),
       ...(stale.model ? { model: "" } : {}),
       ...(stale.effort ? { effort: "" } : {}),
@@ -981,25 +989,25 @@ export class ChatState {
   }
 
   setPermissionMode(mode: string) {
-    this.#updateEnvironment({ permissionMode: mode });
+    this.onOverrides?.({ permissionMode: mode });
     this.permissionOverride = mode;
     if (this.connected) this.#socket.sendSetPermissionMode(mode || this.permissionMode);
   }
 
   setModel(model: string) {
-    this.#updateEnvironment({ model });
+    this.onOverrides?.({ model });
     this.modelOverride = model;
     this.#pushGeneration({ model: model || this.model });
   }
 
   setEffort(effort: string) {
-    this.#updateEnvironment({ effort });
+    this.onOverrides?.({ effort });
     this.effortOverride = effort;
     this.#pushGeneration({ effort: effort || this.effort });
   }
 
   setAccount(account: string) {
-    this.#updateEnvironment({ account });
+    this.onOverrides?.({ account });
     this.accountOverride = account;
     this.#pushGeneration({ account: account || this.account });
     void this.refreshServerInfo();
@@ -1007,7 +1015,7 @@ export class ChatState {
 
   setStreamTokens(value: string) {
     const next = value === "" ? null : value === "on";
-    this.#updateEnvironment({ streaming: next });
+    this.onOverrides?.({ streaming: next });
     this.streamingOverride = next;
     this.#pushGeneration({ partial: next ?? this.streamTokens });
   }
@@ -1284,10 +1292,6 @@ export class ChatState {
   #updateHistoryTitle(sessionId: string, title: string) {
     const known = this.list?.sessions.find((item) => item.sessionId === sessionId);
     if (known) this.list?.upsertSession({ ...known, title });
-  }
-
-  #updateEnvironment(patch: Parameters<typeof backend.update>[1]) {
-    backend.update(this.environmentId ?? this.environment?.id ?? null, patch);
   }
 
   #pushGeneration(patch: Parameters<ChatSocket["sendSetGeneration"]>[0]) {

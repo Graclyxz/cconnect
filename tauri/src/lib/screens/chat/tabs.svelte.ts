@@ -6,6 +6,14 @@ import { ChatState } from "./state.svelte";
 
 export type PaneRole = "center" | "right";
 
+export interface TabOverrides {
+  model: string;
+  effort: string;
+  account: string;
+  permissionMode: string;
+  streaming: boolean | null;
+}
+
 export interface Tab {
   id: string;
   pane: PaneRole;
@@ -16,6 +24,7 @@ export interface Tab {
   title: string | null;
   color: string | null;
   running: boolean;
+  overrides: TabOverrides;
   viewTitle?: string | null;
 }
 
@@ -27,6 +36,7 @@ interface StoredTab {
   title?: string;
   color?: string;
   side?: boolean;
+  over?: Partial<TabOverrides>;
 }
 
 const SESSION_ID_PREVIEW = 8;
@@ -178,10 +188,12 @@ class Tabs {
         projectKey: tab.projectKey,
         cwd: tab.cwd,
         color: tab.color,
+        overrides: tab.overrides,
       });
     });
     created.tabId = tab.id;
     created.onContextChange = () => this.#syncContext(tab.id, created);
+    created.onOverrides = (patch) => this.setOverrides(tab.id, patch);
     this.#states.set(tab.id, { chat: created, stop });
     return created;
   }
@@ -219,7 +231,28 @@ class Tabs {
       title: null,
       color: null,
       running: false,
+      overrides: { ...(this.active?.overrides ?? this.#environmentOverrides(environmentId)) },
     };
+  }
+
+  #environmentOverrides(environmentId: string | null): TabOverrides {
+    const profile = backend.find(environmentId);
+    return {
+      model: profile?.model ?? "",
+      effort: profile?.effort ?? "",
+      account: profile?.account ?? "",
+      permissionMode: profile?.permissionMode ?? "",
+      streaming: profile?.streaming ?? null,
+    };
+  }
+
+  setOverrides(id: string, patch: Partial<TabOverrides>) {
+    const current = this.list.find((tab) => tab.id === id);
+    if (!current) return;
+    this.list = this.list.map((tab) =>
+      tab.id === id ? { ...tab, overrides: { ...tab.overrides, ...patch } } : tab,
+    );
+    this.#persist();
   }
 
   #default(): Tab {
@@ -241,6 +274,7 @@ class Tabs {
         title: item.title ?? null,
         color: item.color ?? null,
         running: false,
+        overrides: { ...this.#environmentOverrides(item.env ?? null), ...(item.over ?? {}) },
       }));
       if (!tabs.length) return { tabs: [this.#default()], active: 0 };
       return { tabs, active: Math.min(Math.max(stored.active ?? 0, 0), tabs.length - 1) };
@@ -280,6 +314,7 @@ class Tabs {
       title: session.title ?? session.preview ?? session.sessionId.slice(0, SESSION_ID_PREVIEW),
       color: session.color,
       running: false,
+      overrides: { ...(this.active?.overrides ?? this.#environmentOverrides(environmentId)) },
     };
     this.list = [...this.list, tab];
     if (pane === "center") {
@@ -406,6 +441,7 @@ class Tabs {
         ...(tab.title ? { title: tab.title } : {}),
         ...(tab.color ? { color: tab.color } : {}),
         ...(tab.pane === "right" ? { side: true } : {}),
+        over: tab.overrides,
       })),
     });
   }

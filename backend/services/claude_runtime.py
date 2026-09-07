@@ -33,6 +33,8 @@ _TRANSIENT_PATTERNS = (
 )
 _USAGE_PATTERNS = ("rate limit", "rate_limit", "usage limit", "quota", "too many requests")
 _CLI_DIAGNOSTIC_MARKERS = ("[ede_diagnostic]", "[session_crash]")
+_SLOW_SECONDS = 15
+_MODEL_VARIANT = re.compile(r"\[[^\]]*\]$")
 
 
 def _reportable_errors(errors: Any) -> list[str]:
@@ -43,6 +45,14 @@ def _reportable_errors(errors: Any) -> list[str]:
         e for e in errors
         if isinstance(e, str) and e.strip() and not e.startswith(_CLI_DIAGNOSTIC_MARKERS)
     ]
+
+
+def _model_offered(info: dict[str, Any], model: Optional[str], account: Optional[str]) -> bool:
+    base = _MODEL_VARIANT.sub("", model) if model else model
+    return any(
+        cli_info.known_model(info, name) or cli_info.provider_model(name, account)
+        for name in dict.fromkeys((model, base))
+    )
 
 
 def _looks_transient(status: int | None, text: str | None) -> bool:
@@ -621,7 +631,7 @@ async def run_prompt(
     vis = wanted or visibility.defaults
     ultracode = effort == ULTRACODE_EFFORT
     info = await cli_info.server_info(account=account)
-    if not cli_info.known_model(info, model) and not cli_info.provider_model(model, account):
+    if not _model_offered(info, model, account):
         model = None
     effort_level = cli_info.effort_for(info, model, effort, account)
     extra_args = {"name": name} if name else {}
@@ -737,7 +747,7 @@ async def run_prompt(
                     and not status_state["compacting"]
                     and not status_state["awaiting_user"]
                     and not status_state["pending"]
-                    and loop.time() - status_state["last"] > 15
+                    and loop.time() - status_state["last"] > _SLOW_SECONDS
                 ):
                     status_state["slow"] = True
                     try:
@@ -1024,6 +1034,8 @@ async def run_prompt(
                         detail = f"API error {api_status}"
                     if _looks_transient(api_status, detail):
                         yield {"type": "status", "kind": "failed"}
+                    elif detail:
+                        yield {"type": "error", "message": _clean_error_text(detail)}
                 yield {
                     "type": "result",
                     "session_id": getattr(message, "session_id", None),
@@ -1032,11 +1044,9 @@ async def run_prompt(
                 }
     except Exception as exc:
         raised = getattr(exc, "errors", None)
-        if isinstance(raised, list) and raised and not _reportable_errors(raised):
-            logger.info(f"run_prompt ended on a CLI diagnostic: {'; '.join(raised)}")
-            return
+        reportable = _reportable_errors(raised) if isinstance(raised, list) else []
         logger.error(f"run_prompt failed: {type(exc).__name__}: {exc}")
-        detail = getattr(exc, "stderr", None) or str(exc)
+        detail = "; ".join(reportable) or getattr(exc, "stderr", None) or str(exc)
         if _looks_transient(None, detail):
             yield {"type": "status", "kind": "failed"}
         else:
