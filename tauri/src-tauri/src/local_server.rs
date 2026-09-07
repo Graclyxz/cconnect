@@ -5,7 +5,7 @@ use std::os::windows::process::CommandExt;
 use std::net::{SocketAddr, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -64,6 +64,7 @@ struct Inner {
     child: Option<Child>,
     info: LocalServerInfo,
     generation: u64,
+    starting: bool,
 }
 
 fn emit(app: &AppHandle, info: &LocalServerInfo) {
@@ -278,10 +279,11 @@ pub fn local_server_status(
         }
         inner.child.is_some()
     };
-    let port = resolve_port(&PathBuf::from(&config.dir));
+    let dir = PathBuf::from(&config.dir);
+    let port = resolve_port(&dir);
     let ready = port_open(port);
     let mut inner = state.inner.lock().unwrap();
-    inner.info.managed = managed;
+    inner.info.managed = managed || (ready && recorded_pid(&dir).is_some());
     inner.info.ready = ready;
     inner.info.port = port;
     if ready {
@@ -298,11 +300,13 @@ fn start_inner(
     config: &LocalServerConfig,
 ) -> Result<LocalServerInfo, String> {
     {
-        let inner = state.inner.lock().unwrap();
-        if inner.child.is_some() {
+        let mut inner = state.inner.lock().unwrap();
+        if inner.child.is_some() || inner.starting {
             return Ok(inner.info.clone());
         }
+        inner.starting = true;
     }
+    let _guard = StartGuard { state };
 
     let dir = PathBuf::from(&config.dir);
     let port = resolve_port(&dir);
@@ -359,6 +363,7 @@ fn start_inner(
     };
 
     let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
     info.managed = true;
     let generation = {
         let mut inner = state.inner.lock().unwrap();
@@ -389,19 +394,25 @@ fn start_inner(
         let _ = ready_app.emit(STATUS_EVENT, info);
     });
 
+    let tail: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::new()));
+    let errors = stderr.map(|stderr| {
+        let tail = Arc::clone(&tail);
+        std::thread::spawn(move || {
+            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                push_tail(&tail, line);
+            }
+        })
+    });
+
     if let Some(stdout) = stdout {
         let reader_app = app.clone();
         std::thread::spawn(move || {
-            let mut tail: VecDeque<String> = VecDeque::new();
             let mut current = LocalServerInfo {
                 managed: true,
                 ..LocalServerInfo::default()
             };
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
-                tail.push_back(line.clone());
-                while tail.len() > TAIL_LINES {
-                    tail.pop_front();
-                }
+                push_tail(&tail, line.clone());
                 let before = (
                     current.public_url.clone(),
                     current.token.clone(),
@@ -417,7 +428,12 @@ fn start_inner(
                     emit(&reader_app, &current);
                 }
             }
-            let detail: Vec<String> = tail.iter().rev().take(TAIL_REPORTED).rev().cloned().collect();
+            if let Some(errors) = errors {
+                let _ = errors.join();
+            }
+            let lines = tail.lock().unwrap();
+            let detail: Vec<String> = lines.iter().rev().take(TAIL_REPORTED).rev().cloned().collect();
+            drop(lines);
             let crashed = LocalServerInfo {
                 managed: false,
                 ready: false,
@@ -441,32 +457,60 @@ fn start_inner(
     Ok(info)
 }
 
+struct StartGuard<'a> {
+    state: &'a LocalServerState,
+}
+
+impl Drop for StartGuard<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut inner) = self.state.inner.lock() {
+            inner.starting = false;
+        }
+    }
+}
+
+fn push_tail(tail: &Arc<Mutex<VecDeque<String>>>, line: String) {
+    let Ok(mut lines) = tail.lock() else {
+        return;
+    };
+    lines.push_back(line);
+    while lines.len() > TAIL_LINES {
+        lines.pop_front();
+    }
+}
+
 fn kill_pid(pid: u32) {
     #[cfg(windows)]
     {
         let _ = Command::new("taskkill")
             .args(["/PID", &pid.to_string(), "/T", "/F"])
             .creation_flags(CREATE_NO_WINDOW)
-            .spawn();
+            .status();
     }
     #[cfg(not(windows))]
     {
-        let _ = Command::new("pkill").args(["-TERM", "-P", &pid.to_string()]).spawn();
-        let _ = Command::new("kill").args(["-TERM", &pid.to_string()]).spawn();
+        let _ = Command::new("pkill").args(["-TERM", "-P", &pid.to_string()]).status();
+        let _ = Command::new("kill").args(["-TERM", &pid.to_string()]).status();
     }
 }
 
 fn kill_tree(child: &mut Child) {
     kill_pid(child.id());
     let _ = child.kill();
+    let _ = child.wait();
 }
 
 pub fn shutdown(state: &LocalServerState) {
     let mut inner = state.inner.lock().unwrap();
+    let port = inner.info.port;
     if let Some(mut child) = inner.child.take() {
         kill_tree(&mut child);
     }
     inner.info = LocalServerInfo::default();
+    drop(inner);
+    if port != 0 {
+        wait_port(port, false, STOP_ATTEMPTS);
+    }
 }
 
 fn stop_inner(app: &AppHandle, state: &LocalServerState, config: &LocalServerConfig) -> LocalServerInfo {
