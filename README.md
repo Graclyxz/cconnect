@@ -14,7 +14,7 @@ any browser, locally over Tailscale or publicly over a Tailscale Funnel.
 ```
 cconnect/
 ├── backend/   # FastAPI bridge (Python) — see backend/CLAUDE.md
-└── tauri/     # Desktop, web and Android app (Svelte + Tauri) — Windows, Linux, macOS, the browser and Android — see tauri/CLAUDE.md
+└── client/    # Desktop, web and Android app (Svelte + Tauri) — Windows, Linux, macOS, the browser and Android — see client/CLAUDE.md
 ```
 
 The desktop, web and Android apps are one Svelte + Tauri codebase: the desktop

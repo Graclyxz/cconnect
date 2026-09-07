@@ -139,8 +139,8 @@ the single table of what the app renders inline.
 **Adding an element** touches several files and there is no generator, so this is the checklist:
 
 1. `TYPES` + `LEAF` in `mcps/components.py`, and its line in `DESCRIPTION` / `SHOW_DESCRIPTION`.
-2. `ComponentElement` in `tauri/.../data/chatModels.ts` and `toElement` in `.../services/chatSocket.ts`.
-3. The `{#if}` chain in `tauri/.../chat/blocks/ComponentBlock.svelte`.
+2. `ComponentElement` in `client/.../data/chatModels.ts` and `toElement` in `.../services/chatSocket.ts`.
+3. The `{#if}` chain in `client/.../chat/blocks/ComponentBlock.svelte`.
 4. **The summary** (`componentSummary` / the derived `summary`) — the one everybody forgets;
    skipping it is what printed `secret` values into the chat.
 5. The validation (`componentMissing` / `missing`) if it can be required.

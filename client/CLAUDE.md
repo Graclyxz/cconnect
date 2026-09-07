@@ -1,4 +1,4 @@
-# CLAUDE.md — tauri (Svelte + Tauri)
+# CLAUDE.md — client (Svelte + Tauri)
 
 The app: desktop, web and Android from one Svelte 5 + Tauri 2 codebase, against the backend
 contract. Assets and the web build are named `cconnect-tauri`.

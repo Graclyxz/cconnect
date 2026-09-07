@@ -12,8 +12,8 @@ and a markdown scratchpad.
 
 - **`backend/`** — FastAPI (Python 3.11+) bridging the app and Claude Code through the
   Agent SDK. THE source of truth for events, schemas and settings. See `backend/CLAUDE.md`.
-- **`tauri/`** — Svelte + Tauri: one codebase → desktop, web and Android.
-  See `tauri/CLAUDE.md`.
+- **`client/`** — Svelte + Tauri: one codebase → desktop, web and Android.
+  See `client/CLAUDE.md`.
 
 ## Architecture
 
@@ -37,10 +37,10 @@ and the app renders AppOutdated / ServerOutdated / CliOutdated notices.
 
 A release is one commit named `v<x.y.z>` that replaces `CHANGELOG.md` and bumps five
 files: `backend/pyproject.toml` (`version`, `supported-app`, and `supported-cli` when the
-CLI floor moves), `tauri/package.json`, `tauri/src-tauri/Cargo.toml` and its
-`Cargo.lock` entry, `tauri/src-tauri/tauri.conf.json` (`version` **and**
-`bundle.android.versionCode`) and `tauri/vite.config.ts` (`SUPPORTED_SERVER`). Tags are
-lightweight and unprefixed (`1.6.1`). An Android build of tauri rewrites the Cargo files
+CLI floor moves), `client/package.json`, `client/src-tauri/Cargo.toml` and its
+`Cargo.lock` entry, `client/src-tauri/tauri.conf.json` (`version` **and**
+`bundle.android.versionCode`) and `client/vite.config.ts` (`SUPPORTED_SERVER`). Tags are
+lightweight and unprefixed (`1.6.1`). An Android build rewrites the Cargo files
 from `tauri.conf.json` on its own.
 
 `CHANGELOG.md` is replaced whole: no headers, versions or dates, one bullet per
@@ -51,8 +51,8 @@ bullets, and the `> [!NOTE]` block with the web link at the end.
 
 ```bash
 cd backend && python run.py                     # local (no reload on Windows: restart by hand)
-cd tauri   && npm run check                     # svelte-check
-cd tauri   && npm run dev
+cd client  && npm run check                     # svelte-check
+cd client  && npm run dev
 ```
 
 ## Key rules
