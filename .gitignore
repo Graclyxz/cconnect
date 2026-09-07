@@ -24,20 +24,8 @@ desktop.ini
 dist/
 build/
 
-# Internal AI workspace (throwaway cwd for backend AI helper actions)
-backend/internal_task/
-
-# Soft-deleted chats, kept out of the directory the CLI sweeps
-backend/trash/
-
-# Shared drop folder (quick PC -> phone file sharing, served download-only)
-backend/shared/
-
-# Where a running server declares its port and pid for the desktop app
-backend/.runtime
-
-# Chromium profile for the browser pane
-backend/.browser/
+# Everything the backend owns at runtime (config, state, cache, logs, shared, trash)
+backend/data/
 
 # Session output a Playwright MCP attached to that browser leaves behind
 backend/.playwright-mcp/

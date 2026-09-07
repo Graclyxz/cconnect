@@ -21,11 +21,11 @@ from loguru import logger
 from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed
 
+from core import paths
 from core.config import (
     BROWSER_DEBUG_PORT,
     BROWSER_EXECUTABLE,
     BROWSER_HEADLESS,
-    BROWSER_PROFILE_DIR,
     BROWSER_QUALITY,
 )
 
@@ -444,7 +444,7 @@ class BrowserSession:
         binary = executable()
         if binary is None:
             raise RuntimeError("no_browser")
-        profile = Path(BROWSER_PROFILE_DIR)
+        profile = paths.BROWSER_PROFILE_DIR
         profile.mkdir(parents=True, exist_ok=True)
         arguments = [
             binary,

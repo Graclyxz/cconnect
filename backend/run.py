@@ -19,14 +19,12 @@ from urllib.parse import urlparse
 import psutil
 import qrcode
 
-from core.config import PORT, RESTART_EXIT_CODE, RESTART_FLAG
+from core import paths
+from core.config import PORT, RESTART_EXIT_CODE
 from services import system_monitor
 
-_BASE_DIR = Path(__file__).resolve().parent
+_BASE_DIR = paths.BACKEND_DIR
 _ENV_PATH = _BASE_DIR / ".env"
-_PID_PATH = _BASE_DIR / ".detached.pid"
-_PROVIDER_PATH = _BASE_DIR / ".detached.provider"
-_DETACHED_LOG = _BASE_DIR / "logs" / "detached.log"
 _TOKEN_VAR = "PUBLIC_ACCESS_TOKEN"
 _TERMINAL_KEY_VAR = "TERMINAL_ACCESS_KEY"
 _HOSTNAME_VAR = "PUBLIC_HOSTNAME"
@@ -233,7 +231,7 @@ def _expose(
 def _running_pid() -> int | None:
     """PID of a live detached launcher, or None when the recorded one is gone."""
     try:
-        pid = int(_PID_PATH.read_text(encoding="utf-8").strip())
+        pid = int(paths.DETACHED_PID_FILE.read_text(encoding="utf-8").strip())
     except (OSError, ValueError):
         return None
     try:
@@ -242,20 +240,19 @@ def _running_pid() -> int | None:
             return pid
     except (psutil.Error, OSError):
         pass
-    _PID_PATH.unlink(missing_ok=True)
+    paths.DETACHED_PID_FILE.unlink(missing_ok=True)
     return None
 
 
 def _detached_provider() -> str:
     """Which provider the detached run exposed with, so --stop only tears down what it started."""
     with suppress(OSError):
-        return _PROVIDER_PATH.read_text(encoding="utf-8").strip()
+        return paths.DETACHED_PROVIDER_FILE.read_text(encoding="utf-8").strip()
     return ""
 
 
 def _spawn_detached(child_args: list[str]) -> int:
-    _DETACHED_LOG.parent.mkdir(parents=True, exist_ok=True)
-    handle = _DETACHED_LOG.open("ab")
+    handle = paths.DETACHED_LOG_FILE.open("ab")
     kwargs: dict = {
         "stdin": subprocess.DEVNULL,
         "stdout": handle,
@@ -269,7 +266,7 @@ def _spawn_detached(child_args: list[str]) -> int:
     else:
         kwargs["start_new_session"] = True
     process = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), *child_args], **kwargs)
-    _PID_PATH.write_text(str(process.pid), encoding="utf-8")
+    paths.DETACHED_PID_FILE.write_text(str(process.pid), encoding="utf-8")
     return process.pid
 
 
@@ -304,10 +301,10 @@ def _stop_detached() -> None:
             print(f"Stopped detached backend (pid {pid}).")
         except (psutil.Error, OSError) as exc:
             _abort(f"could not stop pid {pid}: {exc}")
-    _PID_PATH.unlink(missing_ok=True)
+    paths.DETACHED_PID_FILE.unlink(missing_ok=True)
     if _detached_provider() == "tailscale":
         _stop_tailscale_funnel()
-    _PROVIDER_PATH.unlink(missing_ok=True)
+    paths.DETACHED_PROVIDER_FILE.unlink(missing_ok=True)
 
 
 def main():
@@ -349,14 +346,14 @@ def main():
         key_generated = _ensure_terminal_key()
         if args.expose:
             _expose(args.expose, PORT, args.public_host, keep_running=True, key_generated=key_generated)
-            _PROVIDER_PATH.write_text(args.expose, encoding="utf-8")
+            paths.DETACHED_PROVIDER_FILE.write_text(args.expose, encoding="utf-8")
         else:
             _print_terminal_key(key_generated)
         child_args = ["--production"] if args.production else []
         pid = _spawn_detached(child_args)
         print(
             f"  Detached   : pid {pid}"
-            f"\n  Log        : {_DETACHED_LOG}"
+            f"\n  Log        : {paths.DETACHED_LOG_FILE}"
             f"\n  Stop with  : {Path(sys.executable).name} run.py --stop\n"
         )
         return
@@ -378,7 +375,7 @@ def main():
     elif workers > 1:
         cmd += ["--workers", str(workers)]
 
-    RESTART_FLAG.unlink(missing_ok=True)
+    paths.RESTART_FLAG.unlink(missing_ok=True)
     while True:
         process = subprocess.Popen(cmd, cwd=Path(__file__).resolve().parent)
         asked = False
@@ -388,7 +385,7 @@ def main():
                     process.wait(timeout=0.5)
                     break
                 except subprocess.TimeoutExpired:
-                    if RESTART_FLAG.exists():
+                    if paths.RESTART_FLAG.exists():
                         asked = True
                         _terminate_tree(process.pid)
                         process.wait()
@@ -396,8 +393,8 @@ def main():
         except KeyboardInterrupt:
             _terminate_tree(process.pid)
             break
-        if asked or RESTART_FLAG.exists():
-            RESTART_FLAG.unlink(missing_ok=True)
+        if asked or paths.RESTART_FLAG.exists():
+            paths.RESTART_FLAG.unlink(missing_ok=True)
             continue
         if process.returncode != RESTART_EXIT_CODE:
             break

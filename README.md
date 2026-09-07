@@ -208,7 +208,7 @@ only once you switch to it.
 
 ## Files
 
-The shared folder grew into a full file manager. Browse `backend/shared/` from
+The shared folder grew into a full file manager. Browse `backend/data/shared/` from
 the app: upload files (with per-file progress you can cancel), create folders,
 rename, sort by name/date/type/size, and long-press (or right-click on desktop)
 to multi-select — then move, copy, share, delete, save to Downloads, or copy a
@@ -222,7 +222,7 @@ changes on disk. A button blows it up to full screen, and closing it gives you
 back the panel you had. The same goes for a file Claude links in the chat: one
 tap opens it, and the rest of the actions stay in the viewer's menu.
 
-It works in both directions: drop a file into `backend/shared/` on the PC — or
+It works in both directions: drop a file into `backend/data/shared/` on the PC — or
 just ask Claude to write one there — and you get a tap-to-download link in the
 chat, served over the same authenticated connection.
 
@@ -377,6 +377,7 @@ required for a plain local run.
 | Variable | Default | What it does |
 |---|---|---|
 | `PORT` | `8723` | Port the backend binds to |
+| `CCONNECT_DATA_DIR` | `backend/data` | Everything the backend owns on disk — settings, accounts, your prompts, caches, logs, the shared folder and the trash. Point it at another drive and the whole tree moves with it |
 | `CLAUDE_PROJECTS_DIR` | `~/.claude/projects` | Where Claude Code keeps its sessions |
 | `DEFAULT_MODEL` | `opus` | Model used when the app doesn't override it |
 | `DEFAULT_EFFORT` | `max` | Same, for the effort level |
@@ -388,7 +389,7 @@ required for a plain local run.
 | `BROWSER_DEBUG_PORT` | `9333` | Remote debugging port it is launched with |
 | `BROWSER_HEADLESS` | `1` | Runs it without a window; set `0` to watch the real browser on the server |
 | `BROWSER_QUALITY` | `70` | JPEG quality of the streamed frames. Lower it on a slow link — the pane stays sharp because the resolution does not change |
-| `BROWSER_PROFILE_DIR` | `backend/.browser` | Its own profile, so it never touches the one you browse with |
+| `BROWSER_PROFILE_DIR` | `backend/data/cache/browser` | Its own profile, so it never touches the one you browse with |
 
 ## Settings
 

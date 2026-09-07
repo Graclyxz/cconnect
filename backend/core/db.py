@@ -2,15 +2,13 @@
 so the store caches them in memory and only hits the DB on writes and at startup —
 keeping reads off the event loop without an async driver."""
 
-from pathlib import Path
-
 from loguru import logger
 from sqlalchemy import create_engine, event, inspect
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-_DB_PATH = Path(__file__).resolve().parent.parent / "cconnect.db"
+from core import paths
 
-engine = create_engine(f"sqlite:///{_DB_PATH}", echo=False)
+engine = create_engine(f"sqlite:///{paths.DB_FILE}", echo=False)
 Session = sessionmaker(bind=engine, expire_on_commit=False)
 
 
@@ -52,17 +50,17 @@ def _add_missing_columns() -> list[str]:
 def init_db() -> None:
     """Create the missing tables and append the missing columns."""
     from core import models  # noqa: F401  (register models on Base before create_all)
-    db_existed = _DB_PATH.exists()
+    db_existed = paths.DB_FILE.exists()
     before = set(inspect(engine).get_table_names())
     Base.metadata.create_all(engine)
     after = set(inspect(engine).get_table_names())
     created = sorted(after - before)
     columns = _add_missing_columns()
     if not db_existed:
-        logger.info(f"Created database {_DB_PATH.name} with tables: {', '.join(sorted(after))}")
+        logger.info(f"Created database {paths.DB_FILE.name} with tables: {', '.join(sorted(after))}")
     elif created:
-        logger.info(f"Added new tables to {_DB_PATH.name}: {', '.join(created)}")
+        logger.info(f"Added new tables to {paths.DB_FILE.name}: {', '.join(created)}")
     else:
-        logger.info(f"Database {_DB_PATH.name} ready ({len(after)} tables).")
+        logger.info(f"Database {paths.DB_FILE.name} ready ({len(after)} tables).")
     if columns:
-        logger.info(f"Added new columns to {_DB_PATH.name}: {', '.join(columns)}")
+        logger.info(f"Added new columns to {paths.DB_FILE.name}: {', '.join(columns)}")

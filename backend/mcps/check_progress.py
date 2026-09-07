@@ -1,14 +1,12 @@
 """Cross-chat progress query: summarize what's happening in another Claude Code project."""
 
-import os
 from pathlib import Path
 from typing import Any, Optional
 
 from claude_agent_sdk import tool
 from loguru import logger
 
-from core import cli_manager
-from core.config import AI_WORKDIR
+from core import cli_manager, paths
 from services.chat_list import hub
 from services.sessions import _iter_lines, _project_dir, _session_file
 
@@ -112,10 +110,9 @@ async def _generate_summary(transcript: str, account: Optional[str] = None) -> s
 
     from services import accounts
 
-    os.makedirs(AI_WORKDIR, exist_ok=True)
     target = accounts.resolve(account)
     options = ClaudeAgentOptions(
-        cwd=AI_WORKDIR,
+        cwd=str(paths.AI_WORKDIR),
         permission_mode="default",
         model=accounts.model_for(target, "haiku"),
         cli_path=cli_manager.resolve_cli_path(),

@@ -4,7 +4,7 @@ import json
 import subprocess
 from pathlib import Path
 
-from core import cli_manager
+from core import cli_manager, paths
 from services import accounts
 
 _PLUGIN_ACTIONS = frozenset({"install", "uninstall", "enable", "disable", "update"})
@@ -84,17 +84,14 @@ def mcp_remove(name: str) -> dict:
     store = _disabled_store()
     if name in store:
         store.pop(name)
-        _MCP_DISABLED.write_text(json.dumps(store, indent=2), encoding="utf-8")
+        paths.MCP_DISABLED_FILE.write_text(json.dumps(store, indent=2), encoding="utf-8")
         return {"ok": True, "message": ""}
     return _shared(_run(["mcp", "remove", name]))
 
 
-_MCP_DISABLED = Path(__file__).resolve().parent.parent / "mcp_disabled.json"
-
-
 def _disabled_store() -> dict:
     try:
-        return json.loads(_MCP_DISABLED.read_text(encoding="utf-8"))
+        return json.loads(paths.MCP_DISABLED_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
 
@@ -114,7 +111,7 @@ def mcp_set_enabled(name: str, enabled: bool) -> dict:
         result = _run(["mcp", "add-json", "-s", "user", name, json.dumps(cfg)])
         if result["ok"]:
             store.pop(name, None)
-            _MCP_DISABLED.write_text(json.dumps(store, indent=2), encoding="utf-8")
+            paths.MCP_DISABLED_FILE.write_text(json.dumps(store, indent=2), encoding="utf-8")
         return _shared(result)
     try:
         servers = json.loads((Path.home() / ".claude.json").read_text(encoding="utf-8")).get("mcpServers", {})
@@ -126,5 +123,5 @@ def mcp_set_enabled(name: str, enabled: bool) -> dict:
     result = _run(["mcp", "remove", name])
     if result["ok"]:
         store[name] = cfg
-        _MCP_DISABLED.write_text(json.dumps(store, indent=2), encoding="utf-8")
+        paths.MCP_DISABLED_FILE.write_text(json.dumps(store, indent=2), encoding="utf-8")
     return _shared(result)

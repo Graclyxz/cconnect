@@ -11,14 +11,13 @@ from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 
 from loguru import logger
 
-from core import cli_manager
-from core.config import AI_WORKDIR, PORT, SHARED_DIR, ULTRACODE_EFFORT
+from core import cli_manager, paths
+from core.config import PORT, ULTRACODE_EFFORT
 from mcps import build_cconnect_server
 from mcps.media import block_types
 from services import cli_info, providers, settings_store, visibility
 from services.questions import DECLINE_MESSAGE, DISMISS, SUBMIT_KEY, answers_from_values, questions_to_blocks
 
-_PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 _FILE_EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
 
 _TRANSIENT_API_STATUS = frozenset({500, 502, 503, 504, 529})
@@ -83,7 +82,7 @@ def _blocks_guide(capabilities: list[str]) -> str:
     if not types:
         return ""
     try:
-        guide = (_PROMPTS_DIR / "BLOCKS.md").read_text(encoding="utf-8")
+        guide = (paths.PROMPTS_DIR / "BLOCKS.md").read_text(encoding="utf-8")
     except OSError:
         return ""
     return guide.replace("{{BLOCK_TYPES}}", types)
@@ -99,14 +98,14 @@ def _browser_guide(capabilities: list[str]) -> str:
     if "browser" not in capabilities or not settings_store.get("browser_view"):
         return ""
     try:
-        return (_PROMPTS_DIR / "BROWSER.md").read_text(encoding="utf-8")
+        return (paths.PROMPTS_DIR / "BROWSER.md").read_text(encoding="utf-8")
     except OSError:
         return ""
 
 
 def _prompt_file(name: str) -> str:
     try:
-        return (_PROMPTS_DIR / name).read_text(encoding="utf-8").strip()
+        return (paths.PROMPTS_DIR / name).read_text(encoding="utf-8").strip()
     except OSError:
         return ""
 
@@ -165,7 +164,7 @@ def _system_append(
     if not text:
         return ""
     effective = base_url or f"http://localhost:{PORT}/api"
-    return text.replace("{{SHARED_DIR}}", SHARED_DIR).replace("{{BASE_URL}}", effective.rstrip("/")).strip()
+    return text.replace("{{SHARED_DIR}}", str(paths.SHARED_DIR)).replace("{{BASE_URL}}", effective.rstrip("/")).strip()
 
 
 def _format_tool_input(inp: Any) -> str:
@@ -1071,10 +1070,9 @@ async def generate_title(transcript: str, account: Optional[str] = None) -> str:
 
     from services import accounts
 
-    os.makedirs(AI_WORKDIR, exist_ok=True)
     target = accounts.resolve(account)
     options = ClaudeAgentOptions(
-        cwd=AI_WORKDIR,
+        cwd=str(paths.AI_WORKDIR),
         permission_mode="default",
         model=accounts.model_for(target, "haiku"),
         system_prompt="You write conversation titles. Reply with ONLY the title: 3-6 words, Title Case, no quotes, no trailing punctuation.",
@@ -1114,7 +1112,6 @@ async def ask_side_question(
     from claude_agent_sdk import query, ClaudeAgentOptions, AssistantMessage, StreamEvent, UserMessage, ResultMessage, HookMatcher
     from services import accounts
 
-    os.makedirs(AI_WORKDIR, exist_ok=True)
     scope = accounts.context_scope(accounts.resolve(account))
     system = (
         "You are a helpful assistant answering a developer's quick questions, concisely and directly. "
@@ -1128,7 +1125,7 @@ async def ask_side_question(
         system = f"{system}\n\n{shared}"
     prompt = f"<session_context>\n{context}\n</session_context>\n\n{question}" if (context and not resume_id) else question
     options_kwargs: dict[str, Any] = dict(
-        cwd=AI_WORKDIR,
+        cwd=str(paths.AI_WORKDIR),
         permission_mode=permission_mode,
         model=model or "sonnet",
         system_prompt=None if resume_id else system,

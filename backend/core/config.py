@@ -3,6 +3,8 @@
 import os
 from pathlib import Path
 
+from core import paths
+
 try:
     from dotenv import load_dotenv
     load_dotenv()
@@ -15,7 +17,7 @@ PUBLIC_URL = os.environ.get("PUBLIC_URL", "").strip().rstrip("/")
 def _pyproject() -> dict:
     import tomllib
     try:
-        with (Path(__file__).resolve().parent.parent / "pyproject.toml").open("rb") as fh:
+        with paths.PYPROJECT_FILE.open("rb") as fh:
             return tomllib.load(fh)
     except (OSError, ValueError):
         return {}
@@ -31,21 +33,12 @@ CLAUDE_PROJECTS_DIR = os.environ.get(
     str(Path.home() / ".claude" / "projects"),
 )
 
-# Isolated cwd for internal AI helper actions; its throwaway sessions land under a
-# separate project key so they never mix into a user's real history.
-AI_WORKDIR = os.environ.get("AI_WORKDIR", str(Path(__file__).resolve().parent.parent / "internal_task"))
-
-# Drop folder served download-only to the phone.
-SHARED_DIR = str(Path(__file__).resolve().parent.parent / "shared")
-
 # Restart contract between run.py (supervisor) and POST /api/system/restart.
 RESTART_EXIT_CODE = 42
-RESTART_FLAG = Path(__file__).resolve().parent.parent / ".restart"
-RUNTIME_FILE = Path(__file__).resolve().parent.parent / ".runtime"
 
 # Fallback cwd when the mobile starts a chat without picking a directory and the
 # active connection has none. Defaults to the parent of the backend folder.
-DEFAULT_CWD = os.environ.get("DEFAULT_CWD", str(Path(__file__).resolve().parent.parent.parent))
+DEFAULT_CWD = os.environ.get("DEFAULT_CWD", str(paths.BACKEND_DIR.parent))
 
 # Fallback used only if the SDK can't be introspected yet.
 _FALLBACK_PERMISSION_MODES = ("default", "acceptEdits", "plan", "dontAsk", "bypassPermissions", "auto")
@@ -108,20 +101,13 @@ BROWSER_EXECUTABLE = os.environ.get("BROWSER_EXECUTABLE", "")
 BROWSER_DEBUG_PORT = int(os.environ.get("BROWSER_DEBUG_PORT", "9333"))
 BROWSER_HEADLESS = os.environ.get("BROWSER_HEADLESS", "1") not in ("0", "false", "False")
 BROWSER_QUALITY = max(20, min(95, int(os.environ.get("BROWSER_QUALITY", "70"))))
-BROWSER_PROFILE_DIR = os.environ.get(
-    "BROWSER_PROFILE_DIR",
-    str(Path(__file__).resolve().parent.parent / ".browser"),
-)
 
 __all__ = [
     "PORT",
-    "RUNTIME_FILE",
     "SERVER_VERSION",
     "SUPPORTED_APP",
     "SUPPORTED_CLI",
     "CLAUDE_PROJECTS_DIR",
-    "AI_WORKDIR",
-    "SHARED_DIR",
     "DEFAULT_CWD",
     "DEFAULT_PERMISSION_MODE",
     "DEFAULT_EFFORT",
@@ -134,5 +120,4 @@ __all__ = [
     "BROWSER_DEBUG_PORT",
     "BROWSER_HEADLESS",
     "BROWSER_QUALITY",
-    "BROWSER_PROFILE_DIR",
 ]

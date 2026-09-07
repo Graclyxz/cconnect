@@ -1,9 +1,8 @@
 import json
-from pathlib import Path
 
 from claude_agent_sdk import tool
 
-from core.config import SHARED_DIR
+from core import paths
 from mcps.media import preview_description
 
 CAPABILITY = "components"
@@ -259,10 +258,10 @@ def _numeric_ids(blocks: list) -> set[str]:
 
 def _absolute(value):
     items = value if isinstance(value, list) else [value]
-    paths = [str(Path(SHARED_DIR) / str(item)) for item in items if item]
-    if not paths:
+    absolute = [str(paths.SHARED_DIR / str(item)) for item in items if item]
+    if not absolute:
         return value
-    return paths if isinstance(value, list) else paths[0]
+    return absolute if isinstance(value, list) else absolute[0]
 
 
 def _number(value):

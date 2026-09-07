@@ -9,7 +9,7 @@ the `sdk_auto_update` setting is on, which is why its import is deferred inside 
 ```
 [app] ──WS  /api/chat/ws──> chat router ──> live_sessions ──> claude_runtime ──> SDK query()
       ──REST /api/sessions ─> sessions router ──> services/sessions (~/.claude/projects JSONL)
-      ──REST /api/shared ───> shared router ──> backend/shared/
+      ──REST /api/shared ───> shared router ──> backend/data/shared/
       ──REST /api/claude ───> claude router ──> claude_assets (read) + claude_manage (mutate)
 ```
 
@@ -18,7 +18,8 @@ the `sdk_auto_update` setting is on, which is why its import is deferred inside 
 - `main.py` — app, router auto-discovery, gzip, catch-all 404.
 - `run.py` — supervisor: launches uvicorn as a child and relaunches it on a restart
   request. `--expose {tailscale,caddy}` turns on the Bearer gate and prints URL + token + QR.
-- `core/` — `config` (env + version contract), `settings_defs` + `db` + `settings_store`
+- `core/` — `paths` (**the** path table: every file the backend owns, under `data/`),
+  `config` (env + version contract), `settings_defs` + `db` + `settings_store`
   (SQLite KV), `cli_manager`, `sdk`, `responses` (**the** envelope: `{success, status, message, data}`).
 - `middleware/` — `public_auth` (Bearer, no-op without a token), `security`, `error_handler`.
 - `routers/` — thin: validate, call a service, return `api_response()`.
@@ -28,7 +29,9 @@ the `sdk_auto_update` setting is on, which is why its import is deferred inside 
   `system_monitor`, `network`, `usage`, `accounts`, `shared`.
 - `mcps/` — in-process MCP server exposed to Claude as `cconnect`.
 - `prompts/` — `CCONNECT.md` (appended to every turn, `{{SHARED_DIR}}` / `{{BASE_URL}}`
-  substituted per request) and `USER.md` (user-owned, gitignored, never deleted — emptied).
+  substituted per request), `BLOCKS.md`, `BROWSER.md` and `SUGGESTIONS.md`. Versioned, so
+  the user-owned `USER.md` and the per-project prompts live in `data/config/prompts/`
+  instead (never deleted — emptied).
 
 ## Auth
 

@@ -6,14 +6,11 @@ same transcript), so the chosen anchor stays pending here until that turn runs.
 """
 
 import json
-from pathlib import Path
 from typing import Any, Optional
 
 from loguru import logger
 
-from core import cli_manager
-
-_PENDING_FILE = Path(__file__).resolve().parent.parent / "rewind_pending.json"
+from core import cli_manager, paths
 
 _pending: dict[str, str] | None = None
 
@@ -22,7 +19,7 @@ def _load() -> dict[str, str]:
     global _pending
     if _pending is None:
         try:
-            data = json.loads(_PENDING_FILE.read_text(encoding="utf-8"))
+            data = json.loads(paths.REWIND_FILE.read_text(encoding="utf-8"))
             _pending = {k: v for k, v in data.items() if isinstance(v, str)} if isinstance(data, dict) else {}
         except (OSError, json.JSONDecodeError):
             _pending = {}
@@ -31,7 +28,7 @@ def _load() -> dict[str, str]:
 
 def _save() -> None:
     try:
-        _PENDING_FILE.write_text(json.dumps(_load(), ensure_ascii=False), encoding="utf-8")
+        paths.REWIND_FILE.write_text(json.dumps(_load(), ensure_ascii=False), encoding="utf-8")
     except OSError:
         logger.warning("could not persist pending rewinds")
 

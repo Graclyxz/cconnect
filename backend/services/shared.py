@@ -9,7 +9,7 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
-from core.config import SHARED_DIR
+from core import paths
 
 try:
     import py7zr
@@ -30,9 +30,8 @@ _ARCHIVE_SUFFIXES = (".zip", ".7z", ".rar", ".tar", ".tar.gz", ".tgz", ".tar.bz2
 
 
 def _base() -> Path:
-    base = Path(SHARED_DIR)
-    base.mkdir(parents=True, exist_ok=True)
-    return base
+    paths.SHARED_DIR.mkdir(parents=True, exist_ok=True)
+    return paths.SHARED_DIR
 
 
 def _resolve(relpath: str) -> Path:

@@ -5,15 +5,14 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from core import paths
 from core.config import CLAUDE_PROJECTS_DIR
 from core.db import Session
 from core.models import TrashedSession
 
-_TRASH_ROOT = Path(__file__).resolve().parent.parent / "trash"
-
 
 def trash_root() -> Path:
-    return _TRASH_ROOT
+    return paths.TRASH_DIR
 
 
 def enabled() -> bool:

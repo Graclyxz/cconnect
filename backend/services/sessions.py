@@ -8,7 +8,8 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
-from core.config import AI_WORKDIR, CLAUDE_PROJECTS_DIR
+from core import paths
+from core.config import CLAUDE_PROJECTS_DIR
 from services import settings_store, visibility
 from services.questions import DECLINE_MARK, DISMISS, SUBMIT_KEY, questions_to_blocks, values_from_answers
 
@@ -53,7 +54,7 @@ def project_key_for(cwd: str) -> str:
 
 
 # Project key for the internal AI workspace, hidden from history listings.
-_AI_PROJECT_KEY = project_key_for(AI_WORKDIR)
+_AI_PROJECT_KEY = project_key_for(str(paths.AI_WORKDIR))
 
 
 def _open_transcript(path: Path, mode: str):

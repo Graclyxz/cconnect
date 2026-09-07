@@ -3,9 +3,9 @@
 import os
 import subprocess
 import sys
-from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parent.parent
+from core import paths
+
 _TIMEOUT = 120
 _NO_PROMPT = {"GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "", "SSH_ASKPASS": ""}
 
@@ -14,7 +14,7 @@ RELOADS = sys.platform != "win32"
 
 def _git(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
-        ["git", "-C", str(_ROOT), *args],
+        ["git", "-C", str(paths.BACKEND_DIR), *args],
         capture_output=True,
         text=True,
         encoding="utf-8",

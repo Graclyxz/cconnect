@@ -9,10 +9,11 @@ import subprocess
 import sys
 import time
 import uuid
-from pathlib import Path
 from typing import Callable, Optional
 
 import psutil
+
+from core import paths
 
 _WINDOWS = sys.platform == "win32"
 _LINUX = sys.platform.startswith("linux")
@@ -20,7 +21,6 @@ _LINUX = sys.platform.startswith("linux")
 SUPPORTED = _WINDOWS or _LINUX
 WIRED_CONTROL = _LINUX
 
-_STATE_FILE = Path(__file__).resolve().parent.parent / "network_state.json"
 _PROBE_URLS = ("http://www.gstatic.com/generate_204", "http://detectportal.firefox.com/success.txt")
 _SETTLE_TIMEOUT = 25.0
 _WATCHDOG_INTERVAL = 5.0
@@ -342,7 +342,7 @@ def wifi_connect(ssid: str, password: Optional[str] = None) -> dict:
         if ssid not in _windows_profiles():
             if password is None:
                 return {"ok": False, "message": "password required"}
-            temp = Path(_STATE_FILE.parent) / f"wlan-{uuid.uuid4().hex}.xml"
+            temp = paths.CACHE_DIR / f"wlan-{uuid.uuid4().hex}.xml"
             try:
                 temp.write_text(_windows_profile_xml(ssid, password), encoding="utf-8")
                 added = _run(["netsh", "wlan", "add", "profile", f"filename={temp}", "user=all"])
@@ -401,14 +401,14 @@ def _restore_state(state: dict) -> None:
 
 def _persist_good(state: dict) -> None:
     try:
-        _STATE_FILE.write_text(json.dumps(state), encoding="utf-8")
+        paths.NETWORK_STATE_FILE.write_text(json.dumps(state), encoding="utf-8")
     except OSError:
         pass
 
 
 def last_good_state() -> Optional[dict]:
     try:
-        return json.loads(_STATE_FILE.read_text(encoding="utf-8"))
+        return json.loads(paths.NETWORK_STATE_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
 

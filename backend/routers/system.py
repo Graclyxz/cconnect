@@ -6,7 +6,8 @@ import time
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
-from core.config import RESTART_EXIT_CODE, RESTART_FLAG
+from core import paths
+from core.config import RESTART_EXIT_CODE
 from core.responses import api_response
 from core.ws import send_event
 from middleware.public_auth import ws_bearer_ok
@@ -33,7 +34,7 @@ def _exit_after(code: int) -> None:
     async def _later():
         await asyncio.sleep(_EXIT_DELAY)
         if code == RESTART_EXIT_CODE:
-            RESTART_FLAG.touch()
+            paths.RESTART_FLAG.touch()
         os._exit(code)
 
     asyncio.get_running_loop().create_task(_later())

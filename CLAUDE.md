@@ -22,7 +22,7 @@ and a markdown scratchpad.
                                     │
                                     ├──> ~/.claude/projects   (sessions on disk)
                                     ├──> ~/.claude            (plugins, MCP, skills, memories)
-                                    └──> backend/shared/      (file manager + uploads)
+                                    └──> backend/data/        (settings, accounts, shared, trash)
 ```
 
 Two transport modes: **local** (both devices on the tailnet, plain HTTP, no auth) and

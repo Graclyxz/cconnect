@@ -16,14 +16,14 @@ from pathlib import Path
 import psutil
 from loguru import logger
 
-_LOG_FILE = Path(__file__).resolve().parent.parent / "logs" / "server.jsonl"
+from core import paths
+
 _READ_CAP = 64 * 1024
 _capture_installed = False
 
 
 def reset_log_file() -> None:
-    _LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _LOG_FILE.write_text("", encoding="utf-8")
+    paths.SERVERpaths.SERVER_LOG_FILE.write_text("", encoding="utf-8")
 
 
 def _sink(message) -> None:
@@ -35,7 +35,7 @@ def _sink(message) -> None:
         "pid": record["process"].id,
     }
     try:
-        with _LOG_FILE.open("a", encoding="utf-8") as fh:
+        with paths.SERVER_LOG_FILE.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except OSError:
         pass
@@ -58,7 +58,6 @@ def setup_log_capture() -> None:
     if _capture_installed:
         return
     _capture_installed = True
-    _LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     logger.add(_sink, level="INFO", format="{message}")
     for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         std = logging.getLogger(name)
@@ -69,13 +68,13 @@ def setup_log_capture() -> None:
 
 def logs(after: int = 0, limit: int = 200) -> dict:
     try:
-        size = _LOG_FILE.stat().st_size
+        size = paths.SERVER_LOG_FILE.stat().st_size
     except OSError:
         return {"items": [], "offset": 0}
     start = max(0, size - _READ_CAP) if after == 0 else after
     if start >= size:
         return {"items": [], "offset": size}
-    with _LOG_FILE.open("rb") as fh:
+    with paths.SERVER_LOG_FILE.open("rb") as fh:
         fh.seek(start)
         data = fh.read(size - start)
     end = start + len(data)

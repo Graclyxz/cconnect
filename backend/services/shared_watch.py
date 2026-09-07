@@ -8,12 +8,11 @@ sync without a manual refresh.
 
 import asyncio
 import threading
-from pathlib import Path
 from typing import Optional
 
 from loguru import logger
 
-from core.config import SHARED_DIR
+from core import paths
 from services import shared as shared_service
 
 _DEBOUNCE_SECONDS = 0.4
@@ -71,9 +70,9 @@ class SharedWatchHub:
         return {"type": "snapshot", "path": path, "entries": entries}
 
     def _begin_watching(self):
-        base = SHARED_DIR
+        base = str(paths.SHARED_DIR)
         handler = None
-        if Path(base).is_dir():
+        if paths.SHARED_DIR.is_dir():
             try:
                 from watchdog.events import FileSystemEventHandler
                 from watchdog.observers import Observer

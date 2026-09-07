@@ -14,7 +14,8 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from loguru import logger
 from pydantic import BaseModel, ValidationError
 
-from core.config import AI_WORKDIR, DEFAULT_CWD, permission_modes
+from core import paths
+from core.config import DEFAULT_CWD, permission_modes
 from core.responses import api_response
 from core.ws import send_event
 from mcps import terminal as terminal_mcp
@@ -232,7 +233,7 @@ def _build_side_runner(main_state: _Session, side_state: _Session, question: str
                 base_url=main_state.base_url,
                 session_info=lambda: {
                     "session_id": side_state.session_id,
-                    "cwd": AI_WORKDIR,
+                    "cwd": str(paths.AI_WORKDIR),
                     "account": accounts.resolve(main_state.account),
                     "permission_mode": main_state.permission_mode,
                 },

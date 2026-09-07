@@ -6,11 +6,11 @@ list is remembered here as it is emitted and replayed when the session resumes.
 """
 
 import json
-from pathlib import Path
 
 from loguru import logger
 
-_STORE_FILE = Path(__file__).resolve().parent.parent / "session_todos.json"
+from core import paths
+
 _MAX_SESSIONS = 50
 
 _todos: dict[str, list[dict]] | None = None
@@ -20,7 +20,7 @@ def _load() -> dict[str, list[dict]]:
     global _todos
     if _todos is None:
         try:
-            data = json.loads(_STORE_FILE.read_text(encoding="utf-8"))
+            data = json.loads(paths.TODOS_FILE.read_text(encoding="utf-8"))
             _todos = {k: v for k, v in data.items() if isinstance(v, list)} if isinstance(data, dict) else {}
         except (OSError, json.JSONDecodeError):
             _todos = {}
@@ -29,7 +29,7 @@ def _load() -> dict[str, list[dict]]:
 
 def _save() -> None:
     try:
-        _STORE_FILE.write_text(json.dumps(_load(), ensure_ascii=False), encoding="utf-8")
+        paths.TODOS_FILE.write_text(json.dumps(_load(), ensure_ascii=False), encoding="utf-8")
     except OSError:
         logger.warning("could not persist session todos")
 

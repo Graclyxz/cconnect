@@ -19,6 +19,7 @@ from base64 import b64encode
 from pathlib import Path
 from typing import Optional
 
+from core import paths
 from core.config import CLAUDE_PROJECTS_DIR
 from services import cli_settings, providers, settings_store
 
@@ -36,7 +37,6 @@ AUTH_HEADER = "header"
 
 _MODEL_ALIASES = ("SONNET", "OPUS", "HAIKU")
 
-_ACCOUNTS_DIR = Path(__file__).resolve().parent.parent / "accounts"
 _synced: dict[str, tuple[int, ...]] = {}
 _META_FILE = "account.json"
 _SHARED_DIRS = ("projects", "plugins", "skills")
@@ -62,7 +62,7 @@ def config_dir(account_id: Optional[str]) -> Optional[Path]:
     """Config dir for an account, or None for the primary one (the CLI default)."""
     if not account_id or account_id == PRIMARY_ID:
         return None
-    path = _ACCOUNTS_DIR / account_id
+    path = paths.ACCOUNTS_DIR / account_id
     return path if path.is_dir() else None
 
 
@@ -172,8 +172,8 @@ def list_accounts() -> list[dict]:
         "primary": True,
         "provider": None,
     }]
-    if _ACCOUNTS_DIR.is_dir():
-        for entry in sorted(_ACCOUNTS_DIR.iterdir()):
+    if paths.ACCOUNTS_DIR.is_dir():
+        for entry in sorted(paths.ACCOUNTS_DIR.iterdir()):
             if entry.is_dir() and not entry.name.endswith(".lock"):
                 provider = provider_for(entry.name)
                 items.append({
@@ -246,7 +246,7 @@ def _slug(label: str, taken: set[str]) -> str:
 def create(label: str) -> dict:
     taken = {a["id"] for a in list_accounts()}
     account_id = _slug(label, taken)
-    path = _ACCOUNTS_DIR / account_id
+    path = paths.ACCOUNTS_DIR / account_id
     path.mkdir(parents=True, exist_ok=True)
     (path / _META_FILE).write_text(json.dumps({"label": label.strip() or account_id}), encoding="utf-8")
     primary = primary_dir()
@@ -318,7 +318,7 @@ def create_provider(
     if not url:
         return None
     account = create(label)
-    path = _ACCOUNTS_DIR / account["id"]
+    path = paths.ACCOUNTS_DIR / account["id"]
     provider = _provider(url, model, auth, scope)
     (path / _META_FILE).write_text(
         json.dumps({"label": account["label"], "provider": provider}), encoding="utf-8"
@@ -429,7 +429,7 @@ def import_bundle(data: bytes, label: str = "") -> Optional[dict]:
     if payload is None:
         return None
     account = create(label.strip() or _bundle_label(payload) or "Account")
-    path = _ACCOUNTS_DIR / account["id"]
+    path = paths.ACCOUNTS_DIR / account["id"]
     if _CREDENTIALS_FILE in payload:
         (path / _CREDENTIALS_FILE).write_bytes(payload[_CREDENTIALS_FILE])
     if "settings.json" in payload:

@@ -3,16 +3,14 @@
 import asyncio
 import json
 import time
-from pathlib import Path
 from typing import Any, Optional
 
 from loguru import logger
 
-from core import cli_manager
+from core import cli_manager, paths
 from core.config import COMMANDS, DEFAULT_CWD, ULTRACODE_EFFORT
 
 _TTL_SECONDS = 300
-_WINDOWS_FILE = Path(__file__).resolve().parent.parent / "context_windows.json"
 
 _snapshots: dict[str, dict[str, Any]] = {}
 _fetched_at: dict[str, float] = {}
@@ -24,7 +22,7 @@ _provider_models: dict[str, list[dict]] = {}
 def load_windows() -> None:
     """Read the cached context windows for the active CLI version."""
     try:
-        stored = json.loads(_WINDOWS_FILE.read_text(encoding="utf-8"))
+        stored = json.loads(paths.CONTEXT_WINDOWS_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return
     cached = stored.get(cli_manager.active_version() or "") if isinstance(stored, dict) else None
@@ -34,7 +32,7 @@ def load_windows() -> None:
 
 def _save_windows() -> None:
     try:
-        _WINDOWS_FILE.write_text(
+        paths.CONTEXT_WINDOWS_FILE.write_text(
             json.dumps({cli_manager.active_version() or "": _windows}, ensure_ascii=False),
             encoding="utf-8",
         )
