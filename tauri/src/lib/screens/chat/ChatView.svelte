@@ -308,7 +308,10 @@
         onLoadOlder={() => chat.loadOlder()}
         onFollowChange={(following) => (chat.followBottom = following)}
         onSharedLink={openShared}
-        onSuggest={chat.viewOnly ? null : (text) => chat.submit(text)}
+        onSharedMenu={(url, filename) => (sharedLink = { url, filename })}
+        onSuggest={chat.viewOnly
+          ? null
+          : (item) => (item.mode === "draft" ? (chat.pendingInput = item.text) : chat.submit(item.text))}
         tabId={tab.id}
         expandedIds={chat.expandedIds}
         savedScroll={{ top: chat.scrollTop, follow: chat.followBottom }}

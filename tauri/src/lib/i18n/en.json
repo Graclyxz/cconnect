@@ -266,6 +266,8 @@
   "REPOSITORY": "Repository",
   "SUPPORT_CREATOR": "Support development",
   "CHANGELOG": "Changelog",
+  "SUGGESTIONS": "Next-step suggestions",
+  "SUGGESTIONS_DESC": "The model ends a turn with buttons that send the message or leave it written for you to finish",
   "DISCORD_PRESENCE": "Discord presence",
   "DISCORD_PRESENCE_SUMMARY": "Show what you are doing on your Discord profile",
   "DISCORD_FIELD_STATUS": "Status",

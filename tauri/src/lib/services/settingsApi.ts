@@ -9,6 +9,7 @@ export interface SettingsSnapshot {
   streaming: boolean;
   todoTools: boolean;
   browserView: boolean;
+  suggestions: boolean;
   sdkAutoUpdate: boolean;
   outputStyle: string;
   mcpDisabled: string;
@@ -41,6 +42,7 @@ export interface SettingsPatch {
   streaming?: boolean;
   todo_tools?: boolean;
   browser_view?: boolean;
+  suggestions?: boolean;
   sdk_auto_update?: boolean;
   output_style?: string;
   mcp_disabled?: string;
@@ -99,6 +101,7 @@ const parse = (wire: Wire): SettingsSnapshot => ({
   streaming: effectiveBool(wire, "streaming", true),
   todoTools: effectiveBool(wire, "todo_tools", false),
   browserView: effectiveBool(wire, "browser_view", false),
+  suggestions: effectiveBool(wire, "suggestions", true),
   sdkAutoUpdate: effectiveBool(wire, "sdk_auto_update", true),
   outputStyle: effectiveStr(wire, "output_style", "default"),
   mcpDisabled: effectiveStr(wire, "mcp_disabled", ""),

@@ -14,12 +14,19 @@ export interface PlaylistItem {
   duration?: number;
 }
 
+export type SuggestionMode = "send" | "draft";
+
+export interface SuggestionItem {
+  text: string;
+  mode: SuggestionMode;
+}
+
 export type CconnectBlock =
   | { type: "gallery"; items: GalleryItem[] }
   | { type: "playlist"; items: PlaylistItem[] }
   | { type: "pdf"; url: string; title?: string }
   | { type: "html"; url: string; title?: string }
-  | { type: "suggestions"; items: string[] };
+  | { type: "suggestions"; items: SuggestionItem[] };
 
 const str = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim() ? value : undefined;
@@ -65,9 +72,13 @@ export function parseCconnectBlock(source: string): CconnectBlock | null {
     }
     case "suggestions": {
       const list = Array.isArray(data.items)
-        ? data.items.flatMap((item) => {
-            const label = str(item);
-            return label ? [label.trim()] : [];
+        ? data.items.flatMap<SuggestionItem>((item) => {
+            const entry = typeof item === "string" ? { text: item } : item;
+            if (!entry || typeof entry !== "object") return [];
+            const text = str((entry as Record<string, unknown>).text);
+            if (!text) return [];
+            const mode = str((entry as Record<string, unknown>).mode);
+            return [{ text: text.trim(), mode: mode === "draft" ? "draft" : "send" }];
           })
         : [];
       return list.length ? { type: "suggestions", items: list.slice(0, MAX_SUGGESTIONS) } : null;

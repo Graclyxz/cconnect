@@ -11,13 +11,15 @@
     tools: McpTool[];
     disabled: string;
     browserView: boolean;
-    onConfirm: (disabled: string, browserView: boolean) => void;
+    suggestions: boolean;
+    onConfirm: (disabled: string, browserView: boolean, suggestions: boolean) => void;
     onDismiss: () => void;
   }
 
-  const { tools, disabled, browserView, onConfirm, onDismiss }: Props = $props();
+  const { tools, disabled, browserView, suggestions, onConfirm, onDismiss }: Props = $props();
 
   let browser = $state(untrack(() => browserView));
+  let hints = $state(untrack(() => suggestions));
 
   let hidden = $state(
     untrack(() => new Set(disabled.split(",").map((name) => name.trim()).filter(Boolean))),
@@ -68,13 +70,19 @@
 <CompactDialog title={t("TOOLS")} onDismiss={onDismiss}>
   {#snippet buttons()}
     <Button onclick={onDismiss} variant="outlined">{t("CANCEL")}</Button>
-    <Button onclick={() => onConfirm([...hidden].join(","), browser)}>{t("SAVE")}</Button>
+    <Button onclick={() => onConfirm([...hidden].join(","), browser, hints)}>{t("SAVE")}</Button>
   {/snippet}
   <SwitchRow
     title={t("BROWSER_VIEW")}
     summary={t("BROWSER_VIEW_DESC")}
     checked={browser}
     onChange={(value) => (browser = value)}
+  />
+  <SwitchRow
+    title={t("SUGGESTIONS")}
+    summary={t("SUGGESTIONS_DESC")}
+    checked={hints}
+    onChange={(value) => (hints = value)}
   />
   <div class="my-2 h-px bg-outline-variant"></div>
   {#if tools.length}

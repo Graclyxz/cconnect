@@ -50,6 +50,7 @@
     <button
       type="button"
       onclick={() => onOpen(resolved, filename)}
+      data-shared={resolved}
       class="flex size-full cursor-pointer flex-col items-center justify-center gap-2 p-3 text-on-surface-variant"
     >
       <ImageOff size={18} class="shrink-0" />
@@ -62,6 +63,7 @@
     <button
       type="button"
       onclick={() => onOpen(resolved, filename)}
+      data-shared={resolved}
       aria-label={alt || filename}
       class="flex size-full cursor-pointer items-center justify-center {state === 'ready' ? '' : 'hidden'}"
     >

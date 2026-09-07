@@ -251,7 +251,9 @@
     tools={capabilities.mcpTools}
     disabled={snapshot.mcpDisabled}
     browserView={snapshot.browserView}
-    onConfirm={(mcp_disabled, browser_view) => void apply({ mcp_disabled, browser_view })}
+    suggestions={snapshot.suggestions}
+    onConfirm={(mcp_disabled, browser_view, suggestions) =>
+      void apply({ mcp_disabled, browser_view, suggestions })}
     onDismiss={() => (dialog = null)}
   />
 {:else if dialog === "permissions" && snapshot}

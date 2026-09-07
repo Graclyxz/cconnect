@@ -1,9 +1,11 @@
 <script lang="ts">
   import CornerDownRight from "@lucide/svelte/icons/corner-down-right";
+  import PenLine from "@lucide/svelte/icons/pen-line";
+  import type { SuggestionItem } from "$lib/markdown/cconnectBlock";
 
   interface Props {
-    items: string[];
-    onSelect?: ((text: string) => void) | null;
+    items: SuggestionItem[];
+    onSelect?: ((item: SuggestionItem) => void) | null;
     class?: string;
   }
 
@@ -11,15 +13,19 @@
 </script>
 
 <div class="flex w-full flex-wrap gap-1.5 {className}">
-  {#each items as item (item)}
+  {#each items as item (item.text)}
     <button
       type="button"
       disabled={!onSelect}
       onclick={() => onSelect?.(item)}
       class="inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-full border-2 border-outline-variant px-3 py-1 text-left text-body-sm transition-colors select-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:outline-none enabled:hover:bg-on-surface/8 disabled:cursor-default disabled:opacity-40"
     >
-      <CornerDownRight size={14} class="shrink-0 text-on-surface-variant" />
-      <span class="min-w-0 truncate">{item}</span>
+      {#if item.mode === "draft"}
+        <PenLine size={14} class="shrink-0 text-on-surface-variant" />
+      {:else}
+        <CornerDownRight size={14} class="shrink-0 text-on-surface-variant" />
+      {/if}
+      <span class="min-w-0 truncate">{item.text}</span>
     </button>
   {/each}
 </div>

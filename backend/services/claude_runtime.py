@@ -89,6 +89,12 @@ def _blocks_guide(capabilities: list[str]) -> str:
     return guide.replace("{{BLOCK_TYPES}}", types)
 
 
+def _suggestions_guide() -> str:
+    if not settings_store.get("suggestions"):
+        return ""
+    return _prompt_file("SUGGESTIONS.md")
+
+
 def _browser_guide(capabilities: list[str]) -> str:
     if "browser" not in capabilities or not settings_store.get("browser_view"):
         return ""
@@ -113,7 +119,7 @@ def _join(text: str, block: str) -> str:
 
 def _extra_guides(cwd: Optional[str], capabilities: Optional[list[str]]) -> list[str]:
     caps = list(capabilities or ())
-    guides = [_blocks_guide(caps), _browser_guide(caps)]
+    guides = [_blocks_guide(caps), _browser_guide(caps), _suggestions_guide()]
     user = _prompt_file("USER.md")
     if user:
         guides.append(

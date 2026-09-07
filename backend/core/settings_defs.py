@@ -42,6 +42,7 @@ SETTINGS: dict[str, SettingDef] = {
     "trash_enabled": SettingDef(False, bool, "Deleting a chat moves it to a trash it can be restored from, instead of removing it"),
     "terminal_shell": SettingDef(None, str, "Shell executable the terminal spawns; empty uses the platform default"),
     "browser_view": SettingDef(False, bool, "Give Claude a browser in the panel: its own tools plus any CDP client (Playwright, Puppeteer, Selenium), so you see what it does and can take over"),
+    "suggestions": SettingDef(True, bool, "The model ends a turn with buttons for the next step, either sent as they are or left written for you to finish"),
     "sdk_auto_update": SettingDef(True, bool, "Install the latest Claude Agent SDK every time the server starts"),
     "default_category": SettingDef("", str, "Category a new chat is filed into; empty leaves it out of every category"),
 }

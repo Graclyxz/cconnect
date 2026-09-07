@@ -11,6 +11,7 @@
   import { isArchive } from "$lib/data/format";
   import { t } from "$lib/i18n/index.svelte";
   import { openExternal } from "$lib/platform";
+  import type { SuggestionItem } from "$lib/markdown/cconnectBlock";
   import { createSegmenter, type Segment } from "$lib/markdown/render";
   import { backend } from "$lib/services/backend.svelte";
   import CconnectBlockView from "./CconnectBlockView.svelte";
@@ -22,7 +23,8 @@
   interface Props {
     text: string;
     onSharedLink?: ((url: string, filename: string) => void) | null;
-    onSuggest?: ((text: string) => void) | null;
+    onSharedMenu?: ((url: string, filename: string) => void) | null;
+    onSuggest?: ((item: SuggestionItem) => void) | null;
     dense?: boolean;
     class?: string;
   }
@@ -30,6 +32,7 @@
   const {
     text,
     onSharedLink = null,
+    onSharedMenu = null,
     onSuggest = null,
     dense = false,
     class: className = "",
@@ -63,6 +66,17 @@
     if (!url) return;
     event.preventDefault();
     open(url);
+  };
+
+  const onContextMenu = (event: MouseEvent) => {
+    if (!onSharedMenu) return;
+    const target = event.target as HTMLElement;
+    const url =
+      target.closest("a")?.getAttribute("href") ??
+      target.closest<HTMLElement>("[data-shared]")?.dataset.shared;
+    if (!url || !url.startsWith(sharedPrefix)) return;
+    event.preventDefault();
+    onSharedMenu(url, filenameOf(url));
   };
 
   const decorate = (node: HTMLElement) => {
@@ -121,9 +135,11 @@
   <OctagonAlert size={16} />
 </span>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="markdown chat-gap flex w-full flex-col {dense ? 'markdown-dense' : ''} {className}"
   onclickcapture={onClick}
+  oncontextmenu={onContextMenu}
   use:decorate
 >
   {@render blocks(parts)}

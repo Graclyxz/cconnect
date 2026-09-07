@@ -13,6 +13,7 @@
   import { plural, t } from "$lib/i18n/index.svelte";
   import { formatClock } from "$lib/data/time";
   import { userContent } from "$lib/data/userContent";
+  import type { SuggestionItem } from "$lib/markdown/cconnectBlock";
   import Chip from "$lib/ui/Chip.svelte";
   import MarkdownText from "$lib/ui/MarkdownText.svelte";
   import { hscrollbar } from "$lib/ui/scrollbar";
@@ -37,7 +38,8 @@
     onGrow?: (grow: () => void, anchor: HTMLElement | null) => void;
     onAnswer?: (requestId: string, optionId: string) => void;
     onSharedLink?: (url: string, filename: string) => void;
-    onSuggest?: ((text: string) => void) | null;
+    onSharedMenu?: ((url: string, filename: string) => void) | null;
+    onSuggest?: ((item: SuggestionItem) => void) | null;
     component?: Snippet<[InteractionData, (grow: () => void, anchor: HTMLElement | null) => void]>;
   }
 
@@ -53,6 +55,7 @@
     onGrow = (grow) => grow(),
     onAnswer,
     onSharedLink,
+    onSharedMenu = null,
     onSuggest = null,
     component,
   }: Props = $props();
@@ -100,7 +103,7 @@
     </div>
   {:else if message.role === "assistant"}
     <div class="w-full px-4">
-      <MarkdownText text={message.text} {onSharedLink} {onSuggest} />
+      <MarkdownText text={message.text} {onSharedLink} {onSharedMenu} {onSuggest} />
     </div>
   {:else if message.role === "thinking"}
     <Collapsible

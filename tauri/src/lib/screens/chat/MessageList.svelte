@@ -4,6 +4,7 @@
   import { isPending, type ChatMessage, type InteractionData } from "$lib/data/chatModels";
   import { settings } from "$lib/data/settings.svelte";
   import { dayIndex } from "$lib/data/time";
+  import type { SuggestionItem } from "$lib/markdown/cconnectBlock";
   import { t } from "$lib/i18n/index.svelte";
   import { keepFocus } from "$lib/ui/keepFocus";
   import { scrollbarWidth } from "$lib/ui/scrollbar";
@@ -32,7 +33,8 @@
     onLoadOlder: () => void;
     onFollowChange: (following: boolean) => void;
     onSharedLink: (url: string, filename: string) => void;
-    onSuggest?: ((text: string) => void) | null;
+    onSharedMenu?: ((url: string, filename: string) => void) | null;
+    onSuggest?: ((item: SuggestionItem) => void) | null;
     tabId: string;
     expandedIds: Record<number, boolean>;
     savedScroll: { top: number; follow: boolean };
@@ -52,6 +54,7 @@
     onLoadOlder,
     onFollowChange,
     onSharedLink,
+    onSharedMenu = null,
     onSuggest = null,
     tabId,
     expandedIds,
@@ -401,6 +404,7 @@
           onGrow={(grow, node) => anchorGrowth(node, grow)}
           {onAnswer}
           {onSharedLink}
+          {onSharedMenu}
           onSuggest={index > lastUserAt ? onSuggest : null}
           {component}
         />
