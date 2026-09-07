@@ -531,13 +531,11 @@ export class ChatState {
       this.compacting = compacting;
       this.streamStatus = null;
       if (!compacting) {
-        const isCommand = !attachments.length && commandFor(this.capabilities, body) !== null;
         const messageId = this.#nextId++;
         this.#append(
           newMessage(messageId, "user", {
             text: body,
             attachments: attachments.length ? attachments : null,
-            ephemeral: isCommand,
           }),
         );
         this.#optimisticChipId = id;
@@ -1584,6 +1582,14 @@ export class ChatState {
     }
   }
 
+  #alreadyShown(body: string, attachments: string[]): boolean {
+    const last = this.messages.findLast((item) => item.role === "user");
+    if (!last || last.sourceIndex >= 0 || last.text !== body) return false;
+    const names = (list: string[]) =>
+      list.map((item) => (item.startsWith(`${UPLOAD_DIR}/`) ? item.slice(UPLOAD_DIR.length + 1) : item)).join("\n");
+    return names(last.attachments ?? []) === names(attachments);
+  }
+
   #onDequeued(ids: string[], text: string | null, ts: number | null) {
     const body = text ?? "";
     const reconcile = this.#optimisticChipId !== null && ids.includes(this.#optimisticChipId);
@@ -1612,7 +1618,7 @@ export class ChatState {
           this.compacting = compacting;
           this.streamStatus = null;
         }
-        if (!compacting) {
+        if (!compacting && !this.#alreadyShown(body, attachments)) {
           this.#append(
             newMessage(this.#nextId++, "user", {
               text: body,
