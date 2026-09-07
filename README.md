@@ -148,7 +148,7 @@ over **HTTPS/WSS** — so the web app pairs with the public mode: run
 `https://<hostname>.<tailnet>.ts.net` URL and token. (For that reason the
 environment form on web offers only HTTPS; the native apps keep plain HTTP for
 local backends.) Updating is just a reload. It is hosted at
-https://cconnect-tauri.pages.dev/.
+https://app.cconnect.dev/.
 
 ## In the chat
 

@@ -1,10 +1,9 @@
-- A file opens in the side panel instead of covering the chat, with a button to blow it up to full screen, and a link Claude shares gets there in one tap
-- Arrow up and down walk back through what you already sent in this chat, from the composer
-- Your Discord profile can show what you are working on, piece by piece, and never the messages themselves
-- Claude can close a turn with buttons for the obvious next step, and tapping one sends it as your next message
-- An MCP server added to your main account reaches the other accounts on its own
-- How much context an account carries now also decides which tools travel with it, with a new middle grade, and the dialog preselects the one that fits the provider
-- Markdown renders in the preview of an option, menus and dialog buttons fit on a phone, a password can be copied while shown, and the terminal no longer cuts off at the bottom
+- The model and the account you pick belong to that tab alone, so changing them in one no longer sends the wrong model from another
+- A model the account cannot serve is dropped before the turn starts, and the error it raises reaches the chat instead of leaving it working forever
+- A turn on your own provider carries the tools by name instead of their whole definition, which halves what every message costs and lets the model find your MCP servers again
+- The buttons that close a turn come in two kinds now: one sends the message as it is, the other leaves it written for you to finish, and you can turn them off from the tools dialog
+- Right-clicking a file or an image in the chat opens its actions again, while a plain click still opens the viewer
+- A command you run no longer appears twice, the local server closes with the app and says what went wrong when it fails to start
 
 > [!NOTE]
-> The web version is available at https://cconnect-tauri.pages.dev/
+> The web version is available at https://app.cconnect.dev/
