@@ -185,9 +185,9 @@ class ChatListHub:
         seen: set[str] = set()
         if not base.is_dir():
             return projects, sessions
-        ai_key = sessions_service._AI_PROJECT_KEY
+        ai_keys = sessions_service._AI_PROJECT_KEYS
         for directory in base.iterdir():
-            if not directory.is_dir() or directory.name == ai_key:
+            if not directory.is_dir() or directory.name in ai_keys:
                 continue
             pkey = directory.name
             count = 0

@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 import psutil
 import qrcode
 
-from core import paths
+from core import data_migration, paths
 from core.config import PORT, RESTART_EXIT_CODE
 from services import system_monitor
 
@@ -325,6 +325,13 @@ def main():
     parser.add_argument("--rotate", action="store_true",
                         help="With --terminal-key, replace the existing key instead of printing it.")
     args = parser.parse_args()
+
+    try:
+        moved = data_migration.migrate()
+    except OSError as exc:
+        _abort(f"could not move the old data files into {paths.DATA_DIR}: {exc}")
+    if moved:
+        print(f"Moved into {paths.DATA_DIR}: {', '.join(moved)}")
 
     is_windows = sys.platform == "win32"
 

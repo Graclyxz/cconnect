@@ -23,7 +23,7 @@ _capture_installed = False
 
 
 def reset_log_file() -> None:
-    paths.SERVERpaths.SERVER_LOG_FILE.write_text("", encoding="utf-8")
+    paths.SERVER_LOG_FILE.write_text("", encoding="utf-8")
 
 
 def _sink(message) -> None:

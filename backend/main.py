@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from slowapi.errors import RateLimitExceeded
 
-from core import paths
+from core import data_migration, paths
 from core.config import PORT
 from core.db import init_db
 from core.rate_limit import limiter
@@ -26,6 +26,7 @@ import routers as routers_pkg
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    data_migration.migrate()
     init_db()
     settings_store.load()
     paths.RUNTIME_FILE.write_text(f"PORT={PORT}\nPID={os.getpid()}\n", encoding="utf-8")
