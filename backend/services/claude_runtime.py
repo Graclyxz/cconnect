@@ -15,7 +15,7 @@ from core import cli_manager
 from core.config import AI_WORKDIR, PORT, SHARED_DIR, ULTRACODE_EFFORT
 from mcps import build_cconnect_server
 from mcps.media import block_types
-from services import cli_info, settings_store, visibility
+from services import cli_info, providers, settings_store, visibility
 from services.questions import DECLINE_MESSAGE, DISMISS, SUBMIT_KEY, answers_from_values, questions_to_blocks
 
 _PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
@@ -128,7 +128,8 @@ def _extra_guides(cwd: Optional[str], capabilities: Optional[list[str]]) -> list
 
 def _cli_settings(scope: dict) -> dict[str, Any]:
     """The CLI reads its auto-memory outside the setting sources, so it needs its own switch."""
-    overrides: dict[str, Any] = {"permissions": {"deny": [_ENV_RULE]}}
+    deny = [_ENV_RULE] if scope["hosted"] else [_ENV_RULE, *providers.HOSTED_TOOLS]
+    overrides: dict[str, Any] = {"permissions": {"deny": deny}}
     if not scope["memory"]:
         overrides["autoMemoryEnabled"] = False
     return overrides
@@ -667,6 +668,8 @@ async def run_prompt(
     if tools is not True:
         options_kwargs["tools"] = tools if isinstance(tools, list) else []
     session_env = dict(accounts.env_for(account))
+    if scope["search"]:
+        session_env["ENABLE_TOOL_SEARCH"] = "true"
     window = cli_info.provider_window(model, account)
     if window:
         session_env["CLAUDE_CODE_MAX_CONTEXT_TOKENS"] = str(window)

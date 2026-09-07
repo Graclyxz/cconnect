@@ -16,14 +16,15 @@ PRESETS = (
     {"id": "ollama", "label": "Ollama", "base_url": DEFAULT_BASE_URL, "pin_model": True, "default_scope": "light"},
 )
 
-_CLI_TOOLS = ["Read", "Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "Glob", "Grep", "TodoWrite", "Task"]
 _FILE_TOOLS = ["Read", "Write", "Edit", "Glob", "Grep"]
 
+HOSTED_TOOLS = ["WebSearch", "WebFetch"]
+
 CONTEXT_SCOPES = (
-    {"id": "full", "preset": True, "guides": True, "project_files": True, "memory": True, "cconnect": True, "tools": True},
-    {"id": "standard", "preset": True, "guides": True, "project_files": True, "memory": True, "cconnect": True, "tools": _CLI_TOOLS},
-    {"id": "light", "preset": False, "guides": True, "project_files": False, "memory": False, "cconnect": False, "tools": _FILE_TOOLS},
-    {"id": "minimal", "preset": False, "guides": False, "project_files": False, "memory": False, "cconnect": False, "tools": False},
+    {"id": "full", "preset": True, "guides": True, "project_files": True, "memory": True, "cconnect": True, "tools": True, "search": True, "hosted": True},
+    {"id": "standard", "preset": True, "guides": True, "project_files": True, "memory": True, "cconnect": True, "tools": True, "search": True, "hosted": False},
+    {"id": "light", "preset": False, "guides": True, "project_files": False, "memory": False, "cconnect": False, "tools": _FILE_TOOLS, "search": False, "hosted": False},
+    {"id": "minimal", "preset": False, "guides": False, "project_files": False, "memory": False, "cconnect": False, "tools": False, "search": False, "hosted": False},
 )
 
 SCOPE_IDS = tuple(scope["id"] for scope in CONTEXT_SCOPES)
