@@ -3,7 +3,7 @@ import { panes } from "$lib/screens/chat/panes.svelte";
 import { navigation, type PreviewRequest } from "./navigation.svelte";
 
 export const openFilePreview = (request: PreviewRequest) => {
-  if (layout.mobile || !panes.open) {
+  if (layout.mobile || !panes.open || navigation.route !== "/") {
     panes.closePreview();
     navigation.openPreview(request);
     return;

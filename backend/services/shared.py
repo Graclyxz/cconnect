@@ -83,13 +83,16 @@ async def save_upload(relpath: str, chunks) -> str:
     if path == _base().resolve() or path.is_dir():
         raise ValueError("invalid destination")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path = _dedup_target(path.parent, path.name)
+    path = _reserve_target(path.parent, path.name)
     tmp = path.parent / f".{path.name}.part"
     try:
         with tmp.open("wb") as fh:
             async for chunk in chunks:
                 fh.write(chunk)
         tmp.replace(path)
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
     finally:
         tmp.unlink(missing_ok=True)
     return path.relative_to(_base().resolve()).as_posix()
@@ -119,18 +122,28 @@ def rename_entry(relpath: str, new_name: str) -> bool:
     return True
 
 
-def _dedup_target(dest_dir: Path, name: str) -> Path:
-    target = dest_dir / name
-    if not target.exists():
-        return target
+def _candidates(dest_dir: Path, name: str):
     parsed = Path(name)
     stem, suffix = parsed.stem, parsed.suffix
-    n = 1
+    yield dest_dir / name
+    index = 1
     while True:
-        target = dest_dir / f"{stem} ({n}){suffix}"
-        if not target.exists():
+        yield dest_dir / f"{stem} ({index}){suffix}"
+        index += 1
+
+
+def _dedup_target(dest_dir: Path, name: str) -> Path:
+    return next(target for target in _candidates(dest_dir, name) if not target.exists())
+
+
+def _reserve_target(dest_dir: Path, name: str) -> Path:
+    for target in _candidates(dest_dir, name):
+        try:
+            target.touch(exist_ok=False)
             return target
-        n += 1
+        except FileExistsError:
+            continue
+    raise ValueError("no destination available")
 
 
 def _resolve_transfer(relpaths: list[str], dest: str) -> tuple[list[Path], Path]:
