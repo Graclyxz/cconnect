@@ -12,11 +12,16 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import android.view.View
+import androidx.core.content.IntentCompat
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
+import org.json.JSONObject
+
+private const val SHARE_ATTEMPTS = 20
+private const val SHARE_RETRY_MS = 400L
 
 class MainActivity : TauriActivity() {
   override val handleBackNavigation = false
@@ -26,6 +31,8 @@ class MainActivity : TauriActivity() {
   private val dictation by lazy { Dictation(this) { content } }
   private var pendingSave: Triple<String, String, String>? = null
   private var content: WebView? = null
+  private var pendingShare: String? = null
+  private var shareAttempts = 0
 
   private val backCallback = object : OnBackPressedCallback(true) {
     override fun handleOnBackPressed() {
@@ -55,6 +62,42 @@ class MainActivity : TauriActivity() {
     super.onCreate(savedInstanceState)
     onBackPressedDispatcher.addCallback(this, backCallback)
     consumeImeInset()
+    takeShare(intent)
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    takeShare(intent)
+    deliverShare()
+  }
+
+  private fun takeShare(intent: Intent?) {
+    val uris = when (intent?.action) {
+      Intent.ACTION_SEND -> listOfNotNull(IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java))
+      Intent.ACTION_SEND_MULTIPLE ->
+        IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java).orEmpty()
+      else -> return
+    }
+    if (uris.isEmpty()) return
+    val json = PastedContent.encode(this, uris)
+    if (json == "[]") return
+    pendingShare = json
+    shareAttempts = 0
+  }
+
+  /** The web view only takes it once the chat registered its hook, which lags a cold start. */
+  private fun deliverShare() {
+    val json = pendingShare ?: return
+    val view = content ?: return
+    if (shareAttempts++ > SHARE_ATTEMPTS) return
+    view.postDelayed({
+      view.evaluateJavascript(
+        "window.__cconnectPaste ? (window.__cconnectPaste(${JSONObject.quote(json)}), true) : false",
+      ) { accepted ->
+        if (accepted == "true") pendingShare = null else deliverShare()
+      }
+    }, SHARE_RETRY_MS)
   }
 
   private fun consumeImeInset() {
@@ -89,6 +132,7 @@ class MainActivity : TauriActivity() {
     webView.addJavascriptInterface(installer, "AndroidInstaller")
     webView.addJavascriptInterface(Voice(), "AndroidVoice")
     PastedContent(webView).install()
+    deliverShare()
   }
 
   inner class CodeScanner {
