@@ -22,7 +22,7 @@ const androidSystemBars = () =>
 class Theme {
   mode = $state<ThemeMode>(store.get("theme.mode", "system"));
   accentIndex = $state<number>(store.get("theme.accent", DEFAULT_ACCENT_INDEX));
-  fontStyle = $state<FontStyle>(store.get("theme.font", isTauri ? "flat" : "system"));
+  fontStyle = $state<FontStyle>(store.get("theme.font", "system"));
   dynamicColor = $state<boolean>(store.get("theme.dynamic", false));
   systemDark = $state(false);
   systemAccent = $state<string | null>(null);

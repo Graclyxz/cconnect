@@ -47,7 +47,17 @@
   const handlesSwipe = (target: EventTarget | null) =>
     target instanceof Element && target.closest("[data-swipe]") !== null;
 
-  const blockContext = (event: Event) => event.preventDefault();
+  const blockTap = (event: Event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const guardTaps = (on: boolean) => {
+    for (const type of ["contextmenu", "pointerup"]) {
+      if (on) window.addEventListener(type, blockTap, true);
+      else window.removeEventListener(type, blockTap, true);
+    }
+  };
 
   const onStart = (event: TouchEvent) => {
     if (menusOpen() || document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
@@ -78,7 +88,7 @@
         tracking = false;
         return;
       }
-      window.addEventListener("contextmenu", blockContext);
+      guardTaps(true);
     }
     const elapsed = event.timeStamp - lastAt;
     if (elapsed > 0) speed = ((touch.clientX - lastX) / elapsed) * 1000;
@@ -89,7 +99,7 @@
   };
 
   const onEnd = () => {
-    window.removeEventListener("contextmenu", blockContext);
+    guardTaps(false);
     if (!tracking) return;
     tracking = false;
     if (!dragging) return;
@@ -113,7 +123,7 @@
       window.removeEventListener("touchmove", move);
       window.removeEventListener("touchend", onEnd);
       window.removeEventListener("touchcancel", onEnd);
-      window.removeEventListener("contextmenu", blockContext);
+      guardTaps(false);
     };
   });
 

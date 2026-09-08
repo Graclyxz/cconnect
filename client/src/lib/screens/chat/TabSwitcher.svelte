@@ -4,6 +4,7 @@
   import SquareTerminal from "@lucide/svelte/icons/square-terminal";
   import X from "@lucide/svelte/icons/x";
   import { Dialog } from "bits-ui";
+  import { pushDismiss } from "$lib/app/dismissStack";
   import { navigation } from "$lib/app/navigation.svelte";
   import { sessionColorOf } from "$lib/design/sessionColors";
   import { terminalTabs, type TerminalTab } from "$lib/data/terminalTabs.svelte";
@@ -22,6 +23,11 @@
 
   let open = $state(false);
   let closingTerminal = $state<TerminalTab | null>(null);
+
+  $effect(() => {
+    if (!open) return;
+    return pushDismiss(() => (open = false));
+  });
 
   const showTerminal = (id: string) => {
     terminalTabs.select(id);

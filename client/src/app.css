@@ -316,10 +316,6 @@ textarea,
   -webkit-touch-callout: none;
 }
 
-.masked {
-  -webkit-text-security: disc;
-}
-
 [role="dialog"],
 [role="menu"],
 [role="tooltip"],
