@@ -11,6 +11,8 @@ import android.webkit.WebView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import android.view.ActionMode
+import android.view.MotionEvent
 import android.view.View
 import androidx.core.content.IntentCompat
 import androidx.core.graphics.Insets
@@ -33,6 +35,7 @@ class MainActivity : TauriActivity() {
   private var content: WebView? = null
   private var pendingShare: String? = null
   private var shareAttempts = 0
+  private var selecting = false
 
   private val backCallback = object : OnBackPressedCallback(true) {
     override fun handleOnBackPressed() {
@@ -117,6 +120,32 @@ class MainActivity : TauriActivity() {
     content?.evaluateJavascript("window.__cconnectResume && window.__cconnectResume()", null)
   }
 
+  /** The GPU path paints composited layers black while text is selected, and the selection
+   *  starts on the long press, before any action mode exists. */
+  private fun renderSoftwareWhileSelecting(webView: WebView) {
+    webView.setOnLongClickListener { view ->
+      view.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+      false
+    }
+    webView.setOnTouchListener { view, event ->
+      if (event.actionMasked == MotionEvent.ACTION_DOWN && !selecting) {
+        view.setLayerType(View.LAYER_TYPE_NONE, null)
+      }
+      false
+    }
+  }
+
+  override fun onActionModeStarted(mode: ActionMode) {
+    super.onActionModeStarted(mode)
+    selecting = true
+    content?.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+  }
+
+  override fun onActionModeFinished(mode: ActionMode) {
+    super.onActionModeFinished(mode)
+    selecting = false
+  }
+
   private fun leave() {
     backCallback.isEnabled = false
     onBackPressedDispatcher.onBackPressed()
@@ -125,6 +154,7 @@ class MainActivity : TauriActivity() {
 
   override fun onWebViewCreate(webView: WebView) {
     content = webView
+    renderSoftwareWhileSelecting(webView)
     webView.addJavascriptInterface(SystemBars(), "AndroidSystemBars")
     webView.addJavascriptInterface(downloads, "AndroidDownloads")
     webView.addJavascriptInterface(Background(), "AndroidBackground")
