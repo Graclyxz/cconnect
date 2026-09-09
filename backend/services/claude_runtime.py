@@ -274,17 +274,20 @@ def _todo_items(todos: Any) -> list[dict]:
     ]
 
 
+_RESULT_PAYLOAD_KEYS = {"text": "text", "tool_reference": "tool_name"}
+
+
 def _flatten_result_content(content: Any) -> str:
-    """Tool results can be a string, a list of {type:'text', text:...} blocks, or raw text."""
+    """Tool results are raw text, or blocks that each keep their payload under their own key."""
     if isinstance(content, str):
         return content
     if isinstance(content, list):
         parts = []
         for r in content:
-            if isinstance(r, dict) and r.get("type") == "text":
-                parts.append(r.get("text", ""))
-            elif isinstance(r, str):
+            if isinstance(r, str):
                 parts.append(r)
+            elif isinstance(r, dict) and r.get("type") in _RESULT_PAYLOAD_KEYS:
+                parts.append(str(r.get(_RESULT_PAYLOAD_KEYS[r["type"]], "")))
         return "\n".join(p for p in parts if p)
     return "" if content is None else str(content)
 

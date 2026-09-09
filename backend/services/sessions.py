@@ -915,6 +915,16 @@ def _is_compact_marker(entry: dict) -> bool:
     return (entry.get("type") == "system" and entry.get("subtype") == "compact_boundary") or bool(entry.get("isCompactSummary"))
 
 
+def _carries_only_tool_results(entry: dict) -> bool:
+    message = entry.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    return (
+        isinstance(content, list)
+        and bool(content)
+        and all(isinstance(block, dict) and block.get("type") == "tool_result" for block in content)
+    )
+
+
 def _active_entries(entries: list[dict], session_id: str) -> list[dict]:
     """Only the transcript's active branch: rewound turns append as siblings, so walk
     parentUuid (logicalParentUuid across compacts) back from the last entry, like the
@@ -952,7 +962,17 @@ def _active_entries(entries: list[dict], session_id: str) -> list[dict]:
         active.add(u)
         parent = cur.get("parentUuid") or cur.get("logicalParentUuid")
         cur = by_uuid.get(parent) if parent else None
-    return [e for e in entries if not e.get("uuid") or e.get("isSidechain") or _is_compact_marker(e) or e.get("uuid") in active]
+    return [
+        e for e in entries
+        if not e.get("uuid")
+        or e.get("isSidechain")
+        or _is_compact_marker(e)
+        or e.get("uuid") in active
+        or (
+            _carries_only_tool_results(e)
+            and (e.get("parentUuid") or e.get("logicalParentUuid")) in active
+        )
+    ]
 
 
 def list_checkpoints(project_key: str, session_id: str) -> list[dict]:
