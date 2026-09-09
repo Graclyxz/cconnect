@@ -43,6 +43,8 @@
 
   const isExpanded = $derived(expanded ?? localExpanded);
 
+  const showsPreview = $derived(isPlan && !isExpanded && preview !== "");
+
   const toggle = () => {
     if (onToggle) onToggle();
     else localExpanded = !localExpanded;
@@ -56,11 +58,13 @@
     {:else}
       <Shield size={16} class="shrink-0 text-accent" />
     {/if}
-    <span class="min-w-0 flex-1 truncate text-label-lg text-accent select-none">
-      {title}
-      {#if isPlan && !isExpanded && preview}
-        <span class="text-on-surface-variant">&nbsp;&nbsp;{preview}</span>
-      {/if}
+    <span
+      class="min-w-0 flex-1 truncate text-label-lg select-none {showsPreview
+        ? 'text-on-surface-variant'
+        : 'text-accent'}"
+    >
+      <span class={showsPreview ? "text-accent" : ""}>{title}</span>
+      {#if showsPreview}&nbsp;&nbsp;{preview}{/if}
     </span>
     {#if isPlan}
       {#if isExpanded}

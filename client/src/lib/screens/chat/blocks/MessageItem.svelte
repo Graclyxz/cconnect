@@ -189,13 +189,12 @@
       <MarkdownText text={message.text} dense />
     </Collapsible>
   {:else if message.role === "notification"}
+    {@const notice = message.text.trim()}
     <div class="flex w-full items-center gap-1.5 px-4 select-none">
       <Bell size={16} class="shrink-0 text-accent" />
-      <p class="line-clamp-2 min-w-0 flex-1 text-label-lg text-accent">
-        {t("NOTIFICATION")}
-        {#if message.text.trim()}
-          <span class="text-on-surface-variant">&nbsp;&nbsp;{message.text}</span>
-        {/if}
+      <p class="line-clamp-2 min-w-0 flex-1 text-label-lg {notice ? 'text-on-surface-variant' : 'text-accent'}">
+        <span class={notice ? "text-accent" : ""}>{t("NOTIFICATION")}</span>
+        {#if notice}&nbsp;&nbsp;{notice}{/if}
       </p>
     </div>
   {:else if message.role === "api_error"}

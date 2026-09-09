@@ -10,18 +10,36 @@ const NATIVE_MENU = `${SELECTABLE}, [data-native-menu]`;
 const matches = (target: EventTarget | null, selector: string) =>
   target instanceof Element && target.closest(selector) !== null;
 
-const allowsSelection = (target: EventTarget | null) => matches(target, SELECTABLE);
+const selectableRoot = (node: Node | null) => {
+  const host = node instanceof Element ? node : node?.parentElement;
+  return host?.closest(SELECTABLE) ?? null;
+};
+
+const focusedRegion = () =>
+  selectableRoot(document.activeElement) ??
+  [...document.querySelectorAll(".selectable")].find((node) => !node.closest("[data-unfocused]")) ??
+  null;
 
 document.addEventListener("contextmenu", (event) => {
   if (!matches(event.target, NATIVE_MENU)) event.preventDefault();
 });
 
+document.addEventListener("selectstart", (event) => {
+  if (event.target !== document.body) return;
+  event.preventDefault();
+  const region = focusedRegion();
+  if (!region) return;
+  const range = document.createRange();
+  range.selectNodeContents(region);
+  const selection = document.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+});
+
 document.addEventListener("selectionchange", () => {
   const selection = document.getSelection();
   if (!selection || selection.isCollapsed) return;
-  const node = selection.anchorNode;
-  const host = node instanceof Element ? node : node?.parentElement;
-  if (!allowsSelection(host ?? null)) selection.removeAllRanges();
+  if (!selectableRoot(selection.anchorNode)) selection.removeAllRanges();
 });
 
 clearFocusOnKeyboardHide();

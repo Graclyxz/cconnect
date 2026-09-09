@@ -348,10 +348,10 @@
             ? 'bg-on-surface/8'
             : ''}"
         >
-          <span class="w-full truncate text-body-md">
-            /{command.name}{#if command.argumentHint}&nbsp;<span class="text-on-surface-variant"
-                >{command.argumentHint}</span
-              >{/if}
+          <span class="w-full truncate text-body-md {command.argumentHint ? 'text-on-surface-variant' : ''}">
+            <span class={command.argumentHint ? "text-on-surface" : ""}
+              >/{command.name}</span
+            >{#if command.argumentHint}&nbsp;{command.argumentHint}{/if}
           </span>
           {#if command.description}
             <span class="w-full truncate text-body-sm text-on-surface-variant">{command.description}</span>
