@@ -70,7 +70,12 @@ html[data-theme="dark"] {
 }
 
 .drop-overlay {
+  display: none;
   animation: drop-overlay-enter 90ms ease-out;
+}
+
+[data-drop-over] > .drop-overlay {
+  display: block;
 }
 
 @keyframes drop-overlay-enter {

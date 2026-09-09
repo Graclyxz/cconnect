@@ -64,7 +64,7 @@
   import ConfirmDialog from "$lib/ui/ConfirmDialog.svelte";
   import DialogActionItem from "$lib/ui/DialogActionItem.svelte";
   import DropOverlay from "$lib/ui/DropOverlay.svelte";
-  import { hasFiles } from "$lib/ui/fileDrop";
+  import { fileDrop } from "$lib/ui/fileDrop";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import ListRow from "$lib/ui/ListRow.svelte";
   import CompactSwitch from "$lib/ui/CompactSwitch.svelte";
@@ -162,7 +162,6 @@
   let bottomBar = $state(0);
   let pendingUploads = $state<File[]>([]);
   let picker = $state<HTMLInputElement | null>(null);
-  let dropOver = $state(false);
   let dropTarget = $state<string | null>(null);
   let dragging = $state<string[] | null>(null);
   let pendingFiles: SharedFile[] = [];
@@ -461,15 +460,6 @@
     void sharedApi.move(sources, child(target)).then(reload);
   };
 
-  const onDrop = (event: DragEvent) => {
-    if (!hasFiles(event)) return;
-    event.preventDefault();
-    dropOver = false;
-    if (archive !== null) return;
-    const files = Array.from(event.dataTransfer?.files ?? []);
-    if (files.length) pendingUploads = files;
-  };
-
   const engaged = $derived(activeScope() === "files");
 
   const shortcutsEnabled = $derived(
@@ -766,17 +756,14 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="relative flex min-h-0 flex-1 flex-col"
-    ondragover={(event) => {
-      if (!hasFiles(event)) return;
-      event.preventDefault();
-      dropOver = archive === null;
+    use:fileDrop={{
+      accepts: () => archive === null,
+      drop: (files) => {
+        pendingUploads = files;
+      },
     }}
-    ondragleave={(event) => {
-      if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node)) dropOver = false;
-    }}
-    ondrop={onDrop}
   >
-  <DropOverlay visible={dropOver} />
+  <DropOverlay />
   <PathBar
     path={archive === null ? path : [archive, archiveDir].filter(Boolean).join("/")}
     {searching}

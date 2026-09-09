@@ -25,9 +25,9 @@
   import Chip from "$lib/ui/Chip.svelte";
   import CompactDialog from "$lib/ui/CompactDialog.svelte";
   import ConfirmDialog from "$lib/ui/ConfirmDialog.svelte";
-  import { dragTransfer, dropZone } from "$lib/app/dragPayload.svelte";
+  import { dropZone } from "$lib/app/dragPayload.svelte";
   import DropOverlay from "$lib/ui/DropOverlay.svelte";
-  import { hasFiles } from "$lib/ui/fileDrop";
+  import { fileDrop } from "$lib/ui/fileDrop";
   import LoadingIndicator from "$lib/ui/LoadingIndicator.svelte";
   import OutlinedPanel from "$lib/ui/OutlinedPanel.svelte";
   import SharedLinkActionsDialog from "$lib/ui/SharedLinkActionsDialog.svelte";
@@ -83,8 +83,6 @@
   let visibilityOpen = $state(false);
   let sideHeight = $state(SIDE_PEEK);
   let sideDragging = $state(false);
-  let dropOver = $state(false);
-  let dropRoot = $state<HTMLElement | null>(null);
   let composerHeight = $state(0);
   let opening = $state(false);
 
@@ -148,14 +146,6 @@
       name: filename,
       onDelete: relative ? () => void sharedApi.remove(relative) : null,
     });
-  };
-
-  const onDrop = (event: DragEvent) => {
-    if (!hasFiles(event)) return;
-    event.preventDefault();
-    dropOver = false;
-    const files = Array.from(event.dataTransfer?.files ?? []);
-    if (files.length && canAttach) chat.addAttachments(files);
   };
 
   const activity = $derived(
@@ -265,23 +255,17 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  bind:this={dropRoot}
   use:dropZone={{
     accepts: (payload) => payload.files.length > 0 && !chat.viewOnly && canAttach,
     drop: (payload) => chat.addSharedAttachments(payload.files),
   }}
+  use:fileDrop={{
+    accepts: () => !chat.viewOnly && canAttach,
+    drop: (files) => chat.addAttachments(files),
+  }}
   class="relative flex min-h-0 flex-1 flex-col"
-  ondragover={(event) => {
-    if (chat.viewOnly || !hasFiles(event)) return;
-    event.preventDefault();
-    dropOver = canAttach;
-  }}
-  ondragleave={(event) => {
-    if (!(event.currentTarget as HTMLElement).contains(event.relatedTarget as Node)) dropOver = false;
-  }}
-  ondrop={onDrop}
 >
-  <DropOverlay visible={dropOver || dragTransfer.over === dropRoot} />
+  <DropOverlay />
   <div class="relative min-h-0 flex-1 overflow-hidden">
     {#if opening}
       <CenteredProgress class="absolute inset-0 z-10" />

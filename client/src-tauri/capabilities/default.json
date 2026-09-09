@@ -28,6 +28,17 @@
     },
     "dialog:default",
     "fs:default",
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$PICTURE/**" },
+        { "path": "$VIDEO/**" },
+        { "path": "$AUDIO/**" }
+      ]
+    },
     "fs:allow-mkdir",
     "fs:allow-write-file",
     "fs:allow-download-write-recursive",
