@@ -1,9 +1,12 @@
-- The model and the account you pick belong to that tab alone, so changing them in one no longer sends the wrong model from another
-- A model the account cannot serve is dropped before the turn starts, and the error it raises reaches the chat instead of leaving it working forever
-- A turn on your own provider carries the tools by name instead of their whole definition, which halves what every message costs and lets the model find your MCP servers again
-- The buttons that close a turn come in two kinds now: one sends the message as it is, the other leaves it written for you to finish, and you can turn them off from the tools dialog
-- Right-clicking a file or an image in the chat opens its actions again, while a plain click still opens the viewer
-- A command you run no longer appears twice, the local server closes with the app and says what went wrong when it fails to start
+- Everything the server keeps on disk — your settings, accounts, prompts, the shared folder and the trash — now lives under a single folder you can point at another drive, and what you had from before moves there on its own every time it starts
+- The context ring opens into two gauges: the tokens the conversation holds and the megabytes of images and documents that travel with it, each with its own bar, so the request limit stops arriving as a surprise
+- On the phone, a picture from the keyboard or shared from another app lands in the composer as an attachment, the same as one you pick yourself
+- Selecting text on the phone no longer paints black rectangles over the attachments, the code blocks and the buttons around them
+- Dragging a file from your file manager onto the chat attaches it on Linux too, instead of dropping its path in as text
+- A turn that ran two tools at once keeps both results when you come back to the chat, and a tool that answers with something other than text no longer shows an empty box
+- Opening a block no longer nudges what you are reading by a pixel when you are partway up a conversation
+- Selecting all inside a chat takes the conversation alone, leaving the message you were writing and the other panel out of it
+- Uploading several files at once no longer drops any of them, the back button, the menus and the fonts on the phone behave, and text cut short shows its dots in the colour of the text
 
 > [!NOTE]
 > The web version is available at https://app.cconnect.dev/
