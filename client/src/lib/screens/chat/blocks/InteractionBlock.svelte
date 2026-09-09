@@ -92,7 +92,7 @@
   {#if input.trim()}
     {#if isPlan}
       {#if isExpanded}
-        <div use:gridHeight class="mt-1.5">
+        <div use:gridHeight class="pt-1.5">
           <MarkdownText text={input} />
         </div>
       {/if}

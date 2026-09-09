@@ -30,7 +30,7 @@
     running = false,
     labelClass = "text-on-surface-variant",
     iconClass = "text-accent",
-    bodyClass = "mt-1",
+    bodyClass = "pt-1",
     expanded = null,
     onToggle = null,
     children,

@@ -25,7 +25,7 @@
   {expanded}
   {onToggle}
   labelClass="text-accent"
-  bodyClass="mt-1.5"
+  bodyClass="pt-1.5"
 >
   <div class="w-full rounded-md bg-surface-variant px-3 py-2.5">
     <MarkdownText text={markdown} {onSharedLink} />
