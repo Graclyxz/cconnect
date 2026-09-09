@@ -4,6 +4,7 @@
   import type { Snippet } from "svelte";
   import type { IconSource } from "$lib/ui/icons";
   import LoadingIndicator from "$lib/ui/LoadingIndicator.svelte";
+  import { gridHeight } from "$lib/ui/pixelGrid";
 
   interface Props {
     label: string;
@@ -79,6 +80,6 @@
     {/if}
   </button>
   {#if isExpanded && children && !labelOnly}
-    <div class={bodyClass}>{@render children()}</div>
+    <div use:gridHeight class={bodyClass}>{@render children()}</div>
   {/if}
 </div>

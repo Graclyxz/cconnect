@@ -6,6 +6,7 @@
   import { formatTokens } from "$lib/data/format";
   import { t } from "$lib/i18n/index.svelte";
   import MarkdownText from "$lib/ui/MarkdownText.svelte";
+  import { gridHeight } from "$lib/ui/pixelGrid";
 
   interface Props {
     compact: CompactData;
@@ -61,6 +62,6 @@
     {/if}
   </button>
   {#if isExpanded && hasSummary}
-    <MarkdownText text={compact.summary} dense />
+    <div use:gridHeight><MarkdownText text={compact.summary} dense /></div>
   {/if}
 </div>

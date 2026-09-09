@@ -9,6 +9,7 @@
   import Button from "$lib/ui/Button.svelte";
   import MarkdownText from "$lib/ui/MarkdownText.svelte";
   import OutlinedPanel from "$lib/ui/OutlinedPanel.svelte";
+  import { gridHeight } from "$lib/ui/pixelGrid";
   import SummaryLine from "$lib/ui/SummaryLine.svelte";
 
   interface Props {
@@ -91,7 +92,7 @@
   {#if input.trim()}
     {#if isPlan}
       {#if isExpanded}
-        <div class="mt-1.5">
+        <div use:gridHeight class="mt-1.5">
           <MarkdownText text={input} />
         </div>
       {/if}
