@@ -52,6 +52,7 @@ export interface CapabilitiesDefaults {
 export interface Capabilities {
   permissionModes: LabeledOption[];
   models: ModelOption[];
+  requestLimit: number | null;
   outputStyles: string[];
   fastMode: FastMode;
   colors: string[];
@@ -93,6 +94,7 @@ interface ModelWire {
 interface CapabilitiesWire extends VersionWire {
   permission_modes?: Array<{ id?: string; label?: string }>;
   models?: ModelWire[];
+  request_limit?: number;
   output_styles?: string[];
   fast_mode?: { state?: string; disabled_reason?: string | null };
   colors?: string[];
@@ -172,6 +174,7 @@ export const createCapabilitiesApi = (http: HttpClient) => ({
           fastMode: model.fast_mode === true,
           autoMode: model.auto_mode === true,
         })),
+      requestLimit: data.request_limit ?? null,
       outputStyles: data.output_styles ?? [],
       fastMode: {
         state: data.fast_mode?.state ?? "off",

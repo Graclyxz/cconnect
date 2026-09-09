@@ -373,6 +373,8 @@
     onAccount={(value) => chat.setAccount(value)}
     streamTokens={chat.effectiveStreamTokens}
     contextTokens={chat.contextView}
+    requestBytes={chat.requestView}
+    mediaBytes={chat.mediaView}
     onModel={(value) => chat.setModel(value)}
     onEffort={(value) => chat.setEffort(value)}
     onPermissionMode={(value) => chat.setPermissionMode(value)}

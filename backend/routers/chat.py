@@ -161,6 +161,16 @@ def _build_turn_runner(state: _Session, drain, text: str, attachments: list[str]
                     if md:
                         yield {"type": "command", "markdown": md}
 
+        def sized(event: dict) -> dict:
+            if event.get("type") != "context" or not (state.cwd and state.session_id):
+                return event
+            weight = sessions_service.request_weight(
+                sessions_service.project_key_for(state.cwd), state.session_id
+            )
+            if weight:
+                event["request_bytes"], event["media_bytes"] = weight
+            return event
+
         async def gen():
             pending: dict = {"compact": False, "instructions": ""}
 
@@ -169,10 +179,10 @@ def _build_turn_runner(state: _Session, drain, text: str, attachments: list[str]
                 pending["instructions"] = instructions
 
             async for event in one(text, attachments, seed_id, drain, request_compact):
-                yield event
+                yield sized(event)
             if pending["compact"]:
                 async for event in one(f"/compact {pending['instructions']}".strip(), None, None, None, None):
-                    yield event
+                    yield sized(event)
 
         return gen()
 

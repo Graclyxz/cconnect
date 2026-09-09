@@ -341,11 +341,14 @@ def get_session_messages(
     end = total if before_index is None else max(0, min(before_index, total))
     start = max(0, end - limit)
     slice_ = [dict(item, index=i) for i, item in enumerate(items[start:end], start=start)]
+    weight = sessions_service.request_weight(project, session_id, trashed) or (None, None)
     return api_response(data={
         "items": slice_,
         "total": total,
         "start_index": start,
         "has_more": start > 0,
         "context_tokens": sessions_service.last_context_tokens(project, session_id, trashed),
+        "request_bytes": weight[0],
+        "media_bytes": weight[1],
         "prompts": None if before_index is not None else sessions_service.user_prompts(items),
     })

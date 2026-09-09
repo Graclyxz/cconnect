@@ -37,6 +37,8 @@
     streamingSelected: string;
     simpleMode: boolean;
     contextTokens: number | null;
+    requestBytes: number | null;
+    mediaBytes: number | null;
     quickChatActive: boolean;
     onModel: (value: string) => void;
     onEffort: (value: string) => void;
@@ -64,6 +66,8 @@
     streamingSelected,
     simpleMode,
     contextTokens,
+    requestBytes,
+    mediaBytes,
     quickChatActive,
     onModel,
     onEffort,
@@ -315,6 +319,12 @@
 </div>
 
 {#if !disconnected && !connecting && ready && contextWindow !== null}
-  <ContextRing tokens={contextTokens ?? 0} limit={contextWindow} />
+  <ContextRing
+    tokens={contextTokens ?? 0}
+    limit={contextWindow}
+    bytes={mediaBytes}
+    totalBytes={requestBytes}
+    byteLimit={capabilities?.requestLimit ?? null}
+  />
 {/if}
 </div>

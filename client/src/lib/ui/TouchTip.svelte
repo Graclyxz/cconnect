@@ -1,14 +1,16 @@
 <script lang="ts">
   import { Portal } from "bits-ui";
+  import type { Snippet } from "svelte";
   import { layout } from "$lib/platform/layout.svelte";
 
   interface Props {
-    text: string;
-    anchor: { x: number; top: number; bottom: number } | null;
+    text?: string;
+    anchor: { x: number; top: number; bottom: number } | null;
     onDismiss?: (() => void) | null;
+    children?: Snippet;
   }
 
-  const { text, anchor, onDismiss = null }: Props = $props();
+  const { text = "", anchor, onDismiss = null, children = undefined }: Props = $props();
 
   $effect(() => {
     if (anchor === null || !onDismiss) return;
@@ -46,7 +48,7 @@
       style="left: {left}px; top: {top}px"
       class="pointer-events-none fixed z-75 rounded-sm bg-surface-variant px-2 py-1 text-body-sm whitespace-nowrap shadow-lg"
     >
-      {text}
+      {#if children}{@render children()}{:else}{text}{/if}
     </div>
   </Portal>
 {/if}

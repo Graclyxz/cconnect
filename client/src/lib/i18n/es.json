@@ -600,5 +600,7 @@
   "TRANSFERS_DONE": "Transferencias completadas",
   "EXPAND": "Expandir",
   "COLLAPSE": "Contraer",
-  "CONTEXT_USAGE": "Uso del contexto"
+  "CONTEXT_USAGE": "Uso del contexto",
+  "CONTEXT_LABEL": "Contexto",
+  "MEDIA_LABEL": "Media"
 }

@@ -142,6 +142,8 @@ export class ChatState {
   activity = $state<string | null>(null);
   todos = $state<TodoItem[]>([]);
   contextTokens = $state<number | null>(null);
+  requestBytes = $state<number | null>(null);
+  mediaBytes = $state<number | null>(null);
   pendingToolIds = $state<string[]>([]);
 
   environmentId = $state<string | null>(null);
@@ -217,7 +219,13 @@ export class ChatState {
   draft = $state("");
 
   queue = $state<QueuedMessage[]>([]);
-  #frozen = $state<{ messages: ChatMessage[]; queue: QueuedMessage[]; contextTokens: number | null } | null>(null);
+  #frozen = $state<{
+    messages: ChatMessage[];
+    queue: QueuedMessage[];
+    contextTokens: number | null;
+    requestBytes: number | null;
+    mediaBytes: number | null;
+  } | null>(null);
   attachments = $state<Attachment[]>([]);
   uploading = $state(false);
   oldestLoadedIndex = $state<number | null>(null);
@@ -258,6 +266,8 @@ export class ChatState {
   readonly connected = $derived(this.connection === "connected");
   readonly queueView = $derived(this.#frozen?.queue ?? this.queue);
   readonly contextView = $derived(this.#frozen ? this.#frozen.contextTokens : this.contextTokens);
+  readonly requestView = $derived(this.#frozen ? this.#frozen.requestBytes : this.requestBytes);
+  readonly mediaView = $derived(this.#frozen ? this.#frozen.mediaBytes : this.mediaBytes);
   readonly visibleQueue = $derived(this.queueView.filter((item) => !this.#silent.has(item.id)));
 
   readonly effectiveModel = $derived(this.modelOverride || this.model);
@@ -762,7 +772,13 @@ export class ChatState {
 
   #freeze() {
     if (this.#frozen === null && this.messages.length) {
-      this.#frozen = { messages: this.messages, queue: this.queue, contextTokens: this.contextTokens };
+      this.#frozen = {
+        messages: this.messages,
+        queue: this.queue,
+        contextTokens: this.contextTokens,
+        requestBytes: this.requestBytes,
+        mediaBytes: this.mediaBytes,
+      };
     }
   }
 
@@ -1200,6 +1216,8 @@ export class ChatState {
     this.oldestLoadedIndex = page && page.items.length ? page.startIndex : null;
     this.transcriptExhausted = !page?.hasMore;
     this.contextTokens = page?.contextTokens ?? null;
+    this.requestBytes = page?.requestBytes ?? null;
+    this.mediaBytes = page?.mediaBytes ?? null;
     this.transcriptLoading = false;
   }
 
@@ -1375,6 +1393,8 @@ export class ChatState {
     this.todos = [];
     this.queue = [];
     this.contextTokens = null;
+    this.requestBytes = null;
+    this.mediaBytes = null;
     this.pendingToolIds = [];
     this.oldestLoadedIndex = null;
     this.transcriptLoading = false;
@@ -1427,6 +1447,8 @@ export class ChatState {
     this.transcriptExhausted = !page.hasMore;
     this.pendingToolIds = [];
     this.contextTokens = page.contextTokens;
+    this.requestBytes = page.requestBytes;
+    this.mediaBytes = page.mediaBytes;
     if (page.prompts) this.#history = page.prompts;
     return true;
   }
@@ -2021,6 +2043,8 @@ export class ChatState {
         break;
       case "context":
         this.contextTokens = event.contextTokens;
+        this.requestBytes = event.requestBytes;
+        this.mediaBytes = event.mediaBytes;
         break;
       case "result": {
         this.#assistantId = null;

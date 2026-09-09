@@ -18,6 +18,7 @@ const ARCHIVE_SUFFIXES = [
 const THOUSAND = 1000;
 const MILLION = 1_000_000;
 const DAYS_IN_YEAR = 365;
+const PERCENT = 100;
 
 export const formatTokens = (value: number): string => {
   if (value < THOUSAND) return `${value}`;
@@ -43,8 +44,8 @@ export const formatDays = (days: number): string => {
   return parts.join(" ");
 };
 
-export const formatDecimal = (value: number, decimals: number): string =>
-  value.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+export const formatDecimal = (value: number, decimals: number, minimum = decimals): string =>
+  value.toLocaleString(undefined, { minimumFractionDigits: minimum, maximumFractionDigits: decimals });
 
 export const formatSize = (bytes: number): string => {
   if (bytes < 1024) return `${bytes} B`;
@@ -54,8 +55,14 @@ export const formatSize = (bytes: number): string => {
     value /= 1024;
     unit++;
   }
-  return `${formatDecimal(value, 1)} ${SIZE_UNITS[unit]}`;
+  return `${formatDecimal(value, 1, 0)} ${SIZE_UNITS[unit]}`;
 };
+
+export const usageRatio = (used: number, limit: number): number =>
+  limit > 0 ? Math.min(1, Math.max(0, used / limit)) : 0;
+
+export const formatUsage = (used: number, limit: number, unit: (value: number) => string): string =>
+  `${unit(used)} / ${unit(limit)} • ${Math.round(usageRatio(used, limit) * PERCENT)}%`;
 
 export const isArchive = (name: string): boolean => {
   const lower = name.toLowerCase();

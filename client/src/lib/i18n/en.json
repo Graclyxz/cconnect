@@ -600,5 +600,7 @@
   "TRANSFERS_DONE": "Transfers complete",
   "EXPAND": "Expand",
   "COLLAPSE": "Collapse",
-  "CONTEXT_USAGE": "Context usage"
+  "CONTEXT_USAGE": "Context usage",
+  "CONTEXT_LABEL": "Context",
+  "MEDIA_LABEL": "Media"
 }

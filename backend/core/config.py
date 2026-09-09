@@ -51,6 +51,8 @@ ULTRACODE_EFFORT = "ultracode"
 
 DEFAULT_MODEL = os.environ.get("DEFAULT_MODEL", "opus[1m]")
 
+REQUEST_LIMIT_BYTES = 32 * 1024 * 1024
+
 # Display labels for permission modes (the SDK only exposes the raw ids).
 PERMISSION_LABELS = {
     "default": "Default",

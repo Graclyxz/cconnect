@@ -27,6 +27,10 @@ _INTERRUPT_RE = re.compile(r"^\[Request interrupted by user")
 
 _SDK_ENTRYPOINT_RE = re.compile(r'"entrypoint":"sdk-[A-Za-z]+"')
 
+_TRAVELLING_TYPES = {"user", "assistant"}
+_MEDIA_TYPES = {"image", "document"}
+_request_totals: dict[str, tuple[int, int, int]] = {}
+
 
 def _base() -> Path:
     return Path(CLAUDE_PROJECTS_DIR)
@@ -182,6 +186,61 @@ def last_context_tokens(project_key: str, session_id: str, trashed: bool = False
             total = (usage.get("input_tokens") or 0) + (usage.get("cache_read_input_tokens") or 0) + (usage.get("cache_creation_input_tokens") or 0)
             return total or None
     return None
+
+
+def _block_media_bytes(block: Any) -> int:
+    if not isinstance(block, dict):
+        return 0
+    if block.get("type") in _MEDIA_TYPES:
+        return len(json.dumps(block))
+    if block.get("type") == "tool_result" and isinstance(block.get("content"), list):
+        return sum(_block_media_bytes(item) for item in block["content"])
+    return 0
+
+
+def _entry_weight(entry: dict) -> tuple[int, int]:
+    if entry.get("type") not in _TRAVELLING_TYPES or entry.get("isSidechain"):
+        return 0, 0
+    message = entry.get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    if isinstance(content, str):
+        return len(content), 0
+    if isinstance(content, list):
+        return len(json.dumps(content)), sum(_block_media_bytes(block) for block in content)
+    return 0, 0
+
+
+def request_weight(project_key: str, session_id: str, trashed: bool = False) -> Optional[tuple[int, int]]:
+    """Bytes the next request carries, total and the media part of it."""
+    try:
+        file = _session_file(project_key, session_id, trashed)
+    except ValueError:
+        return None
+    if not file.is_file():
+        return None
+    start = _last_compact_offset(file)
+    key = str(file)
+    offset, total, media = _request_totals.get(key, (0, 0, 0))
+    try:
+        if not start <= offset <= file.stat().st_size:
+            offset, total, media = start, 0, 0
+        with file.open("rb") as fh:
+            fh.seek(offset)
+            for raw in fh:
+                if not raw.endswith(b"\n"):
+                    break
+                offset += len(raw)
+                try:
+                    entry = json.loads(raw)
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    continue
+                weight, media_weight = _entry_weight(entry)
+                total += weight
+                media += media_weight
+    except OSError:
+        return None
+    _request_totals[key] = (offset, total, media)
+    return total, media
 
 
 def tail_user_messages(project_key: str, session_id: str) -> list[dict]:

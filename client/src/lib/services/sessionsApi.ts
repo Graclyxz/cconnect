@@ -18,6 +18,8 @@ export interface MessagesPage {
   startIndex: number;
   hasMore: boolean;
   contextTokens: number | null;
+  requestBytes: number | null;
+  mediaBytes: number | null;
   prompts: string[] | null;
 }
 
@@ -66,6 +68,8 @@ export const createSessionsApi = (http: HttpClient) => ({
       start_index?: number;
       has_more?: boolean | string;
       context_tokens?: number;
+      request_bytes?: number;
+      media_bytes?: number;
       prompts?: string[] | null;
     }>(`/sessions/${sessionId}/messages`, {
       project,
@@ -85,6 +89,8 @@ export const createSessionsApi = (http: HttpClient) => ({
       startIndex: data.start_index ?? 0,
       hasMore: data.has_more === true || data.has_more === "true",
       contextTokens: data.context_tokens ?? null,
+      requestBytes: data.request_bytes ?? null,
+      mediaBytes: data.media_bytes ?? null,
       prompts: Array.isArray(data.prompts) ? data.prompts : null,
     };
   },
