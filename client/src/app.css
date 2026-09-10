@@ -32,6 +32,12 @@ html[data-theme="dark"] {
   color-scheme: dark;
 }
 
+@media (pointer: coarse) {
+  body {
+    text-rendering: geometricPrecision;
+  }
+}
+
 @media (pointer: fine) {
   * {
     scrollbar-color: var(--c-scrollbar) transparent;
