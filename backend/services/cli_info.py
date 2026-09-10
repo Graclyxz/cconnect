@@ -15,7 +15,7 @@ _TTL_SECONDS = 300
 _snapshots: dict[str, dict[str, Any]] = {}
 _fetched_at: dict[str, float] = {}
 _windows: dict[str, int] = {}
-_warm_task: Optional[asyncio.Task] = None
+_warm_tasks: set[asyncio.Task] = set()
 _provider_models: dict[str, list[dict]] = {}
 
 
@@ -70,34 +70,46 @@ async def _fetch(account: str) -> dict[str, Any]:
         return await client.get_server_info() or {}
 
 
-async def _fetch_window(model: str) -> Optional[int]:
+async def _fetch_window(model: str, account: Optional[str] = None) -> Optional[int]:
     from claude_agent_sdk import ClaudeSDKClient
 
-    async with ClaudeSDKClient(_options(None if model == "default" else model)) as client:
+    async with ClaudeSDKClient(_options(None if model == "default" else model, account)) as client:
         usage = await client.get_context_usage()
     size = usage.get("maxTokens")
     return size if isinstance(size, int) and size > 0 else None
 
 
-async def warm_windows(listed: list[dict]) -> None:
+def _unknown_windows(listed: list[dict]) -> list[str]:
+    return [
+        entry["id"] for entry in listed
+        if entry["context_window"] is None and entry["id"] not in _windows
+    ]
+
+
+async def warm_windows(listed: list[dict], account: Optional[str] = None) -> None:
     """Probe and cache the context window of every model not already known."""
     async def load(model: str) -> None:
         try:
-            size = await _fetch_window(model)
+            size = await _fetch_window(model, account)
         except Exception as exc:
             logger.warning(f"context window for {model} unavailable: {type(exc).__name__}: {exc}")
             return
         if size:
             _windows[model] = size
 
-    missing = [
-        entry["id"] for entry in listed
-        if entry["context_window"] is None and entry["id"] not in _windows
-    ]
+    missing = _unknown_windows(listed)
     if not missing:
         return
     await asyncio.gather(*(load(model) for model in missing))
     _save_windows()
+
+
+def _schedule_warm(listed: list[dict], account: str) -> None:
+    if not _unknown_windows(listed):
+        return
+    task = asyncio.create_task(warm_windows(listed, account))
+    _warm_tasks.add(task)
+    task.add_done_callback(_warm_tasks.discard)
 
 
 async def server_info(refresh: bool = False, account: Optional[str] = None) -> dict[str, Any]:
@@ -112,15 +124,15 @@ async def server_info(refresh: bool = False, account: Optional[str] = None) -> d
         _fetched_at[target] = time.monotonic()
     except Exception as exc:
         logger.warning(f"CLI server info unavailable: {type(exc).__name__}: {exc}")
-    return _snapshots.get(target, {})
+    snapshot = _snapshots.get(target, {})
+    _schedule_warm(models(snapshot, target), target)
+    return snapshot
 
 
 async def refresh() -> None:
     """Prime the snapshot, probing unknown context windows in the background."""
-    global _warm_task
     load_windows()
-    info = await server_info()
-    _warm_task = asyncio.create_task(warm_windows(models(info)))
+    await server_info()
 
 
 def invalidate() -> None:
