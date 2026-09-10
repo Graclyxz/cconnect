@@ -22,7 +22,7 @@ export const CLIENT_SETTINGS: ClientSetting[] = [
   { key: "discord_chat_title", kind: "boolean", fallback: false, backup: true },
   { key: "discord_hide_idle", kind: "boolean", fallback: false, backup: true },
   { key: "environment_locked", kind: "boolean", fallback: false, backup: true },
-  { key: "project_locked", kind: "boolean", fallback: false, backup: true },
+  { key: "locked_project", kind: "string", fallback: "", backup: true },
   { key: "collapsed_categories", kind: "strings", fallback: "", backup: true },
   { key: "hidden_categories", kind: "strings", fallback: "", backup: true },
   { key: "hidden_projects", kind: "strings", fallback: "", backup: true },

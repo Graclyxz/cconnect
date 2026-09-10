@@ -80,7 +80,7 @@
   const chatFocused = $derived(layout.mobile || panes.focused === "center");
 
   const terminalCwd = $derived.by(() => {
-    const selected = chat.historyProjectKey;
+    const selected = chat.historyProject;
     const project = selected
       ? chatListFor(backend.active)?.projects.find((item) => item.projectKey === selected)
       : null;

@@ -73,6 +73,10 @@ export const parseCategory = (raw: Wire): ChatCategory => ({
   color: text(raw.color),
 });
 
+const PROJECT_KEY_SEPARATOR = /[^A-Za-z0-9]/g;
+
+export const projectKeyOf = (path: string): string => path.replace(PROJECT_KEY_SEPARATOR, "-");
+
 export const projectLabel = (project: ProjectInfo): string =>
   project.name ?? project.path ?? project.projectKey;
 

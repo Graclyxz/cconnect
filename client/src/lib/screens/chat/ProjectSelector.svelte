@@ -19,13 +19,13 @@
   let open = $state(false);
 
   const label = $derived.by(() => {
-    if (selected === null) return t("ALL_PROJECTS");
+    if (!selected) return t("ALL_PROJECTS");
     const project = projects.find((item) => item.projectKey === selected);
     return project ? projectLabel(project) : selected;
   });
 </script>
 
-{#if settings.projectLocked}
+{#if settings.lockedProject}
   <span class="flex w-full items-center rounded-item px-2 py-2 {className}">
     <FolderOpen size={16} class="shrink-0 text-accent" />
     <span class="ml-2 min-w-0 flex-1 truncate text-left text-body-md">{label}</span>

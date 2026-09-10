@@ -4,6 +4,7 @@
   import LockOpen from "@lucide/svelte/icons/lock-open";
   import ScanQrCode from "@lucide/svelte/icons/scan-qr-code";
   import { untrack } from "svelte";
+  import { projectKeyOf } from "$lib/data/models";
   import { parseQrPayload } from "$lib/data/qrPayload";
   import { settings } from "$lib/data/settings.svelte";
   import { accentAt, ACCENTS } from "$lib/design/accents";
@@ -226,11 +227,13 @@
           </TooltipIconButton>
         {/if}
         <TooltipIconButton
-          label={settings.projectLocked ? t("UNLOCK_SELECTION") : t("LOCK_SELECTION")}
-          onclick={() => (settings.projectLocked = !settings.projectLocked)}
+          label={settings.lockedProject ? t("UNLOCK_SELECTION") : t("LOCK_SELECTION")}
+          enabled={!!settings.lockedProject || directory.trim() !== ""}
+          onclick={() =>
+            (settings.lockedProject = settings.lockedProject ? "" : projectKeyOf(directory.trim()))}
           class="size-6 [&_svg]:size-[18px]"
         >
-          {#if settings.projectLocked}
+          {#if settings.lockedProject}
             <Lock size={18} class="text-accent" />
           {:else}
             <LockOpen size={18} class="text-on-surface-variant" />

@@ -16,7 +16,7 @@ import {
   type Role,
   type TodoItem,
 } from "$lib/data/chatModels";
-import type { ChatCategory, ProjectInfo, SessionInfo } from "$lib/data/models";
+import { projectKeyOf, type ChatCategory, type ProjectInfo, type SessionInfo } from "$lib/data/models";
 import { isVisible, parseSessionMessage, type SessionMessage } from "$lib/data/sessionMessages";
 import { settings } from "$lib/data/settings.svelte";
 import { terminalTabs } from "$lib/data/terminalTabs.svelte";
@@ -83,7 +83,6 @@ const DEFAULTS = {
 
 const HISTORY_PAGE = 100;
 const COMPACT_COMMAND = "/compact";
-const PROJECT_KEY_SEPARATOR = /[^A-Za-z0-9]/g;
 const PREVIEW_LENGTH = 120;
 const NOTIFICATION_BODY_LENGTH = 120;
 
@@ -99,7 +98,6 @@ const MESSAGE_INITIAL_CAP = 100;
 const HISTORY_LIMIT = 100;
 const MILLIS_PER_SECOND = 1000;
 
-const projectKeyOf = (path: string) => path.replace(PROJECT_KEY_SEPARATOR, "-");
 
 interface AttachmentBase {
   id: number;
@@ -258,7 +256,8 @@ export class ChatState {
   readonly chatOrder = $derived(this.list?.chatOrder ?? "auto");
   readonly defaultCategory = $derived(this.list?.defaultCategory ?? "");
   readonly trashEnabled = $derived(this.list?.trashEnabled ?? false);
-  readonly historySessions = $derived(this.list?.sessionsOf(this.historyProjectKey) ?? []);
+  readonly historyProject = $derived(settings.lockedProject || this.historyProjectKey);
+  readonly historySessions = $derived(this.list?.sessionsOf(this.historyProject) ?? []);
   readonly historyProjects = $derived(this.withDefaultProject(this.list?.projects ?? []));
   readonly link = $derived<ConnectionState>(
     serverStatus.unavailable ? "disconnected" : this.connection,
@@ -397,7 +396,8 @@ export class ChatState {
   }
 
   #applyDefaultProject() {
-    if (this.environment?.directory) this.historyProjectKey = this.defaultProjectKey();
+    if (settings.lockedProject) this.historyProjectKey = settings.lockedProject;
+    else if (this.environment?.directory) this.historyProjectKey = this.defaultProjectKey();
   }
 
   withDefaultProject(projects: ProjectInfo[]): ProjectInfo[] {

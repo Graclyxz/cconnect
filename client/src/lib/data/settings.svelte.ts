@@ -258,11 +258,11 @@ class Settings {
     this.#write("environment_locked", value);
   }
 
-  get projectLocked() {
-    return this.#read<boolean>("project_locked");
+  get lockedProject() {
+    return this.#read<string>("locked_project");
   }
-  set projectLocked(value: boolean) {
-    this.#write("project_locked", value);
+  set lockedProject(value: string) {
+    this.#write("locked_project", value);
   }
 }
 

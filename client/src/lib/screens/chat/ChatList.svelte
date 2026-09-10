@@ -84,7 +84,7 @@
 
   const visibleProjects = $derived(
     chat.historyProjects.filter(
-      (item) => !chat.isProjectHidden(item.projectKey) || item.projectKey === chat.historyProjectKey,
+      (item) => !chat.isProjectHidden(item.projectKey) || item.projectKey === chat.historyProject,
     ),
   );
 
@@ -130,7 +130,7 @@
     });
 
   $effect(() => {
-    void chat.historyProjectKey;
+    void chat.historyProject;
     if (list) list.scrollTop = 0;
   });
 </script>
@@ -166,7 +166,7 @@
     <div class="min-w-0 flex-1">
       <ProjectSelector
         projects={visibleProjects}
-        selected={chat.historyProjectKey}
+        selected={chat.historyProject}
         onSelect={(projectKey) => chat.selectHistoryProject(projectKey)}
       />
     </div>
