@@ -30,7 +30,7 @@
   let choice = $state(untrack(() => selected));
 </script>
 
-<CompactDialog {title} {onDismiss} padded={false}>
+<CompactDialog {title} {onDismiss}>
   {#snippet buttons()}
     <Button onclick={onDismiss} variant="outlined">{t("CANCEL")}</Button>
     {#if onConfirm}

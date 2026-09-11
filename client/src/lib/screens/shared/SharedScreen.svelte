@@ -67,7 +67,6 @@
   import PaneHeader from "$lib/screens/chat/PaneHeader.svelte";
   import AppTopBar from "$lib/ui/AppTopBar.svelte";
   import Button from "$lib/ui/Button.svelte";
-  import CenteredProgress from "$lib/ui/CenteredProgress.svelte";
   import CompactDialog from "$lib/ui/CompactDialog.svelte";
   import ConfirmDialog from "$lib/ui/ConfirmDialog.svelte";
   import DialogActionItem from "$lib/ui/DialogActionItem.svelte";
@@ -148,7 +147,9 @@
   const watcher = new SharedWatch();
   const initial = readSharedLocation();
 
-  let path = $state(initial?.path ?? tabs.state.historyProject ?? "");
+  const home = initial?.path || tabs.state.historyProject || "";
+
+  let path = $state(home);
   let archive = $state<string | null>(initial?.archive ?? null);
   let archiveDir = $state(initial?.archiveDir ?? "");
   let entries = $state<SharedEntry[]>([]);
@@ -510,6 +511,7 @@
   );
 
   const stepBack = () => {
+    if (panes.previewing || navigation.preview !== null) return false;
     if (selecting) {
       exitSelection();
       return true;
@@ -523,7 +525,7 @@
       transfer = null;
       return true;
     }
-    if (archive !== null || path) {
+    if (archive !== null || (path && path !== home)) {
       goUp();
       return true;
     }
@@ -888,10 +890,9 @@
           </div>
         {/each}
       </div>
-    {:else if !loaded && !serverStatus.unavailable}
-      <CenteredProgress class="h-full" />
     {:else}
       <EmptyState
+        loading={!loaded && !serverStatus.unavailable}
         text={compact && serverStatus.unavailable ? t("SERVER_UNAVAILABLE") : t("NO_FILES")}
         class="h-full"
       />
@@ -1248,7 +1249,7 @@
 
 {#if extractRequest}
   {@const request = extractRequest}
-  <CompactDialog title={t("EXTRACT")} padded={false} onDismiss={() => (extractRequest = null)}>
+  <CompactDialog title={t("EXTRACT")} onDismiss={() => (extractRequest = null)}>
     {#snippet buttons()}
       <Button onclick={() => (extractRequest = null)} variant="outlined">{t("CANCEL")}</Button>
     {/snippet}

@@ -33,7 +33,7 @@
   };
 </script>
 
-<CompactDialog title={filename} padded={false} {onDismiss}>
+<CompactDialog title={filename} {onDismiss}>
   {#snippet buttons()}
     <Button onclick={onDismiss} variant="outlined">{t("CANCEL")}</Button>
   {/snippet}

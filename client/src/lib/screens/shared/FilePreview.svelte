@@ -1,5 +1,7 @@
 <script lang="ts">
   import ArrowLeft from "@lucide/svelte/icons/arrow-left";
+  import ClipboardCopy from "@lucide/svelte/icons/clipboard-copy";
+  import Paperclip from "@lucide/svelte/icons/paperclip";
   import Download from "@lucide/svelte/icons/download";
   import EllipsisVertical from "@lucide/svelte/icons/ellipsis-vertical";
   import ExternalLink from "@lucide/svelte/icons/external-link";
@@ -16,7 +18,10 @@
   import { platformName } from "$lib/platform";
   import { authHeadersOf, backend } from "$lib/services/backend.svelte";
   import { mediaSrc } from "$lib/services/mediaSource";
-  import { relativeFromUrl } from "$lib/services/sharedApi";
+  import { relativeFromUrl, sharedApi } from "$lib/services/sharedApi";
+  import { copyText } from "$lib/platform/clipboard";
+  import { panes } from "$lib/screens/chat/panes.svelte";
+  import { tabs } from "$lib/screens/chat/tabs.svelte";
   import {
     downloadShared,
     openSharedExternally,
@@ -37,6 +42,11 @@
   import ZoomPane from "$lib/ui/ZoomPane.svelte";
   import PdfView from "./PdfView.svelte";
 
+  export interface ToolbarButton {
+    class: string;
+    size: number;
+  }
+
   interface Props {
     url: string;
     filename: string;
@@ -45,7 +55,8 @@
     embedded?: boolean;
     onExpand?: (() => void) | null;
     menuItems?: Snippet;
-    actions?: Snippet;
+    actions?: Snippet<[ToolbarButton]>;
+    onCopyPath?: (() => void) | null;
     added?: number[];
     removed?: Record<number, string[]>;
     current?: number[];
@@ -61,6 +72,7 @@
     onExpand = null,
     menuItems,
     actions,
+    onCopyPath = null,
     added = [],
     removed = {},
     current = [],
@@ -68,6 +80,8 @@
   }: Props = $props();
 
   const NUL = String.fromCharCode(0);
+
+  const button = $derived<ToolbarButton>({ class: embedded ? "size-8" : "", size: embedded ? 18 : 20 });
 
   let text = $state<string | null>(null);
   let failed = $state(false);
@@ -85,6 +99,22 @@
   const kind = $derived(previewKindOf(filename));
   const binary = $derived(text !== null && text.includes(NUL));
   const relative = $derived(relativeFromUrl(url));
+
+  const attach = $derived.by(() => {
+    const path = relative;
+    if (!path) return null;
+    return () => {
+      const target = panes.focusedTab;
+      if (target) tabs.stateFor(target).addSharedAttachments([{ path, name: filename, size: 0 }]);
+    };
+  });
+
+  const copyPath = $derived(
+    onCopyPath ??
+      (relative === null
+        ? null
+        : () => void sharedApi.absolutePaths([relative]).then((paths) => paths && copyText(paths[0]))),
+  );
   const base = $derived(url.split("?fb=")[0]);
   const source = $derived(version > 0 ? `${base}${base.includes("?") ? "&" : "?"}cb=${version}` : base);
   const fallback = $derived.by(() => {
@@ -138,22 +168,22 @@
 </script>
 
 {#snippet toolbar()}
-  {@render actions?.()}
+  {@render actions?.(button)}
   {#if onExpand}
-    <TooltipIconButton label={t("EXPAND")} class={embedded ? "size-8" : ""} onclick={onExpand}>
-      <Maximize2 size={embedded ? 18 : 20} />
+    <TooltipIconButton label={t("EXPAND")} class={button.class} onclick={onExpand}>
+      <Maximize2 size={button.size} />
     </TooltipIconButton>
   {/if}
   {#if kind === "markdown"}
     <TooltipIconButton
       label={t("FORMATTED_VIEW")}
-      class={embedded ? "size-8" : ""}
+      class={button.class}
       onclick={() => {
         formatted = !formatted;
         settings.markdownPreviewFormatted = formatted;
       }}
     >
-      <Type size={embedded ? 18 : 20} class={formatted ? "text-accent" : ""} />
+      <Type size={button.size} class={formatted ? "text-accent" : ""} />
     </TooltipIconButton>
   {/if}
   <PopupMenu
@@ -163,11 +193,18 @@
     align="center"
   >
     {#snippet triggerChild(props)}
-      <TooltipIconButton label={t("MORE_OPTIONS")} class={embedded ? "size-8" : ""} {...props}>
-        <EllipsisVertical size={embedded ? 18 : 24} />
+      <TooltipIconButton label={t("MORE_OPTIONS")} class={button.class} {...props}>
+        <EllipsisVertical size={button.size} />
       </TooltipIconButton>
     {/snippet}
     {@render menuItems?.()}
+    {#if attach}
+      <MenuItem text={t("ATTACH_TO_CHAT")} onclick={attach}>
+        {#snippet leading()}
+          <Paperclip size={20} class="shrink-0 text-on-surface-variant" />
+        {/snippet}
+      </MenuItem>
+    {/if}
     <MenuItem text={t("SAVE")} onclick={() => void downloadShared(url, filename)}>
       {#snippet leading()}
         <Download size={20} class="shrink-0 text-on-surface-variant" />
@@ -183,6 +220,13 @@
         <ExternalLink size={20} class="shrink-0 text-on-surface-variant" />
       {/snippet}
     </MenuItem>
+    {#if copyPath}
+      <MenuItem text={t("COPY_PATH")} onclick={copyPath}>
+        {#snippet leading()}
+          <ClipboardCopy size={20} class="shrink-0 text-on-surface-variant" />
+        {/snippet}
+      </MenuItem>
+    {/if}
     <MenuItem text={t("SHARE")} onclick={() => void openSharedExternally(url, filename)}>
       {#snippet leading()}
         <Share2 size={20} class="shrink-0 text-on-surface-variant" />

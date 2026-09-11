@@ -1,10 +1,17 @@
+<script module lang="ts">
+  const opened = $state<{ project: string | null; path: string | null; full: boolean }>({
+    project: null,
+    path: null,
+    full: false,
+  });
+</script>
+
 <script lang="ts">
   import ArrowLeft from "@lucide/svelte/icons/arrow-left";
   import AtSign from "@lucide/svelte/icons/at-sign";
   import ChevronDown from "@lucide/svelte/icons/chevron-down";
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
   import ChevronUp from "@lucide/svelte/icons/chevron-up";
-  import ClipboardCopy from "@lucide/svelte/icons/clipboard-copy";
   import FileDiff from "@lucide/svelte/icons/file-diff";
   import GitCompare from "@lucide/svelte/icons/git-compare";
   import Lock from "@lucide/svelte/icons/lock";
@@ -35,7 +42,7 @@
   import SearchBar from "$lib/ui/SearchBar.svelte";
   import SecurityKeyDialog from "$lib/ui/SecurityKeyDialog.svelte";
   import TooltipIconButton from "$lib/ui/TooltipIconButton.svelte";
-  import FilePreview from "$lib/screens/shared/FilePreview.svelte";
+  import FilePreview, { type ToolbarButton } from "$lib/screens/shared/FilePreview.svelte";
   import PaneHeader from "$lib/screens/chat/PaneHeader.svelte";
   import ProjectSelector from "$lib/screens/chat/ProjectSelector.svelte";
   import { inPane } from "$lib/screens/chat/paneSurface";
@@ -51,10 +58,8 @@
   const chat = $derived(tabs.state);
   const projects = $derived(chatListFor(backend.active)?.projects ?? []);
 
-  let chosen = $state<string | null>(null);
   let children = $state<Record<string, ProjectEntry[]>>({});
   let expanded = $state<Record<string, boolean>>({});
-  let openPath = $state<string | null>(null);
   let searching = $state(false);
   let query = $state("");
   let results = $state<ProjectEntry[] | null>(null);
@@ -71,16 +76,16 @@
 
   const projectKey = $derived(
     settings.lockedProject ||
-      (chosen ?? chat.historyProject ?? tabs.active?.projectKey ?? projects[0]?.projectKey ?? null),
+      (opened.project ?? chat.historyProject ?? tabs.active?.projectKey ?? projects[0]?.projectKey ?? null),
   );
 
   const project = $derived(projects.find((item) => item.projectKey === projectKey) ?? null);
 
   const openEntry = $derived(
-    openPath === null
+    opened.path === null
       ? null
       : ([...(changed ?? []), ...(results ?? []), ...Object.values(children).flat()].find(
-          (item) => item.path === openPath,
+          (item) => item.path === opened.path,
         ) ?? null),
   );
 
@@ -119,13 +124,18 @@
 
   $effect(() => {
     void chat.historyProject;
-    chosen = null;
+    opened.project = null;
   });
+
+  const closeFile = () => {
+    opened.path = null;
+    opened.full = false;
+  };
 
   $effect(() =>
     navigation.intercept(() => {
-      if (openPath === null) return false;
-      openPath = null;
+      if (opened.path === null) return false;
+      closeFile();
       return true;
     }),
   );
@@ -236,7 +246,7 @@
     if (listing && projectKey === key) children = { ...children, [entry.path]: listing.entries };
   };
 
-  const absolute = $derived(openPath === null ? "" : projectFilePath(project?.path ?? null, openPath));
+  const absolute = $derived(opened.path === null ? "" : projectFilePath(project?.path ?? null, opened.path));
 
   const mention = () => {
     const chat = tabs.state;
@@ -244,9 +254,9 @@
   };
 
   const open = (entry: ProjectEntry) => {
-    chosen = projectKey;
+    opened.project = projectKey;
     anchorAt = null;
-    openPath = entry.path;
+    opened.path = entry.path;
   };
 
   const fold = (path: string) => {
@@ -263,7 +273,7 @@
     untrack(() => {
       children = {};
       expanded = {};
-      openPath = null;
+      closeFile();
       results = null;
     });
   });
@@ -310,14 +320,14 @@
 
   $effect(() => {
     const key = projectKey;
-    const target = openPath;
+    const target = opened.path;
     void watch.revision;
     if (!key || target === null || !showDiff) {
       fileDiff = null;
       return;
     }
     void projectFilesApi.diff(key, target).then((found) => {
-      if (projectKey === key && openPath === target) fileDiff = found;
+      if (projectKey === key && opened.path === target) fileDiff = found;
     });
   });
 
@@ -388,34 +398,34 @@
   {/if}
 {/snippet}
 
-{#snippet diffToggle()}
+{#snippet diffToggle(button: ToolbarButton)}
   {#if anchors.length}
     <TooltipIconButton
       label={t("PREVIOUS_CHANGE")}
-      class={compact ? "size-8" : ""}
+      class={button.class}
       enabled={anchorAt !== null && anchorAt > 0}
       onclick={() => step(-1)}
     >
-      <ChevronUp />
+      <ChevronUp size={button.size} />
     </TooltipIconButton>
     <TooltipIconButton
       label={t("NEXT_CHANGE")}
-      class={compact ? "size-8" : ""}
+      class={button.class}
       enabled={anchorAt === null || anchorAt < anchors.length - 1}
       onclick={() => step(1)}
     >
-      <ChevronDown />
+      <ChevronDown size={button.size} />
     </TooltipIconButton>
   {/if}
   <TooltipIconButton
     label={t("DIFF")}
-    class={compact ? "size-8" : ""}
+    class={button.class}
     onclick={() => {
       showDiff = !showDiff;
       settings.projectDiff = showDiff;
     }}
   >
-    <FileDiff class={showDiff ? "text-accent" : ""} />
+    <FileDiff size={button.size} class={showDiff ? "text-accent" : ""} />
   </TooltipIconButton>
 {/snippet}
 
@@ -423,11 +433,6 @@
   <MenuItem text={t("MENTION_IN_CHAT")} onclick={mention}>
     {#snippet leading()}
       <AtSign size={20} class="shrink-0 text-on-surface-variant" />
-    {/snippet}
-  </MenuItem>
-  <MenuItem text={t("COPY_PATH")} onclick={() => void copyText(absolute)}>
-    {#snippet leading()}
-      <ClipboardCopy size={20} class="shrink-0 text-on-surface-variant" />
     {/snippet}
   </MenuItem>
 {/snippet}
@@ -475,7 +480,7 @@
 
   {#if projects.length > 1}
     <div class="px-2 pt-2">
-      <ProjectSelector {projects} selected={projectKey} allowAll={false} onSelect={(key) => (chosen = key)} />
+      <ProjectSelector {projects} selected={projectKey} allowAll={false} onSelect={(key) => (opened.project = key)} />
     </div>
   {/if}
 
@@ -527,19 +532,21 @@
     {/if}
   </div>
 
-  {#if openPath !== null && projectKey}
-    <div class="absolute inset-0 z-10">
+  {#if opened.path !== null && projectKey}
+    <div class={opened.full ? "" : "absolute inset-0 z-10"}>
       <FilePreview
-        url={projectFileUrl(projectKey, openPath)}
-        filename={openPath.split("/").at(-1) ?? openPath}
-        embedded={compact}
+        url={projectFileUrl(projectKey, opened.path)}
+        filename={opened.path.split("/").at(-1) ?? opened.path}
+        embedded={compact && !opened.full}
         menuItems={fileMenu}
+        onCopyPath={() => void copyText(absolute)}
         actions={modified ? diffToggle : undefined}
         added={showDiff ? (fileDiff?.added ?? []) : []}
         removed={showDiff ? (fileDiff?.removed ?? {}) : {}}
         {current}
         {anchor}
-        onClose={() => (openPath = null)}
+        onExpand={compact && !opened.full ? () => (opened.full = true) : null}
+        onClose={closeFile}
       />
     </div>
   {/if}

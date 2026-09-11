@@ -18,6 +18,7 @@
   import { listTerminals, listTerminalsWith, type TerminalInfo } from "$lib/services/terminalApi";
   import Button from "$lib/ui/Button.svelte";
   import ConfirmDialog from "$lib/ui/ConfirmDialog.svelte";
+  import EmptyState from "$lib/ui/EmptyState.svelte";
   import MenuItem from "$lib/ui/MenuItem.svelte";
   import MenuSub from "$lib/ui/MenuSub.svelte";
   import PopupMenu from "$lib/ui/PopupMenu.svelte";
@@ -64,7 +65,7 @@
     focusActive();
   };
 
-  let unlocked = $state(false);
+  let unlocked = $state<boolean | null>(null);
 
   const refresh = async () => {
     if (!online) return;
@@ -236,21 +237,24 @@
     {/each}
 
     {#if !terminalTabs.items.length}
-      <div class="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6">
-        <p class="text-body-md text-on-surface-variant">
-          {!online ? t("SERVER_UNAVAILABLE") : unlocked ? t("NO_TERMINALS") : t("TERMINAL_LOCKED")}
-        </p>
-        {#if online && !unlocked}
-          <Button
-            onclick={() => {
-              rejected = false;
-              unlocking = true;
-            }}
-          >
-            {t("UNLOCK")}
-          </Button>
-        {/if}
-      </div>
+      <EmptyState
+        loading={online && unlocked === null}
+        text={!online ? t("SERVER_UNAVAILABLE") : unlocked ? t("NO_TERMINALS") : t("TERMINAL_LOCKED")}
+        class="absolute inset-0"
+      >
+        {#snippet action()}
+          {#if online && unlocked === false}
+            <Button
+              onclick={() => {
+                rejected = false;
+                unlocking = true;
+              }}
+            >
+              {t("UNLOCK")}
+            </Button>
+          {/if}
+        {/snippet}
+      </EmptyState>
     {/if}
   </div>
 

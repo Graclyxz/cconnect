@@ -6,8 +6,8 @@
   interface Props {
     title: string;
     onDismiss: () => void;
+    subtitle?: string | null;
     description?: string | null;
-    padded?: boolean;
     titleTrailing?: Snippet;
     header?: Snippet;
     buttons?: Snippet;
@@ -17,8 +17,8 @@
   const {
     title,
     onDismiss,
+    subtitle,
     description,
-    padded = true,
     titleTrailing,
     header,
     buttons,
@@ -38,6 +38,9 @@
       <div class="flex items-center">
         <div class="min-w-0 flex-1">
           <Dialog.Title class="truncate text-dialog-title">{title}</Dialog.Title>
+          {#if subtitle}
+            <p class="truncate text-topbar-subtitle text-on-surface-variant">{subtitle}</p>
+          {/if}
           {#if description}
             <Dialog.Description class="mt-1 text-body-md wrap-anywhere whitespace-pre-line text-on-surface-variant">
               {description}
@@ -51,9 +54,9 @@
       {/if}
       {#if children}
         <div
-          class="scrollbar-thin -mx-5 min-h-0 shrink overflow-x-clip overflow-y-auto {header
+          class="scrollbar-thin -mx-5 min-h-0 shrink overflow-x-clip overflow-y-auto px-5 {header
             ? 'mt-1.5'
-            : 'mt-4'} {padded ? 'px-5' : ''}"
+            : 'mt-4'}"
         >
           {@render children()}
         </div>

@@ -1,3 +1,4 @@
+import Ban from "@lucide/svelte/icons/ban";
 import File from "@lucide/svelte/icons/file";
 import FileArchive from "@lucide/svelte/icons/file-archive";
 import FileCode from "@lucide/svelte/icons/file-code";
@@ -40,7 +41,10 @@ export const kindIcon = (kind: FileKind): IconSource => KIND_ICONS[kind];
 
 export const kindLabel = (kind: FileKind): string => KIND_LABELS[kind];
 
-export const fileIcon = (name: string): IconSource => KIND_ICONS[fileKindOf(name)];
+const GITIGNORE = ".gitignore";
+
+export const fileIcon = (name: string): IconSource =>
+  name.split("/").pop() === GITIGNORE ? Ban : KIND_ICONS[fileKindOf(name)];
 
 export const folderIcon = (path: string, projectKeys: ReadonlySet<string>, uploadDir: string): IconSource => {
   const segments = path.split("/").filter(Boolean);

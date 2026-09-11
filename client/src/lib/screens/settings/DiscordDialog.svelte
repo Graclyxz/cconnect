@@ -27,12 +27,12 @@
   const preview = $derived(presenceLines());
 </script>
 
-<CompactDialog title={t("DISCORD_PRESENCE")} {onDismiss} padded={false}>
+<CompactDialog title={t("DISCORD_PRESENCE")} {onDismiss}>
   {#snippet buttons()}
     <Button onclick={onDismiss} variant="outlined">{t("CLOSE")}</Button>
   {/snippet}
 
-  <div class="px-5">
+  <div>
     <SwitchRow
       title={t("DISCORD_PRESENCE")}
       summary={t("DISCORD_PRESENCE_SUMMARY")}

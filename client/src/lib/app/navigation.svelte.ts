@@ -31,7 +31,7 @@ export interface PreviewRequest {
   onDelete: (() => void) | null;
 }
 
-const WEB_BLOCKED: Route[] = ["/terminal", "/browser"];
+const WEB_BLOCKED: Route[] = ["/terminal", "/browser", "/project"];
 
 const blocked = (route: Route) => !isTauri && WEB_BLOCKED.includes(route);
 
@@ -82,11 +82,12 @@ class Navigation {
           this.preview = null;
           return;
         }
+        if (this.#dismiss()) {
+          window.history.pushState(null, "", window.location.href);
+          return;
+        }
         if (this.#layers > 0) {
           this.#layers--;
-          if (this.#dismiss()) return;
-        } else if (this.#dismiss()) {
-          window.history.pushState(null, "", window.location.href);
           return;
         }
         this.route = currentRoute();
@@ -176,11 +177,12 @@ class Navigation {
       this.closePreview();
       return true;
     }
+    if (this.#dismiss()) return true;
     if (this.#layers > 0) {
       this.popLayer();
       return true;
     }
-    return this.#dismiss();
+    return false;
   }
 
   back() {

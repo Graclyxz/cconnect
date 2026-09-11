@@ -6,7 +6,6 @@
   import { plural, t } from "$lib/i18n/index.svelte";
   import { inPane } from "$lib/screens/chat/paneSurface";
   import { COMPACT_WIDTH } from "$lib/platform/layout.svelte";
-  import CenteredProgress from "$lib/ui/CenteredProgress.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import MetricBar from "$lib/ui/MetricBar.svelte";
   import SegmentedButtons from "$lib/ui/SegmentedButtons.svelte";
@@ -76,13 +75,12 @@
 </script>
 
 <div bind:clientWidth={width} class="flex min-h-0 flex-1 flex-col">
-  {#if !monitor.info && monitor.offline}
+  {#if !monitor.info}
     <EmptyState
+      loading={!monitor.offline}
       text={pane && serverStatus.unavailable ? t("SERVER_UNAVAILABLE") : t("CONNECTION_ERROR")}
       class="flex-1"
     />
-  {:else if !monitor.info}
-    <CenteredProgress class="flex-1" />
   {:else}
   {@const current = monitor.info}
   {@const gpu = monitor.gpu}

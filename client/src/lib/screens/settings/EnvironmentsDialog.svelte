@@ -83,7 +83,7 @@
   };
 </script>
 
-<CompactDialog title={t("ENVIRONMENTS")} {onDismiss} padded={false}>
+<CompactDialog title={t("ENVIRONMENTS")} {onDismiss}>
   {#snippet titleTrailing()}
     {#if qrAvailable}
       <TooltipIconButton
@@ -140,7 +140,7 @@
   {:else}
     <EmptyState text={t("NO_ENVIRONMENTS")} />
   {/if}
-  <div class="mt-2 px-5">
+  <div class="mt-2">
     <ActionButton
       text={t("ADD_ENVIRONMENT")}
       onclick={() => {

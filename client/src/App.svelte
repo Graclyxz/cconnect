@@ -132,6 +132,9 @@
   class="safe-area bg-background text-on-background"
   style="height: calc(100% - var(--keyboard, 0px))"
 >
+  <div class="h-full {navigation.route === "/" ? "" : "hidden"}" inert={navigation.route !== "/"}>
+    <ChatScreen />
+  </div>
   {#if navigation.route === "/settings" && !settingsAsDialog}
     <SettingsScreen />
   {:else if navigation.route === "/monitor"}
@@ -148,8 +151,6 @@
     <TerminalScreen />
   {:else if navigation.route === "/browser"}
     <BrowserScreen />
-  {:else}
-    <ChatScreen />
   {/if}
 </div>
 

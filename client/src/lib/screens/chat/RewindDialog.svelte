@@ -36,7 +36,7 @@
 </script>
 
 {#if target}
-  <CompactDialog title={t("REWIND")} onDismiss={() => !busy && onBack()} padded={false}>
+  <CompactDialog title={t("REWIND")} onDismiss={() => !busy && onBack()}>
     {#snippet buttons()}
       <Button onclick={onBack} variant="outlined" enabled={!busy}>{t("CANCEL")}</Button>
       <Button onclick={() => onRewind(both ? "both" : "conversation")} enabled={!busy}>
@@ -77,7 +77,7 @@
     />
   </CompactDialog>
 {:else}
-  <CompactDialog title={t("REWIND")} {onDismiss} padded={false}>
+  <CompactDialog title={t("REWIND")} {onDismiss}>
     {#snippet buttons()}
       <Button onclick={onDismiss} variant="outlined">{t("CANCEL")}</Button>
     {/snippet}
@@ -87,7 +87,7 @@
     {:else if !points.length}
       <EmptyState text={t("REWIND_EMPTY")} />
     {:else}
-      <div class="flex flex-col gap-2 px-5 pb-2">
+      <div class="flex flex-col gap-2 pb-2">
         {#each ordered as point (point.id)}
           <OutlinedPanel onclick={() => onSelect(point)} class="w-full text-left">
             <p class="selectable line-clamp-2 text-body-md">{point.text || point.id}</p>

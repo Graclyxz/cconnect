@@ -568,7 +568,7 @@
 
 {#if catalogMarket}
   {@const market = catalogMarket}
-  <CompactDialog title={market} padded={false} onDismiss={() => (catalogMarket = null)}>
+  <CompactDialog title={market} onDismiss={() => (catalogMarket = null)}>
     {#snippet titleTrailing()}
       <PopupMenu open={marketPicker} label={t("MARKETPLACES")} onOpenChange={(open) => (marketPicker = open)}>
         {#snippet triggerChild(props)}
@@ -605,28 +605,26 @@
       <CenteredProgress class="py-6" />
     {:else}
       {#each filteredCatalog as entry (entry.name)}
-        <div class="px-5">
-          <ListRow
-            class="rounded-lg"
-            padding="py-2.5 pr-3 pl-3"
-            subtitleLines={2}
-            title={entry.name + (entry.version ? ` - ${entry.version}` : "")}
-            subtitle={entry.description}
-            onclick={() => {
-              if (entry.installed) {
-                pluginMenu =
-                  extensions?.plugins.find((item) => item.name === entry.name && item.marketplace === market) ?? null;
-                catalogMarket = null;
-              } else {
-                installCandidate = entry;
-              }
-            }}
-          >
-            {#snippet trailing()}
-              {@render stateDot(entry.installed)}
-            {/snippet}
-          </ListRow>
-        </div>
+        <ListRow
+          class="rounded-lg"
+          padding="py-2.5 pr-3 pl-3"
+          subtitleLines={2}
+          title={entry.name + (entry.version ? ` - ${entry.version}` : "")}
+          subtitle={entry.description}
+          onclick={() => {
+            if (entry.installed) {
+              pluginMenu =
+                extensions?.plugins.find((item) => item.name === entry.name && item.marketplace === market) ?? null;
+              catalogMarket = null;
+            } else {
+              installCandidate = entry;
+            }
+          }}
+        >
+          {#snippet trailing()}
+            {@render stateDot(entry.installed)}
+          {/snippet}
+        </ListRow>
       {/each}
     {/if}
   </CompactDialog>

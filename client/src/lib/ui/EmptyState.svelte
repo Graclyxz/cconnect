@@ -1,12 +1,22 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
+  import CenteredProgress from "./CenteredProgress.svelte";
+
   interface Props {
     text: string;
+    loading?: boolean;
     class?: string;
+    action?: Snippet;
   }
 
-  const { text, class: className = "" }: Props = $props();
+  const { text, loading = false, class: className = "", action }: Props = $props();
 </script>
 
-<div class="flex items-center justify-center px-5 py-3.5 {className}">
-  <p class="text-center text-body-md text-on-surface-variant">{text}</p>
-</div>
+{#if loading}
+  <CenteredProgress class={className} />
+{:else}
+  <div class="flex flex-col items-center justify-center gap-3 px-5 py-3.5 {className}">
+    <p class="text-center text-body-md text-on-surface-variant">{text}</p>
+    {@render action?.()}
+  </div>
+{/if}

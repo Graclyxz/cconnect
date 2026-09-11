@@ -14,14 +14,14 @@
   const { onDismiss }: Props = $props();
 </script>
 
-<CompactDialog title={t("NOTIFICATIONS")} {onDismiss} padded={false}>
+<CompactDialog title={t("NOTIFICATIONS")} {onDismiss}>
   {#snippet buttons()}
     <Button onclick={onDismiss} variant="outlined">{t("CANCEL")}</Button>
   {/snippet}
 
   <div>
     {#if !notifier.granted}
-      <div class="px-5 pb-3">
+      <div class="pb-3">
         <p class="text-body-sm text-on-surface-variant">{t("NOTIFICATIONS_DISABLED_HINT")}</p>
         <ActionButton
           class="mt-2.5 w-full"
@@ -30,7 +30,7 @@
         />
       </div>
     {/if}
-    <div class="px-5">
+    <div>
       <SwitchRow
         title={t("NOTIFY_INTERACTION")}
         summary={t("NOTIFY_INTERACTION_SUMMARY")}
