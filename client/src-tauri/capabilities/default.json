@@ -45,7 +45,6 @@
     "fs:allow-appdata-write-recursive",
     "fs:allow-temp-write-recursive",
     "notification:default",
-    "store:default",
     "clipboard-manager:allow-write-text",
     "clipboard-manager:allow-read-text"
   ]

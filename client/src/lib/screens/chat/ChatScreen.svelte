@@ -29,8 +29,8 @@
   import ProjectFilesScreen from "$lib/screens/project/ProjectFilesScreen.svelte";
   import FilePreview from "$lib/screens/shared/FilePreview.svelte";
   import SharedScreen from "$lib/screens/shared/SharedScreen.svelte";
-  import MarkdownActions from "$lib/screens/markdown/MarkdownActions.svelte";
-  import MarkdownEditor from "$lib/screens/markdown/MarkdownEditor.svelte";
+  import NotesActions from "$lib/screens/notes/NotesActions.svelte";
+  import NotesEditor from "$lib/screens/notes/NotesEditor.svelte";
   import MonitorActions from "$lib/screens/monitor/MonitorActions.svelte";
   import BrowserView from "$lib/screens/browser/BrowserView.svelte";
   import MonitorContent from "$lib/screens/monitor/MonitorContent.svelte";
@@ -350,10 +350,10 @@
             />
             <ChatView tab={panes.rightTab} focused={panes.focused === "right"} />
           </PaneSurface>
-        {:else if panes.kind === "markdown"}
+        {:else if panes.kind === "notes"}
           <PaneSurface>
-            <PaneHeader title={t("MARKDOWN")} actions={markdownActions} />
-            <MarkdownEditor />
+            <PaneHeader title={t("NOTES")} actions={notesActions} />
+            <NotesEditor />
           </PaneSurface>
         {:else if panes.kind === "shared"}
           <PaneSurface>
@@ -440,8 +440,8 @@
   <div class="drop-overlay pointer-events-none absolute inset-0 z-40 border-2 border-accent"></div>
 {/snippet}
 
-{#snippet markdownActions()}
-  <MarkdownActions />
+{#snippet notesActions()}
+  <NotesActions />
 {/snippet}
 
 {#snippet monitorActions()}

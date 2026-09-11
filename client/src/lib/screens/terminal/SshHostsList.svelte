@@ -5,7 +5,7 @@
   import SquareTerminal from "@lucide/svelte/icons/square-terminal";
   import Trash from "@lucide/svelte/icons/trash";
   import { sshAddress, sshStore, type SshProfile } from "$lib/data/sshStore.svelte";
-  import { osColor, osIconPath } from "$lib/design/osIcons";
+  import { osIcon } from "$lib/design/osIcons";
   import { t } from "$lib/i18n/index.svelte";
   import PaneHeader from "$lib/screens/chat/PaneHeader.svelte";
   import { paneActionClass } from "$lib/screens/chat/paneChrome";
@@ -62,23 +62,17 @@
   {:else}
     <div class="min-h-0 flex-1 overflow-y-auto">
       {#each sshStore.profiles as profile (profile.id)}
-        {@const path = osIconPath(profile.os)}
+        {@const OsIcon = osIcon(profile.os)}
         <ListRow
-          icon={path ? undefined : SquareTerminal}
           title={profile.name || profile.host}
           subtitle={sshAddress(profile)}
           onclick={() => onSelect(profile)}
         >
           {#snippet leading()}
-            {#if path}
-              <svg
-                viewBox="0 0 24 24"
-                class="size-6 shrink-0"
-                style={osColor(profile.os) ? `color: ${osColor(profile.os)}` : "color: var(--color-accent)"}
-                aria-hidden="true"
-              >
-                <path d={path} fill="currentColor" />
-              </svg>
+            {#if OsIcon}
+              <OsIcon class="size-6 shrink-0" aria-hidden="true" />
+            {:else}
+              <SquareTerminal size={24} class="shrink-0 text-on-surface-variant" />
             {/if}
           {/snippet}
           {#snippet trailing()}

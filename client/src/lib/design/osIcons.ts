@@ -1,89 +1,81 @@
-import { siAndroid, siApple, siCentos, siFedora, siLinux, siRaspberrypi, siRedhat, siSuse, siUbuntu } from "simple-icons";
+import Almalinux from "~icons/devicon/almalinux";
+import Android from "~icons/logos/android-icon";
+import Apple from "~icons/logos/apple";
+import Archlinux from "~icons/logos/archlinux";
+import Artixlinux from "~icons/devicon/artixlinux";
+import Centos from "~icons/devicon/centos";
+import Debian from "~icons/logos/debian";
+import Elementary from "~icons/logos/elementary";
+import Fedora from "~icons/logos/fedora";
+import Freebsd from "~icons/logos/freebsd";
+import Gentoo from "~icons/devicon/gentoo";
+import Kalilinux from "~icons/devicon/kalilinux";
+import Linux from "~icons/logos/linux-tux";
+import Manjaro from "~icons/logos/manjaro";
+import Mint from "~icons/logos/linux-mint";
+import Nixos from "~icons/devicon/nixos";
+import Opensuse from "~icons/devicon/opensuse";
+import Raspberrypi from "~icons/logos/raspberry-pi";
+import Redhat from "~icons/devicon/redhat";
+import Rocky from "~icons/devicon/rockylinux";
+import Ubuntu from "~icons/logos/ubuntu";
+import Void from "~icons/logos/void";
+import Windows10 from "~icons/devicon/windows8";
+import Windows11 from "~icons/devicon/windows11";
+import type { Component } from "svelte";
 
 const normalize = (os: string | null | undefined) => os?.trim().toLowerCase() ?? "";
 
-const BRANDS: Record<string, string> = {
-  macos: siApple.path,
-  darwin: siApple.path,
-  apple: siApple.path,
-  ios: siApple.path,
-  android: siAndroid.path,
-  ubuntu: siUbuntu.path,
-  fedora: siFedora.path,
-  centos: siCentos.path,
-  rhel: siRedhat.path,
-  redhat: siRedhat.path,
-  "red-hat": siRedhat.path,
-  rocky: siRedhat.path,
-  almalinux: siRedhat.path,
-  alma: siRedhat.path,
-  opensuse: siSuse.path,
-  "opensuse-leap": siSuse.path,
-  "opensuse-tumbleweed": siSuse.path,
-  suse: siSuse.path,
-  sles: siSuse.path,
-  raspbian: siRaspberrypi.path,
-  raspberrypi: siRaspberrypi.path,
-  "raspberry-pi": siRaspberrypi.path,
+const BRANDS: Record<string, Component> = {
+  windows: Windows11,
+  "windows-11": Windows11,
+  "windows-10": Windows10,
+  macos: Apple,
+  darwin: Apple,
+  apple: Apple,
+  ios: Apple,
+  android: Android,
+  ubuntu: Ubuntu,
+  debian: Debian,
+  fedora: Fedora,
+  centos: Centos,
+  rhel: Redhat,
+  redhat: Redhat,
+  "red-hat": Redhat,
+  rocky: Rocky,
+  rockylinux: Rocky,
+  almalinux: Almalinux,
+  alma: Almalinux,
+  opensuse: Opensuse,
+  "opensuse-leap": Opensuse,
+  "opensuse-tumbleweed": Opensuse,
+  suse: Opensuse,
+  sles: Opensuse,
+  arch: Archlinux,
+  archlinux: Archlinux,
+  endeavouros: Archlinux,
+  artix: Artixlinux,
+  artixlinux: Artixlinux,
+  manjaro: Manjaro,
+  linuxmint: Mint,
+  mint: Mint,
+  elementary: Elementary,
+  void: Void,
+  voidlinux: Void,
+  freebsd: Freebsd,
+  kali: Kalilinux,
+  kalilinux: Kalilinux,
+  "kali-linux": Kalilinux,
+  nixos: Nixos,
+  nix: Nixos,
+  gentoo: Gentoo,
+  raspbian: Raspberrypi,
+  raspberrypi: Raspberrypi,
+  "raspberry-pi": Raspberrypi,
 };
 
-const COLORS: Record<string, string> = {
-  windows: "#00a4ef",
-  macos: "#a2aaad",
-  darwin: "#a2aaad",
-  apple: "#a2aaad",
-  ios: "#a2aaad",
-  android: "#3ddc84",
-  ubuntu: "#e95420",
-  debian: "#a81d33",
-  fedora: "#51a2da",
-  centos: "#932279",
-  rhel: "#ee0000",
-  redhat: "#ee0000",
-  "red-hat": "#ee0000",
-  rocky: "#10b981",
-  almalinux: "#0fb37d",
-  alma: "#0fb37d",
-  opensuse: "#73ba25",
-  "opensuse-leap": "#73ba25",
-  "opensuse-tumbleweed": "#73ba25",
-  suse: "#73ba25",
-  sles: "#73ba25",
-  arch: "#1793d1",
-  archlinux: "#1793d1",
-  manjaro: "#35bf5c",
-  endeavouros: "#7f3fbf",
-  linuxmint: "#87cf3e",
-  mint: "#87cf3e",
-  pop: "#48b9c7",
-  popos: "#48b9c7",
-  pop_os: "#48b9c7",
-  kali: "#367bf0",
-  kalilinux: "#367bf0",
-  "kali-linux": "#367bf0",
-  alpine: "#0d597f",
-  raspbian: "#c51a4a",
-  raspberrypi: "#c51a4a",
-  "raspberry-pi": "#c51a4a",
-  freebsd: "#ab2b28",
-  openbsd: "#f2ca30",
-  nixos: "#5277c3",
-  nix: "#5277c3",
-  gentoo: "#54487a",
-  elementary: "#64baff",
-  void: "#478061",
-  voidlinux: "#478061",
-  linux: "#fcc624",
-};
-
-const WINDOWS_PATH =
-  "M0 3.449 9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801";
-
-export const osIconPath = (os: string | null | undefined): string | null => {
+export const osIcon = (os: string | null | undefined): Component | null => {
   const key = normalize(os);
   if (!key) return null;
-  if (key === "windows") return WINDOWS_PATH;
-  return BRANDS[key] ?? siLinux.path;
+  return BRANDS[key] ?? Linux;
 };
-
-export const osColor = (os: string | null | undefined): string | null => COLORS[normalize(os)] ?? null;

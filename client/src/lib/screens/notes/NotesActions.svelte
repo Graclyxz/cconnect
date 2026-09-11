@@ -15,7 +15,7 @@
 
   let menu = $state(false);
 
-  const filename = $derived(t("MARKDOWN_FILENAME"));
+  const filename = $derived(t("NOTES_FILENAME"));
   const actionClass = paneActionClass(inPane());
 </script>
 

@@ -1,6 +1,6 @@
 import { store } from "$lib/platform/storage";
 
-const SCRATCH_KEY = "markdown.scratch";
+const SCRATCH_KEY = "notes.scratch";
 const SAVE_DELAY_MS = 400;
 
 class Scratch {

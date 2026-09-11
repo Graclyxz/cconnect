@@ -139,10 +139,22 @@ def _gpu() -> dict | None:
         return None
 
 
+_WINDOWS_11_BUILD = 22000
+
+
 @lru_cache(maxsize=1)
+def _windows_edition() -> str:
+    """Windows 11 reports itself as 10 everywhere except the build number."""
+    try:
+        return "11" if sys.getwindowsversion().build >= _WINDOWS_11_BUILD else "10"
+    except (AttributeError, OSError):
+        return ""
+
+
 def _os_id() -> str:
     if sys.platform == "win32":
-        return "windows"
+        edition = _windows_edition()
+        return f"windows-{edition}" if edition else "windows"
     if sys.platform == "darwin":
         return "darwin"
     try:
@@ -154,11 +166,9 @@ def _os_id() -> str:
 @lru_cache(maxsize=1)
 def _os_name() -> str:
     if sys.platform == "win32":
-        try:
-            build = sys.getwindowsversion().build
-            return f"Windows {'11' if build >= 22000 else '10'}"
-        except Exception:
-            pass
+        edition = _windows_edition()
+        if edition:
+            return f"Windows {edition}"
     return f"{platform.system()} {platform.release()}"
 
 

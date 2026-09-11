@@ -3,8 +3,8 @@ import Compass from "@lucide/svelte/icons/compass";
 import FolderSymlink from "@lucide/svelte/icons/folder-symlink";
 import FolderTree from "@lucide/svelte/icons/folder-tree";
 import Network from "@lucide/svelte/icons/network";
+import NotepadText from "@lucide/svelte/icons/notepad-text";
 import SquareTerminal from "@lucide/svelte/icons/square-terminal";
-import Type from "@lucide/svelte/icons/type";
 import { isTauri } from "$lib/platform";
 import type { RightKind } from "$lib/screens/chat/panes.svelte";
 import ClaudeIcon from "$lib/ui/ClaudeIcon.svelte";
@@ -42,7 +42,7 @@ export const SCREENS: ScreenEntry[] = [
     screenIcon: Network,
     nativeScreen: true,
   },
-  { kind: "markdown", label: "MARKDOWN", icon: Type, open: () => navigation.navigate("/markdown") },
+  { kind: "notes", label: "NOTES", icon: NotepadText, open: () => navigation.navigate("/notes") },
   {
     kind: "browser",
     label: "BROWSER",

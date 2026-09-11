@@ -9,7 +9,7 @@ export const ROUTES = [
   "/shared",
   "/project",
   "/terminal",
-  "/markdown",
+  "/notes",
   "/browser",
 ] as const;
 

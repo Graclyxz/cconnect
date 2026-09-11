@@ -125,7 +125,6 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_store::Builder::new().build())
         .manage(ssh::SshState::default())
         .manage(local_server::LocalServerState::default())
         .manage(presence::Presence::default())

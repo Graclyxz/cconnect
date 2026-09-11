@@ -7,7 +7,7 @@ import { readFocusedPane, readRightLocation, tabs, type PaneRole } from "./tabs.
 export type RightKind =
   | "terminal"
   | "chat"
-  | "markdown"
+  | "notes"
   | "monitor"
   | "claude"
   | "shared"
@@ -17,7 +17,7 @@ export type RightKind =
 const KINDS: RightKind[] = [
   "terminal",
   "chat",
-  "markdown",
+  "notes",
   "monitor",
   "claude",
   "shared",
@@ -28,7 +28,7 @@ const KINDS: RightKind[] = [
 const SCOPE: Record<RightKind, Pane> = {
   terminal: "terminal",
   chat: "chat",
-  markdown: "chat",
+  notes: "chat",
   monitor: "chat",
   claude: "chat",
   shared: "shared",

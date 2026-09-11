@@ -2,10 +2,12 @@
   import EllipsisVertical from "@lucide/svelte/icons/ellipsis-vertical";
   import Keyboard from "@lucide/svelte/icons/keyboard";
   import Network from "@lucide/svelte/icons/network";
+  import SquareTerminal from "@lucide/svelte/icons/square-terminal";
   import X from "@lucide/svelte/icons/x";
   import { tick } from "svelte";
   import { activeScope } from "$lib/app/activeScope.svelte";
   import { navigation } from "$lib/app/navigation.svelte";
+  import { osIcon } from "$lib/design/osIcons";
   import { sshAddress, sshStore } from "$lib/data/sshStore.svelte";
   import { paneFocus } from "$lib/data/paneFocus.svelte";
   import { serverStatus } from "$lib/data/serverStatus.svelte";
@@ -183,11 +185,20 @@
       {#if sshStore.profiles.length}
         <MenuSub text={t("SSH_HOSTS")}>
           {#each sshStore.profiles as profile (profile.id)}
+            {@const OsIcon = osIcon(profile.os)}
             <MenuItem
               text={profile.name || profile.host}
               description={sshAddress(profile)}
               onclick={() => connectSsh(profile)}
-            />
+            >
+              {#snippet leading()}
+                {#if OsIcon}
+                  <OsIcon class="size-5 shrink-0" aria-hidden="true" />
+                {:else}
+                  <SquareTerminal size={20} class="shrink-0 text-on-surface-variant" />
+                {/if}
+              {/snippet}
+            </MenuItem>
           {/each}
         </MenuSub>
       {/if}

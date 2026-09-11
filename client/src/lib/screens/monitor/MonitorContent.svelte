@@ -1,7 +1,7 @@
 <script lang="ts">
   import { formatSize } from "$lib/data/format";
   import { formatLogTime } from "$lib/data/time";
-  import { osColor, osIconPath } from "$lib/design/osIcons";
+  import { osIcon } from "$lib/design/osIcons";
   import { serverStatus } from "$lib/data/serverStatus.svelte";
   import { plural, t } from "$lib/i18n/index.svelte";
   import { inPane } from "$lib/screens/chat/paneSurface";
@@ -22,6 +22,8 @@
   const SECONDS_PER_HOUR = 3_600;
   const SECONDS_PER_MINUTE = 60;
   const MILLIS_PER_SECOND = 1000;
+
+  const OsIcon = $derived(osIcon(monitor.info?.osId));
 
   let page = $state(0);
   let width = $state(0);
@@ -161,15 +163,8 @@
           <SettingsGroup label={t("INFORMATION")}>
             <div class="flex flex-col gap-2.5 p-4">
               <div class="flex items-center gap-3.5">
-                {#if osIconPath(current.osId)}
-                  <svg
-                    viewBox="0 0 24 24"
-                    class="size-8 shrink-0"
-                    style={osColor(current.osId) ? `color: ${osColor(current.osId)}` : ""}
-                    aria-hidden="true"
-                  >
-                    <path d={osIconPath(current.osId)} fill="currentColor" />
-                  </svg>
+                {#if OsIcon}
+                  <OsIcon class="size-8 shrink-0" aria-hidden="true" />
                 {/if}
                 <div class="min-w-0">
                   <p class="truncate text-body-lg">{current.os}</p>

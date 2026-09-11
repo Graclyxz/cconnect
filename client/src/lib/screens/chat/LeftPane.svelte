@@ -5,7 +5,7 @@
   import Settings from "@lucide/svelte/icons/settings";
   import SquarePen from "@lucide/svelte/icons/square-pen";
   import SquareTerminal from "@lucide/svelte/icons/square-terminal";
-  import Type from "@lucide/svelte/icons/type";
+  import NotepadText from "@lucide/svelte/icons/notepad-text";
   import { navigation } from "$lib/app/navigation.svelte";
   import type { SessionInfo } from "$lib/data/models";
   import { t } from "$lib/i18n/index.svelte";
@@ -118,8 +118,8 @@
       <TooltipIconButton label={t("TERMINAL")} onclick={() => navigation.navigate("/terminal")}>
         <SquareTerminal size={20} />
       </TooltipIconButton>
-      <TooltipIconButton label={t("MARKDOWN")} onclick={() => navigation.navigate("/markdown")}>
-        <Type size={20} />
+      <TooltipIconButton label={t("NOTES")} onclick={() => navigation.navigate("/notes")}>
+        <NotepadText size={20} />
       </TooltipIconButton>
       <TooltipIconButton label={t("SETTINGS")} onclick={() => navigation.openSettings()}>
         <Settings size={20} />
