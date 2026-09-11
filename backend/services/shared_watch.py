@@ -1,9 +1,9 @@
 """Live updates for the shared folder over WebSocket.
 
-A single recursive watcher (``watchdog``, polling fallback) over the shared directory.
-Each connection subscribes to one relative directory; on any change the watcher re-lists
-every subscriber's directory and pushes the fresh snapshot, so the file explorer stays in
-sync without a manual refresh.
+A single recursive watcher (``watchdog``, polling fallback) over the shared directory,
+started with the first connection and stopped with the last so nothing runs while the file
+manager is closed. Each connection subscribes to one relative directory; on any change the
+watcher re-lists every subscriber's directory and pushes the fresh snapshot.
 """
 
 import asyncio
@@ -30,11 +30,7 @@ class SharedWatchHub:
         self._started = False
 
     async def start(self):
-        if self._started:
-            return
-        self._started = True
         self._loop = asyncio.get_running_loop()
-        self._begin_watching()
 
     def stop(self):
         self._stop.set()
@@ -49,11 +45,21 @@ class SharedWatchHub:
         q: asyncio.Queue = asyncio.Queue()
         with self._lock:
             self._subscribers[q] = ""
+            first = len(self._subscribers) == 1
+        if first and not self._started:
+            self._started = True
+            self._stop.clear()
+            self._begin_watching()
         return q
 
     def unsubscribe(self, q: asyncio.Queue):
         with self._lock:
             self._subscribers.pop(q, None)
+            idle = not self._subscribers
+        if idle and self._started:
+            self._started = False
+            self.stop()
+            self._observer = None
 
     def set_path(self, q: asyncio.Queue, path: str):
         with self._lock:

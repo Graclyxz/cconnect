@@ -309,7 +309,7 @@ async def chat_ws(ws: WebSocket):
                     await send({"type": "error", "message": exc.errors()})
                     continue
                 seen["prefs"] = visibility.resolve(msg.visibility.model_dump() if msg.visibility else None)
-                seen["capabilities"] = terminal_mcp.authorize(msg.capabilities, msg.terminal_key)
+                seen["capabilities"] = terminal_mcp.authorize(msg.capabilities, msg.security_key)
                 existing = registry.get(msg.channel) if msg.channel else None
                 by_session = None
                 if existing is None and msg.resume:

@@ -12,7 +12,7 @@ import {
   type TodoItem,
 } from "$lib/data/chatModels";
 import { CLIENT_CAPABILITIES } from "$lib/data/clientCapabilities";
-import { terminalKeys } from "$lib/data/terminalKeys.svelte";
+import { securityKeys } from "$lib/data/securityKeys.svelte";
 import type { TerminalInfo } from "./terminalApi";
 import { backend, baseUrlOf, socketUrlOf, type Profile } from "./backend.svelte";
 import type { VisibilityPrefs } from "$lib/data/settings.svelte";
@@ -395,7 +395,7 @@ export class ChatSocket {
       ...(this.#channel ? { channel: this.#channel } : {}),
       last_seq: this.#lastSeq,
       capabilities: CLIENT_CAPABILITIES,
-      terminal_key: terminalKeys.current || undefined,
+      security_key: securityKeys.current || undefined,
       ...(this.#sideChannel ? { side_channel: this.#sideChannel, side_last_seq: this.#sideLastSeq } : {}),
       ...(this.#sideResume ? { side_resume: this.#sideResume } : {}),
     });

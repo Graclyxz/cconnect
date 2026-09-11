@@ -5,7 +5,7 @@ import { shortcuts } from "$lib/platform/shortcuts.svelte";
 import { settings, type VisibilityPrefs } from "./settings.svelte";
 import { BACKED_UP } from "./settingsRegistry";
 import { sshStore, type SshProfile } from "./sshStore.svelte";
-import { terminalKeys } from "./terminalKeys.svelte";
+import { securityKeys } from "./securityKeys.svelte";
 
 // Shared with the Compose client: same keys so a backup moves between both apps.
 const APP = "cconnect";
@@ -59,7 +59,7 @@ export const exportSettings = (): string =>
         permission_mode: profile.permissionMode,
         ...(profile.streaming === null ? {} : { streaming: profile.streaming }),
         ...(profile.accentIndex === null ? {} : { accent_index: profile.accentIndex }),
-        ...(terminalKeys.keyFor(profile) ? { terminal_key: terminalKeys.keyFor(profile) } : {}),
+        ...(securityKeys.keyFor(profile) ? { security_key: securityKeys.keyFor(profile) } : {}),
       })),
       ssh: sshStore.profiles.map((profile) => ({
         id: profile.id,
@@ -158,8 +158,8 @@ export const importSettings = (raw: string): boolean => {
 
   for (const raw of list(root, "environments")) {
     const profile = toEnvironment(raw);
-    const key = text(raw, "terminal_key");
-    if (profile && key) terminalKeys.setFor(profile, key);
+    const key = text(raw, "security_key");
+    if (profile && key) securityKeys.setFor(profile, key);
   }
 
   const bindings = root.shortcuts;

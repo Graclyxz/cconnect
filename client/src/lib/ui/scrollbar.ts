@@ -40,7 +40,7 @@ export function hscrollbar(node: HTMLElement, options: ScrollbarOptions = {}) {
 
   const thumb = document.createElement("div");
   thumb.style.cssText =
-    "position:absolute;bottom:0;left:0;border-radius:999px;pointer-events:none;opacity:0;" +
+    "position:absolute;top:0;left:0;border-radius:999px;pointer-events:none;opacity:0;" +
     `transition:opacity ${FADE_MS}ms linear`;
   node.appendChild(thumb);
 
@@ -94,7 +94,8 @@ export function hscrollbar(node: HTMLElement, options: ScrollbarOptions = {}) {
     thumb.style.opacity = awake || hovered || dragging ? "1" : "0";
     thumb.style.height = `${thickness}px`;
     thumb.style.width = `${size}px`;
-    thumb.style.transform = `translateX(${node.scrollLeft + offset}px)`;
+    thumb.style.transform =
+      `translate(${node.scrollLeft + offset}px, ${node.scrollTop + node.clientHeight - thickness}px)`;
     thumb.style.background = `rgba(var(--c-on-surface-variant-rgb), ${alpha / 100})`;
   };
 

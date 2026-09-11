@@ -62,7 +62,7 @@
     const lines = [`${t("LOCAL_URL")}: http://localhost:${info.port}`];
     if (info.publicUrl) lines.push(`${t("PUBLIC_URL")}: ${info.publicUrl}`);
     if (info.token) lines.push(`${t("TOKEN")}: ${info.token}`);
-    if (info.terminalKey) lines.push(`${t("TERMINAL_KEY")}: ${info.terminalKey}`);
+    if (info.securityKey) lines.push(`${t("SECURITY_KEY")}: ${info.securityKey}`);
     return lines.join("\n");
   });
 

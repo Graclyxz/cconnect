@@ -95,7 +95,7 @@ PUBLIC_ACCESS_TOKEN: str | None = (
     os.environ.get("PUBLIC_ACCESS_TOKEN") if os.environ.get("CCONNECT_AUTH_ACTIVE") == "1" else None
 )
 
-TERMINAL_ACCESS_KEY: str | None = os.environ.get("TERMINAL_ACCESS_KEY") or None
+SECURITY_KEY: str | None = os.environ.get("SECURITY_KEY") or None
 
 # Chromium driven over CDP for the browser pane. Its own profile, so it never touches
 # the user's real one, and a debug port of its own so it can coexist with other tooling.
@@ -117,7 +117,7 @@ __all__ = [
     "COLORS",
     "permission_modes",
     "PUBLIC_ACCESS_TOKEN",
-    "TERMINAL_ACCESS_KEY",
+    "SECURITY_KEY",
     "BROWSER_EXECUTABLE",
     "BROWSER_DEBUG_PORT",
     "BROWSER_HEADLESS",

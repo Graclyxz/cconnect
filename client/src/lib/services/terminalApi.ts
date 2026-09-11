@@ -1,4 +1,4 @@
-import { terminalKeys } from "$lib/data/terminalKeys.svelte";
+import { securityKeys } from "$lib/data/securityKeys.svelte";
 import { backend } from "./backend.svelte";
 import { createHttp } from "./http";
 
@@ -28,15 +28,12 @@ export interface TerminalRequest {
   rows: number;
 }
 
-const keyHeader = (): Record<string, string> =>
-  terminalKeys.current ? { "X-Terminal-Key": terminalKeys.current } : {};
-
-const api = createHttp(() => backend.active, keyHeader);
+const api = createHttp(() => backend.active, () => securityKeys.headersFor(backend.active));
 
 export const listTerminals = () => api.get<TerminalInfo[]>("/terminal/sessions");
 
 export const listTerminalsWith = (key: string) =>
-  createHttp(() => backend.active, () => ({ "X-Terminal-Key": key })).get<TerminalInfo[]>("/terminal/sessions");
+  createHttp(() => backend.active, () => securityKeys.headers(key)).get<TerminalInfo[]>("/terminal/sessions");
 
 export const openTerminal = (request: TerminalRequest) => api.post<TerminalInfo>("/terminal/sessions", request);
 

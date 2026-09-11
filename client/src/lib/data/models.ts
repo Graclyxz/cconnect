@@ -80,6 +80,13 @@ export const projectKeyOf = (path: string): string => path.replace(PROJECT_KEY_S
 export const projectLabel = (project: ProjectInfo): string =>
   project.name ?? project.path ?? project.projectKey;
 
+export const projectFilePath = (base: string | null, relative: string): string => {
+  if (!base) return relative;
+  const separator = base.includes("\\") ? "\\" : "/";
+  const root = base.replace(/[\\/]+$/, "");
+  return [root, ...relative.split("/")].join(separator);
+};
+
 export const projectNameOf = (projects: ProjectInfo[], key: string, fallbackPath?: string | null): string => {
   const found = projects.find((item) => item.projectKey === key);
   if (found) return projectLabel(found);

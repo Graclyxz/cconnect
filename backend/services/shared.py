@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from core import paths
+from services import files
 
 try:
     import py7zr
@@ -35,18 +36,7 @@ def _base() -> Path:
 
 
 def _resolve(relpath: str) -> Path:
-    base = _base().resolve()
-    path = (base / relpath).resolve()
-    if path != base and base not in path.parents:
-        raise ValueError("path escapes the shared directory")
-    return path
-
-
-def _count_children(path: Path) -> int:
-    try:
-        return sum(1 for e in path.iterdir() if not e.name.startswith("."))
-    except OSError:
-        return 0
+    return files.resolve(_base(), relpath)
 
 
 def list_entries(relpath: str = "") -> list[dict]:
@@ -54,13 +44,7 @@ def list_entries(relpath: str = "") -> list[dict]:
     if not target.is_dir():
         raise ValueError("not a directory")
     entries = [
-        {
-            "name": e.name,
-            "is_dir": e.is_dir(),
-            "size": stat.st_size,
-            "modified": stat.st_mtime,
-            "items": _count_children(e) if e.is_dir() else None,
-        }
+        files.entry(e, stat, e.is_dir())
         for e in target.iterdir()
         if not e.name.startswith(".")
         for stat in (e.stat(),)
@@ -468,14 +452,8 @@ def search_entries(relpath: str, query: str, limit: int = 200) -> list[dict]:
     for child in sorted(base.rglob("*")):
         if needle not in child.name.lower():
             continue
-        stat = child.stat()
-        results.append({
-            "name": str(child.relative_to(base)).replace("\\", "/"),
-            "is_dir": child.is_dir(),
-            "size": 0 if child.is_dir() else stat.st_size,
-            "modified": stat.st_mtime,
-            "items": _count_children(child) if child.is_dir() else 0,
-        })
+        name = str(child.relative_to(base)).replace("\\", "/")
+        results.append(files.entry(child, child.stat(), child.is_dir(), name))
         if len(results) >= limit:
             break
     return results

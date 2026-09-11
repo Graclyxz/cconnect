@@ -108,6 +108,20 @@ class Settings {
     this.#write("markdown_preview_formatted", value);
   }
 
+  get projectDiff() {
+    return this.#read<boolean>("project_diff");
+  }
+  set projectDiff(value: boolean) {
+    this.#write("project_diff", value);
+  }
+
+  get projectChangedOnly() {
+    return this.#read<boolean>("project_changed_only");
+  }
+  set projectChangedOnly(value: boolean) {
+    this.#write("project_changed_only", value);
+  }
+
   get showTimestamps() {
     return this.#read<boolean>("show_timestamps");
   }

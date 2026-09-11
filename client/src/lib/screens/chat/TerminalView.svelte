@@ -9,7 +9,7 @@
   import { sshAddress, sshStore } from "$lib/data/sshStore.svelte";
   import { paneFocus } from "$lib/data/paneFocus.svelte";
   import { serverStatus } from "$lib/data/serverStatus.svelte";
-  import { terminalKeys } from "$lib/data/terminalKeys.svelte";
+  import { securityKeys } from "$lib/data/securityKeys.svelte";
   import { terminalTabs, type TerminalTab } from "$lib/data/terminalTabs.svelte";
   import { useShortcut } from "$lib/platform/useShortcut.svelte";
   import { t } from "$lib/i18n/index.svelte";
@@ -27,7 +27,7 @@
   import { TERMINAL_BACKGROUND } from "$lib/screens/terminal/theme";
   import TerminalSurface from "$lib/screens/terminal/TerminalSurface.svelte";
   import SshHostsList from "$lib/screens/terminal/SshHostsList.svelte";
-  import TerminalUnlockDialog from "$lib/screens/terminal/TerminalUnlockDialog.svelte";
+  import SecurityKeyDialog from "$lib/ui/SecurityKeyDialog.svelte";
   import PaneActions from "./PaneActions.svelte";
   import { inPane } from "./paneSurface";
   import TabStrip from "./TabStrip.svelte";
@@ -106,7 +106,7 @@
       rejected = true;
       return;
     }
-    terminalKeys.set(key);
+    securityKeys.set(key);
     sessions = listed;
     unlocking = false;
     rejected = false;
@@ -282,7 +282,8 @@
 </div>
 
 {#if unlocking}
-  <TerminalUnlockDialog
+  <SecurityKeyDialog
+    title={t("TERMINAL_LOCKED")}
     {rejected}
     onConfirm={(key) => void unlock(key)}
     onDismiss={() => {

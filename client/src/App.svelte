@@ -23,6 +23,7 @@
   import { tabs } from "$lib/screens/chat/tabs.svelte";
   import ClaudeScreen from "$lib/screens/claude/ClaudeScreen.svelte";
   import FileExplorerScreen from "$lib/screens/files/FileExplorerScreen.svelte";
+  import ProjectFilesScreen from "$lib/screens/project/ProjectFilesScreen.svelte";
   import MarkdownScreen from "$lib/screens/markdown/MarkdownScreen.svelte";
   import MonitorScreen from "$lib/screens/monitor/MonitorScreen.svelte";
   import { monitor } from "$lib/screens/monitor/monitor.svelte";
@@ -141,6 +142,8 @@
     <ClaudeScreen />
   {:else if navigation.route === "/files"}
     <FileExplorerScreen />
+  {:else if navigation.route === "/project"}
+    <ProjectFilesScreen />
   {:else if navigation.route === "/terminal"}
     <TerminalScreen />
   {:else if navigation.route === "/browser"}

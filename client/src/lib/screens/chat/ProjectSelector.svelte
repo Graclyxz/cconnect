@@ -11,10 +11,11 @@
     projects: ProjectInfo[];
     selected: string | null;
     onSelect: (projectKey: string | null) => void;
+    allowAll?: boolean;
     class?: string;
   }
 
-  const { projects, selected, onSelect, class: className = "" }: Props = $props();
+  const { projects, selected, onSelect, allowAll = true, class: className = "" }: Props = $props();
 
   let open = $state(false);
 
@@ -41,14 +42,16 @@
       <ChevronDown size={16} class="shrink-0 text-on-surface-variant" />
     </span>
   {/snippet}
-  <MenuItem
-    text={t("ALL_PROJECTS")}
-    selected={selected === null}
-    onclick={() => {
-      onSelect(null);
-      open = false;
-    }}
-  />
+  {#if allowAll}
+    <MenuItem
+      text={t("ALL_PROJECTS")}
+      selected={selected === null}
+      onclick={() => {
+        onSelect(null);
+        open = false;
+      }}
+    />
+  {/if}
   {#each projects as project (project.projectKey)}
     <MenuItem
       text={projectLabel(project)}

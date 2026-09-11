@@ -27,11 +27,21 @@
   let touchTip = $state<{ x: number; top: number; bottom: number } | null>(null);
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
-  const reveal = (event: MouseEvent) => {
+  const hide = () => {
+    if (hideTimer !== null) clearTimeout(hideTimer);
+    hideTimer = null;
+    touchTip = null;
+  };
+
+  const toggle = (event: MouseEvent) => {
+    if (touchTip !== null) {
+      hide();
+      return;
+    }
     const box = (event.currentTarget as HTMLElement).getBoundingClientRect();
     touchTip = { x: box.left + box.width / HALF, top: box.top, bottom: box.bottom };
     if (hideTimer !== null) clearTimeout(hideTimer);
-    hideTimer = setTimeout(() => (touchTip = null), TOUCH_HIDE_MS);
+    hideTimer = setTimeout(hide, TOUCH_HIDE_MS);
   };
 
   const progress = $derived(usageRatio(tokens, limit));
@@ -76,13 +86,13 @@
   <button
     type="button"
     use:keepFocus
-    onclick={reveal}
+    onclick={toggle}
     aria-label={t("CONTEXT_USAGE")}
     class="ripple ml-1 mr-0.5 flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full"
   >
     {@render ring()}
   </button>
-  <TouchTip anchor={touchTip} onDismiss={() => (touchTip = null)}>
+  <TouchTip anchor={touchTip} onDismiss={hide}>
     {@render detail()}
   </TouchTip>
 {:else}

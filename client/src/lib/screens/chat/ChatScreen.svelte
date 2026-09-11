@@ -27,6 +27,7 @@
   import ClaudeDetail, { type ClaudeKind } from "$lib/screens/claude/ClaudeDetail.svelte";
   import ClaudeSections from "$lib/screens/claude/ClaudeSections.svelte";
   import FileExplorerScreen from "$lib/screens/files/FileExplorerScreen.svelte";
+  import ProjectFilesScreen from "$lib/screens/project/ProjectFilesScreen.svelte";
   import FilePreview from "$lib/screens/files/FilePreview.svelte";
   import MarkdownActions from "$lib/screens/markdown/MarkdownActions.svelte";
   import MarkdownEditor from "$lib/screens/markdown/MarkdownEditor.svelte";
@@ -150,6 +151,14 @@
     navigation.intercept(() => {
       if (claudeDetail === null) return false;
       claudeDetail = null;
+      return true;
+    }),
+  );
+
+  $effect(() =>
+    navigation.intercept(() => {
+      if (!panes.previewing) return false;
+      closeFilePreview();
       return true;
     }),
   );
@@ -350,6 +359,10 @@
           <PaneSurface>
             <FileExplorerScreen />
           </PaneSurface>
+        {:else if panes.kind === "project"}
+          <PaneSurface>
+            <ProjectFilesScreen />
+          </PaneSurface>
         {:else if panes.kind === "monitor"}
           <PaneSurface>
             <PaneHeader title={t("MONITOR")} actions={monitorActions} />
@@ -358,18 +371,6 @@
         {:else if panes.kind === "browser"}
           <PaneSurface>
             <BrowserView trailing={sideActions} focused={panes.focused === "right"} />
-          </PaneSurface>
-        {:else if panes.kind === "preview" && navigation.previewPane && navigation.preview}
-          {@const request = navigation.preview}
-          <PaneSurface>
-            <FilePreview
-              embedded
-              url={request.url}
-              filename={request.name}
-              onDelete={request.onDelete}
-              onClose={closeFilePreview}
-              onExpand={expandFilePreview}
-            />
           </PaneSurface>
         {:else if panes.kind === "claude"}
           <PaneSurface>
@@ -390,6 +391,21 @@
           <PaneSurface>
             <TerminalView cwd={terminalCwd} />
           </PaneSurface>
+        {/if}
+        {#if panes.previewing && navigation.previewPane && navigation.preview}
+          {@const request = navigation.preview}
+          <div class="absolute inset-0 z-20">
+            <PaneSurface>
+              <FilePreview
+                embedded
+                url={request.url}
+                filename={request.name}
+                onDelete={request.onDelete}
+                onClose={closeFilePreview}
+                onExpand={expandFilePreview}
+              />
+            </PaneSurface>
+          </div>
         {/if}
         {#if panes.dropTarget === "right"}
           {@render dropHint()}

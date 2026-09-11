@@ -1,7 +1,6 @@
 """Wraps the Claude Agent SDK query() into a stream of normalized event dicts."""
 
 import asyncio
-import difflib
 import json
 import os
 import re
@@ -15,7 +14,7 @@ from core import cli_manager, paths
 from core.config import PORT, ULTRACODE_EFFORT
 from mcps import build_cconnect_server
 from mcps.media import block_types
-from services import claude_assets, cli_info, providers, settings_store, visibility
+from services import claude_assets, cli_info, diffs, providers, settings_store, visibility
 from services.questions import DECLINE_MESSAGE, DISMISS, SUBMIT_KEY, answers_from_values, questions_to_blocks
 
 _FILE_EDIT_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit"})
@@ -292,65 +291,24 @@ def _flatten_result_content(content: Any) -> str:
     return "" if content is None else str(content)
 
 
-def _unified_diff(old: str, new: str, path: str) -> list[str]:
-    return list(
-        difflib.unified_diff(
-            (old or "").splitlines(),
-            (new or "").splitlines(),
-            fromfile=path,
-            tofile=path,
-            lineterm="",
-        )
-    )
-
-
-# +/- is stripped from text because kind already encodes it.
-def _classify_diff_lines(lines: list[str]) -> list[dict[str, str]]:
-    out: list[dict[str, str]] = []
-    last_header: str | None = None
-    i = 0
-    while i < len(lines):
-        line = lines[i]
-        following = lines[i + 1] if i + 1 < len(lines) else ""
-        if line.startswith("---") and following.startswith("+++"):
-            old_path = line[3:].strip()
-            new_path = following[3:].strip()
-            for text in ((new_path,) if old_path == new_path else (old_path, new_path)):
-                if text != last_header:
-                    out.append({"kind": "header", "text": text})
-                    last_header = text
-            i += 2
-            continue
-        if line.startswith("@@"):
-            out.append({"kind": "hunk", "text": line})
-        elif line.startswith("+"):
-            out.append({"kind": "add", "text": line[1:]})
-        elif line.startswith("-"):
-            out.append({"kind": "del", "text": line[1:]})
-        else:
-            out.append({"kind": "ctx", "text": line[1:] if line.startswith(" ") else line})
-        i += 1
-    return out
-
-
 def _build_file_diff(name: str, raw_input: dict, path: str) -> list[dict[str, str]]:
     if name == "Edit":
-        return _classify_diff_lines(
-            _unified_diff(raw_input.get("old_string") or "", raw_input.get("new_string") or "", path)
+        return diffs.classify(
+            diffs.unified(raw_input.get("old_string") or "", raw_input.get("new_string") or "", path)
         )
     if name == "MultiEdit":
         merged: list[str] = []
         for edit in raw_input.get("edits") or []:
             if not isinstance(edit, dict):
                 continue
-            chunk = _unified_diff(edit.get("old_string") or "", edit.get("new_string") or "", path)
+            chunk = diffs.unified(edit.get("old_string") or "", edit.get("new_string") or "", path)
             if chunk:
                 merged.extend(chunk)
-        return _classify_diff_lines(merged)
+        return diffs.classify(merged)
     if name == "Write":
-        return _classify_diff_lines(_unified_diff("", raw_input.get("content") or "", path))
+        return diffs.classify(diffs.unified("", raw_input.get("content") or "", path))
     if name == "NotebookEdit":
-        return _classify_diff_lines(_unified_diff("", raw_input.get("new_source") or "", path))
+        return diffs.classify(diffs.unified("", raw_input.get("new_source") or "", path))
     return []
 
 

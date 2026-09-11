@@ -8,11 +8,13 @@
   import Share2 from "@lucide/svelte/icons/share-2";
   import Trash from "@lucide/svelte/icons/trash";
   import Type from "@lucide/svelte/icons/type";
-  import { previewKindOf } from "$lib/data/previewKind";
+  import type { Snippet } from "svelte";
+  import { extensionOf, previewKindOf, readsAsText } from "$lib/data/previewKind";
+  import { securityKeys } from "$lib/data/securityKeys.svelte";
   import { settings } from "$lib/data/settings.svelte";
   import { t } from "$lib/i18n/index.svelte";
   import { platformName } from "$lib/platform";
-  import { authHeadersOf, backend, withToken } from "$lib/services/backend.svelte";
+  import { authHeadersOf, backend } from "$lib/services/backend.svelte";
   import { mediaSrc } from "$lib/services/mediaSource";
   import { relativeFromUrl } from "$lib/services/sharedApi";
   import {
@@ -24,6 +26,7 @@
   import { SharedWatch } from "$lib/services/sharedWatch.svelte";
   import AppTopBar from "$lib/ui/AppTopBar.svelte";
   import CenteredProgress from "$lib/ui/CenteredProgress.svelte";
+  import CodeView from "$lib/ui/CodeView.svelte";
   import ConfirmDialog from "$lib/ui/ConfirmDialog.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import MarkdownText from "$lib/ui/MarkdownText.svelte";
@@ -41,6 +44,12 @@
     onDelete?: (() => void) | null;
     embedded?: boolean;
     onExpand?: (() => void) | null;
+    menuItems?: Snippet;
+    actions?: Snippet;
+    added?: number[];
+    removed?: Record<number, string[]>;
+    current?: number[];
+    anchor?: number | null;
   }
 
   const {
@@ -50,7 +59,15 @@
     onDelete = null,
     embedded = false,
     onExpand = null,
+    menuItems,
+    actions,
+    added = [],
+    removed = {},
+    current = [],
+    anchor = null,
   }: Props = $props();
+
+  const NUL = String.fromCharCode(0);
 
   let text = $state<string | null>(null);
   let failed = $state(false);
@@ -66,6 +83,7 @@
   const pdfStep = $derived(Math.round(pdfWidth / PDF_RESIZE_STEP));
 
   const kind = $derived(previewKindOf(filename));
+  const binary = $derived(text !== null && text.includes(NUL));
   const relative = $derived(relativeFromUrl(url));
   const base = $derived(url.split("?fb=")[0]);
   const source = $derived(version > 0 ? `${base}${base.includes("?") ? "&" : "?"}cb=${version}` : base);
@@ -74,14 +92,14 @@
     return encoded ? decodeURIComponent(encoded) : null;
   });
 
-  const htmlSource = $derived(withToken(source, backend.active));
-
   $effect(() => {
     const target = source;
-    if (kind !== "markdown" && kind !== "text") return;
+    if (!readsAsText(kind)) return;
     text = null;
     failed = false;
-    void fetch(target, { headers: authHeadersOf(backend.active) })
+    void fetch(target, {
+      headers: { ...authHeadersOf(backend.active), ...securityKeys.headersFor(backend.active) },
+    })
       .then(async (response) => {
         if (!response.ok) throw new Error(String(response.status));
         text = await response.text();
@@ -89,14 +107,6 @@
       .catch(() => (failed = true));
   });
 
-  $effect(() => {
-    if (embedded) return;
-    const onKeydown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeydown);
-    return () => window.removeEventListener("keydown", onKeydown);
-  });
 
   $effect(() => {
     const path = relative;
@@ -128,6 +138,7 @@
 </script>
 
 {#snippet toolbar()}
+  {@render actions?.()}
   {#if onExpand}
     <TooltipIconButton label={t("EXPAND")} class={embedded ? "size-8" : ""} onclick={onExpand}>
       <Maximize2 size={embedded ? 18 : 20} />
@@ -156,6 +167,7 @@
         <EllipsisVertical size={embedded ? 18 : 24} />
       </TooltipIconButton>
     {/snippet}
+    {@render menuItems?.()}
     <MenuItem text={t("SAVE")} onclick={() => void downloadShared(url, filename)}>
       {#snippet leading()}
         <Download size={20} class="shrink-0 text-on-surface-variant" />
@@ -187,9 +199,9 @@
 {/snippet}
 
 <div
-  class={embedded
-    ? "flex h-full min-h-0 flex-col bg-surface"
-    : "safe-area fixed inset-0 z-50 flex flex-col bg-background text-on-background"}
+  class="bg-background text-on-background {embedded
+    ? 'flex h-full min-h-0 flex-col'
+    : 'safe-area fixed inset-0 z-50 flex flex-col'}"
 >
   {#if embedded}
     <PaneHeader title={filename} onBack={onClose} actions={toolbar} />
@@ -256,7 +268,7 @@
     {/if}
   {:else if kind === "html"}
     <iframe
-      src={htmlSource}
+      use:mediaSrc={{ url: source, onerror: () => (failed = true) }}
       title={filename}
       sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
       class="min-h-0 w-full flex-1 border-0 bg-white"
@@ -265,18 +277,22 @@
     <EmptyState text={t("FILE_UNAVAILABLE")} class="flex-1" />
   {:else if text === null}
     <CenteredProgress class="flex-1" />
-  {:else}
+  {:else if binary}
+    <EmptyState text={t("FILE_BINARY")} class="flex-1" />
+  {:else if kind === "markdown" && formatted}
     <div class="selectable min-h-0 flex-1 overflow-y-auto p-4">
-      {#if kind === "markdown" && formatted}
-        <MarkdownText {text} />
-      {:else}
-        <textarea
-          readonly
-          value={text}
-          class="field-auto no-scrollbar w-full resize-none bg-transparent font-mono text-body-sm whitespace-pre-wrap caret-accent outline-none"
-        ></textarea>
-      {/if}
+      <MarkdownText {text} />
     </div>
+  {:else}
+    <CodeView
+      {text}
+      lang={extensionOf(filename)}
+      {added}
+      {removed}
+      {current}
+      {anchor}
+      class="selectable min-h-0 flex-1"
+    />
   {/if}
 </div>
 

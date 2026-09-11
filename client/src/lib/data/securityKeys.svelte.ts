@@ -1,9 +1,10 @@
 import { secureStore } from "$lib/platform/secureStorage";
 import { backend, baseUrlOf, type Profile } from "$lib/services/backend.svelte";
 
-const KEY = "terminal.keys";
+const KEY = "security.keys";
+const HEADER = "X-Security-Key";
 
-class TerminalKeys {
+class SecurityKeys {
   #keys = $state<Record<string, string>>(secureStore.get(KEY, {}));
 
   readonly current = $derived(this.#keys[backend.baseUrl] ?? "");
@@ -24,6 +25,14 @@ class TerminalKeys {
     this.#save({ ...this.#keys, [url]: value.trim() });
   }
 
+  headers(key: string): Record<string, string> {
+    return key ? { [HEADER]: key } : {};
+  }
+
+  headersFor(profile: Profile): Record<string, string> {
+    return this.headers(this.keyFor(profile));
+  }
+
   forget() {
     const rest = { ...this.#keys };
     delete rest[backend.baseUrl];
@@ -36,4 +45,4 @@ class TerminalKeys {
   }
 }
 
-export const terminalKeys = new TerminalKeys();
+export const securityKeys = new SecurityKeys();

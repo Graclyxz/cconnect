@@ -26,7 +26,7 @@ const ENV_FILE: &str = ".env";
 const PORT_KEY: &str = "PORT";
 const PID_KEY: &str = "PID";
 const TOKEN_KEY: &str = "PUBLIC_ACCESS_TOKEN";
-const TERMINAL_KEY_KEY: &str = "TERMINAL_ACCESS_KEY";
+const SECURITY_KEY_KEY: &str = "SECURITY_KEY";
 const HEALTH_PATH: &str = "/api/health";
 const STOP_PATH: &str = "/api/system/stop";
 const RESTART_PATH: &str = "/api/system/restart";
@@ -51,7 +51,7 @@ pub struct LocalServerInfo {
     pub error_detail: Option<String>,
     pub public_url: Option<String>,
     pub token: Option<String>,
-    pub terminal_key: Option<String>,
+    pub security_key: Option<String>,
 }
 
 #[derive(Default)]
@@ -128,21 +128,21 @@ fn sync_credentials(config: &LocalServerConfig, info: &mut LocalServerInfo, read
     let Some((gated, public_url)) = exposure else {
         info.public_url = None;
         info.token = None;
-        info.terminal_key = None;
+        info.security_key = None;
         return;
     };
     info.public_url = public_url.or_else(|| info.public_url.take());
     if !gated {
         info.token = None;
-        info.terminal_key = None;
+        info.security_key = None;
         return;
     }
     let dir = PathBuf::from(&config.dir);
     if info.token.is_none() {
         info.token = env_secret(&dir, TOKEN_KEY);
     }
-    if info.terminal_key.is_none() {
-        info.terminal_key = env_secret(&dir, TERMINAL_KEY_KEY);
+    if info.security_key.is_none() {
+        info.security_key = env_secret(&dir, SECURITY_KEY_KEY);
     }
 }
 
@@ -250,9 +250,9 @@ fn parse_line(line: &str, info: &mut LocalServerInfo) {
             info.token = Some(token);
         }
     }
-    if line.contains("Terminal key") {
+    if line.contains("Security key") {
         if let Some(key) = secret_in(line) {
-            info.terminal_key = Some(key);
+            info.security_key = Some(key);
         }
     }
 }
@@ -416,13 +416,13 @@ fn start_inner(
                 let before = (
                     current.public_url.clone(),
                     current.token.clone(),
-                    current.terminal_key.clone(),
+                    current.security_key.clone(),
                 );
                 parse_line(&line, &mut current);
                 let after = (
                     current.public_url.clone(),
                     current.token.clone(),
-                    current.terminal_key.clone(),
+                    current.security_key.clone(),
                 );
                 if before != after {
                     emit(&reader_app, &current);

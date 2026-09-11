@@ -4,7 +4,6 @@ attached to each one."""
 from __future__ import annotations
 
 import asyncio
-import hmac
 import os
 import re
 import shutil
@@ -18,8 +17,7 @@ from typing import Optional
 
 import psutil
 
-from core import config
-from core.config import DEFAULT_CWD, TERMINAL_ACCESS_KEY
+from core.config import DEFAULT_CWD
 from services import settings_store
 
 _WINDOWS = sys.platform == "win32"
@@ -211,16 +209,6 @@ def meta(term: Terminal) -> dict:
         "exit_status": term.exit_status,
         "created_at": term.created_at,
     }
-
-
-def key_matches(candidate: str) -> bool:
-    if not gated():
-        return True
-    return bool(TERMINAL_ACCESS_KEY) and hmac.compare_digest(candidate or "", TERMINAL_ACCESS_KEY)
-
-
-def gated() -> bool:
-    return config.PUBLIC_ACCESS_TOKEN is not None
 
 
 def _root(candidates: Optional[list[str]]) -> str:

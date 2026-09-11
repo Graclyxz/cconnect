@@ -1,3 +1,4 @@
+import { securityKeys } from "$lib/data/securityKeys.svelte";
 import { authHeadersOf, backend } from "./backend.svelte";
 
 interface MediaOptions {
@@ -10,7 +11,9 @@ interface MediaOptions {
 type Sourced = HTMLImageElement | HTMLMediaElement | HTMLIFrameElement | HTMLEmbedElement;
 
 const fetchObjectUrl = async (url: string) => {
-  const response = await fetch(url, { headers: authHeadersOf(backend.active) });
+  const response = await fetch(url, {
+    headers: { ...authHeadersOf(backend.active), ...securityKeys.headersFor(backend.active) },
+  });
   if (!response.ok) throw new Error(String(response.status));
   return URL.createObjectURL(await response.blob());
 };

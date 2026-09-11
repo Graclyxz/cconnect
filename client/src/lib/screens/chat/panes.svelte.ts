@@ -11,10 +11,19 @@ export type RightKind =
   | "monitor"
   | "claude"
   | "files"
-  | "browser"
-  | "preview";
+  | "project"
+  | "browser";
 
-const KINDS: RightKind[] = ["terminal", "chat", "markdown", "monitor", "claude", "files", "browser"];
+const KINDS: RightKind[] = [
+  "terminal",
+  "chat",
+  "markdown",
+  "monitor",
+  "claude",
+  "files",
+  "project",
+  "browser",
+];
 
 const SCOPE: Record<RightKind, Pane> = {
   terminal: "terminal",
@@ -23,8 +32,8 @@ const SCOPE: Record<RightKind, Pane> = {
   monitor: "chat",
   claude: "chat",
   files: "files",
+  project: "chat",
   browser: "browser",
-  preview: "files",
 };
 
 interface StoredRight {
@@ -39,8 +48,7 @@ class Panes {
   rightTabId = $state<string | null>(null);
   focused = $state<PaneRole>("center");
   dropTarget = $state<PaneRole | null>(null);
-
-  #beforePreview: RightKind | null = null;
+  previewing = $state(false);
 
   readonly rightTab = $derived(
     this.kind === "chat"
@@ -103,7 +111,7 @@ class Panes {
   }
 
   setKind(kind: RightKind) {
-    if (this.kind === "preview" && kind !== "preview") this.#beforePreview = null;
+    this.previewing = false;
     this.kind = kind;
     if (kind === "chat" && !this.rightTab) this.rightTabId = tabs.newTab(null, "right").id;
     this.focus("right");
@@ -111,17 +119,15 @@ class Panes {
   }
 
   showPreview() {
-    if (this.kind !== "preview") this.#beforePreview = this.kind;
     this.open = true;
-    this.kind = "preview";
+    this.previewing = true;
     this.focus("right");
     this.commit();
   }
 
   closePreview() {
-    if (this.kind !== "preview") return;
-    this.kind = this.#beforePreview ?? "terminal";
-    this.#beforePreview = null;
+    if (!this.previewing) return;
+    this.previewing = false;
     this.focus("right");
     this.commit();
   }

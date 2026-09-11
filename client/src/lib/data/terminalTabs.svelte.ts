@@ -7,7 +7,7 @@ import {
   type TerminalInfo,
 } from "$lib/services/terminalApi";
 import { localLink } from "$lib/services/terminalSocket";
-import { terminalKeys } from "./terminalKeys.svelte";
+import { securityKeys } from "./securityKeys.svelte";
 import type { TerminalConnector } from "./terminalLink";
 
 export interface TerminalTab {
@@ -49,7 +49,7 @@ class TerminalTabs {
   }
 
   openLocal(session: TerminalInfo) {
-    const key = terminalKeys.current;
+    const key = securityKeys.current;
     this.open(
       { id: session.id, title: session.title, local: true, pty: session.pty },
       (hooks, cols, rows) => localLink(session.id, key, hooks, cols, rows),
@@ -74,7 +74,7 @@ class TerminalTabs {
       const tab = { id: session.id, title: session.title, local: true, pty: session.pty, environment };
       kept.push(tab);
       connectors.set(this.#key(tab), (hooks, cols, rows) =>
-        localLink(session.id, terminalKeys.current, hooks, cols, rows),
+        localLink(session.id, securityKeys.current, hooks, cols, rows),
       );
     }
     if (kept.length === this.#items.length) return;

@@ -11,7 +11,7 @@ export interface LocalServerInfo {
   errorDetail: string | null;
   publicUrl: string | null;
   token: string | null;
-  terminalKey: string | null;
+  securityKey: string | null;
 }
 
 export type LocalServerState = "stopped" | "starting" | "running" | "manual" | "failed";
@@ -33,7 +33,7 @@ const empty: LocalServerInfo = {
   errorDetail: null,
   publicUrl: null,
   token: null,
-  terminalKey: null,
+  securityKey: null,
 };
 
 const config = () => ({

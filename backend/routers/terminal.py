@@ -1,10 +1,11 @@
-"""Shells on the machine running the backend, behind the terminal key run.py prints."""
+"""Shells on the machine running the backend, behind the security key run.py prints."""
 
 import asyncio
 import json
 
 from fastapi import APIRouter, Body, Header, WebSocket, WebSocketDisconnect
 
+from core.access import key_matches
 from core.responses import api_response
 from core.ws import send_event
 from middleware.public_auth import ws_bearer_ok
@@ -14,19 +15,19 @@ router = APIRouter(tags=["terminal"])
 
 
 def _unlocked(key: str) -> bool:
-    return terminal.key_matches(key)
+    return key_matches(key)
 
 
 @router.get("/terminal/sessions")
-def list_sessions(x_terminal_key: str = Header("")):
-    if not _unlocked(x_terminal_key):
+def list_sessions(x_security_key: str = Header("")):
+    if not _unlocked(x_security_key):
         return api_response(status=403)
     return api_response(data=terminal.listing())
 
 
 @router.post("/terminal/sessions")
-async def open_session(body: dict = Body(default={}), x_terminal_key: str = Header("")):
-    if not _unlocked(x_terminal_key):
+async def open_session(body: dict = Body(default={}), x_security_key: str = Header("")):
+    if not _unlocked(x_security_key):
         return api_response(status=403)
     requested = body.get("cwd")
     try:
@@ -42,8 +43,8 @@ async def open_session(body: dict = Body(default={}), x_terminal_key: str = Head
 
 
 @router.delete("/terminal/sessions/{session_id}")
-def close_session(session_id: str, x_terminal_key: str = Header("")):
-    if not _unlocked(x_terminal_key):
+def close_session(session_id: str, x_security_key: str = Header("")):
+    if not _unlocked(x_security_key):
         return api_response(status=403)
     if not terminal.close(session_id):
         return api_response(status=404)

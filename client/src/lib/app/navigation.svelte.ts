@@ -7,6 +7,7 @@ export const ROUTES = [
   "/claude",
   "/monitor",
   "/files",
+  "/project",
   "/terminal",
   "/markdown",
   "/browser",

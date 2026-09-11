@@ -4,6 +4,7 @@ from typing import Optional
 
 from claude_agent_sdk import tool
 
+from core.access import key_matches
 from services import terminal
 
 CAPABILITY = "terminal"
@@ -75,7 +76,7 @@ CLOSE_SCHEMA = {
 
 def authorize(capabilities: list[str], key: Optional[str]) -> list[str]:
     """The capabilities a turn really gets: terminal only survives with the unlock key."""
-    if CAPABILITY in capabilities and not terminal.key_matches(key or ""):
+    if CAPABILITY in capabilities and not key_matches(key or ""):
         return [item for item in capabilities if item != CAPABILITY]
     return list(capabilities)
 

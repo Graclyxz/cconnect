@@ -1,6 +1,7 @@
 import Activity from "@lucide/svelte/icons/activity";
 import Compass from "@lucide/svelte/icons/compass";
 import Folder from "@lucide/svelte/icons/folder";
+import FolderTree from "@lucide/svelte/icons/folder-tree";
 import Network from "@lucide/svelte/icons/network";
 import SquareTerminal from "@lucide/svelte/icons/square-terminal";
 import Type from "@lucide/svelte/icons/type";
@@ -23,6 +24,13 @@ export interface ScreenEntry {
 
 export const SCREENS: ScreenEntry[] = [
   { kind: "files", label: "FILES", icon: Folder, open: () => navigation.openExplorer() },
+  {
+    kind: "project",
+    label: "PROJECT_FILES",
+    icon: FolderTree,
+    open: () => navigation.navigate("/project"),
+    paneOnly: true,
+  },
   { kind: "claude", label: "CLAUDE", icon: ClaudeIcon, open: () => navigation.navigate("/claude") },
   { kind: "monitor", label: "MONITOR", icon: Activity, open: () => navigation.navigate("/monitor") },
   {

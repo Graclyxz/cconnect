@@ -26,7 +26,7 @@ from services import system_monitor
 _BASE_DIR = paths.BACKEND_DIR
 _ENV_PATH = _BASE_DIR / ".env"
 _TOKEN_VAR = "PUBLIC_ACCESS_TOKEN"
-_TERMINAL_KEY_VAR = "TERMINAL_ACCESS_KEY"
+_SECURITY_KEY_VAR = "SECURITY_KEY"
 _HOSTNAME_VAR = "PUBLIC_HOSTNAME"
 _PROVIDERS = ("tailscale", "caddy")
 
@@ -68,13 +68,13 @@ def _ensure_public_token() -> bool:
     return True
 
 
-def _ensure_terminal_key(rotate: bool = False) -> bool:
-    """Make sure the key that unlocks the terminal exists. Returns True if just generated."""
-    if os.environ.get(_TERMINAL_KEY_VAR) and not rotate:
+def _ensure_security_key(rotate: bool = False) -> bool:
+    """Make sure the key that unlocks the machine's own surface exists. True if just generated."""
+    if os.environ.get(_SECURITY_KEY_VAR) and not rotate:
         return False
     key = secrets.token_urlsafe(32)
-    _persist_in_env(_TERMINAL_KEY_VAR, key)
-    os.environ[_TERMINAL_KEY_VAR] = key
+    _persist_in_env(_SECURITY_KEY_VAR, key)
+    os.environ[_SECURITY_KEY_VAR] = key
     return True
 
 
@@ -83,14 +83,14 @@ def _print_rows(rows: list[tuple[str, str]]) -> None:
     print("\n" + "\n".join(f"  {label.ljust(width)} : {value}" for label, value in rows) + "\n")
 
 
-def _terminal_key_row(generated: bool) -> tuple[str, str]:
-    return ("Terminal key", f"{os.environ[_TERMINAL_KEY_VAR]}{' [Auto]' if generated else ''}")
+def _security_key_row(generated: bool) -> tuple[str, str]:
+    return ("Security key", f"{os.environ[_SECURITY_KEY_VAR]}{' [Auto]' if generated else ''}")
 
 
-def _print_terminal_key(generated: bool, qr: bool = False) -> None:
-    _print_rows([_terminal_key_row(generated)])
+def _print_security_key(generated: bool, qr: bool = False) -> None:
+    _print_rows([_security_key_row(generated)])
     if qr:
-        _print_qr(json.dumps({"terminal_key": os.environ[_TERMINAL_KEY_VAR]}, separators=(",", ":")))
+        _print_qr(json.dumps({"security_key": os.environ[_SECURITY_KEY_VAR]}, separators=(",", ":")))
 
 
 def _start_tailscale_funnel(port: int) -> str:
@@ -223,7 +223,7 @@ def _expose(
         ("Provider", provider),
         ("Port", str(pub_port)),
         ("Token", f"{token}{' [Auto]' if generated else ''}"),
-        _terminal_key_row(key_generated),
+        _security_key_row(key_generated),
     ])
     _print_qr(json.dumps({"url": public_url, "token": token}, separators=(",", ":")))
 
@@ -320,10 +320,10 @@ def main():
                         help="Run in the background and return; the server outlives the terminal.")
     parser.add_argument("--stop", action="store_true",
                         help="Stop a backend previously started with --detach.")
-    parser.add_argument("--terminal-key", action="store_true",
-                        help="Print the key that unlocks the terminal, generating it the first time.")
+    parser.add_argument("--security-key", action="store_true",
+                        help="Print the key that unlocks the terminal and ignored files, generating it the first time.")
     parser.add_argument("--rotate", action="store_true",
-                        help="With --terminal-key, replace the existing key instead of printing it.")
+                        help="With --security-key, replace the existing key instead of printing it.")
     args = parser.parse_args()
 
     try:
@@ -335,8 +335,8 @@ def main():
 
     is_windows = sys.platform == "win32"
 
-    if args.terminal_key:
-        _print_terminal_key(_ensure_terminal_key(args.rotate), qr=True)
+    if args.security_key:
+        _print_security_key(_ensure_security_key(args.rotate), qr=True)
         if args.rotate:
             print("  Every device has to enter it again, and a running backend needs a restart.\n")
         return
@@ -350,12 +350,12 @@ def main():
         if running is not None:
             _abort(f"a detached backend is already running (pid {running}). Use --stop first.")
         system_monitor.reset_log_file()
-        key_generated = _ensure_terminal_key()
+        key_generated = _ensure_security_key()
         if args.expose:
             _expose(args.expose, PORT, args.public_host, keep_running=True, key_generated=key_generated)
             paths.DETACHED_PROVIDER_FILE.write_text(args.expose, encoding="utf-8")
         else:
-            _print_terminal_key(key_generated)
+            _print_security_key(key_generated)
         child_args = ["--production"] if args.production else []
         pid = _spawn_detached(child_args)
         print(
@@ -366,11 +366,11 @@ def main():
         return
 
     system_monitor.reset_log_file()
-    key_generated = _ensure_terminal_key()
+    key_generated = _ensure_security_key()
     if args.expose:
         _expose(args.expose, PORT, args.public_host, key_generated=key_generated)
     else:
-        _print_terminal_key(key_generated)
+        _print_security_key(key_generated)
 
     # Disabled on Windows: uvicorn's reload worker breaks the Claude CLI's asyncio subprocess.
     reload = not args.production and not is_windows
