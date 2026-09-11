@@ -5,8 +5,8 @@ on the user's PC — chats in tabs, projects and sessions, file edits, permissio
 and forms, rich blocks, plan proposals, subagents, attachments, a message queue and
 rewind — over HTTP/WS, reachable on the tailnet or publicly through a Tailscale Funnel.
 They also manage the Claude install itself (CLI, plugins, marketplaces, MCP servers,
-skills, memories), a file manager over the shared folder, a PC monitor, an SSH client
-and a markdown scratchpad.
+skills, memories), a file manager over the shared folder, a read-only explorer of the
+project with its git diff, a PC monitor, an SSH client and a notes scratchpad.
 
 **Monorepo with two modules that must stay in sync:**
 

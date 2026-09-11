@@ -1,12 +1,12 @@
-- Everything the server keeps on disk — your settings, accounts, prompts, the shared folder and the trash — now lives under a single folder you can point at another drive, and what you had from before moves there on its own every time it starts
-- The context ring opens into two gauges: the tokens the conversation holds and the megabytes of images and documents that travel with it, each with its own bar, so the request limit stops arriving as a surprise
-- On the phone, a picture from the keyboard or shared from another app lands in the composer as an attachment, the same as one you pick yourself
-- Selecting text on the phone no longer paints black rectangles over the attachments, the code blocks and the buttons around them
-- Dragging a file from your file manager onto the chat attaches it on Linux too, instead of dropping its path in as text
-- A turn that ran two tools at once keeps both results when you come back to the chat, and a tool that answers with something other than text no longer shows an empty box
-- Opening a block no longer nudges what you are reading by a pixel when you are partway up a conversation
-- Selecting all inside a chat takes the conversation alone, leaving the message you were writing and the other panel out of it
-- Uploading several files at once no longer drops any of them, the back button, the menus and the fonts on the phone behave, and text cut short shows its dots in the colour of the text
+- A new Project files panel puts the code next to the conversation: browse the tree of the project you are working on, search it by typing a few letters of the path, and open any file read-only while Claude edits it
+- What git thinks colours the tree — added, modified, untracked — and a file you opened shows the change painted on the lines themselves, with two buttons to walk from one change to the next and a bar marking the one you are reading
+- A button folds the tree down to only what changed, and the files git ignores stay out of sight until you unlock them with the security key
+- Files is now Shared, and each project keeps its own folder inside it: what you upload from a chat and what Claude writes for you land there instead of piling up in one place, so with a project pinned you see that project's files and nothing else
+- The three-dot menu gained a filter for what to show — images, video, audio, PDF, Markdown, code, archives — and every file now carries an icon for what it is, in the chat attachments too
+- The Markdown scratchpad is now Notes, and syntax highlighting went from a handful of languages to everything Shiki knows, so Go, Ruby, PHP, Swift, Dockerfiles and two hundred more finally come out coloured
+- Chat tabs drag from one panel to the other as if the two tab bars were one, and the right panel no longer rebuilds itself from scratch every time you leave and come back
+- The monitor and the SSH host list show the real logo of each system, telling Windows 11 apart from Windows 10, and a host you have not connected to yet no longer pretends to know
+- Escape and the mouse's back button close the file you are previewing instead of walking you out of the folder you were in, dialogs scroll with the bar at their edge, and the terminal no longer flashes "locked" for an instant while it asks
 
 > [!NOTE]
 > The web version is available at https://app.cconnect.dev/

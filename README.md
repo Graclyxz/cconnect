@@ -203,8 +203,9 @@ project and environment — start a long task in one, switch to another, and com
 back to find it where you left it. Desktop and web get a tab bar; on mobile a
 switcher does the same. Open any chat or session in a new tab, reorder them, and
 on desktop reach for the keyboard (Ctrl+T to open, Ctrl+W to close, Ctrl+Tab to
-cycle). The tabs you had open come back when you reopen the app, each loading
-only once you switch to it.
+cycle). With both panels open a tab drags from one to the other as if the two
+bars were one. The tabs you had open come back when you reopen the app, each
+loading only once you switch to it.
 
 ## Shared
 
@@ -222,15 +223,31 @@ changes on disk. A button blows it up to full screen, and closing it gives you
 back the panel you had. The same goes for a file Claude links in the chat: one
 tap opens it, and the rest of the actions stay in the viewer's menu.
 
+Each project keeps its own folder inside it: what you upload from a chat and what
+Claude writes for you land there, so with a project pinned you see that project's
+files and nothing else. The three-dot menu filters what to show — images, video,
+audio, PDF, Markdown, code, archives.
+
 It works in both directions: drop a file into `backend/data/shared/` on the PC — or
 just ask Claude to write one there — and you get a tap-to-download link in the
 chat, served over the same authenticated connection.
+
+## Project files
+
+The side panel also browses the project you are working on. Search the tree by
+typing a few letters of any path, and open a file read-only while Claude edits
+it. Git colours the tree — added, modified, untracked — and inside a file the
+change is painted on the lines themselves, with buttons to walk from one to the
+next. A toggle folds the tree down to only what changed. From a file you can
+mention its full path in the chat or copy it. What git ignores stays hidden
+until you unlock it with the security key.
 
 ## Notes
 
 A built-in Markdown editor doubles as a scratchpad: jot things down with a live
 preview, then save, export, or share the note as a file. What you type stays
-between sessions.
+between sessions. Syntax highlighting covers everything Shiki knows, here and
+anywhere else code shows up.
 
 ## Manage Claude Code itself
 
