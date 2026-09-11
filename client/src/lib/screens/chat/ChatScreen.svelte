@@ -154,9 +154,11 @@
     }),
   );
 
+  const paneAt = (pointerX: number): PaneRole =>
+    pointerX >= layout.width - rightWidth ? "right" : "center";
+
   const dragPanes = (pointerX: number, done: boolean, origin: PaneRole) => {
-    const overRight = pointerX >= layout.width - rightWidth;
-    const target: PaneRole = overRight ? "right" : "center";
+    const target = paneAt(pointerX);
     const reached = target !== origin;
 
     if (!done) {
@@ -168,6 +170,13 @@
     if (!reached) return;
     panes.swap();
     panes.commit();
+  };
+
+  const dragTab = (id: string, pointerX: number) => {
+    const target = paneAt(pointerX);
+    if (tabs.list.find((tab) => tab.id === id)?.pane === target) return false;
+    panes.moveToPane(id, target);
+    return true;
   };
 
   const transfersLift = $derived(
@@ -261,6 +270,8 @@
         onMove={(id, index) => tabs.move(id, index)}
         onDrop={() => tabs.commit()}
         onPaneDrag={swappable ? (dx, done) => dragPanes(dx, done, "center") : undefined}
+        onTabDrag={swappable ? dragTab : undefined}
+        group="chat"
         focused={chatFocused}
         trailing={sideToggle}
       />
@@ -323,6 +334,8 @@
               onMove={(id, index) => tabs.move(id, index)}
               onDrop={() => tabs.commit()}
               onPaneDrag={(dx, done) => dragPanes(dx, done, "right")}
+              onTabDrag={dragTab}
+              group="chat"
               focused={panes.focused === "right"}
               trailing={sideActions}
             />

@@ -415,8 +415,15 @@ class Tabs {
   moveToPane(id: string, pane: PaneRole) {
     const target = this.list.find((tab) => tab.id === id);
     if (!target || target.pane === pane) return;
-    this.list = this.list.map((tab) => (tab.id === id ? { ...tab, pane } : tab));
-    if (pane === "center" && !this.center.some((tab) => tab.id === this.activeId)) this.activeId = id;
+    const index = this.center.findIndex((tab) => tab.id === id);
+    let next = [...this.list.filter((tab) => tab.id !== id), { ...target, pane }];
+    if (!next.some((tab) => tab.pane === "center")) next = [...next, this.#default()];
+    this.list = next;
+    if (pane === "center") this.activeId = id;
+    else if (this.activeId === id) {
+      this.activeId = this.center[Math.min(index, this.center.length - 1)].id;
+    }
+    this.#syncEnvironment();
     this.#persist();
   }
 

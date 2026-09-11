@@ -154,6 +154,22 @@ class Panes {
     this.commit();
   }
 
+  moveToPane(id: string, role: PaneRole) {
+    const tab = tabs.list.find((item) => item.id === id);
+    if (!tab || tab.pane === role) return;
+    if (id === this.rightTabId) this.rightTabId = null;
+    tabs.moveToPane(id, role);
+    if (role === "right") {
+      this.open = true;
+      this.kind = "chat";
+      this.rightTabId = id;
+    } else if (this.kind === "chat" && !tabs.right.length) {
+      this.rightTabId = tabs.newTab(null, "right").id;
+    }
+    this.focus(role);
+    this.commit();
+  }
+
   reveal(id: string) {
     const tab = tabs.list.find((item) => item.id === id);
     if (!tab) return;

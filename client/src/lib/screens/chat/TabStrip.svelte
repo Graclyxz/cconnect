@@ -1,7 +1,11 @@
+<script module lang="ts">
+  const drag = $state({ id: "", group: "", dx: 0 });
+</script>
+
 <script lang="ts">
   import Plus from "@lucide/svelte/icons/plus";
   import X from "@lucide/svelte/icons/x";
-  import type { Snippet } from "svelte";
+  import { flushSync, type Snippet } from "svelte";
   import { sessionColorOf } from "$lib/design/sessionColors";
   import { t } from "$lib/i18n/index.svelte";
   import TooltipIconButton from "$lib/ui/TooltipIconButton.svelte";
@@ -24,6 +28,8 @@
     onMove?: (id: string, index: number) => void;
     onDrop?: () => void;
     onPaneDrag?: (pointerX: number, done: boolean) => void;
+    onTabDrag?: (id: string, pointerX: number) => boolean;
+    group?: string;
     newLabel?: string;
     emptyTitle?: string;
     dot?: boolean;
@@ -41,6 +47,8 @@
     onMove,
     onDrop,
     onPaneDrag,
+    onTabDrag,
+    group = "tabs",
     newLabel,
     emptyTitle,
     dot = true,
@@ -57,8 +65,12 @@
 
   let strip = $state<HTMLDivElement | null>(null);
   let plus = $state<HTMLDivElement | null>(null);
-  let draggingId = $state<string | null>(null);
-  let dragDx = $state(0);
+
+  let grabX = 0;
+  let pointerX = 0;
+
+  const held = $derived(drag.group === group ? drag.id : "");
+  const mine = $derived(held !== "" && items.some((tab) => tab.id === held));
 
   const onPaneDown = (event: PointerEvent) => {
     if (event.button !== 0 || !onPaneDrag) return;
@@ -97,64 +109,92 @@
     return element ? element.offsetLeft + element.offsetWidth / HALF : 0;
   };
 
-  const reorder = (id: string) => {
-    if (!onMove) return;
-    const from = items.findIndex((tab) => tab.id === id);
-    if (from < 0) return;
-    if (dragDx > 0 && from < items.length - 1) {
-      const width = widthOf(items[from + 1].id);
-      if (width > 0 && dragDx > width / HALF + SPACING) {
-        onMove(id, from + 1);
-        dragDx -= width + SPACING;
+  const dragged = () =>
+    document.querySelector<HTMLElement>(`[data-strip="${group}"] [data-tab="${CSS.escape(drag.id)}"]`);
+
+  const rowOf = (chip: HTMLElement) => [
+    ...(chip.parentElement?.querySelectorAll<HTMLElement>("[data-tab]") ?? []),
+  ];
+
+  const follow = () => {
+    const chip = dragged();
+    if (!chip) return;
+    drag.dx = pointerX - grabX - (chip.getBoundingClientRect().left - drag.dx);
+  };
+
+  const reorder = () => {
+    const chip = dragged();
+    if (!chip || !onMove) return;
+    const row = rowOf(chip);
+    const from = row.indexOf(chip);
+    if (drag.dx > 0 && from < row.length - 1) {
+      const width = row[from + 1].offsetWidth;
+      if (width > 0 && drag.dx > width / HALF + SPACING) {
+        onMove(drag.id, from + 1);
+        drag.dx -= width + SPACING;
       }
       return;
     }
-    if (dragDx < 0 && from > 0) {
-      const width = widthOf(items[from - 1].id);
-      if (width > 0 && dragDx < -(width / HALF + SPACING)) {
-        onMove(id, from - 1);
-        dragDx += width + SPACING;
+    if (drag.dx < 0 && from > 0) {
+      const width = row[from - 1].offsetWidth;
+      if (width > 0 && drag.dx < -(width / HALF + SPACING)) {
+        onMove(drag.id, from - 1);
+        drag.dx += width + SPACING;
       }
     }
   };
 
-  const maxScroll = () => {
-    if (!strip || !plus) return 0;
-    return Math.max(0, plus.offsetLeft + plus.offsetWidth - strip.clientWidth);
+  const insert = () => {
+    const chip = dragged();
+    if (!chip || !onMove) return;
+    const row = rowOf(chip).filter((node) => node !== chip);
+    onMove(
+      drag.id,
+      row.filter((node) => node.getBoundingClientRect().left + node.offsetWidth / HALF < pointerX).length,
+    );
   };
 
-  const autoScroll = (id: string) => {
-    if (draggingId !== id || !strip) return;
-    const viewport = strip.clientWidth;
-    if (viewport > 0) {
-      const limit = maxScroll();
-      const visible = centerOf(id) + dragDx - strip.scrollLeft;
-      const direction =
-        visible < EDGE && strip.scrollLeft > 0
-          ? -1
-          : visible > viewport - EDGE && strip.scrollLeft < limit
-            ? 1
-            : 0;
-      if (direction !== 0) {
-        const before = strip.scrollLeft;
-        strip.scrollLeft = Math.max(0, Math.min(before + direction * STEP, limit));
-        dragDx += strip.scrollLeft - before;
-        reorder(id);
-      }
+  const maxScroll = (scroller: HTMLElement) => {
+    const tail = scroller.lastElementChild as HTMLElement | null;
+    return tail ? Math.max(0, tail.offsetLeft + tail.offsetWidth - scroller.clientWidth) : 0;
+  };
+
+  const autoScroll = () => {
+    const chip = drag.id ? dragged() : null;
+    const scroller = chip?.parentElement;
+    if (!chip || !scroller) return;
+    const viewport = scroller.clientWidth;
+    const limit = maxScroll(scroller);
+    const visible = chip.getBoundingClientRect().left + chip.offsetWidth / HALF - scroller.getBoundingClientRect().left;
+    const direction =
+      visible < EDGE && scroller.scrollLeft > 0
+        ? -1
+        : visible > viewport - EDGE && scroller.scrollLeft < limit
+          ? 1
+          : 0;
+    if (direction !== 0) {
+      scroller.scrollLeft = Math.max(0, Math.min(scroller.scrollLeft + direction * STEP, limit));
+      follow();
+      reorder();
     }
-    requestAnimationFrame(() => autoScroll(id));
+    requestAnimationFrame(autoScroll);
   };
 
-  const startDrag = (id: string) => {
-    draggingId = id;
-    dragDx = 0;
-    autoScroll(id);
+  const startDrag = (id: string, x: number) => {
+    const box = chips.get(id)?.getBoundingClientRect();
+    grabX = box ? x - box.left : 0;
+    pointerX = x;
+    drag.id = id;
+    drag.group = group;
+    drag.dx = 0;
+    autoScroll();
   };
 
   const endDrag = () => {
-    if (draggingId !== null) onDrop?.();
-    draggingId = null;
-    dragDx = 0;
+    if (drag.id) onDrop?.();
+    drag.id = "";
+    drag.group = "";
+    drag.dx = 0;
   };
 
   const onPointerDown = (event: PointerEvent, id: string) => {
@@ -177,7 +217,7 @@
       timer = null;
     };
 
-    if (touch) timer = setTimeout(() => ((started = true), startDrag(id)), LONG_PRESS_MS);
+    if (touch) timer = setTimeout(() => ((started = true), startDrag(id, startX)), LONG_PRESS_MS);
 
     const onMove = (move: PointerEvent) => {
       if (move.pointerId !== event.pointerId) return;
@@ -201,11 +241,15 @@
         if (Math.abs(dx) <= DRAG_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return;
         started = true;
         lastX = move.clientX;
-        startDrag(id);
+        startDrag(id, move.clientX);
       }
-      dragDx += move.clientX - lastX;
+      pointerX = move.clientX;
       lastX = move.clientX;
-      reorder(id);
+      let crossed = false;
+      flushSync(() => (crossed = onTabDrag?.(id, pointerX) === true));
+      if (crossed) flushSync(insert);
+      follow();
+      if (!crossed) reorder();
     };
 
     const onUp = (up: Event) => {
@@ -222,16 +266,15 @@
   };
 
   const plusShift = $derived.by(() => {
-    const id = draggingId;
-    if (!id || !plus) return 0;
-    const right = centerOf(id) + widthOf(id) / HALF + dragDx;
+    if (!mine || !plus) return 0;
+    const right = centerOf(held) + widthOf(held) / HALF + drag.dx;
     return Math.max(0, right + SPACING - plus.offsetLeft);
   });
 
   $effect(() => {
     const id = activeId;
     void items.length;
-    if (!strip || id === null || draggingId !== null) return;
+    if (!strip || id === null || drag.id !== "") return;
     const viewport = strip.clientWidth;
     if (viewport <= 0) return;
     const target = centerOf(id) - viewport / HALF;
@@ -243,27 +286,26 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div
-  onpointerdown={onPaneDown}
-  class="{PANE_HEADER_CLASS} {paneFocusBorder(focused)}"
->
+<div onpointerdown={onPaneDown} class="{PANE_HEADER_CLASS} {paneFocusBorder(focused)}">
   <div
     bind:this={strip}
     use:hscrollbar={{ wheel: true }}
     role="tablist"
+    data-strip={group}
     class="no-scrollbar flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto px-1 py-1.5"
   >
     {#each items as tab (tab.id)}
       {@const active = tab.id === activeId}
-      {@const dragging = tab.id === draggingId}
+      {@const dragging = tab.id === held}
       <div
         use:register={tab.id}
+        data-tab={tab.id}
         role="tab"
         tabindex={active ? 0 : -1}
         aria-selected={active}
         onpointerdown={(event) => onPointerDown(event, tab.id)}
         onkeydown={(event) => event.key === "Enter" && onSelect(tab.id)}
-        style="transform: translateX({dragging ? dragDx : 0}px); z-index: {dragging ? 1 : 0}"
+        style="transform: translateX({dragging ? drag.dx : 0}px); z-index: {dragging ? 1 : 0}"
         class="flex h-8 shrink-0 cursor-pointer touch-none items-center gap-1.5 rounded-item pr-1 pl-2.5 transition-colors select-none {active
           ? 'bg-surface-variant text-on-surface'
           : 'text-on-surface-variant hover:bg-on-surface/6'}"
