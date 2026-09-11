@@ -6,7 +6,7 @@ export const ROUTES = [
   "/settings",
   "/claude",
   "/monitor",
-  "/files",
+  "/shared",
   "/project",
   "/terminal",
   "/markdown",
@@ -44,7 +44,7 @@ class Navigation {
   route = $state<Route>(currentRoute());
   sub = $state<string | null>(subOf(window.location.pathname));
   settingsHighlight = $state<string | null>(null);
-  explorerArchive = $state<string | null>(null);
+  sharedArchive = $state<string | null>(null);
   preview = $state<PreviewRequest | null>(null);
   previewPane = $state(false);
 
@@ -67,7 +67,7 @@ class Navigation {
       }
       if (this.route === "/") return false;
       this.settingsHighlight = null;
-      this.explorerArchive = null;
+      this.sharedArchive = null;
       window.history.back();
       return true;
     };
@@ -136,9 +136,9 @@ class Navigation {
     this.openSub(sub);
   }
 
-  openExplorer(archive: string | null = null) {
-    this.explorerArchive = archive;
-    this.navigate("/files");
+  openShared(archive: string | null = null) {
+    this.sharedArchive = archive;
+    this.navigate("/shared");
   }
 
   openSshHosts() {
@@ -186,7 +186,7 @@ class Navigation {
   back() {
     if (this.close()) return;
     this.settingsHighlight = null;
-    this.explorerArchive = null;
+    this.sharedArchive = null;
     window.history.back();
   }
 

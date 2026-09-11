@@ -1,4 +1,20 @@
+import { resolveLang } from "$lib/markdown/highlighter";
+import { isArchive } from "./format";
+
 export type PreviewKind = "image" | "markdown" | "html" | "text" | "pdf" | "video" | "audio";
+
+export type FileKind = "image" | "video" | "audio" | "pdf" | "markdown" | "code" | "archive" | "text";
+
+export const FILE_KINDS: FileKind[] = [
+  "image",
+  "video",
+  "audio",
+  "pdf",
+  "markdown",
+  "code",
+  "archive",
+  "text",
+];
 
 const MARKDOWN_EXTENSIONS = ["md", "markdown"];
 
@@ -64,3 +80,12 @@ export const readsAsText = (kind: PreviewKind): boolean => !RENDERED_KINDS.inclu
 
 export const isPreviewable = (filename: string): boolean =>
   MARKDOWN_EXTENSIONS.includes(extensionOf(filename)) || guessMimeType(filename) !== null;
+
+export const fileKindOf = (filename: string): FileKind => {
+  if (isArchive(filename)) return "archive";
+  const kind = previewKindOf(filename);
+  if (kind === "markdown" || kind === "pdf" || kind === "image" || kind === "video" || kind === "audio") {
+    return kind;
+  }
+  return kind === "html" || resolveLang(extensionOf(filename)) !== null ? "code" : "text";
+};

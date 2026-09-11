@@ -441,8 +441,12 @@ export class ChatState {
     ];
   }
 
+  get uploadDir(): string {
+    return this.projectKey ? `${this.projectKey}/${UPLOAD_DIR}` : UPLOAD_DIR;
+  }
+
   uploadComponentFile(file: File, onProgress: (value: number) => void) {
-    return uploadAttachment(file, onProgress, this.environment, `${UPLOAD_DIR}/${file.name}`);
+    return uploadAttachment(file, onProgress, this.environment, `${this.uploadDir}/${file.name}`);
   }
 
   removeAttachment(id: number) {
@@ -494,7 +498,7 @@ export class ChatState {
           );
         },
         this.environment,
-        `${UPLOAD_DIR}/${item.name}`,
+        `${this.uploadDir}/${item.name}`,
         abort.signal,
       );
       if (path === null) {
@@ -1607,8 +1611,9 @@ export class ChatState {
   #alreadyShown(body: string, attachments: string[]): boolean {
     const last = this.messages.findLast((item) => item.role === "user");
     if (!last || last.sourceIndex >= 0 || last.text !== body) return false;
+    const prefix = `${this.uploadDir}/`;
     const names = (list: string[]) =>
-      list.map((item) => (item.startsWith(`${UPLOAD_DIR}/`) ? item.slice(UPLOAD_DIR.length + 1) : item)).join("\n");
+      list.map((item) => (item.startsWith(prefix) ? item.slice(prefix.length) : item)).join("\n");
     return names(last.attachments ?? []) === names(attachments);
   }
 

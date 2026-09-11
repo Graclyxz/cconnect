@@ -35,6 +35,16 @@ def _base() -> Path:
     return paths.SHARED_DIR
 
 
+def project_dir(project_key: str) -> Path:
+    """Where a project's shared files live; the root itself when there is no project."""
+    base = _base()
+    if not project_key:
+        return base
+    target = base / project_key
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
 def _resolve(relpath: str) -> Path:
     return files.resolve(_base(), relpath)
 

@@ -1,7 +1,5 @@
 <script lang="ts">
   import ArrowUp from "@lucide/svelte/icons/arrow-up";
-  import FileIcon from "@lucide/svelte/icons/file";
-  import FolderArchive from "@lucide/svelte/icons/folder-archive";
   import Hourglass from "@lucide/svelte/icons/hourglass";
   import Mic from "@lucide/svelte/icons/mic";
   import Paperclip from "@lucide/svelte/icons/paperclip";
@@ -10,7 +8,7 @@
   import X from "@lucide/svelte/icons/x";
   import type { Snippet } from "svelte";
   import type { QueuedMessage } from "$lib/data/chatModels";
-  import { isArchive } from "$lib/data/format";
+  import { fileIcon } from "$lib/ui/fileIcons";
   import { paneFocus } from "$lib/data/paneFocus.svelte";
   import { sessionColorOf } from "$lib/design/sessionColors";
   import { t } from "$lib/i18n/index.svelte";
@@ -383,7 +381,7 @@
         class="no-scrollbar flex gap-1.5 overflow-x-auto px-3.5 {queue.length ? 'pt-1.5' : 'pt-3'}"
       >
         {#each attachments as item (item.id)}
-          <Chip name={item.name} icon={isArchive(item.name) ? FolderArchive : FileIcon}>
+          <Chip name={item.name} icon={fileIcon(item.name)}>
             {#snippet trailing()}
               {#if uploading}
                 <ProgressRing value={item.progress} size={16} stroke={2} />

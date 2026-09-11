@@ -5,7 +5,7 @@
   import { isVideo } from "$lib/data/previewKind";
   import type { CconnectBlock, SuggestionItem } from "$lib/markdown/cconnectBlock";
   import { mediaSrc } from "$lib/services/mediaSource";
-  import PdfView from "$lib/screens/files/PdfView.svelte";
+  import PdfView from "$lib/screens/shared/PdfView.svelte";
   import MarkdownImage from "./MarkdownImage.svelte";
   import OutlinedPanel from "./OutlinedPanel.svelte";
   import SuggestionChips from "./SuggestionChips.svelte";

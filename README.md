@@ -132,7 +132,7 @@ dynamic so that environment follows the system colour.
 
 Once you settle on one machine and one project, a **lock** pins them. Close the
 padlock next to the active environment, or next to its working directory, and
-every picker that would switch them goes quiet — the chat, Files, Monitor and
+every picker that would switch them goes quiet — the chat, Shared, Monitor and
 the Claude screen show the current one as plain text instead of a menu. The
 environments list itself stays open, so there's always a way back.
 
@@ -206,7 +206,7 @@ on desktop reach for the keyboard (Ctrl+T to open, Ctrl+W to close, Ctrl+Tab to
 cycle). The tabs you had open come back when you reopen the app, each loading
 only once you switch to it.
 
-## Files
+## Shared
 
 The shared folder grew into a full file manager. Browse `backend/data/shared/` from
 the app: upload files (with per-file progress you can cancel), create folders,

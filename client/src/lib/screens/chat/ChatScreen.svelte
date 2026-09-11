@@ -26,9 +26,9 @@
   import { resizeHandle } from "$lib/ui/resizeHandle";
   import ClaudeDetail, { type ClaudeKind } from "$lib/screens/claude/ClaudeDetail.svelte";
   import ClaudeSections from "$lib/screens/claude/ClaudeSections.svelte";
-  import FileExplorerScreen from "$lib/screens/files/FileExplorerScreen.svelte";
   import ProjectFilesScreen from "$lib/screens/project/ProjectFilesScreen.svelte";
-  import FilePreview from "$lib/screens/files/FilePreview.svelte";
+  import FilePreview from "$lib/screens/shared/FilePreview.svelte";
+  import SharedScreen from "$lib/screens/shared/SharedScreen.svelte";
   import MarkdownActions from "$lib/screens/markdown/MarkdownActions.svelte";
   import MarkdownEditor from "$lib/screens/markdown/MarkdownEditor.svelte";
   import MonitorActions from "$lib/screens/monitor/MonitorActions.svelte";
@@ -355,9 +355,9 @@
             <PaneHeader title={t("MARKDOWN")} actions={markdownActions} />
             <MarkdownEditor />
           </PaneSurface>
-        {:else if panes.kind === "files"}
+        {:else if panes.kind === "shared"}
           <PaneSurface>
-            <FileExplorerScreen />
+            <SharedScreen />
           </PaneSurface>
         {:else if panes.kind === "project"}
           <PaneSurface>

@@ -8,7 +8,7 @@
   import EllipsisVertical from "@lucide/svelte/icons/ellipsis-vertical";
   import ExternalLink from "@lucide/svelte/icons/external-link";
   import Eye from "@lucide/svelte/icons/eye";
-  import FileIcon from "@lucide/svelte/icons/file";
+  import Filter from "@lucide/svelte/icons/filter";
   import Folder from "@lucide/svelte/icons/folder";
   import FolderArchive from "@lucide/svelte/icons/folder-archive";
   import FolderInput from "@lucide/svelte/icons/folder-input";
@@ -25,8 +25,15 @@
   import { slide } from "svelte/transition";
   import { openFilePreview } from "$lib/app/filePreview";
   import { navigation } from "$lib/app/navigation.svelte";
+  import { chatListFor } from "$lib/data/chatList.svelte";
+  import { projectNameOf } from "$lib/data/models";
   import { formatSize, isArchive } from "$lib/data/format";
-  import { isPreviewable, previewKindOf } from "$lib/data/previewKind";
+  import {
+    FILE_KINDS,
+    fileKindOf,
+    isPreviewable,
+    type FileKind,
+  } from "$lib/data/previewKind";
   import { settings } from "$lib/data/settings.svelte";
   import { formatDateShort } from "$lib/data/time";
   import { serverStatus } from "$lib/data/serverStatus.svelte";
@@ -49,6 +56,7 @@
     saveSharedAs,
   } from "$lib/services/sharedFiles";
   import { SharedWatch } from "$lib/services/sharedWatch.svelte";
+  import { UPLOAD_DIR } from "$lib/services/uploadApi";
   import { dragTransfer, type SharedFile } from "$lib/app/dragPayload.svelte";
   import { activeScope } from "$lib/app/activeScope.svelte";
   import EnvironmentAction from "$lib/screens/chat/EnvironmentAction.svelte";
@@ -65,6 +73,7 @@
   import DialogActionItem from "$lib/ui/DialogActionItem.svelte";
   import DropOverlay from "$lib/ui/DropOverlay.svelte";
   import { fileDrop } from "$lib/ui/fileDrop";
+  import { entryIcon, kindIcon, kindLabel } from "$lib/ui/fileIcons";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import ListRow from "$lib/ui/ListRow.svelte";
   import CompactSwitch from "$lib/ui/CompactSwitch.svelte";
@@ -77,7 +86,7 @@
   import TooltipIconButton from "$lib/ui/TooltipIconButton.svelte";
   import PathBar from "./PathBar.svelte";
   import CompressDialog from "./CompressDialog.svelte";
-  import { readFilesLocation, syncFilesLocation } from "./filesUrl";
+  import { readSharedLocation, syncSharedLocation } from "./sharedUrl";
   import ToolbarAction from "./ToolbarAction.svelte";
   import { pastedName } from "$lib/data/pastedFile";
   import { useShortcut } from "$lib/platform/useShortcut.svelte";
@@ -137,9 +146,9 @@
   ];
 
   const watcher = new SharedWatch();
-  const initial = readFilesLocation();
+  const initial = readSharedLocation();
 
-  let path = $state(initial?.path ?? "");
+  let path = $state(initial?.path ?? tabs.state.historyProject ?? "");
   let archive = $state<string | null>(initial?.archive ?? null);
   let archiveDir = $state(initial?.archiveDir ?? "");
   let entries = $state<SharedEntry[]>([]);
@@ -150,8 +159,9 @@
   let searching = $state(false);
   let searchQuery = $state("");
   let searchResults = $state<SharedEntry[] | null>(null);
-  let sortField = $state<SortKey>(settings.fileSortField as SortKey);
-  let sortAscending = $state(settings.fileSortAscending);
+  let sortField = $state<SortKey>(settings.sharedSortField as SortKey);
+  let sortAscending = $state(settings.sharedSortAscending);
+  let hiddenKinds = $state(new Set(settings.sharedHiddenKinds));
   let confirmingDelete = $state(false);
   let renaming = $state<SharedEntry | null>(null);
   let creatingFolder = $state(false);
@@ -180,6 +190,21 @@
   const environment = $derived(backend.active);
 
   const child = (name: string) => (path ? `${path}/${name}` : name);
+
+  const projects = $derived(chatListFor(backend.active)?.projects ?? []);
+  const projectKeys = $derived(new Set(projects.map((item) => item.projectKey)));
+  const ceiling = $derived(settings.lockedProject);
+
+  const entryLabel = (path: string, name: string) =>
+    projectKeys.has(path) ? projectNameOf(projects, path) : name;
+
+  $effect(() => {
+    const locked = ceiling;
+    if (!locked) return;
+    untrack(() => {
+      if (path !== locked && !path.startsWith(`${locked}/`)) path = locked;
+    });
+  });
   const innerChild = (name: string) => (archiveDir ? `${archiveDir}/${name}` : name);
 
   const archiveStem = (name: string) => {
@@ -194,7 +219,10 @@
   };
 
   const ordered = $derived.by(() => {
-    const list = [...(searchResults ?? entries)];
+    const source = searchResults ?? entries;
+    const list = hiddenKinds.size
+      ? source.filter((entry) => entry.isDir || !hiddenKinds.has(fileKindOf(entry.name)))
+      : [...source];
     const direction = sortAscending ? 1 : -1;
     const compare = (a: SharedEntry, b: SharedEntry) => {
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
@@ -329,12 +357,20 @@
 
   const selectSort = (field: SortKey) => {
     sortField = field;
-    settings.fileSortField = sortField;
+    settings.sharedSortField = sortField;
   };
 
   const toggleSortDirection = () => {
     sortAscending = !sortAscending;
-    settings.fileSortAscending = sortAscending;
+    settings.sharedSortAscending = sortAscending;
+  };
+
+  const toggleKind = (kind: FileKind) => {
+    const next = new Set(hiddenKinds);
+    if (next.has(kind)) next.delete(kind);
+    else next.add(kind);
+    hiddenKinds = next;
+    settings.sharedHiddenKinds = [...next];
   };
 
   const detailOf = (entry: SharedEntry) =>
@@ -424,7 +460,7 @@
     }
     if (pendingDrag && !dragging && moved(event)) {
       dragging = pendingDrag;
-      dragTransfer.begin({ kind: "shared-files", files: pendingFiles });
+      dragTransfer.begin({ kind: "shared", files: pendingFiles });
       capture(event.pointerId);
     }
     if (dragging) {
@@ -460,7 +496,7 @@
     void sharedApi.move(sources, child(target)).then(reload);
   };
 
-  const engaged = $derived(activeScope() === "files");
+  const engaged = $derived(activeScope() === "shared");
 
   const shortcutsEnabled = $derived(
     engaged &&
@@ -512,13 +548,13 @@
     startTransfer(mode);
   };
 
-  useShortcut("files.copy", () => startIfAllowed("copy"));
-  useShortcut("files.cut", () => startIfAllowed("move"));
-  useShortcut("files.paste", () => {
+  useShortcut("shared.copy", () => startIfAllowed("copy"));
+  useShortcut("shared.cut", () => startIfAllowed("move"));
+  useShortcut("shared.paste", () => {
     if (!shortcutsEnabled || !transfer || !transferAllowed) return false;
     void runTransfer();
   });
-  useShortcut("files.delete", () => {
+  useShortcut("shared.delete", () => {
     if (!selected.length) return false;
     confirmingDelete = true;
   });
@@ -565,12 +601,12 @@
   });
 
   $effect(() => {
-    syncFilesLocation({ path, archive, archiveDir });
+    syncSharedLocation({ path, archive, archiveDir });
   });
 
   $effect(() => {
     const onPopState = () => {
-      const location = readFilesLocation();
+      const location = readSharedLocation();
       if (!location) return;
       path = location.path;
       archive = location.archive;
@@ -644,7 +680,7 @@
   bind:clientWidth={width}
   class="flex h-full flex-col"
   role="application"
-  aria-label={t("FILES")}
+  aria-label={t("SHARED")}
 >
   {#snippet selectAllAction()}
     <TooltipIconButton
@@ -703,6 +739,22 @@
           {/snippet}
         </MenuItem>
       </MenuSub>
+      <MenuSub text={t("SHOW_KINDS")}>
+        {#snippet leading()}
+          <Filter size={20} class="shrink-0 text-on-surface-variant" />
+        {/snippet}
+        {#each FILE_KINDS as kind (kind)}
+          {@const Icon = kindIcon(kind)}
+          <MenuItem text={t(kindLabel(kind))} closeOnSelect={false} onclick={() => toggleKind(kind)}>
+            {#snippet leading()}
+              <Icon size={20} class="shrink-0 text-on-surface-variant" />
+            {/snippet}
+            {#snippet trailing()}
+              <CompactSwitch checked={!hiddenKinds.has(kind)} onCheckedChange={() => toggleKind(kind)} />
+            {/snippet}
+          </MenuItem>
+        {/each}
+      </MenuSub>
       {#if archive === null}
         <MenuItem
           text={t("NEW_FOLDER")}
@@ -719,7 +771,7 @@
 
   {#if compact}
     <PaneHeader
-      title={selecting ? plural("ITEM_COUNT", selected.length) : t("FILES")}
+      title={selecting ? plural("ITEM_COUNT", selected.length) : t("SHARED")}
       leading={selecting ? selectAllAction : undefined}
       actions={selecting ? cancelAction : browseActions}
     />
@@ -734,7 +786,7 @@
     </AppTopBar>
   {:else}
     <AppTopBar
-      title={t("FILES")}
+      title={t("SHARED")}
       subtitle={serverStatus.unavailable ? t("SERVER_UNAVAILABLE") : (environment?.name ?? null)}
     >
       {#snippet navigationIcon()}
@@ -766,6 +818,9 @@
   <DropOverlay />
   <PathBar
     path={archive === null ? path : [archive, archiveDir].filter(Boolean).join("/")}
+    root={archive === null ? ceiling : ""}
+    label={ceiling ? projectNameOf(projects, ceiling) : null}
+    nameOf={archive === null ? entryLabel : undefined}
     {searching}
     {narrow}
     query={searchQuery}
@@ -808,8 +863,8 @@
           {@const isSelected = selected.includes(entry.name)}
           <div data-row={index} data-name={entry.name}>
             <ListRow
-              icon={entry.isDir ? Folder : isArchive(entry.name) ? FolderArchive : FileIcon}
-              title={entry.name}
+              icon={entryIcon(child(entry.name), entry.isDir, projectKeys, UPLOAD_DIR)}
+              title={entryLabel(child(entry.name), entry.name)}
               subtitle={formatDateShort(entry.modified * MILLIS_PER_SECOND)}
               class={dropTarget === entry.name ? "bg-accent/15" : ""}
               onclick={() => openEntry(entry)}
@@ -910,14 +965,14 @@
     >
       <ToolbarAction
         {narrow}
-        shortcut="files.cut"
+        shortcut="shared.cut"
         icon={FolderInput}
         label={t("MOVE")}
         onclick={() => startTransfer("move")}
       />
       <ToolbarAction
         {narrow}
-        shortcut="files.copy"
+        shortcut="shared.copy"
         icon={Copy}
         label={t("COPY")}
         onclick={() => startTransfer("copy")}
@@ -936,7 +991,7 @@
       />
       <ToolbarAction
         {narrow}
-        shortcut="files.delete"
+        shortcut="shared.delete"
         icon={Trash}
         label={t("DELETE")}
         onclick={() => (confirmingDelete = true)}
@@ -975,20 +1030,6 @@
                 {/snippet}
               </MenuItem>
             {/if}
-            {#if single && !single.isDir && previewKindOf(single.name) === "html"}
-              <MenuItem
-                text={t("OPEN_EXTERNALLY")}
-                onclick={() => {
-                  const name = single.name;
-                  void openSharedInBrowser(downloadUrl(child(name)), name);
-                  exitSelection();
-                }}
-              >
-                {#snippet leading()}
-                  <ExternalLink size={20} class="shrink-0 text-on-surface-variant" />
-                {/snippet}
-              </MenuItem>
-            {/if}
             {#if single}
               <MenuItem text={t("RENAME")} onclick={() => (renaming = single)}>
                 {#snippet leading()}
@@ -1024,6 +1065,20 @@
               >
                 {#snippet leading()}
                   <Save size={20} class="shrink-0 text-on-surface-variant" />
+                {/snippet}
+              </MenuItem>
+            {/if}
+            {#if single && !single.isDir}
+              <MenuItem
+                text={t("OPEN_EXTERNALLY")}
+                onclick={() => {
+                  const name = single.name;
+                  void openSharedInBrowser(downloadUrl(child(name)), name);
+                  exitSelection();
+                }}
+              >
+                {#snippet leading()}
+                  <ExternalLink size={20} class="shrink-0 text-on-surface-variant" />
                 {/snippet}
               </MenuItem>
             {/if}
@@ -1179,7 +1234,7 @@
   <CompressDialog
     defaultName={paths.length === 1
       ? archiveStem(paths[0].split("/").pop() ?? "")
-      : (path.split("/").pop() ?? "") || t("FILES").toLowerCase()}
+      : (path.split("/").pop() ?? "") || t("SHARED").toLowerCase()}
     onConfirm={(name, format) => {
       compressing = null;
       void sharedApi.compress(paths, format, name).then(() => {

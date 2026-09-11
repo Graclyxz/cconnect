@@ -5,7 +5,7 @@ Media can be embedded in your reply with a fenced block tagged `cconnect`. Write
 
 ````
 ```cconnect
-{ "type": "gallery", "items": [{ "url": "{{BASE_URL}}/shared/diagram.png", "alt": "Diagram" }] }
+{ "type": "gallery", "items": [{ "url": "{{SHARED_URL}}/diagram.png", "alt": "Diagram" }] }
 ```
 ````
 

@@ -18,17 +18,17 @@
   import { updater } from "$lib/services/updater.svelte";
   import BrowserScreen from "$lib/screens/browser/BrowserScreen.svelte";
   import ChatScreen from "$lib/screens/chat/ChatScreen.svelte";
-  import FilePreview from "$lib/screens/files/FilePreview.svelte";
   import { panes } from "$lib/screens/chat/panes.svelte";
   import { tabs } from "$lib/screens/chat/tabs.svelte";
   import ClaudeScreen from "$lib/screens/claude/ClaudeScreen.svelte";
-  import FileExplorerScreen from "$lib/screens/files/FileExplorerScreen.svelte";
   import ProjectFilesScreen from "$lib/screens/project/ProjectFilesScreen.svelte";
   import MarkdownScreen from "$lib/screens/markdown/MarkdownScreen.svelte";
   import MonitorScreen from "$lib/screens/monitor/MonitorScreen.svelte";
   import { monitor } from "$lib/screens/monitor/monitor.svelte";
   import SettingsDialog from "$lib/screens/settings/SettingsDialog.svelte";
   import SettingsScreen from "$lib/screens/settings/SettingsScreen.svelte";
+  import FilePreview from "$lib/screens/shared/FilePreview.svelte";
+  import SharedScreen from "$lib/screens/shared/SharedScreen.svelte";
   import TerminalScreen from "$lib/screens/terminal/TerminalScreen.svelte";
   import TransfersPanel from "$lib/ui/TransfersPanel.svelte";
   import QrCameraOverlay from "$lib/ui/QrCameraOverlay.svelte";
@@ -140,8 +140,8 @@
     <MarkdownScreen />
   {:else if navigation.route === "/claude"}
     <ClaudeScreen />
-  {:else if navigation.route === "/files"}
-    <FileExplorerScreen />
+  {:else if navigation.route === "/shared"}
+    <SharedScreen />
   {:else if navigation.route === "/project"}
     <ProjectFilesScreen />
   {:else if navigation.route === "/terminal"}

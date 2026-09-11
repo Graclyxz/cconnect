@@ -27,12 +27,12 @@
   const SCOPE_LABELS: Record<ShortcutScope, string> = {
     chat: "SCOPE_CHAT",
     terminal: "SCOPE_TERMINAL",
-    files: "SCOPE_FILES",
+    shared: "SCOPE_SHARED",
     browser: "BROWSER",
     global: "SCOPE_GENERAL",
   };
 
-  const ORDER: ShortcutScope[] = ["chat", "terminal", "files", "browser", "global"];
+  const ORDER: ShortcutScope[] = ["chat", "terminal", "shared", "browser", "global"];
 
   const MODIFIER_CODES = [
     "ControlLeft",

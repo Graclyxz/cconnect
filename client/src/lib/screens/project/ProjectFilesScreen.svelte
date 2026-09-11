@@ -5,9 +5,7 @@
   import ChevronRight from "@lucide/svelte/icons/chevron-right";
   import ChevronUp from "@lucide/svelte/icons/chevron-up";
   import ClipboardCopy from "@lucide/svelte/icons/clipboard-copy";
-  import FileIcon from "@lucide/svelte/icons/file";
   import FileDiff from "@lucide/svelte/icons/file-diff";
-  import Folder from "@lucide/svelte/icons/folder";
   import GitCompare from "@lucide/svelte/icons/git-compare";
   import Lock from "@lucide/svelte/icons/lock";
   import Search from "@lucide/svelte/icons/search";
@@ -31,12 +29,13 @@
   import AppTopBar from "$lib/ui/AppTopBar.svelte";
   import CenteredProgress from "$lib/ui/CenteredProgress.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
+  import { fileIcon, projectIcon } from "$lib/ui/fileIcons";
   import MenuItem from "$lib/ui/MenuItem.svelte";
   import Pressable from "$lib/ui/Pressable.svelte";
   import SearchBar from "$lib/ui/SearchBar.svelte";
   import SecurityKeyDialog from "$lib/ui/SecurityKeyDialog.svelte";
   import TooltipIconButton from "$lib/ui/TooltipIconButton.svelte";
-  import FilePreview from "$lib/screens/files/FilePreview.svelte";
+  import FilePreview from "$lib/screens/shared/FilePreview.svelte";
   import PaneHeader from "$lib/screens/chat/PaneHeader.svelte";
   import ProjectSelector from "$lib/screens/chat/ProjectSelector.svelte";
   import { inPane } from "$lib/screens/chat/paneSurface";
@@ -71,7 +70,8 @@
   let loading = $state(false);
 
   const projectKey = $derived(
-    chosen ?? chat.historyProject ?? tabs.active?.projectKey ?? projects[0]?.projectKey ?? null,
+    settings.lockedProject ||
+      (chosen ?? chat.historyProject ?? tabs.active?.projectKey ?? projects[0]?.projectKey ?? null),
   );
 
   const project = $derived(projects.find((item) => item.projectKey === projectKey) ?? null);
@@ -162,6 +162,7 @@
     items: 0,
     status: "",
     ignored: false,
+    repo: false,
   });
 
   interface Branch {
@@ -243,6 +244,7 @@
   };
 
   const open = (entry: ProjectEntry) => {
+    chosen = projectKey;
     anchorAt = null;
     openPath = entry.path;
   };
@@ -435,13 +437,14 @@
     onclick={() => !entry.status.includes("D") && open(entry)}
     class="flex w-full items-center gap-2 px-3 py-1.5 text-left"
   >
-    <FileIcon size={16} class="shrink-0 text-on-surface-variant" />
+    {@const Icon = fileIcon(entry.path)}
+    <Icon size={16} class="shrink-0 text-on-surface-variant" />
     <span class="min-w-0 flex-1 truncate text-body-md {entryClass(entry)}">{entry.path}</span>
   </Pressable>
 {/snippet}
 
 {#snippet fileRow(entry: ProjectEntry, depth: number, open: boolean, action: () => void)}
-  {@const Icon = entry.isDir ? Folder : FileIcon}
+  {@const Icon = projectIcon(entry.path, entry.isDir, entry.repo)}
   <Pressable onclick={action} class="flex w-full items-center gap-1.5 py-1.5 pr-3 text-left">
     <span style="width: {BASE_INDENT + depth * INDENT}px" class="shrink-0"></span>
     <span class="flex size-4 shrink-0 items-center justify-center">

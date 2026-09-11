@@ -209,18 +209,25 @@ class Settings {
     this.#write("right_pane", value);
   }
 
-  get fileSortField() {
-    return this.#read<string>("file_sort_field");
+  get sharedSortField() {
+    return this.#read<string>("shared_sort_field");
   }
-  set fileSortField(value: string) {
-    this.#write("file_sort_field", value);
+  set sharedSortField(value: string) {
+    this.#write("shared_sort_field", value);
   }
 
-  get fileSortAscending() {
-    return this.#read<boolean>("file_sort_ascending");
+  get sharedHiddenKinds(): string[] {
+    return this.#list("shared_hidden_kinds");
   }
-  set fileSortAscending(value: boolean) {
-    this.#write("file_sort_ascending", value);
+  set sharedHiddenKinds(value: string[]) {
+    this.#write("shared_hidden_kinds", value.join(","));
+  }
+
+  get sharedSortAscending() {
+    return this.#read<boolean>("shared_sort_ascending");
+  }
+  set sharedSortAscending(value: boolean) {
+    this.#write("shared_sort_ascending", value);
   }
 
   get localServerEnabled() {

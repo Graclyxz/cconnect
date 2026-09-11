@@ -1,7 +1,7 @@
 import { isTauri, isTouch, platformName } from "./index";
 import { store } from "./storage";
 
-export type ShortcutScope = "global" | "chat" | "terminal" | "files" | "browser";
+export type ShortcutScope = "global" | "chat" | "terminal" | "shared" | "browser";
 
 export interface ShortcutDef {
   id: string;
@@ -59,10 +59,10 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: "browser.copy", label: "SHORTCUT_BROWSER_COPY", scope: "browser", keys: "Mod+KeyC" },
   { id: "browser.cut", label: "SHORTCUT_BROWSER_CUT", scope: "browser", keys: "Mod+KeyX" },
   { id: "browser.paste", label: "SHORTCUT_BROWSER_PASTE", scope: "browser", keys: "Mod+KeyV" },
-  { id: "files.copy", label: "SHORTCUT_FILES_COPY", scope: "files", keys: "Mod+KeyC" },
-  { id: "files.cut", label: "SHORTCUT_FILES_CUT", scope: "files", keys: "Mod+KeyX" },
-  { id: "files.paste", label: "SHORTCUT_FILES_PASTE", scope: "files", keys: "Mod+KeyV" },
-  { id: "files.delete", label: "SHORTCUT_FILES_DELETE", scope: "files", keys: "Delete", mac: "Meta+Backspace" },
+  { id: "shared.copy", label: "SHORTCUT_SHARED_COPY", scope: "shared", keys: "Mod+KeyC" },
+  { id: "shared.cut", label: "SHORTCUT_SHARED_CUT", scope: "shared", keys: "Mod+KeyX" },
+  { id: "shared.paste", label: "SHORTCUT_SHARED_PASTE", scope: "shared", keys: "Mod+KeyV" },
+  { id: "shared.delete", label: "SHORTCUT_SHARED_DELETE", scope: "shared", keys: "Delete", mac: "Meta+Backspace" },
   {
     id: "window.fullscreen",
     label: "SHORTCUT_WINDOW_FULLSCREEN",

@@ -4,7 +4,7 @@ The folder `{{SHARED_DIR}}` is served by this backend and is downloadable from t
 device in the CConnect app. When the user asks you to share, export or send them a file,
 write it into that folder; anything placed there becomes available to download.
 
-Give them the ready-to-open link `{{BASE_URL}}/shared/<filename>` (URL-encode the filename
+Give them the ready-to-open link `{{SHARED_URL}}/<filename>` (URL-encode the filename
 if it has spaces), as a plain markdown link and never inside a code block.
 
 `@`-mentioned paths under `{{SHARED_DIR}}/uploads` are files the user uploaded from their
@@ -13,7 +13,7 @@ device. Use them directly and don't repeat the paths back.
 # Images
 
 The app renders markdown images inline, so you can show a picture in the chat instead of
-only linking it: `![alt]({{BASE_URL}}/shared/<filename>)` for a file you wrote there, or
+only linking it: `![alt]({{SHARED_URL}}/<filename>)` for a file you wrote there, or
 `![alt](https://...)` for an external one. The user can open one to save or share it.
 
 # The chat

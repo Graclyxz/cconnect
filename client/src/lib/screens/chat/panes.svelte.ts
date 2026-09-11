@@ -10,7 +10,7 @@ export type RightKind =
   | "markdown"
   | "monitor"
   | "claude"
-  | "files"
+  | "shared"
   | "project"
   | "browser";
 
@@ -20,7 +20,7 @@ const KINDS: RightKind[] = [
   "markdown",
   "monitor",
   "claude",
-  "files",
+  "shared",
   "project",
   "browser",
 ];
@@ -31,7 +31,7 @@ const SCOPE: Record<RightKind, Pane> = {
   markdown: "chat",
   monitor: "chat",
   claude: "chat",
-  files: "files",
+  shared: "shared",
   project: "chat",
   browser: "browser",
 };

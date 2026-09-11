@@ -1,5 +1,5 @@
 <script lang="ts">
-  import MessageSquare from "@lucide/svelte/icons/message-square";
+  import MessageSquareText from "@lucide/svelte/icons/message-square-text";
   import { SCREENS, type ScreenEntry } from "$lib/app/screens";
   import { t } from "$lib/i18n/index.svelte";
   import MenuItem from "$lib/ui/MenuItem.svelte";
@@ -10,7 +10,7 @@
   type PaneView = Pick<ScreenEntry, "kind" | "label" | "icon">;
 
   const VIEWS: PaneView[] = [
-    { kind: "chat", label: "CHAT", icon: MessageSquare },
+    { kind: "chat", label: "CHAT", icon: MessageSquareText },
     ...SCREENS,
   ];
 

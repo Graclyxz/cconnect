@@ -6,7 +6,7 @@ export interface SharedFile {
   size: number;
 }
 
-export type DragPayload = { kind: "shared-files"; files: SharedFile[] };
+export type DragPayload = { kind: "shared"; files: SharedFile[] };
 
 export interface DropZone {
   accepts: (payload: DragPayload) => boolean;

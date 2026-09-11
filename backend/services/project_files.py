@@ -171,6 +171,7 @@ def listing(root: Path, relpath: str = "", unlocked: bool = False) -> dict:
                 "path": _relative(root, deepest),
                 "status": marks.get(inside, ""),
                 "ignored": index is not None and not _tracked(index, inside, is_dir),
+                "repo": is_dir and (deepest / ".git").exists(),
             })
         except OSError:
             continue

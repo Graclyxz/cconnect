@@ -7,6 +7,7 @@ import re
 import time
 from pathlib import Path
 from typing import Any, AsyncIterator, Awaitable, Callable, Optional
+from urllib.parse import quote
 
 from loguru import logger
 
@@ -149,6 +150,12 @@ def _cli_settings(scope: dict) -> dict[str, Any]:
     return overrides
 
 
+def _shared_dir(cwd: Optional[str]) -> Path:
+    from services import sessions, shared
+
+    return shared.project_dir(sessions.project_key_for(cwd) if cwd else "")
+
+
 def _system_append(
     base_url: Optional[str],
     cwd: Optional[str] = None,
@@ -162,8 +169,15 @@ def _system_append(
             text = _join(text, guide)
     if not text:
         return ""
-    effective = base_url or f"http://localhost:{PORT}/api"
-    return text.replace("{{SHARED_DIR}}", str(paths.SHARED_DIR)).replace("{{BASE_URL}}", effective.rstrip("/")).strip()
+    effective = (base_url or f"http://localhost:{PORT}/api").rstrip("/")
+    folder = _shared_dir(cwd)
+    segment = f"/{quote(folder.name)}" if folder != paths.SHARED_DIR else ""
+    return (
+        text.replace("{{SHARED_DIR}}", str(folder))
+        .replace("{{SHARED_URL}}", f"{effective}/shared{segment}")
+        .replace("{{BASE_URL}}", effective)
+        .strip()
+    )
 
 
 def _format_tool_input(inp: Any) -> str:

@@ -60,7 +60,7 @@
     if (line === null || !scroller) return;
     scroller
       .querySelector(`[data-line="${line}"]`)
-      ?.scrollIntoView({ block: "center", behavior: "smooth" });
+      ?.scrollIntoView({ block: "center", behavior: "instant" });
   });
 </script>
 

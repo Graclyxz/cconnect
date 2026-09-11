@@ -21,11 +21,11 @@
     url: string;
     filename: string;
     onView?: (() => void) | null;
-    onOpenInFiles?: (() => void) | null;
+    onOpenInShared?: (() => void) | null;
     onDismiss: () => void;
   }
 
-  const { url, filename, onView = null, onOpenInFiles = null, onDismiss }: Props = $props();
+  const { url, filename, onView = null, onOpenInShared = null, onDismiss }: Props = $props();
 
   const run = (action: () => void) => {
     action();
@@ -40,8 +40,8 @@
   {#if onView && isPreviewable(filename)}
     <DialogActionItem text={t("VIEW")} icon={Eye} onclick={() => run(onView)} />
   {/if}
-  {#if onOpenInFiles}
-    <DialogActionItem text={t("OPEN_IN_FILES")} icon={FolderArchive} onclick={() => run(onOpenInFiles)} />
+  {#if onOpenInShared}
+    <DialogActionItem text={t("OPEN_IN_SHARED")} icon={FolderArchive} onclick={() => run(onOpenInShared)} />
   {/if}
   <DialogActionItem text={t("SAVE")} icon={Download} onclick={() => run(() => void downloadShared(url, filename))} />
   <DialogActionItem text={t("SAVE_AS")} icon={Save} onclick={() => run(() => void saveSharedAs(url, filename))} />

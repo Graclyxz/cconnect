@@ -15,7 +15,7 @@ src/
 │   ├── design/             # tokens.css, theme, session colors
 │   ├── i18n/               # en.json / es.json — every user-facing string
 │   ├── platform/           # isTouch, layout, desktop, fieldSizing polyfill
-│   ├── screens/            # chat/, files/, claude/, monitor/, settings/, terminal/, markdown/
+│   ├── screens/            # chat/, shared/, claude/, monitor/, settings/, terminal/, markdown/
 │   ├── services/           # backend clients: chatSocket, sessionsApi, sharedApi, claudeApi…
 │   └── ui/                 # the shared toolkit
 └── src-tauri/              # Rust side + gen/android (committed)

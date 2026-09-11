@@ -8,6 +8,9 @@
 
   interface Props {
     path: string;
+    root?: string;
+    label?: string | null;
+    nameOf?: (target: string, segment: string) => string;
     searching: boolean;
     query: string;
     searchable: boolean;
@@ -19,6 +22,9 @@
 
   const {
     path,
+    root = "",
+    label = null,
+    nameOf = (_target, segment) => segment,
     searching,
     query,
     searchable,
@@ -32,11 +38,18 @@
     `inline-flex ${narrow ? "size-7" : "size-8"} shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-on-surface/8`,
   );
 
+  const homeClass = $derived(
+    label
+      ? `inline-flex ${narrow ? "h-7 gap-2 pr-2.5 pl-2" : "h-8 gap-1.5 pr-3 pl-2.5"} shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-on-surface/8`
+      : buttonClass,
+  );
+
   let scroller = $state<HTMLDivElement | null>(null);
 
-  const segments = $derived(path.split("/").filter(Boolean));
+  const base = $derived(root ? root.split("/").filter(Boolean) : []);
+  const segments = $derived(path.split("/").filter(Boolean).slice(base.length));
 
-  const targetAt = (index: number) => segments.slice(0, index + 1).join("/");
+  const targetAt = (index: number) => [...base, ...segments.slice(0, index + 1)].join("/");
 
   $effect(() => {
     void path;
@@ -58,11 +71,14 @@
     <div class="flex {narrow ? 'h-9' : 'h-10'} items-center rounded-md bg-surface-variant/60 px-1">
       <button
         type="button"
-        onclick={() => onNavigate("")}
-        aria-label="/"
-        class="{buttonClass} {segments.length ? 'text-on-surface-variant' : 'text-on-surface'}"
+        onclick={() => onNavigate(root)}
+        aria-label={label ?? "/"}
+        class="{homeClass} {segments.length ? 'text-on-surface-variant' : 'text-on-surface'}"
       >
         <House size={18} />
+        {#if label}
+          <span class="max-w-32 truncate text-body-md font-medium">{label}</span>
+        {/if}
       </button>
       <div
         bind:this={scroller}
@@ -79,7 +95,7 @@
               ? 'font-medium text-on-surface'
               : 'text-on-surface-variant'}"
           >
-            {segment}
+            {nameOf(targetAt(index), segment)}
           </button>
         {/each}
       </div>

@@ -1,14 +1,14 @@
-export interface FilesLocation {
+export interface SharedLocation {
   path: string;
   archive: string | null;
   archiveDir: string;
 }
 
-const ROUTE = "/files";
+const ROUTE = "/shared";
 
-const onFilesRoute = () => window.location.pathname === ROUTE;
+const onSharedRoute = () => window.location.pathname === ROUTE;
 
-const buildUrl = (location: FilesLocation): string => {
+const buildUrl = (location: SharedLocation): string => {
   const params: string[] = [];
   if (location.archive !== null) {
     params.push(`a=${encodeURIComponent(location.archive)}`);
@@ -19,8 +19,8 @@ const buildUrl = (location: FilesLocation): string => {
   return params.length ? `${ROUTE}?${params.join("&")}` : ROUTE;
 };
 
-export const readFilesLocation = (): FilesLocation | null => {
-  if (!onFilesRoute()) return null;
+export const readSharedLocation = (): SharedLocation | null => {
+  if (!onSharedRoute()) return null;
   const query = new URLSearchParams(window.location.search);
   const archive = query.get("a");
   if (archive !== null) {
@@ -33,8 +33,8 @@ export const readFilesLocation = (): FilesLocation | null => {
   return { path: query.get("p") ?? "", archive: null, archiveDir: "" };
 };
 
-export const syncFilesLocation = (location: FilesLocation) => {
-  if (!onFilesRoute()) return;
+export const syncSharedLocation = (location: SharedLocation) => {
+  if (!onSharedRoute()) return;
   const target = buildUrl(location);
   if (target !== window.location.pathname + window.location.search) {
     window.history.replaceState(null, "", target);

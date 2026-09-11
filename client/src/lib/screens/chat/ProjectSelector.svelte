@@ -1,6 +1,6 @@
 <script lang="ts">
   import ChevronDown from "@lucide/svelte/icons/chevron-down";
-  import FolderOpen from "@lucide/svelte/icons/folder-open";
+  import FolderClosed from "@lucide/svelte/icons/folder-closed";
   import { projectLabel, type ProjectInfo } from "$lib/data/models";
   import { settings } from "$lib/data/settings.svelte";
   import { t } from "$lib/i18n/index.svelte";
@@ -28,7 +28,7 @@
 
 {#if settings.lockedProject}
   <span class="flex w-full items-center rounded-item px-2 py-2 {className}">
-    <FolderOpen size={16} class="shrink-0 text-accent" />
+    <FolderClosed size={16} class="shrink-0 text-accent" />
     <span class="ml-2 min-w-0 flex-1 truncate text-left text-body-md">{label}</span>
   </span>
 {:else}
@@ -37,7 +37,7 @@
     <span
       class="flex w-full cursor-pointer items-center rounded-item px-2 py-2 transition-colors hover:bg-on-surface/6 {className}"
     >
-      <FolderOpen size={16} class="shrink-0 text-accent" />
+      <FolderClosed size={16} class="shrink-0 text-accent" />
       <span class="ml-2 min-w-0 flex-1 truncate text-left text-body-md">{label}</span>
       <ChevronDown size={16} class="shrink-0 text-on-surface-variant" />
     </span>

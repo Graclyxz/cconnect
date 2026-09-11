@@ -1,14 +1,13 @@
 <script lang="ts">
   import Bell from "@lucide/svelte/icons/bell";
   import Bot from "@lucide/svelte/icons/bot";
-  import FileIcon from "@lucide/svelte/icons/file";
-  import FolderArchive from "@lucide/svelte/icons/folder-archive";
   import Inbox from "@lucide/svelte/icons/inbox";
   import Lightbulb from "@lucide/svelte/icons/lightbulb";
   import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import type { Snippet } from "svelte";
   import type { ChatMessage, InteractionData, Role } from "$lib/data/chatModels";
-  import { formatTokens, isArchive } from "$lib/data/format";
+  import { formatTokens } from "$lib/data/format";
+  import { fileIcon } from "$lib/ui/fileIcons";
   import { settings } from "$lib/data/settings.svelte";
   import { plural, t } from "$lib/i18n/index.svelte";
   import { formatClock } from "$lib/data/time";
@@ -82,7 +81,7 @@
               {#each content.attachments as attachment (attachment.url)}
                 <Chip
                   name={attachment.name}
-                  icon={isArchive(attachment.name) ? FolderArchive : FileIcon}
+                  icon={fileIcon(attachment.name)}
                   onclick={() => onSharedLink?.(attachment.url, attachment.name)}
                 />
               {/each}

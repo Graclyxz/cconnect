@@ -1,6 +1,6 @@
 <script lang="ts">
   import Activity from "@lucide/svelte/icons/activity";
-  import Folder from "@lucide/svelte/icons/folder";
+  import FolderSymlink from "@lucide/svelte/icons/folder-symlink";
   import PanelLeftOpen from "@lucide/svelte/icons/panel-left-open";
   import Settings from "@lucide/svelte/icons/settings";
   import SquarePen from "@lucide/svelte/icons/square-pen";
@@ -106,8 +106,8 @@
         <SquarePen size={20} />
       </TooltipIconButton>
       <div class="flex-1"></div>
-      <TooltipIconButton label={t("FILES")} onclick={() => navigation.openExplorer()}>
-        <Folder size={20} />
+      <TooltipIconButton label={t("SHARED")} onclick={() => navigation.openShared()}>
+        <FolderSymlink size={20} />
       </TooltipIconButton>
       <TooltipIconButton label={t("CLAUDE")} onclick={() => navigation.navigate("/claude")}>
         <ClaudeIcon size={20} />
