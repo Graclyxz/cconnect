@@ -40,6 +40,8 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: "terminal.tab.close", label: "SHORTCUT_TERMINAL_TAB_CLOSE", scope: "terminal", keys: "Mod+KeyW" },
   { id: "terminal.tab.next", label: "SHORTCUT_TERMINAL_TAB_NEXT", scope: "terminal", keys: "Ctrl+Tab" },
   { id: "terminal.tab.previous", label: "SHORTCUT_TERMINAL_TAB_PREVIOUS", scope: "terminal", keys: "Ctrl+Shift+Tab" },
+  { id: "terminal.copy", label: "SHORTCUT_TERMINAL_COPY", scope: "terminal", keys: "Mod+KeyC" },
+  { id: "terminal.paste", label: "SHORTCUT_TERMINAL_PASTE", scope: "terminal", keys: "Mod+KeyV" },
   { id: "browser.tab.new", label: "SHORTCUT_BROWSER_TAB_NEW", scope: "browser", keys: "Mod+KeyT" },
   { id: "browser.tab.close", label: "SHORTCUT_BROWSER_TAB_CLOSE", scope: "browser", keys: "Mod+KeyW" },
   { id: "browser.tab.next", label: "SHORTCUT_BROWSER_TAB_NEXT", scope: "browser", keys: "Ctrl+Tab" },

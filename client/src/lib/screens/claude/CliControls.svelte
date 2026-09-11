@@ -58,16 +58,23 @@
 </script>
 
 <div class="flex flex-col gap-2.5 px-4 py-3">
-  <SelectField label={t("CLI_SOURCE")} selected={source} {options} onSelect={(value) => (source = value)} />
+  <SelectField
+    label={t("CLI_SOURCE")}
+    selected={source}
+    {options}
+    {enabled}
+    onSelect={(value) => (source = value)}
+  />
   {#if source === "custom"}
     <InputField
       value={customPath}
       oninput={(value) => (customPath = value)}
       label={t("CLI_CUSTOM_PATH")}
+      {enabled}
       singleLine
     >
       {#snippet trailing()}
-        <TooltipIconButton label={t("CHOOSE")} onclick={pick} class="size-6 [&_svg]:size-[18px]">
+        <TooltipIconButton label={t("CHOOSE")} {enabled} onclick={pick} class="size-6 [&_svg]:size-[18px]">
           <Folder />
         </TooltipIconButton>
       {/snippet}

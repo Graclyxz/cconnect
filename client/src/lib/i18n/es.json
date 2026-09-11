@@ -589,6 +589,8 @@
   "SHORTCUT_TERMINAL_TAB_CLOSE": "Cerrar pestaña de terminal",
   "SHORTCUT_TERMINAL_TAB_NEXT": "Pestaña de terminal siguiente",
   "SHORTCUT_TERMINAL_TAB_PREVIOUS": "Pestaña de terminal anterior",
+  "SHORTCUT_TERMINAL_COPY": "Copiar selección",
+  "SHORTCUT_TERMINAL_PASTE": "Pegar",
   "SHORTCUT_FILES_COPY": "Copiar archivos",
   "SHORTCUT_FILES_CUT": "Cortar archivos",
   "SHORTCUT_FILES_PASTE": "Pegar archivos",

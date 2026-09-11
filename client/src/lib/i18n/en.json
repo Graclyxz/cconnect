@@ -589,6 +589,8 @@
   "SHORTCUT_TERMINAL_TAB_CLOSE": "Close terminal tab",
   "SHORTCUT_TERMINAL_TAB_NEXT": "Next terminal tab",
   "SHORTCUT_TERMINAL_TAB_PREVIOUS": "Previous terminal tab",
+  "SHORTCUT_TERMINAL_COPY": "Copy selection",
+  "SHORTCUT_TERMINAL_PASTE": "Paste",
   "SHORTCUT_FILES_COPY": "Copy files",
   "SHORTCUT_FILES_CUT": "Cut files",
   "SHORTCUT_FILES_PASTE": "Paste files",

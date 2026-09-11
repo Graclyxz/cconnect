@@ -3,6 +3,8 @@
   import { WebglAddon } from "@xterm/addon-webgl";
   import { Terminal } from "@xterm/xterm";
   import type { TerminalConnector, TerminalLink, TerminalStatus } from "$lib/data/terminalLink";
+  import { copyText, pasteText } from "$lib/platform/clipboard";
+  import { shortcuts, signature } from "$lib/platform/shortcuts.svelte";
   import type { PtyInfo } from "$lib/services/terminalApi";
   import { FONT_SIZE, LINE_HEIGHT, TERMINAL_BACKGROUND, terminalTheme } from "./theme";
   import "@xterm/xterm/css/xterm.css";
@@ -32,6 +34,22 @@
   let pendingFocus = false;
 
   const encoder = new TextEncoder();
+
+  const copySelection = (term: Terminal) => {
+    const selected = term.getSelection();
+    if (!selected) return false;
+    void copyText(selected);
+    term.clearSelection();
+    return true;
+  };
+
+  const clipboardHandled = (term: Terminal, event: KeyboardEvent) => {
+    const action = shortcuts.idFor(signature(event), ["terminal"]);
+    if (action === "terminal.copy") return copySelection(term);
+    if (action !== "terminal.paste") return false;
+    void pasteText().then((text) => text && term.paste(text));
+    return true;
+  };
 
   export function focus() {
     pendingFocus = terminal === null;
@@ -88,6 +106,7 @@
     term.attachCustomKeyEventHandler((event) => {
       if (event.type !== "keydown") return true;
       if (event.ctrlKey && !event.altKey && reserved.includes(event.key.toLowerCase())) return false;
+      if (clipboardHandled(term, event)) return false;
       return !(event.ctrlKey && event.key === "Tab");
     });
 
