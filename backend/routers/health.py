@@ -14,8 +14,6 @@ router = APIRouter(tags=["Health"])
 
 @router.get("/health")
 def health(request: Request):
-    """The one route the gate lets through unauthenticated, so it reports whether the
-    caller's credentials would pass anywhere else."""
     return api_response(data={
         "sdk": sdk_status(),
         "version": SERVER_VERSION,

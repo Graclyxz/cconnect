@@ -13,13 +13,13 @@ router = APIRouter(tags=["Claude"])
 
 
 @router.get("/claude/usage")
-async def get_usage(account: str | None = None):
-    return api_response(data=await usage_service.usage_data(account))
+async def get_usage(account: str | None = None, force: bool = False):
+    return api_response(data=await usage_service.usage_data(account, force))
 
 
 @router.get("/claude/status")
-async def get_status():
-    return api_response(data=await claude_status.service_status())
+async def get_status(force: bool = False):
+    return api_response(data=await claude_status.service_status(force))
 
 
 class PromptBody(BaseModel):

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,6 +17,8 @@ from services import accounts
 logger = logging.getLogger(__name__)
 
 _USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
+_CACHE_SECONDS = 60.0
+_cache: dict[str, tuple[float, dict]] = {}
 _BAR_WIDTH = 20
 _UNUSED_KEY = "unused"
 _UNUSED_TEXT = "You haven't used it yet"
@@ -131,11 +134,17 @@ def _spend(data: dict) -> dict | None:
     }
 
 
-async def usage_data(account: str | None = None) -> dict:
+async def usage_data(account: str | None = None, force: bool = False) -> dict:
+    key = account or ""
+    cached = _cache.get(key)
+    if cached and not force and time.monotonic() - cached[0] < _CACHE_SECONDS:
+        return cached[1]
     data = await _fetch(account)
     if "error" in data:
-        return {"error": data["error"]}
-    return {"plan": _plan_label(account), "windows": _windows(data)}
+        return cached[1] if cached else {"error": data["error"]}
+    fresh = {"plan": _plan_label(account), "windows": _windows(data)}
+    _cache[key] = (time.monotonic(), fresh)
+    return fresh
 
 
 def window_label(wid: str) -> str:

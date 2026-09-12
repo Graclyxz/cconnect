@@ -91,6 +91,8 @@
   import { readSharedLocation, syncSharedLocation } from "./sharedUrl";
   import ToolbarAction from "./ToolbarAction.svelte";
   import { pastedName } from "$lib/data/pastedFile";
+  import { isEditing } from "$lib/data/paneFocus.svelte";
+  import { isTouch } from "$lib/platform";
   import { useShortcut } from "$lib/platform/useShortcut.svelte";
 
   type SortKey = "name" | "date" | "type" | "size";
@@ -148,7 +150,7 @@
   ];
 
   const watcher = new SharedWatch();
-  const initial = readSharedLocation();
+  const initial = compact ? null : readSharedLocation();
 
   const home = $derived(tabs.state.historyProject || "");
 
@@ -272,6 +274,11 @@
       !transfer.folders.some((folder) => path === folder || path.startsWith(`${folder}/`)) &&
       (transfer.kind !== "move" || path !== transfer.sourceDir),
   );
+
+  const selectAll = () => {
+    selecting = true;
+    selected = allSelected ? [] : entries.map((entry) => entry.name);
+  };
 
   const exitSelection = () => {
     selecting = false;
@@ -540,7 +547,7 @@
       !navigation.previewOverlay,
   );
 
-  const stepBack = () => {
+  const cancelMode = () => {
     if (panes.previewing || navigation.preview !== null) return false;
     if (selecting) {
       exitSelection();
@@ -555,6 +562,11 @@
       transfer = null;
       return true;
     }
+    return false;
+  };
+
+  const stepUp = () => {
+    if (panes.previewing || navigation.preview !== null) return false;
     if (archive !== null || (path && path !== home)) {
       goUp();
       return true;
@@ -562,12 +574,14 @@
     return false;
   };
 
+  const stepBack = () => (isTouch ? cancelMode() || stepUp() : stepUp() || cancelMode());
+
   const onKeydown = (event: KeyboardEvent) => {
     if (!engaged) return;
     const active = document.activeElement;
     if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
     if (event.key === "Escape") {
-      if (stepBack()) {
+      if (cancelMode()) {
         event.preventDefault();
         event.stopImmediatePropagation();
       }
@@ -580,6 +594,10 @@
     startTransfer(mode);
   };
 
+  useShortcut("shared.selectAll", () => {
+    if (!engaged || isEditing() || archive !== null || !entries.length) return false;
+    selectAll();
+  });
   useShortcut("shared.copy", () => startIfAllowed("copy"));
   useShortcut("shared.cut", () => startIfAllowed("move"));
   useShortcut("shared.paste", () => {
@@ -633,7 +651,7 @@
   });
 
   $effect(() => {
-    syncSharedLocation({ path, archive, archiveDir });
+    if (!compact) syncSharedLocation({ path, archive, archiveDir });
   });
 
 
@@ -713,7 +731,8 @@
     <TooltipIconButton
       label={t("SELECT_ALL")}
       class={actionClass}
-      onclick={() => (selected = allSelected ? [] : entries.map((entry) => entry.name))}
+      shortcut="shared.selectAll"
+      onclick={selectAll}
     >
       <SelectionDot selected={allSelected} />
     </TooltipIconButton>

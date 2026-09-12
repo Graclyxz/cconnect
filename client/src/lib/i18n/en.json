@@ -620,6 +620,7 @@
   "SHORTCUT_TERMINAL_TAB_PREVIOUS": "Previous terminal tab",
   "SHORTCUT_TERMINAL_COPY": "Copy selection",
   "SHORTCUT_TERMINAL_PASTE": "Paste",
+  "SHORTCUT_SHARED_SELECT_ALL": "Select all",
   "SHORTCUT_SHARED_COPY": "Copy files",
   "SHORTCUT_SHARED_CUT": "Cut files",
   "SHORTCUT_SHARED_PASTE": "Paste files",

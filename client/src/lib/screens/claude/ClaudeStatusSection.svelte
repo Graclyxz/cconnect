@@ -30,10 +30,14 @@
     })(),
   );
 
+  let asked: number | null = null;
+
   $effect(() => {
-    void tick;
+    const current = tick;
     void backend.activeId;
-    void claudeStatus.loadService();
+    const manual = asked !== null && current !== asked;
+    asked = current;
+    void claudeStatus.loadService(manual);
   });
 </script>
 

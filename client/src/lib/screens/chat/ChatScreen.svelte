@@ -6,6 +6,7 @@
   import { closeFilePreview, expandFilePreview } from "$lib/app/filePreview";
   import { navigation } from "$lib/app/navigation.svelte";
   import { chatListFor } from "$lib/data/chatList.svelte";
+  import { claudeRefresh } from "$lib/data/claudeRefresh.svelte";
   import { accentAt } from "$lib/design/accents";
   import { sessionColorOf } from "$lib/design/sessionColors";
   import { accentVars, theme } from "$lib/design/theme.svelte";
@@ -22,9 +23,11 @@
   import Drawer from "$lib/ui/Drawer.svelte";
   import NoticeCard from "$lib/ui/NoticeCard.svelte";
   import RenameDialog from "$lib/ui/RenameDialog.svelte";
+  import PullToRefresh from "$lib/ui/PullToRefresh.svelte";
   import TooltipIconButton from "$lib/ui/TooltipIconButton.svelte";
   import { resizeHandle } from "$lib/ui/resizeHandle";
   import ClaudeDetail, { type ClaudeKind } from "$lib/screens/claude/ClaudeDetail.svelte";
+  import ClaudeActions from "$lib/screens/claude/ClaudeActions.svelte";
   import ClaudeSections from "$lib/screens/claude/ClaudeSections.svelte";
   import ProjectFilesScreen from "$lib/screens/project/ProjectFilesScreen.svelte";
   import FilePreview from "$lib/screens/shared/FilePreview.svelte";
@@ -76,7 +79,6 @@
   let leftWidth = $state(settings.leftWidth);
   let rightWidth = $state(settings.rightWidth);
   let rightDragging = $state(false);
-  let claudeTick = $state(0);
   let claudeDetail = $state<ClaudeKind | null>(null);
 
   const chatFocused = $derived(layout.mobile || panes.focused === "center");
@@ -387,14 +389,19 @@
             {#if claudeDetail}
               <ClaudeDetail kind={claudeDetail} onClose={() => (claudeDetail = null)} />
             {:else}
-              <PaneHeader title={t("CLAUDE")} />
-              <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
-                <ClaudeSections
-                  tick={claudeTick}
-                  onOpen={(kind) => (claudeDetail = kind)}
-                  onAccountsChanged={() => claudeTick++}
-                />
-              </div>
+              <PaneHeader title={t("CLAUDE")} actions={claudeActions} />
+              <PullToRefresh
+                refreshing={claudeRefresh.refreshing}
+                onRefresh={() => void claudeRefresh.run()}
+              >
+                <div class="px-4 pb-4">
+                  <ClaudeSections
+                    tick={claudeRefresh.tick}
+                    onOpen={(kind) => (claudeDetail = kind)}
+                    onAccountsChanged={() => void claudeRefresh.run()}
+                  />
+                </div>
+              </PullToRefresh>
             {/if}
           </PaneSurface>
         {:else}
@@ -457,6 +464,10 @@
 
 {#snippet monitorActions()}
   <MonitorActions />
+{/snippet}
+
+{#snippet claudeActions()}
+  <ClaudeActions />
 {/snippet}
 
 {#snippet sideActions()}

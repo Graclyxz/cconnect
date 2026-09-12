@@ -57,7 +57,7 @@ class Desktop {
         navigation.back();
       } else if (event.button === SIDE_FORWARD) {
         event.preventDefault();
-        window.history.forward();
+        navigation.forward();
       }
     });
   }

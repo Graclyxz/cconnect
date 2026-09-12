@@ -168,6 +168,11 @@ class Navigation {
     return false;
   }
 
+  forward() {
+    if (this.routeLocked) return;
+    window.history.forward();
+  }
+
   back() {
     if (this.close()) return;
     if (this.routeLocked) return;

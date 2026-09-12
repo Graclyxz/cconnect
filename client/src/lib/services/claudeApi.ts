@@ -102,8 +102,11 @@ const toAction = (data: Wire | null): ActionResult => ({
 });
 
 export const createClaudeApi = (client: HttpClient, profile: () => Profile) => ({
-  async usage(account: string | null = null): Promise<Usage | null> {
-    const data = await client.get<Wire>("/claude/usage", account ? { account } : undefined);
+  async usage(account: string | null = null, force = false): Promise<Usage | null> {
+    const data = await client.get<Wire>("/claude/usage", {
+      ...(account ? { account } : {}),
+      ...(force ? { force: true } : {}),
+    });
     if (!data) return null;
     return {
       plan: data.plan ?? null,
@@ -117,8 +120,8 @@ export const createClaudeApi = (client: HttpClient, profile: () => Profile) => (
     };
   },
 
-  async status(): Promise<ServiceStatus | null> {
-    const data = await client.get<Wire>("/claude/status");
+  async status(force = false): Promise<ServiceStatus | null> {
+    const data = await client.get<Wire>("/claude/status", force ? { force: true } : undefined);
     if (!data) return null;
     return {
       indicator: data.indicator ?? "none",

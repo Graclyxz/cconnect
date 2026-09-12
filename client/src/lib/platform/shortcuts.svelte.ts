@@ -59,6 +59,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: "browser.copy", label: "SHORTCUT_BROWSER_COPY", scope: "browser", keys: "Mod+KeyC" },
   { id: "browser.cut", label: "SHORTCUT_BROWSER_CUT", scope: "browser", keys: "Mod+KeyX" },
   { id: "browser.paste", label: "SHORTCUT_BROWSER_PASTE", scope: "browser", keys: "Mod+KeyV" },
+  { id: "shared.selectAll", label: "SHORTCUT_SHARED_SELECT_ALL", scope: "shared", keys: "Mod+KeyA" },
   { id: "shared.copy", label: "SHORTCUT_SHARED_COPY", scope: "shared", keys: "Mod+KeyC" },
   { id: "shared.cut", label: "SHORTCUT_SHARED_CUT", scope: "shared", keys: "Mod+KeyX" },
   { id: "shared.paste", label: "SHORTCUT_SHARED_PASTE", scope: "shared", keys: "Mod+KeyV" },

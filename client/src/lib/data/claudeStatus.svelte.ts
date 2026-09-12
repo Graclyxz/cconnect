@@ -1,4 +1,5 @@
-import { accountsApi, type AccountsSnapshot } from "$lib/services/accountsApi";
+import { accountsStore } from "$lib/data/accountsStore.svelte";
+import { type AccountsSnapshot } from "$lib/services/accountsApi";
 import { backend } from "$lib/services/backend.svelte";
 import {
   claudeApi,
@@ -49,6 +50,8 @@ class ClaudeStatus {
 
   #slots = new Map<string, ClaudeSnapshot>();
   #environmentId: string | null = null;
+  #usageRun: Promise<void> | null = null;
+  #usageAgain = false;
 
   async loadCli() {
     const at = this.#sync();
@@ -86,20 +89,34 @@ class ClaudeStatus {
     this.mcpServers = mcpServers;
   }
 
-  async loadService() {
+  async loadService(force = false) {
     const at = this.#sync();
     this.loading = this.service === null;
-    const value = backend.configured ? await claudeApi.status() : null;
+    const value = backend.configured ? await claudeApi.status(force) : null;
     if (at !== backend.activeId) return;
     this.service = value;
     this.loading = false;
   }
 
-  async loadUsage() {
+  async loadUsage(force = false): Promise<void> {
+    if (this.#usageRun) {
+      this.#usageAgain ||= force;
+      return this.#usageRun;
+    }
+    this.#usageRun = this.#runUsage(force);
+    await this.#usageRun;
+    this.#usageRun = null;
+    if (!this.#usageAgain) return;
+    this.#usageAgain = false;
+    await this.loadUsage(true);
+  }
+
+  async #runUsage(force: boolean) {
     const at = this.#sync();
     this.usageLoading = this.usage === null;
-    const accounts = await accountsApi.list();
-    const usage = await claudeApi.usage(accounts?.default ?? null);
+    await accountsStore.load();
+    const accounts = accountsStore.snapshot;
+    const usage = await claudeApi.usage(accounts?.default ?? null, force);
     if (at !== backend.activeId) return;
     this.accounts = accounts;
     this.usage = usage;
