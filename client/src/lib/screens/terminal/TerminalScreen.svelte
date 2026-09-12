@@ -9,7 +9,6 @@
   let active = $state<SshProfile | null>(null);
 
   const open = (profile: SshProfile) => {
-    navigation.pushLayer();
     active = profile;
   };
 
@@ -28,7 +27,7 @@
     title={profile.name || profile.host}
     connect={(hooks, cols, rows) => sshLink(profile, hooks, cols, rows)}
     unavailable={!isTauri}
-    onClose={() => navigation.popLayer()}
+    onClose={() => (active = null)}
   />
 {:else}
   <SshHostsList onSelect={open} onBack={() => navigation.back()} />

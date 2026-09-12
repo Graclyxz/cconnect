@@ -1,7 +1,13 @@
 import { settings } from "$lib/data/settings.svelte";
 import { isTauri } from "$lib/platform";
 
-export type LocalServerError = "bad_dir" | "no_python" | "launch_failed" | "crashed";
+export type LocalServerError =
+  | "bad_dir"
+  | "no_python"
+  | "launch_failed"
+  | "crashed"
+  | "port_busy"
+  | "mode_mismatch";
 
 export interface LocalServerInfo {
   managed: boolean;

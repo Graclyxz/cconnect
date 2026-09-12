@@ -20,11 +20,22 @@ def _provided_token(authorization: str, query_token: str) -> str:
     return query_token or ""
 
 
-def ws_bearer_ok(ws: WebSocket) -> bool:
+def _token_ok(authorization: str, query_token: str) -> bool:
     if PUBLIC_ACCESS_TOKEN is None:
         return True
-    token = _provided_token(ws.headers.get("authorization", ""), ws.query_params.get("token", ""))
-    return hmac.compare_digest(token, PUBLIC_ACCESS_TOKEN)
+    provided = _provided_token(authorization, query_token)
+    return bool(provided) and hmac.compare_digest(provided, PUBLIC_ACCESS_TOKEN)
+
+
+def ws_bearer_ok(ws: WebSocket) -> bool:
+    return _token_ok(ws.headers.get("authorization", ""), ws.query_params.get("token", ""))
+
+
+def http_bearer_ok(request: Request) -> bool:
+    return _token_ok(
+        request.headers.get("authorization", ""),
+        request.query_params.get("token", ""),
+    )
 
 
 class PublicAuthMiddleware(BaseHTTPMiddleware):
@@ -33,12 +44,7 @@ class PublicAuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         if request.url.path in _OPEN_PATHS:
             return await call_next(request)
-
-        provided = _provided_token(
-            request.headers.get("authorization", ""),
-            request.query_params.get("token", ""),
-        )
-        if not provided or not hmac.compare_digest(provided, PUBLIC_ACCESS_TOKEN):
+        if not http_bearer_ok(request):
             return api_response(status=401)
 
         return await call_next(request)

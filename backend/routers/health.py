@@ -1,18 +1,21 @@
 """Health endpoint — liveness plus SDK status and the version contract.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from core import access, cli_manager, config
 from core.config import SERVER_VERSION, SUPPORTED_APP, SUPPORTED_CLI
 from core.responses import api_response
 from core.sdk import sdk_status
+from middleware.public_auth import http_bearer_ok
 
 router = APIRouter(tags=["Health"])
 
 
 @router.get("/health")
-def health():
+def health(request: Request):
+    """The one route the gate lets through unauthenticated, so it reports whether the
+    caller's credentials would pass anywhere else."""
     return api_response(data={
         "sdk": sdk_status(),
         "version": SERVER_VERSION,
@@ -21,6 +24,7 @@ def health():
         "supported_cli": SUPPORTED_CLI,
         "exposure": {
             "gated": access.gated(),
+            "authorized": http_bearer_ok(request),
             "public_url": config.PUBLIC_URL or None,
         },
     })

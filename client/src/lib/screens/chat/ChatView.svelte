@@ -202,7 +202,7 @@
 
   $effect(() =>
     navigation.intercept(() => {
-      if (!chat.sideOpen) return false;
+      if (!navigation.chatActive || !chat.sideOpen) return false;
       closeSide();
       return true;
     }),

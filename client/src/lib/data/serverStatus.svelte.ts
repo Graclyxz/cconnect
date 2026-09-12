@@ -7,10 +7,10 @@ import { latestRelease, type Release } from "$lib/services/githubApi";
 
 const POLL_MS = 30_000;
 
-export type CompatNotice = "app_outdated" | "server_outdated" | "cli_outdated";
+export type CompatNotice = "app_outdated" | "server_outdated" | "cli_outdated" | "unauthorized";
 
 class ServerStatus {
-  online = $state(false);
+  reachable = $state(false);
   checking = $state(true);
   version = $state<VersionInfo | null>(null);
   release = $state<Release | null>(null);
@@ -18,6 +18,10 @@ class ServerStatus {
   releaseChecked = $state(false);
 
   #releaseRequested = false;
+
+  readonly unauthorized = $derived(this.reachable && this.version?.gated === true && !this.version.authorized);
+
+  readonly online = $derived(this.reachable && !this.unauthorized);
 
   readonly unavailable = $derived(!this.checking && !this.online);
 
@@ -28,7 +32,8 @@ class ServerStatus {
   );
 
   readonly notices = $derived.by<CompatNotice[]>(() => {
-    if (!this.online) return [];
+    if (!this.reachable) return [];
+    if (this.unauthorized) return ["unauthorized"];
     const notices: CompatNotice[] = [];
     if (this.appOutdated) notices.push("app_outdated");
     if (this.serverOutdated) notices.push("server_outdated");
@@ -56,7 +61,7 @@ class ServerStatus {
           void this.refresh();
           return;
         }
-        if (opened) this.online = false;
+        if (opened) this.reachable = false;
       });
     });
   }
@@ -73,7 +78,7 @@ class ServerStatus {
   async refresh() {
     const version = await capabilitiesApi.versionInfo();
     this.version = version;
-    this.online = version !== null;
+    this.reachable = version !== null;
     this.checking = false;
   }
 }

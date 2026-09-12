@@ -17,6 +17,8 @@
   import { useSettingsDialog } from "./useSettingsDialog.svelte";
   import { localServerValue } from "./settingsValues";
 
+  const PROBE_MS = 2000;
+
   let confirm = $state<"restart" | "stop" | null>(null);
   let dialog = $state(false);
 
@@ -44,7 +46,11 @@
   $effect(() => {
     let stop: (() => void) | null = null;
     void localServer.watch().then((unlisten) => (stop = unlisten));
-    return () => stop?.();
+    const probe = setInterval(() => void localServer.refresh(), PROBE_MS);
+    return () => {
+      stop?.();
+      clearInterval(probe);
+    };
   });
 </script>
 

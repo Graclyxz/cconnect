@@ -144,7 +144,7 @@
 
   $effect(() =>
     navigation.intercept(() => {
-      if (!managing) return false;
+      if (!navigation.chatActive || !managing) return false;
       managing = false;
       return true;
     }),

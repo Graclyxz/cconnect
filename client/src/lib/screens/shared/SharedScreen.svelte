@@ -295,7 +295,6 @@
         searching = false;
         searchQuery = "";
       }
-      navigation.pushLayer();
       return;
     }
     if (archive !== null) {
@@ -619,17 +618,6 @@
     syncSharedLocation({ path, archive, archiveDir });
   });
 
-  $effect(() => {
-    const onPopState = () => {
-      const location = readSharedLocation();
-      if (!location) return;
-      path = location.path;
-      archive = location.archive;
-      archiveDir = location.archiveDir;
-    };
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  });
 
   $effect(() => {
     void backend.activeId;

@@ -69,6 +69,7 @@
     app_outdated: "COMPAT_APP_OUTDATED",
     server_outdated: "COMPAT_SERVER_OUTDATED",
     cli_outdated: "COMPAT_CLI_OUTDATED",
+    unauthorized: "COMPAT_UNAUTHORIZED",
   };
 
   let expanded = $state(settings.leftExpanded);
@@ -100,16 +101,25 @@
 
   $effect(() =>
     navigation.intercept(() => {
-      if (!terminalTabs.overlayOpen) return false;
+      if (!navigation.chatActive || !terminalTabs.overlayOpen) return false;
       terminalTabs.overlayOpen = false;
       return true;
     }),
   );
 
   $effect(() => {
+    if (navigation.chatActive) return;
+    drawer.open = false;
+  });
+
+  $effect(() => {
+    navigation.routeLocked =
+      navigation.chatActive && !layout.mobile && panes.open && panes.focused === "right";
+  });
+
+  $effect(() => {
     if (layout.mobile || !terminalTabs.overlayOpen) return;
     terminalTabs.overlayOpen = false;
-    navigation.popLayer();
   });
 
   const notices = $derived(serverStatus.notices.filter((notice) => !dismissed.includes(notice)));
@@ -149,7 +159,7 @@
 
   $effect(() =>
     navigation.intercept(() => {
-      if (claudeDetail === null) return false;
+      if (!navigation.chatActive || claudeDetail === null) return false;
       claudeDetail = null;
       return true;
     }),
@@ -157,7 +167,7 @@
 
   $effect(() =>
     navigation.intercept(() => {
-      if (!panes.previewing) return false;
+      if (!navigation.chatActive || !panes.previewing) return false;
       closeFilePreview();
       return true;
     }),
@@ -221,7 +231,7 @@
 
   $effect(() =>
     navigation.intercept(() => {
-      if (!drawer.open) return false;
+      if (!navigation.chatActive || !drawer.open) return false;
       drawer.open = false;
       return true;
     }),
@@ -233,7 +243,7 @@
     class="safe-area fixed inset-x-0 top-0 z-40 bg-surface"
     style="height: calc(100% - var(--keyboard, 0px))"
   >
-    <TerminalView cwd={terminalCwd} onClose={() => navigation.popLayer()} />
+    <TerminalView cwd={terminalCwd} onClose={() => (terminalTabs.overlayOpen = false)} />
   </div>
 {/if}
 
@@ -424,7 +434,8 @@
           actionLabel={t("SETTINGS")}
           onAction={() => {
             dismissed = [...dismissed, notice];
-            if (notice === "server_outdated") navigation.openSettings("server");
+            if (notice === "unauthorized") navigation.openSettings("environments");
+            else if (notice === "server_outdated") navigation.openSettings("server");
             else if (notice !== "cli_outdated") navigation.openSettings("about");
             else if (layout.mobile) navigation.openClaude("cli");
             else navigation.openSettings("cli");

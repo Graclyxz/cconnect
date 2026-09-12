@@ -71,6 +71,8 @@ export interface VersionInfo {
   supportedApp: string | null;
   cliVersion: string | null;
   supportedCli: string | null;
+  gated: boolean;
+  authorized: boolean;
 }
 
 interface VersionWire {
@@ -78,6 +80,7 @@ interface VersionWire {
   supported_app?: string;
   cli_version?: string;
   supported_cli?: string;
+  exposure?: { gated?: boolean; authorized?: boolean };
 }
 
 interface ModelWire {
@@ -116,6 +119,8 @@ const toVersion = (data: VersionWire): VersionInfo => ({
   supportedApp: data.supported_app ?? null,
   cliVersion: data.cli_version ?? null,
   supportedCli: data.supported_cli ?? null,
+  gated: data.exposure?.gated === true,
+  authorized: data.exposure?.authorized !== false,
 });
 
 const toOptions = (raw: Array<{ id?: string; label?: string }> | undefined): LabeledOption[] =>

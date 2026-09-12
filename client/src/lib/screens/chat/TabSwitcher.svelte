@@ -5,7 +5,6 @@
   import X from "@lucide/svelte/icons/x";
   import { Dialog } from "bits-ui";
   import { pushDismiss } from "$lib/app/dismissStack";
-  import { navigation } from "$lib/app/navigation.svelte";
   import { sessionColorOf } from "$lib/design/sessionColors";
   import { terminalTabs, type TerminalTab } from "$lib/data/terminalTabs.svelte";
   import { t } from "$lib/i18n/index.svelte";
@@ -31,7 +30,6 @@
 
   const showTerminal = (id: string) => {
     terminalTabs.select(id);
-    navigation.pushLayer();
     terminalTabs.overlayOpen = true;
     open = false;
   };
@@ -39,7 +37,6 @@
   const newTerminal = async () => {
     const created = await terminalTabs.create(cwd);
     if (created) terminalTabs.select(created.id);
-    navigation.pushLayer();
     terminalTabs.overlayOpen = true;
     open = false;
   };

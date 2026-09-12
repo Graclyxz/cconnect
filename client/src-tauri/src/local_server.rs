@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 const PROBE_TIMEOUT_MS: u64 = 400;
+const HEALTH_TIMEOUT_MS: u64 = 2500;
 const READY_ATTEMPTS: u32 = 60;
 const STOP_ATTEMPTS: u32 = 20;
 const READY_DELAY_MS: u64 = 500;
@@ -123,8 +124,29 @@ fn access_token(dir: &Path) -> Option<String> {
     env_secret(dir, TOKEN_KEY)
 }
 
-fn sync_credentials(config: &LocalServerConfig, info: &mut LocalServerInfo, ready: bool) {
-    let exposure = ready.then(|| running_exposure(info.port)).flatten();
+fn expects_gate(config: &LocalServerConfig) -> bool {
+    config.mode != "local"
+}
+
+fn matching_exposure(config: &LocalServerConfig, port: u16) -> Option<(bool, Option<String>)> {
+    running_exposure(port).filter(|(gated, _)| *gated == expects_gate(config))
+}
+
+fn wait_ready(config: &LocalServerConfig, port: u16, attempts: u32) -> Option<(bool, Option<String>)> {
+    for _ in 0..attempts {
+        if let Some(exposure) = matching_exposure(config, port) {
+            return Some(exposure);
+        }
+        std::thread::sleep(Duration::from_millis(READY_DELAY_MS));
+    }
+    matching_exposure(config, port)
+}
+
+fn sync_credentials(
+    config: &LocalServerConfig,
+    info: &mut LocalServerInfo,
+    exposure: Option<(bool, Option<String>)>,
+) {
     let Some((gated, public_url)) = exposure else {
         info.public_url = None;
         info.token = None;
@@ -163,7 +185,7 @@ fn running_exposure(port: u16) -> Option<(bool, Option<String>)> {
 
 fn get(port: u16, path: &str) -> Option<String> {
     let address = SocketAddr::from(([127, 0, 0, 1], port));
-    let timeout = Duration::from_millis(PROBE_TIMEOUT_MS);
+    let timeout = Duration::from_millis(HEALTH_TIMEOUT_MS);
     let mut stream = TcpStream::connect_timeout(&address, timeout).ok()?;
     let _ = stream.set_write_timeout(Some(timeout));
     let _ = stream.set_read_timeout(Some(timeout));
@@ -281,16 +303,30 @@ pub fn local_server_status(
     };
     let dir = PathBuf::from(&config.dir);
     let port = resolve_port(&dir);
-    let ready = port_open(port);
+    let open = port_open(port);
+    {
+        let mut inner = state.inner.lock().unwrap();
+        if open && inner.info.ready && inner.info.port == port {
+            inner.info.managed = managed;
+            return inner.info.clone();
+        }
+    }
+    let exposure = open.then(|| running_exposure(port)).flatten();
+    let usable = exposure.as_ref().map(|(gated, _)| *gated == expects_gate(&config));
+    let ready = usable == Some(true);
     let mut inner = state.inner.lock().unwrap();
-    inner.info.managed = managed || (ready && recorded_pid(&dir).is_some());
+    inner.info.managed = managed;
     inner.info.ready = ready;
     inner.info.port = port;
     if ready {
         inner.info.error = None;
         inner.info.error_detail = None;
+    } else if usable == Some(false) {
+        inner.info.error = Some("mode_mismatch".into());
+    } else if open && !managed {
+        inner.info.error = Some("port_busy".into());
     }
-    sync_credentials(&config, &mut inner.info, ready);
+    sync_credentials(&config, &mut inner.info, exposure.filter(|_| ready));
     inner.info.clone()
 }
 
@@ -322,7 +358,14 @@ fn start_inner(
     }
 
     if port_open(port) {
-        info.ready = true;
+        match running_exposure(port) {
+            Some(exposure) if exposure.0 == expects_gate(config) => {
+                info.ready = true;
+                sync_credentials(config, &mut info, Some(exposure));
+            }
+            Some(_) => info.error = Some("mode_mismatch".into()),
+            None => info.error = Some("port_busy".into()),
+        }
         state.inner.lock().unwrap().info = info.clone();
         emit(app, &info);
         return Ok(info);
@@ -377,9 +420,9 @@ fn start_inner(
     let ready_app = app.clone();
     let ready_config = config.clone();
     std::thread::spawn(move || {
-        if !wait_port(port, true, READY_ATTEMPTS) {
+        let Some(exposure) = wait_ready(&ready_config, port, READY_ATTEMPTS) else {
             return;
-        }
+        };
         let state = ready_app.state::<LocalServerState>();
         let mut inner = state.inner.lock().unwrap();
         if inner.generation != generation {
@@ -388,7 +431,7 @@ fn start_inner(
         inner.info.managed = true;
         inner.info.ready = true;
         inner.info.port = port;
-        sync_credentials(&ready_config, &mut inner.info, true);
+        sync_credentials(&ready_config, &mut inner.info, Some(exposure));
         let info = inner.info.clone();
         drop(inner);
         let _ = ready_app.emit(STATUS_EVENT, info);
@@ -573,13 +616,14 @@ pub fn local_server_restart(
         return Ok(state.inner.lock().unwrap().info.clone());
     }
     wait_port(port, false, STOP_ATTEMPTS);
-    let ready = wait_port(port, true, READY_ATTEMPTS);
+    let exposure = wait_ready(&config, port, READY_ATTEMPTS);
     let mut inner = state.inner.lock().unwrap();
     inner.info = LocalServerInfo {
-        ready,
+        ready: exposure.is_some(),
         port,
         ..LocalServerInfo::default()
     };
+    sync_credentials(&config, &mut inner.info, exposure);
     let info = inner.info.clone();
     drop(inner);
     emit(&app, &info);

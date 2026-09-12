@@ -50,6 +50,10 @@ class Navigation {
 
   readonly previewOverlay = $derived(this.preview !== null && !this.previewPane);
 
+  readonly chatActive = $derived(this.route === "/");
+
+  routeLocked = $state(false);
+
   start() {
     if (blocked(baseOf(window.location.pathname))) {
       window.history.replaceState(null, "", "/");
@@ -72,7 +76,7 @@ class Navigation {
     $effect(() => {
       const onPopState = () => {
         if (dismissTop()) {
-          window.history.pushState(null, "", window.location.href);
+          window.history.pushState(null, "", this.#url());
           return;
         }
         if (this.previewOverlay) {
@@ -80,11 +84,7 @@ class Navigation {
           return;
         }
         if (this.#dismiss()) {
-          window.history.pushState(null, "", window.location.href);
-          return;
-        }
-        if (this.#layers > 0) {
-          this.#layers--;
+          window.history.pushState(null, "", this.#url());
           return;
         }
         this.route = currentRoute();
@@ -97,7 +97,6 @@ class Navigation {
 
   navigate(target: Route) {
     if (this.route === target && this.sub === null) return;
-    this.#layers = 0;
     this.sub = null;
     window.history.pushState(null, "", target);
     this.route = target;
@@ -153,15 +152,6 @@ class Navigation {
     if (this.previewOverlay) window.history.back();
   }
 
-  pushLayer() {
-    this.#layers++;
-    window.history.pushState({ layer: this.#layers }, "", window.location.href);
-  }
-
-  popLayer() {
-    if (this.#layers > 0) window.history.back();
-  }
-
   intercept(handler: () => boolean) {
     this.#interceptors.push(handler);
     return () => {
@@ -175,18 +165,20 @@ class Navigation {
       return true;
     }
     if (this.#dismiss()) return true;
-    if (this.#layers > 0) {
-      this.popLayer();
-      return true;
-    }
     return false;
   }
 
   back() {
     if (this.close()) return;
+    if (this.routeLocked) return;
     this.settingsHighlight = null;
     this.sharedArchive = null;
     window.history.back();
+  }
+
+  #url(): string {
+    const path = this.sub === null ? this.route : `${this.route}/${encodeURIComponent(this.sub)}`;
+    return window.location.pathname === path ? path + window.location.search : path;
   }
 
   #dismiss(): boolean {
@@ -196,7 +188,6 @@ class Navigation {
     return false;
   }
 
-  #layers = 0;
   #interceptors: (() => boolean)[] = [];
 }
 

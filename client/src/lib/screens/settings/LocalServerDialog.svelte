@@ -53,6 +53,8 @@
     if (info.error === "bad_dir") return t("LOCAL_SERVER_BAD_DIR");
     if (info.error === "no_python") return t("LOCAL_SERVER_NO_PYTHON");
     if (info.error === "launch_failed") return t("LOCAL_SERVER_LAUNCH_FAILED");
+    if (info.error === "port_busy") return t("LOCAL_SERVER_PORT_BUSY", info.port);
+    if (info.error === "mode_mismatch") return t("LOCAL_SERVER_MODE_MISMATCH");
     if (info.error === "crashed") return info.errorDetail ?? t("LOCAL_SERVER_STOPPED");
     return null;
   });
