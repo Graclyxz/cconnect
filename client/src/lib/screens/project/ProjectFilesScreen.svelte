@@ -33,6 +33,7 @@
     type ProjectEntry,
   } from "$lib/services/projectFilesApi";
   import { ProjectWatch } from "$lib/services/projectWatch.svelte";
+  import { recallProject, rememberProject } from "./projectMemory";
   import AppTopBar from "$lib/ui/AppTopBar.svelte";
   import CenteredProgress from "$lib/ui/CenteredProgress.svelte";
   import EmptyState from "$lib/ui/EmptyState.svelte";
@@ -268,13 +269,22 @@
     else open(entry);
   };
 
+  const slot = $derived(`${backend.activeId ?? ""}|${projectKey ?? ""}`);
+
+  let placed = "";
+
   $effect(() => {
-    void projectKey;
+    const target = slot;
+    if (target === placed) return;
     untrack(() => {
-      children = {};
-      expanded = {};
-      closeFile();
+      if (placed) rememberProject(placed, { children, expanded, path: opened.path });
+      placed = target;
       results = null;
+      const saved = recallProject(target);
+      children = saved?.children ?? {};
+      expanded = saved?.expanded ?? {};
+      if (saved?.path) opened.path = saved.path;
+      else closeFile();
     });
   });
 

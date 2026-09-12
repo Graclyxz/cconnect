@@ -87,6 +87,7 @@
   import TooltipIconButton from "$lib/ui/TooltipIconButton.svelte";
   import PathBar from "./PathBar.svelte";
   import CompressDialog from "./CompressDialog.svelte";
+  import { recallShared, rememberShared } from "./sharedMemory";
   import { readSharedLocation, syncSharedLocation } from "./sharedUrl";
   import ToolbarAction from "./ToolbarAction.svelte";
   import { pastedName } from "$lib/data/pastedFile";
@@ -641,15 +642,21 @@
     untrack(() => (transfer = null));
   });
 
+  let listed = "";
+
   $effect(() => {
-    void backend.activeId;
+    const environment = backend.activeId;
     const current = archive;
-    void path;
-    void archiveDir;
-    exitSelection();
-    endGesture();
-    loaded = false;
-    entries = [];
+    const slot = `${environment ?? ""}|${current ?? ""}|${archiveDir}|${path}`;
+    untrack(() => {
+      if (listed) rememberShared(listed, entries);
+      listed = slot;
+      exitSelection();
+      endGesture();
+      const saved = recallShared(slot);
+      entries = saved ?? [];
+      loaded = saved !== undefined;
+    });
     watcher.watch(current === null ? path : current.split("/").slice(0, -1).join("/"));
     if (current !== null) void reload();
   });

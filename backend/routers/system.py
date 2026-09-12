@@ -2,7 +2,6 @@
 
 import asyncio
 import os
-import time
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
@@ -11,12 +10,10 @@ from core.config import RESTART_EXIT_CODE
 from core.responses import api_response
 from core.ws import send_event
 from middleware.public_auth import ws_bearer_ok
-from services import directories, repo, system_monitor
+from services import directories, repo, system_monitor, system_watch
 
 router = APIRouter(tags=["system"])
 
-_SNAPSHOT_INTERVAL = 2.0
-_LOG_TAIL_INTERVAL = 0.5
 _EXIT_DELAY = 0.5
 
 
@@ -82,19 +79,11 @@ async def system_ws(ws: WebSocket):
         await ws.close(code=1008)
         return
     await ws.accept()
-    offset = 0
-    next_snapshot = 0.0
+    queue = system_watch.hub.subscribe()
     try:
         while True:
-            now = time.monotonic()
-            if now >= next_snapshot:
-                next_snapshot = now + _SNAPSHOT_INTERVAL
-                snapshot = await asyncio.to_thread(system_monitor.snapshot)
-                await send_event(ws, {"type": "system", **snapshot})
-            chunk = await asyncio.to_thread(system_monitor.logs, offset)
-            offset = chunk["offset"]
-            if chunk["items"]:
-                await send_event(ws, {"type": "logs", "items": chunk["items"]})
-            await asyncio.sleep(_LOG_TAIL_INTERVAL)
+            await send_event(ws, await queue.get())
     except (WebSocketDisconnect, RuntimeError):
         pass
+    finally:
+        system_watch.hub.unsubscribe(queue)

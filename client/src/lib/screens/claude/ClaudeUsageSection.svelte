@@ -1,9 +1,8 @@
 <script lang="ts">
+  import { claudeStatus } from "$lib/data/claudeStatus.svelte";
   import { formatDayTime, parseIsoMillis } from "$lib/data/time";
   import { t } from "$lib/i18n/index.svelte";
-  import { accountsApi, type AccountsSnapshot } from "$lib/services/accountsApi";
   import { backend } from "$lib/services/backend.svelte";
-  import { claudeApi, type Usage } from "$lib/services/claudeApi";
   import EmptyState from "$lib/ui/EmptyState.svelte";
   import LoadingIndicator from "$lib/ui/LoadingIndicator.svelte";
   import MetricBar from "$lib/ui/MetricBar.svelte";
@@ -20,9 +19,9 @@
   const MILLIS_PER_MINUTE = 60_000;
   const HOURS_PER_DAY = 24;
 
-  let usage = $state<Usage | null>(null);
-  let accounts = $state<AccountsSnapshot | null>(null);
-  let loading = $state(true);
+  const usage = $derived(claudeStatus.usage);
+  const accounts = $derived(claudeStatus.accounts);
+  const loading = $derived(claudeStatus.usageLoading);
 
   const usageWindowLabel = (id: string) =>
     id === "session" ? t("USAGE_SESSION") : id === "weekly_all" ? t("USAGE_ALL_MODELS") : id;
@@ -51,14 +50,7 @@
   $effect(() => {
     void tick;
     void backend.activeId;
-    loading = true;
-    void accountsApi
-      .list()
-      .then(async (value) => {
-        accounts = value;
-        usage = await claudeApi.usage(value?.default ?? null);
-      })
-      .finally(() => (loading = false));
+    void claudeStatus.loadUsage();
   });
 </script>
 

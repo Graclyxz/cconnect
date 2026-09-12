@@ -75,6 +75,7 @@ export interface ServerUpdate {
 }
 
 export interface SystemHandlers {
+  onHistory: (samples: SystemInfo[], logs: LogEntry[]) => void;
   onInfo: (info: SystemInfo) => void;
   onLogs: (items: LogEntry[]) => void;
   onDrop: () => void;
@@ -183,6 +184,12 @@ export const createSystemApi = (client: HttpClient, profile: () => Profile) => (
         onMessage: (message) => {
           if (message.type === "system") handlers.onInfo(parseInfo(message));
           else if (message.type === "logs") handlers.onLogs(((message.items as Wire[]) ?? []).map(parseLog));
+          else if (message.type === "history") {
+            handlers.onHistory(
+              ((message.items as Wire[]) ?? []).map(parseInfo),
+              ((message.logs as Wire[]) ?? []).map(parseLog),
+            );
+          }
         },
         onDrop: handlers.onDrop,
       },
