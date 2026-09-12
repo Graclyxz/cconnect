@@ -6,6 +6,7 @@ import tarfile
 import tempfile
 import time
 import zipfile
+from contextlib import suppress
 from pathlib import Path
 from typing import Optional
 
@@ -72,11 +73,15 @@ def absolute_paths(relpaths: list[str]) -> list[str]:
     return [str(_resolve(rel)) for rel in relpaths]
 
 
-async def save_upload(relpath: str, chunks) -> str:
+async def save_upload(relpath: str, chunks, policy: str = "keep") -> str:
     path = _resolve(relpath)
     if path == _base().resolve() or path.is_dir():
         raise ValueError("invalid destination")
     path.parent.mkdir(parents=True, exist_ok=True)
+    if policy == "replace":
+        path.unlink(missing_ok=True)
+    elif policy == "skip" and path.exists():
+        return path.relative_to(_base().resolve()).as_posix()
     path = _reserve_target(path.parent, path.name)
     tmp = path.parent / f".{path.name}.part"
     try:
@@ -157,27 +162,78 @@ def _resolve_transfer(relpaths: list[str], dest: str) -> tuple[list[Path], Path]
     return sources, dest_dir
 
 
-def move_entries(relpaths: list[str], dest: str) -> int:
+def _clashes(src: Path, dest_dir: Path, prefix: str = "") -> list[str]:
+    """Files that already exist at the destination; folders merge instead of clashing."""
+    target = dest_dir / src.name
+    label = f"{prefix}{src.name}"
+    if not src.is_dir():
+        return [label] if target.exists() else []
+    if not target.is_dir():
+        return [label] if target.exists() else []
+    found: list[str] = []
+    for child in src.iterdir():
+        found.extend(_clashes(child, target, f"{label}/"))
+    return found
+
+
+def transfer_clashes(relpaths: list[str], dest: str) -> list[str]:
+    sources, dest_dir = _resolve_transfer(relpaths, dest)
+    found: list[str] = []
+    for src in sources:
+        if src.parent == dest_dir:
+            continue
+        found.extend(_clashes(src, dest_dir))
+    return found
+
+
+def _place(src: Path, dest_dir: Path, policy: str, move: bool) -> bool:
+    target = dest_dir / src.name
+
+    if src.is_dir() and target.is_dir():
+        for child in list(src.iterdir()):
+            _place(child, target, policy, move)
+        if move:
+            with suppress(OSError):
+                src.rmdir()
+        return True
+
+    if target.exists():
+        if policy == "skip":
+            return False
+        if policy == "replace":
+            if target.is_dir():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
+        else:
+            target = _dedup_target(dest_dir, src.name)
+
+    if move:
+        shutil.move(str(src), str(target))
+    elif src.is_dir():
+        shutil.copytree(src, target)
+    else:
+        shutil.copy2(src, target)
+    return True
+
+
+def move_entries(relpaths: list[str], dest: str, policy: str = "keep") -> int:
     sources, dest_dir = _resolve_transfer(relpaths, dest)
     moved = 0
     for src in sources:
         if src.parent == dest_dir:
             continue
-        shutil.move(str(src), str(_dedup_target(dest_dir, src.name)))
-        moved += 1
+        if _place(src, dest_dir, policy, move=True):
+            moved += 1
     return moved
 
 
-def copy_entries(relpaths: list[str], dest: str) -> int:
+def copy_entries(relpaths: list[str], dest: str, policy: str = "keep") -> int:
     sources, dest_dir = _resolve_transfer(relpaths, dest)
     copied = 0
     for src in sources:
-        target = _dedup_target(dest_dir, src.name)
-        if src.is_dir():
-            shutil.copytree(src, target)
-        else:
-            shutil.copy2(src, target)
-        copied += 1
+        if _place(src, dest_dir, policy, move=False):
+            copied += 1
     return copied
 
 

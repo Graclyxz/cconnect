@@ -9,6 +9,8 @@ export interface SharedEntry {
   items: number;
 }
 
+export type ClashPolicy = "keep" | "replace" | "skip";
+
 type Wire = Record<string, any>;
 
 const encodePath = (path: string) =>
@@ -76,12 +78,17 @@ export const createSharedApi = (client: HttpClient) => ({
     return Array.isArray(data) ? data : null;
   },
 
-  async move(paths: string[], dest: string): Promise<boolean> {
-    return (await client.post("/shared/move", { paths, dest })) !== null;
+  async clashes(paths: string[], dest: string): Promise<string[]> {
+    const data = await client.post<Wire>("/shared/clashes", { paths, dest });
+    return (data?.names as string[]) ?? [];
   },
 
-  async copy(paths: string[], dest: string): Promise<boolean> {
-    return (await client.post("/shared/copy", { paths, dest })) !== null;
+  async move(paths: string[], dest: string, policy: ClashPolicy = "keep"): Promise<boolean> {
+    return (await client.post("/shared/move", { paths, dest, policy })) !== null;
+  },
+
+  async copy(paths: string[], dest: string, policy: ClashPolicy = "keep"): Promise<boolean> {
+    return (await client.post("/shared/copy", { paths, dest, policy })) !== null;
   },
 
   async compressFormats(): Promise<string[] | null> {

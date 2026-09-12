@@ -45,6 +45,7 @@
     archiveFileUrl,
     downloadUrl,
     sharedApi,
+    type ClashPolicy,
     type SharedEntry,
   } from "$lib/services/sharedApi";
   import {
@@ -67,6 +68,7 @@
   import PaneHeader from "$lib/screens/chat/PaneHeader.svelte";
   import AppTopBar from "$lib/ui/AppTopBar.svelte";
   import Button from "$lib/ui/Button.svelte";
+  import ClashDialog from "$lib/ui/ClashDialog.svelte";
   import CompactDialog from "$lib/ui/CompactDialog.svelte";
   import ConfirmDialog from "$lib/ui/ConfirmDialog.svelte";
   import DialogActionItem from "$lib/ui/DialogActionItem.svelte";
@@ -163,6 +165,8 @@
   let sortField = $state<SortKey>(settings.sharedSortField as SortKey);
   let sortAscending = $state(settings.sharedSortAscending);
   let hiddenKinds = $state(new Set(settings.sharedHiddenKinds));
+  let clashing = $state<string[] | null>(null);
+  let uploading = $state<File[] | null>(null);
   let confirmingDelete = $state(false);
   let renaming = $state<SharedEntry | null>(null);
   let creatingFolder = $state(false);
@@ -339,11 +343,19 @@
     exitSelection();
   };
 
-  const runTransfer = async () => {
+  const runTransfer = async (policy: ClashPolicy | null = null) => {
     const op = transfer;
     if (!op) return;
-    if (op.kind === "move") await sharedApi.move(op.paths, path);
-    else if (op.kind === "copy") await sharedApi.copy(op.paths, path);
+    if (policy === null && op.kind !== "extract") {
+      const names = await sharedApi.clashes(op.paths, path);
+      if (names.length) {
+        clashing = names;
+        return;
+      }
+    }
+    const chosen = policy ?? "keep";
+    if (op.kind === "move") await sharedApi.move(op.paths, path, chosen);
+    else if (op.kind === "copy") await sharedApi.copy(op.paths, path, chosen);
     else {
       await sharedApi.extract(op.paths[0], {
         dest: path,
@@ -353,6 +365,7 @@
       });
     }
     transfer = null;
+    clashing = null;
     await reload();
   };
 
@@ -1168,10 +1181,37 @@
     text={plural("UPLOAD_CONFIRM", files.length)}
     confirmLabel={t("UPLOAD")}
     onConfirm={() => {
-      files.forEach((file) => transfers.upload(file, path));
+      const taken = new Set(entries.map((entry) => entry.name));
+      const clashes = files.filter((file) => taken.has(file.name));
+      if (clashes.length) {
+        uploading = files;
+        clashing = clashes.map((file) => file.name);
+      } else {
+        files.forEach((file) => transfers.upload(file, path));
+      }
       pendingUploads = [];
     }}
     onDismiss={() => (pendingUploads = [])}
+  />
+{/if}
+
+{#if clashing}
+  <ClashDialog
+    names={clashing}
+    onChoose={(policy) => {
+      const files = uploading;
+      clashing = null;
+      if (!files) {
+        void runTransfer(policy);
+        return;
+      }
+      uploading = null;
+      files.forEach((file) => transfers.upload(file, path, policy));
+    }}
+    onDismiss={() => {
+      clashing = null;
+      uploading = null;
+    }}
   />
 {/if}
 

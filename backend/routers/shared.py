@@ -1,6 +1,7 @@
 """Browse, download, upload and manage files in the backend's shared/ folder from the mobile app."""
 
 import asyncio
+from typing import Literal
 from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -57,6 +58,7 @@ class RenameEntryBody(BaseModel):
 class TransferBody(BaseModel):
     paths: list[str]
     dest: str
+    policy: Literal["keep", "replace", "skip"] = "keep"
 
 
 class PathsBody(BaseModel):
@@ -91,10 +93,18 @@ def shared_paths(body: PathsBody):
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@router.post("/shared/clashes")
+def shared_clashes(body: TransferBody):
+    try:
+        return api_response(data={"names": shared_service.transfer_clashes(body.paths, body.dest)})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 @router.post("/shared/move")
 def move_shared(body: TransferBody):
     try:
-        count = shared_service.move_entries(body.paths, body.dest)
+        count = shared_service.move_entries(body.paths, body.dest, body.policy)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return api_response(data={"count": count})
@@ -103,7 +113,7 @@ def move_shared(body: TransferBody):
 @router.post("/shared/copy")
 def copy_shared(body: TransferBody):
     try:
-        count = shared_service.copy_entries(body.paths, body.dest)
+        count = shared_service.copy_entries(body.paths, body.dest, body.policy)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return api_response(data={"count": count})
@@ -182,9 +192,9 @@ def archive_file(path: str, inner: str):
 
 
 @router.put("/shared/{path:path}")
-async def upload_shared(path: str, request: Request):
+async def upload_shared(path: str, request: Request, policy: Literal["keep", "replace", "skip"] = "keep"):
     try:
-        saved = await shared_service.save_upload(path, request.stream())
+        saved = await shared_service.save_upload(path, request.stream(), policy)
     except ClientDisconnect:
         raise HTTPException(status_code=499, detail="upload cancelled by client")
     except ValueError as exc:

@@ -1,4 +1,5 @@
 import { backend, type Profile } from "$lib/services/backend.svelte";
+import type { ClashPolicy } from "$lib/services/sharedApi";
 import { uploadAttachment } from "$lib/services/uploadApi";
 
 export type TransferKind = "upload" | "download";
@@ -35,7 +36,7 @@ class TransferManager {
     return total / this.items.length;
   }
 
-  upload(file: File, dir: string, profile: Profile = backend.active) {
+  upload(file: File, dir: string, policy: ClashPolicy = "keep", profile: Profile = backend.active) {
     const id = this.#start("upload", file.name, dir);
     const abort = new AbortController();
     this.#aborts.set(id, abort);
@@ -45,6 +46,7 @@ class TransferManager {
       profile,
       dir ? `${dir}/${file.name}` : file.name,
       abort.signal,
+      policy,
     ).then((saved) => this.#settle(id, saved !== null));
   }
 
