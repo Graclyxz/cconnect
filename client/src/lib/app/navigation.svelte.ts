@@ -61,10 +61,7 @@ class Navigation {
 
     (window as unknown as { __cconnectBack?: () => boolean }).__cconnectBack = () => {
       if (dismissTop()) return true;
-      if (this.#layers > 0 || this.previewOverlay) {
-        window.history.back();
-        return true;
-      }
+      if (this.close()) return true;
       if (this.route === "/") return false;
       this.settingsHighlight = null;
       this.sharedArchive = null;

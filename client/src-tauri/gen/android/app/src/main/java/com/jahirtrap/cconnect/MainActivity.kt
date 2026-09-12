@@ -36,6 +36,7 @@ class MainActivity : TauriActivity() {
   private var pendingShare: String? = null
   private var shareAttempts = 0
   private var selecting = false
+  @Volatile private var selectableTarget = false
 
   private val backCallback = object : OnBackPressedCallback(true) {
     override fun handleOnBackPressed() {
@@ -121,17 +122,27 @@ class MainActivity : TauriActivity() {
   }
 
   /** The GPU path paints composited layers black while text is selected, and the selection
-   *  starts on the long press, before any action mode exists. */
+   *  starts on the long press, before any action mode exists. Only presses the page reports
+   *  as selectable arm it, so long-pressing a list row does not repaint the whole view. */
   private fun renderSoftwareWhileSelecting(webView: WebView) {
     webView.setOnLongClickListener { view ->
-      view.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
+      if (selectableTarget) view.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
       false
     }
     webView.setOnTouchListener { view, event ->
-      if (event.actionMasked == MotionEvent.ACTION_DOWN && !selecting) {
+      if (event.actionMasked == MotionEvent.ACTION_DOWN && !selecting &&
+        view.layerType != View.LAYER_TYPE_NONE
+      ) {
         view.setLayerType(View.LAYER_TYPE_NONE, null)
       }
       false
+    }
+  }
+
+  inner class Selection {
+    @JavascriptInterface
+    fun setSelectable(value: Boolean) {
+      selectableTarget = value
     }
   }
 
@@ -161,6 +172,7 @@ class MainActivity : TauriActivity() {
     webView.addJavascriptInterface(CodeScanner(), "AndroidQrScan")
     webView.addJavascriptInterface(installer, "AndroidInstaller")
     webView.addJavascriptInterface(Voice(), "AndroidVoice")
+    webView.addJavascriptInterface(Selection(), "AndroidSelection")
     PastedContent(webView).install()
     deliverShare()
   }
