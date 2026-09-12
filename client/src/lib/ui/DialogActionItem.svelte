@@ -12,7 +12,7 @@
   const { text, onclick, icon: IconComponent, enabled = true }: Props = $props();
 </script>
 
-<div class="px-5">
+<div>
   <Pressable
     {onclick}
     {enabled}

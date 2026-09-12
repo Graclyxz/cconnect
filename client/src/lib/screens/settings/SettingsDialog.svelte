@@ -103,18 +103,20 @@
         <Dialog.Title class="flex h-14 shrink-0 items-center truncate px-2 text-dialog-title">
           {t("SETTINGS")}
         </Dialog.Title>
-        {#each SETTINGS_SECTIONS as item (item.id)}
-          <Pressable
-            onclick={() => select(item.id)}
-            hover={false}
-            class="flex w-full items-center rounded-item px-2 py-2 text-body-md transition-colors {section ===
-            item.id
-              ? 'bg-accent/14 font-semibold text-accent hover:bg-accent/21'
-              : 'hover:bg-on-surface/8'}"
-          >
-            <span class="min-w-0 flex-1 truncate text-left">{t(item.label)}</span>
-          </Pressable>
-        {/each}
+        <div class="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+          {#each SETTINGS_SECTIONS as item (item.id)}
+            <Pressable
+              onclick={() => select(item.id)}
+              hover={false}
+              class="flex w-full items-center rounded-item px-2 py-2 text-body-md transition-colors {section ===
+              item.id
+                ? 'bg-accent/14 font-semibold text-accent hover:bg-accent/21'
+                : 'hover:bg-on-surface/8'}"
+            >
+              <span class="min-w-0 flex-1 truncate text-left">{t(item.label)}</span>
+            </Pressable>
+          {/each}
+        </div>
       </div>
 
       <div class="flex min-w-0 flex-1 flex-col">

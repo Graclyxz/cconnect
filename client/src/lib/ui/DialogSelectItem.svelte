@@ -26,7 +26,7 @@
   }: Props = $props();
 </script>
 
-<div class="px-5">
+<div>
   <Pressable
     {onclick}
     {enabled}

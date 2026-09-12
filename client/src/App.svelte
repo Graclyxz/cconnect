@@ -64,6 +64,10 @@
 
   const settingsAsDialog = $derived(!layout.mobile);
 
+  const screenCovers = $derived(
+    navigation.route !== "/" && !(navigation.route === "/settings" && settingsAsDialog),
+  );
+
   let commandsOpen = $state(false);
 
   const scopeChain = (): ShortcutScope[] => {
@@ -132,7 +136,7 @@
   class="safe-area bg-background text-on-background"
   style="height: calc(100% - var(--keyboard, 0px))"
 >
-  <div class="h-full {navigation.route === "/" ? "" : "hidden"}" inert={navigation.route !== "/"}>
+  <div class="h-full {screenCovers ? "hidden" : ""}" inert={screenCovers}>
     <ChatScreen />
   </div>
   {#if navigation.route === "/settings" && !settingsAsDialog}
