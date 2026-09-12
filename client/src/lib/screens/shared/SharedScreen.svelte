@@ -667,11 +667,11 @@
     const current = archive;
     const slot = `${environment ?? ""}|${current ?? ""}|${archiveDir}|${path}`;
     untrack(() => {
-      if (listed) rememberShared(listed, entries);
+      if (compact && listed) rememberShared(listed, entries);
       listed = slot;
       exitSelection();
       endGesture();
-      const saved = recallShared(slot);
+      const saved = compact ? recallShared(slot) : undefined;
       entries = saved ?? [];
       loaded = saved !== undefined;
     });

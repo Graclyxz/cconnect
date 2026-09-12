@@ -125,6 +125,13 @@ class ClaudeStatus {
     this.usageLoading = false;
   }
 
+  forget() {
+    const current = backend.activeId;
+    if (current !== null) this.#slots.delete(current);
+    this.#environmentId = current;
+    this.#restore(blank);
+  }
+
   ensure() {
     this.#sync();
     untrack(() => {

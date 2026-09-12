@@ -277,10 +277,10 @@
     const target = slot;
     if (target === placed) return;
     untrack(() => {
-      if (placed) rememberProject(placed, { children, expanded, path: opened.path });
+      if (compact && placed) rememberProject(placed, { children, expanded, path: opened.path });
       placed = target;
       results = null;
-      const saved = recallProject(target);
+      const saved = compact ? recallProject(target) : undefined;
       children = saved?.children ?? {};
       expanded = saved?.expanded ?? {};
       if (saved?.path) opened.path = saved.path;

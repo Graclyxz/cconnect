@@ -11,6 +11,7 @@
   import { address, backend } from "$lib/services/backend.svelte";
   import { accountsStore } from "$lib/data/accountsStore.svelte";
   import { claudeRefresh } from "$lib/data/claudeRefresh.svelte";
+  import { claudeStatus } from "$lib/data/claudeStatus.svelte";
   import { settingsApi } from "$lib/services/settingsApi";
   import { tabs } from "$lib/screens/chat/tabs.svelte";
   import AppTopBar from "$lib/ui/AppTopBar.svelte";
@@ -21,6 +22,8 @@
   import ClaudeDetail, { CLAUDE_KINDS, type ClaudeKind } from "./ClaudeDetail.svelte";
   import ClaudeActions from "./ClaudeActions.svelte";
   import ClaudeSections from "./ClaudeSections.svelte";
+
+  claudeStatus.forget();
 
   let envOpen = $state(false);
   let accountOpen = $state(false);

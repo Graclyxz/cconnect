@@ -58,6 +58,13 @@ class Monitor {
     if (!this.#socket || this.#environmentId !== backend.activeId) this.#open();
   }
 
+  forget() {
+    const current = backend.activeId;
+    if (current !== null) this.#slots.delete(current);
+    this.#environmentId = current;
+    this.#restore(blank);
+  }
+
   reloadNetwork() {
     const at = this.#environmentId;
     void networkApi.status().then((status) => {

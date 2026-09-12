@@ -10,6 +10,8 @@
   import MonitorActions from "./MonitorActions.svelte";
   import MonitorContent from "./MonitorContent.svelte";
 
+  monitor.forget();
+
   const environment = $derived(backend.active);
 </script>
 
