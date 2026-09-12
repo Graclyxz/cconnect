@@ -133,6 +133,7 @@ class LiveSession:
             self._compacting = True
         elif kind == "compact":
             self._compacting = False
+            self.turn_start_index = 0
         elif kind == "status":
             health = event.get("kind")
             self._health = None if health == "ok" else ("failed" if health == "failed" else "slow")

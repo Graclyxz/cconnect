@@ -14,6 +14,7 @@ from core.config import (
     SUPPORTED_APP,
     SUPPORTED_CLI,
     permission_modes,
+    resolve_permission_mode,
 )
 from core.responses import api_response
 from services import accounts, cli_info
@@ -49,7 +50,7 @@ async def get_capabilities(capabilities: str = Query(""), account: str = Query("
         ],
         "mcp_tools": mcps.tool_specs(client),
         "defaults": {
-            "permission_mode": DEFAULT_PERMISSION_MODE,
+            "permission_mode": resolve_permission_mode(DEFAULT_PERMISSION_MODE),
             "effort": DEFAULT_EFFORT,
             "model": default_model,
             "account": accounts.default_account({a["id"] for a in account_list}),

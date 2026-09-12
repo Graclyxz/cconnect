@@ -44,6 +44,9 @@ DEFAULT_CWD = os.environ.get("DEFAULT_CWD", str(paths.BACKEND_DIR.parent))
 _FALLBACK_PERMISSION_MODES = ("default", "acceptEdits", "plan", "dontAsk", "bypassPermissions", "auto")
 
 DEFAULT_PERMISSION_MODE = os.environ.get("DEFAULT_PERMISSION_MODE", "bypassPermissions")
+FALLBACK_PERMISSION_MODE = "auto"
+
+_RUNNING_AS_ROOT = getattr(os, "geteuid", lambda: -1)() == 0
 DEFAULT_EFFORT = os.environ.get("DEFAULT_EFFORT", "xhigh")
 
 # Pseudo-level surfaced in capabilities; run_prompt expands it to xhigh + the ultracode setting.
@@ -80,13 +83,20 @@ COMMANDS = [
 
 
 def permission_modes() -> tuple[str, ...]:
-    """Permission modes from the installed SDK, falling back to a static list."""
+    """Permission modes from the installed SDK, minus the ones this process cannot use."""
     try:
         from typing import get_args
         from claude_agent_sdk.types import PermissionMode
-        return tuple(get_args(PermissionMode)) or _FALLBACK_PERMISSION_MODES
+        modes = tuple(get_args(PermissionMode)) or _FALLBACK_PERMISSION_MODES
     except Exception:
-        return _FALLBACK_PERMISSION_MODES
+        modes = _FALLBACK_PERMISSION_MODES
+    if _RUNNING_AS_ROOT:
+        return tuple(mode for mode in modes if mode != "bypassPermissions")
+    return modes
+
+
+def resolve_permission_mode(mode: str | None) -> str:
+    return mode if mode in permission_modes() else FALLBACK_PERMISSION_MODE
 
 
 # Gated by CCONNECT_AUTH_ACTIVE so a token left in .env from a previous --expose run
@@ -112,6 +122,8 @@ __all__ = [
     "CLAUDE_PROJECTS_DIR",
     "DEFAULT_CWD",
     "DEFAULT_PERMISSION_MODE",
+    "FALLBACK_PERMISSION_MODE",
+    "resolve_permission_mode",
     "DEFAULT_EFFORT",
     "DEFAULT_MODEL",
     "COLORS",

@@ -211,10 +211,13 @@ def _battery() -> dict | None:
     }
 
 
-def snapshot() -> dict:
-    memory = psutil.virtual_memory()
+def _disks() -> list[dict]:
     disks = []
-    for part in psutil.disk_partitions(all=False):
+    try:
+        partitions = psutil.disk_partitions(all=False)
+    except OSError:
+        return disks
+    for part in partitions:
         if not part.fstype or part.fstype == "squashfs" or "cdrom" in part.opts:
             continue
         try:
@@ -227,21 +230,44 @@ def snapshot() -> dict:
             "total": usage.total,
             "percent": usage.percent,
         })
+    return disks
+
+
+def _memory() -> dict:
+    try:
+        memory = psutil.virtual_memory()
+    except OSError:
+        return {"used": 0, "total": 0, "percent": 0.0}
+    return {"used": memory.used, "total": memory.total, "percent": memory.percent}
+
+
+def _cpu() -> dict:
+    try:
+        return {"percent": psutil.cpu_percent(interval=None), "cores": psutil.cpu_count() or 0}
+    except OSError:
+        return {"percent": 0.0, "cores": 0}
+
+
+def _uptime() -> float:
+    try:
+        return time.time() - psutil.boot_time()
+    except OSError:
+        return 0.0
+
+
+def snapshot() -> dict:
     return {
         "hostname": platform.node(),
         "os": _os_name(),
         "os_id": _os_id(),
         "arch": platform.machine(),
         "cpu_name": _cpu_name(),
-        "uptime": time.time() - psutil.boot_time(),
-        "cpu": {
-            "percent": psutil.cpu_percent(interval=None),
-            "cores": psutil.cpu_count() or 0,
-        },
-        "memory": {"used": memory.used, "total": memory.total, "percent": memory.percent},
+        "uptime": _uptime(),
+        "cpu": _cpu(),
+        "memory": _memory(),
         "gpu": _gpu(),
         "battery": _battery(),
-        "disks": disks,
+        "disks": _disks(),
         "network": _network(),
     }
 
@@ -250,7 +276,10 @@ def _network() -> dict:
     from services import network
     if not network.SUPPORTED:
         return {"supported": False}
-    rates = network.throughput()
+    try:
+        rates = network.throughput()
+    except Exception:
+        return {"supported": False}
     total_rx = sum(rate["rx"] for rate in rates.values())
     total_tx = sum(rate["tx"] for rate in rates.values())
     return {"supported": True, "rx": total_rx, "tx": total_tx, "rates": rates}

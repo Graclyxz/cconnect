@@ -15,7 +15,7 @@ from loguru import logger
 from pydantic import BaseModel, ValidationError
 
 from core import paths
-from core.config import DEFAULT_CWD, permission_modes
+from core.config import DEFAULT_CWD, permission_modes, resolve_permission_mode
 from core.responses import api_response
 from core.ws import send_event
 from mcps import terminal as terminal_mcp
@@ -327,10 +327,7 @@ async def chat_ws(ws: WebSocket):
                     resumed_cwd = sessions_service.find_session_cwd(msg.resume) if msg.resume else None
                     state.cwd = resumed_cwd or msg.cwd or DEFAULT_CWD
                     requested = msg.permission_mode or settings_store.get("permission_mode")
-                    state.permission_mode = (
-                        requested if requested in permission_modes()
-                        else settings_store.get("permission_mode")
-                    )
+                    state.permission_mode = resolve_permission_mode(requested)
                     state.session_id = msg.resume
                     state.fork = msg.fork
                     state.base_url = msg.base_url

@@ -1,14 +1,17 @@
 """Mutating operations on the local Claude Code installation, driven through its CLI."""
 
+import asyncio
 import json
 import subprocess
 from pathlib import Path
 
 from core import cli_manager, paths
-from services import accounts
+from services import accounts, claude_assets
 
 _PLUGIN_ACTIONS = frozenset({"install", "uninstall", "enable", "disable", "update"})
 _MARKETPLACE_ACTIONS = frozenset({"add", "remove", "update"})
+
+OFFICIAL_MARKETPLACE = "anthropics/claude-plugins-official"
 
 
 def _shared(result: dict) -> dict:
@@ -68,6 +71,12 @@ def marketplace_action(action: str, target: str) -> dict:
     if action not in _MARKETPLACE_ACTIONS:
         return {"ok": False, "message": f"invalid action: {action}"}
     return _shared(_run(["plugin", "marketplace", action, target]))
+
+
+async def ensure_official_marketplace() -> None:
+    if claude_assets.list_marketplaces():
+        return
+    await asyncio.to_thread(marketplace_action, "add", OFFICIAL_MARKETPLACE)
 
 
 def mcp_add(name: str, target: str, transport: str = "stdio") -> dict:

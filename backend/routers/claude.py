@@ -75,7 +75,8 @@ def set_project_prompt(body: ProjectPromptBody):
 
 
 @router.get("/claude/plugins")
-def get_plugins():
+async def get_plugins():
+    await claude_manage.ensure_official_marketplace()
     return api_response(data={
         "plugins": claude_assets.list_plugins(),
         "marketplaces": claude_assets.list_marketplaces(),

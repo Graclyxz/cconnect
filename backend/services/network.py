@@ -154,11 +154,18 @@ def _interfaces_linux() -> list[dict]:
     return items
 
 
+def _if_stats() -> dict:
+    try:
+        return psutil.net_if_stats()
+    except OSError:
+        return {}
+
+
 def interfaces() -> list[dict]:
     if not SUPPORTED:
         return []
     items = _interfaces_windows() if _WINDOWS else _interfaces_linux()
-    stats = psutil.net_if_stats()
+    stats = _if_stats()
     for item in items:
         stat = stats.get(item["name"])
         if stat is not None and not item.get("link_speed"):
@@ -167,7 +174,10 @@ def interfaces() -> list[dict]:
 
 
 def throughput() -> dict[str, dict]:
-    counters = psutil.net_io_counters(pernic=True)
+    try:
+        counters = psutil.net_io_counters(pernic=True)
+    except OSError:
+        return {}
     now = time.monotonic()
     rates = {}
     for name, counter in counters.items():

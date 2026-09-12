@@ -128,6 +128,7 @@
     capabilities?.permissionModes.find((item) => item.id === permissionMode)?.label ?? permissionMode,
   );
   const permission = $derived(permissionStyle(permissionMode));
+  const serverPermission = $derived(capabilities?.defaults.permissionMode ?? "");
 </script>
 
 <div class="flex h-full min-w-0 flex-1 items-stretch">
@@ -224,7 +225,7 @@
         </TooltipWrap>
       {/snippet}
       {#each permissionOptions as option (option.value)}
-        {@const style = permissionStyle(option.value || permissionMode)}
+        {@const style = permissionStyle(option.value || serverPermission)}
         <MenuItem
           text={option.label}
           selected={option.value === permissionSelected}
