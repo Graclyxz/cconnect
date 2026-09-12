@@ -5,7 +5,7 @@
   import FolderSearch from "@lucide/svelte/icons/folder-search";
   import HardDrive from "@lucide/svelte/icons/hard-drive";
   import { t } from "$lib/i18n/index.svelte";
-  import { isTauri } from "$lib/platform";
+  import { isDesktop } from "$lib/platform";
   import { systemApi, type DirListing } from "$lib/services/systemApi";
   import Button from "./Button.svelte";
   import { serverStatus } from "$lib/data/serverStatus.svelte";
@@ -50,7 +50,7 @@
 
 <CompactDialog title={t("CHOOSE")} subtitle={listing?.path ?? ""} {onDismiss}>
   {#snippet titleTrailing()}
-    {#if isTauri}
+    {#if isDesktop}
       <TooltipIconButton label={t("BROWSE")} onclick={() => void local()} class="size-8 [&_svg]:size-[18px]">
         <FolderSearch />
       </TooltipIconButton>

@@ -44,7 +44,7 @@
       </Button>
     {/snippet}
 
-    <OutlinedPanel class="mx-5">
+    <OutlinedPanel>
       <p class="selectable line-clamp-3 text-body-md">{target.text || target.id}</p>
       {#if both}
         <p class="mt-1 flex items-center gap-1 text-label-md text-on-surface-variant">

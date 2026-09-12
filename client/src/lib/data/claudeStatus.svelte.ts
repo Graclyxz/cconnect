@@ -1,3 +1,5 @@
+import { untrack } from "svelte";
+
 import { accountsStore } from "$lib/data/accountsStore.svelte";
 import { type AccountsSnapshot } from "$lib/services/accountsApi";
 import { backend } from "$lib/services/backend.svelte";
@@ -91,7 +93,7 @@ class ClaudeStatus {
 
   async loadService(force = false) {
     const at = this.#sync();
-    this.loading = this.service === null;
+    this.loading = untrack(() => this.service) === null;
     const value = backend.configured ? await claudeApi.status(force) : null;
     if (at !== backend.activeId) return;
     this.service = value;
@@ -113,7 +115,7 @@ class ClaudeStatus {
 
   async #runUsage(force: boolean) {
     const at = this.#sync();
-    this.usageLoading = this.usage === null;
+    this.usageLoading = untrack(() => this.usage) === null;
     await accountsStore.load();
     const accounts = accountsStore.snapshot;
     const usage = await claudeApi.usage(accounts?.default ?? null, force);
@@ -125,17 +127,21 @@ class ClaudeStatus {
 
   ensure() {
     this.#sync();
-    if (this.cli === null) void this.loadCli();
-    if (this.extensions === null) void this.loadExtensions();
-    if (this.service === null) void this.loadService();
+    untrack(() => {
+      if (this.cli === null) void this.loadCli();
+      if (this.extensions === null) void this.loadExtensions();
+      if (this.service === null) void this.loadService();
+    });
   }
 
   #sync(): string | null {
     const next = backend.activeId;
     if (next === this.#environmentId) return next;
-    if (this.#environmentId !== null) this.#slots.set(this.#environmentId, this.#capture());
-    this.#environmentId = next;
-    this.#restore((next === null ? undefined : this.#slots.get(next)) ?? blank);
+    untrack(() => {
+      if (this.#environmentId !== null) this.#slots.set(this.#environmentId, this.#capture());
+      this.#environmentId = next;
+      this.#restore((next === null ? undefined : this.#slots.get(next)) ?? blank);
+    });
     return next;
   }
 
