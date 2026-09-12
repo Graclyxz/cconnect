@@ -149,9 +149,9 @@
   const watcher = new SharedWatch();
   const initial = readSharedLocation();
 
-  const home = initial?.path || tabs.state.historyProject || "";
+  const home = $derived(tabs.state.historyProject || "");
 
-  let path = $state(home);
+  let path = $state(initial?.path || tabs.state.historyProject || "");
   let archive = $state<string | null>(initial?.archive ?? null);
   let archiveDir = $state(initial?.archiveDir ?? "");
   let entries = $state<SharedEntry[]>([]);
@@ -208,6 +208,23 @@
     if (!locked) return;
     untrack(() => {
       if (path !== locked && !path.startsWith(`${locked}/`)) path = locked;
+    });
+  });
+
+  let followed = tabs.state.historyProject || "";
+
+  $effect(() => {
+    const next = home;
+    if (next === followed) return;
+    followed = next;
+    if (ceiling) return;
+    untrack(() => {
+      path = next;
+      archive = null;
+      archiveDir = "";
+      searching = false;
+      searchQuery = "";
+      exitSelection();
     });
   });
   const innerChild = (name: string) => (archiveDir ? `${archiveDir}/${name}` : name);
