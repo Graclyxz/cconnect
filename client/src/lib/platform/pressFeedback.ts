@@ -1,8 +1,7 @@
-import { PRESS_HOLD_MS, TAP_TIMEOUT_MS, TOUCH_SLOP } from "$lib/ui/press";
+import { PRESS_FADE_MS, PRESS_HOLD_MS, PRESSABLE, TAP_TIMEOUT_MS, TOUCH_SLOP } from "$lib/ui/press";
 import { scrollableAbove } from "$lib/ui/scrollbar";
 import { isTouch } from "./index";
 
-const PRESSABLE = "button, a, [role='button'], [role='menuitem'], [role='menuitemradio'], [role='tab']";
 const DISABLED = ":disabled, [data-disabled], [aria-disabled='true']";
 const SURFACE = "[data-press]";
 
@@ -21,7 +20,11 @@ export const trackPressFeedback = () => {
     if (holdTimer !== null) clearTimeout(holdTimer);
     holdTimer = null;
     if (!lit) return;
-    lit.dataset.pressed = "off";
+    const faded = lit;
+    faded.dataset.pressed = "off";
+    setTimeout(() => {
+      if (faded.dataset.pressed === "off") delete faded.dataset.pressed;
+    }, PRESS_FADE_MS);
     lit = null;
   };
 
