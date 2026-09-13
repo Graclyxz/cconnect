@@ -29,7 +29,6 @@ class StartMessage(BaseModel):
     account: Optional[str] = None
     effort: Optional[str] = None
     partial: Optional[bool] = None
-    base_url: Optional[str] = None
     channel: Optional[str] = None
     last_seq: int = 0
     capabilities: list[str] = []

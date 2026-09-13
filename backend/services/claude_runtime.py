@@ -12,7 +12,7 @@ from urllib.parse import quote
 from loguru import logger
 
 from core import cli_manager, paths
-from core.config import PORT, ULTRACODE_EFFORT
+from core.config import SHARED_SCHEME, ULTRACODE_EFFORT
 from mcps import build_cconnect_server
 from mcps.media import block_types
 from services import claude_assets, cli_info, diffs, providers, settings_store, visibility
@@ -157,7 +157,6 @@ def _shared_dir(cwd: Optional[str]) -> Path:
 
 
 def _system_append(
-    base_url: Optional[str],
     cwd: Optional[str] = None,
     capabilities: Optional[list[str]] = None,
     guides: bool = True,
@@ -169,13 +168,11 @@ def _system_append(
             text = _join(text, guide)
     if not text:
         return ""
-    effective = (base_url or f"http://localhost:{PORT}/api").rstrip("/")
     folder = _shared_dir(cwd)
     segment = f"/{quote(folder.name)}" if folder != paths.SHARED_DIR else ""
     return (
         text.replace("{{SHARED_DIR}}", str(folder))
-        .replace("{{SHARED_URL}}", f"{effective}/shared{segment}")
-        .replace("{{BASE_URL}}", effective)
+        .replace("{{SHARED_URL}}", f"{SHARED_SCHEME}{segment}")
         .strip()
     )
 
@@ -584,7 +581,6 @@ async def run_prompt(
     partial: bool = False,
     name: Optional[str] = None,
     ask_user: Optional[Callable[[dict], Awaitable[dict]]] = None,
-    base_url: Optional[str] = None,
     emit: Optional[Callable[[dict], Awaitable[None]]] = None,
     drain: Optional[AsyncIterator[dict]] = None,
     seed_id: Optional[str] = None,
@@ -622,7 +618,7 @@ async def run_prompt(
 
     from services import accounts
     scope = accounts.context_scope(account)
-    append = _system_append(base_url, cwd, capabilities, scope["guides"])
+    append = _system_append(cwd, capabilities, scope["guides"])
     system_prompt: Optional[dict | str] = append or None
     if scope["preset"]:
         system_prompt = {"type": "preset", "preset": "claude_code"}
@@ -1079,7 +1075,6 @@ async def ask_side_question(
     emit: Optional[Callable[[dict], Awaitable[None]]] = None,
     capabilities: Optional[list[str]] = None,
     session_info: Optional[Callable[[], dict]] = None,
-    base_url: Optional[str] = None,
     model: Optional[str] = None,
 ) -> AsyncIterator[dict]:
     """Quick side question in an isolated, resumable session. ``context`` seeds the first turn,
@@ -1095,7 +1090,7 @@ async def ask_side_question(
         "something you said or already told them. Never invent files, code, commands, or facts: if you "
         "don't know, say so plainly instead of guessing."
     )
-    shared = _system_append(base_url, None, [], scope["guides"])
+    shared = _system_append(None, [], scope["guides"])
     if shared:
         system = f"{system}\n\n{shared}"
     prompt = f"<session_context>\n{context}\n</session_context>\n\n{question}" if (context and not resume_id) else question

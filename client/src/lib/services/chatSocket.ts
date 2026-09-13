@@ -14,7 +14,7 @@ import {
 import { CLIENT_CAPABILITIES } from "$lib/data/clientCapabilities";
 import { securityKeys } from "$lib/data/securityKeys.svelte";
 import type { TerminalInfo } from "./terminalApi";
-import { backend, baseUrlOf, socketUrlOf, type Profile } from "./backend.svelte";
+import { backend, socketUrlOf, type Profile } from "./backend.svelte";
 import type { VisibilityPrefs } from "$lib/data/settings.svelte";
 
 export type ServerEvent =
@@ -391,7 +391,6 @@ export class ChatSocket {
       effort: options.effort,
       partial: options.partial,
       visibility: options.visibility,
-      base_url: baseUrlOf(this.profile()),
       ...(this.#channel ? { channel: this.#channel } : {}),
       last_seq: this.#lastSeq,
       capabilities: CLIENT_CAPABILITIES,

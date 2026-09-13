@@ -61,7 +61,6 @@ class _Session:
         self.permission_mode: str = "default"
         self.session_id: str | None = None
         self.fork: bool = False
-        self.base_url: str | None = None
         self.account: str | None = None
         self.model: str | None = None
         self.effort: str = "max"
@@ -108,7 +107,6 @@ def _build_turn_runner(state: _Session, drain, text: str, attachments: list[str]
                     partial=state.partial,
                     name=name,
                     ask_user=ask_user,
-                    base_url=state.base_url,
                     emit=emit,
                     drain=drain() if drain else None,
                     seed_id=seed_id,
@@ -240,7 +238,6 @@ def _build_side_runner(main_state: _Session, side_state: _Session, question: str
                 model=_side_model(main_state),
                 emit=emit,
                 capabilities=capabilities,
-                base_url=main_state.base_url,
                 session_info=lambda: {
                     "session_id": side_state.session_id,
                     "cwd": str(paths.AI_WORKDIR),
@@ -319,8 +316,6 @@ async def chat_ws(ws: WebSocket):
                 previous = session
                 if reattaching:
                     session = existing
-                    if msg.base_url:
-                        session.state.base_url = msg.base_url
                     session.state.account = msg.account
                 else:
                     state = _Session()
@@ -330,7 +325,6 @@ async def chat_ws(ws: WebSocket):
                     state.permission_mode = resolve_permission_mode(requested)
                     state.session_id = msg.resume
                     state.fork = msg.fork
-                    state.base_url = msg.base_url
                     state.account = msg.account
                     state.model = msg.model or settings_store.get("model")
                     state.effort = msg.effort or settings_store.get("effort")

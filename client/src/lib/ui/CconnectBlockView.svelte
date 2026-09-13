@@ -154,7 +154,12 @@
   <SuggestionChips items={data.items} onSelect={onSuggest} />
 {:else if data.type === "pdf"}
   {#if pdfFailed}
-    <a href={data.url} target="_blank" rel="noreferrer" class="text-accent underline">
+    <a
+      href={data.url}
+      target="_blank"
+      rel="noreferrer"
+      class="text-accent underline"
+    >
       {data.title ?? fileName(data.url)}
     </a>
   {:else}

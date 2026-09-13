@@ -13,7 +13,7 @@
   import { openExternal } from "$lib/platform";
   import type { SuggestionItem } from "$lib/markdown/cconnectBlock";
   import { createSegmenter, type Segment } from "$lib/markdown/render";
-  import { backend } from "$lib/services/backend.svelte";
+  import { backend, sharedRootOf } from "$lib/services/backend.svelte";
   import CconnectBlockView from "./CconnectBlockView.svelte";
   import CodeBlock from "./CodeBlock.svelte";
   import ConfirmDialog from "./ConfirmDialog.svelte";
@@ -41,8 +41,13 @@
   const ALERT_KINDS = ["note", "tip", "important", "warning", "caution"];
 
   const segments = createSegmenter();
-  const parts = $derived(segments(text));
-  const sharedPrefix = $derived(`${backend.baseUrl}/shared/`);
+  const sharedRoot = $derived(sharedRootOf(backend.active));
+  const resolved = $derived.by(() => {
+    const scheme = backend.schemeOf(backend.active);
+    return scheme ? text.split(scheme).join(sharedRoot) : text;
+  });
+  const parts = $derived(segments(resolved));
+  const shared = (url: string) => url.startsWith(sharedRoot);
 
   let externalLink = $state<string | null>(null);
   let icons = $state<HTMLElement | null>(null);
@@ -57,7 +62,7 @@
   };
 
   const open = (url: string, filename = filenameOf(url)) => {
-    if (onSharedLink && url.startsWith(sharedPrefix)) onSharedLink(url, filename);
+    if (onSharedLink && shared(url)) onSharedLink(url, filename);
     else externalLink = url;
   };
 
@@ -74,7 +79,7 @@
     const url =
       target.closest("a")?.getAttribute("href") ??
       target.closest<HTMLElement>("[data-shared]")?.dataset.shared;
-    if (!url || !url.startsWith(sharedPrefix)) return;
+    if (!url || !shared(url)) return;
     event.preventDefault();
     onSharedMenu(url, filenameOf(url));
   };
@@ -103,12 +108,12 @@
         if (anchor.dataset.decorated) continue;
         anchor.dataset.decorated = "true";
         const url = anchor.getAttribute("href") ?? "";
-        const shared = url.startsWith(sharedPrefix);
-        const icon = (shared ? (isArchive(filenameOf(url)) ? archive : file) : external).cloneNode(
+        const own = shared(url);
+        const icon = (own ? (isArchive(filenameOf(url)) ? archive : file) : external).cloneNode(
           true,
         ) as SVGElement;
         icon.classList.add("md-link-icon");
-        if (shared) anchor.prepend(icon);
+        if (own) anchor.prepend(icon);
         else anchor.append(icon);
       }
     };

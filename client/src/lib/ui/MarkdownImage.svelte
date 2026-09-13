@@ -1,6 +1,5 @@
 <script lang="ts">
   import ImageOff from "@lucide/svelte/icons/image-off";
-  import { backend } from "$lib/services/backend.svelte";
   import { isVideo } from "$lib/data/previewKind";
   import { mediaSrc } from "$lib/services/mediaSource";
   import CenteredProgress from "./CenteredProgress.svelte";
@@ -14,17 +13,9 @@
 
   const { url, alt, onOpen, compact = false }: Props = $props();
 
-  const API_SUFFIX = "/api";
-
   let state = $state<"loading" | "ready" | "error">("loading");
 
-  const resolved = $derived(
-    url.startsWith("http://") || url.startsWith("https://")
-      ? url
-      : url.startsWith("/")
-        ? `${backend.baseUrl.replace(new RegExp(`${API_SUFFIX}$`), "")}${url}`
-        : url,
-  );
+  const resolved = $derived(url);
 
   const video = $derived(isVideo(resolved));
 

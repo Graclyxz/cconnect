@@ -1322,6 +1322,7 @@ export class ChatState {
     const capabilities = await this.#capabilities.capabilities(this.accountOverride || this.account);
     if (capabilities) {
       this.capabilities = capabilities;
+      backend.rememberScheme(this.environment, capabilities.sharedScheme);
       this.#dropStaleOverrides(capabilities);
       this.account = capabilities.defaults.account || this.account;
       this.permissionMode = capabilities.defaults.permissionMode || this.permissionMode;

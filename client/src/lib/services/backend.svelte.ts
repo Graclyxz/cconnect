@@ -46,6 +46,8 @@ export const isConfigured = (profile: Profile): profile is EnvironmentProfile =>
 
 export const baseUrlOf = (profile: Profile) => (isConfigured(profile) ? `${origin(profile, false)}/api` : "");
 
+export const sharedRootOf = (profile: Profile) => `${baseUrlOf(profile) || "/api"}/shared`;
+
 export const withToken = (url: string, profile: Profile) => {
   const token = profile?.authKind === "bearer" ? profile.authToken : "";
   return token ? `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}` : url;
@@ -78,6 +80,15 @@ export const profileKey = (profile: Profile) =>
 class Backend {
   environments = $state<EnvironmentProfile[]>(secureStore.get("environments", []));
   activeId = $state<string | null>(store.get("environments.active", null));
+  schemes = $state<Record<string, string>>({});
+
+  rememberScheme(profile: Profile, scheme: string) {
+    if (profile && scheme) this.schemes[profile.id] = scheme;
+  }
+
+  schemeOf(profile: Profile): string {
+    return (profile && this.schemes[profile.id]) || "";
+  }
 
   readonly active = $derived(
     this.environments.find((profile) => profile.id === this.activeId) ?? this.environments[0] ?? null,

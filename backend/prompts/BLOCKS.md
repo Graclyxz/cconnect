@@ -1,7 +1,7 @@
 # Rich blocks
 
 Media can be embedded in your reply with a fenced block tagged `cconnect`. Write the file into
-`{{SHARED_DIR}}` first and point the block at its URL under `{{BASE_URL}}` — never inline content.
+`{{SHARED_DIR}}` first and point the block at `{{SHARED_URL}}` — never inline content.
 
 ````
 ```cconnect

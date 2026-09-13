@@ -14,6 +14,8 @@ except ImportError:
 PORT = int(os.environ.get("PORT", "8723"))
 PUBLIC_URL = os.environ.get("PUBLIC_URL", "").strip().rstrip("/")
 
+SHARED_SCHEME = "cconnect://shared"
+
 def _pyproject() -> dict:
     import tomllib
     try:
