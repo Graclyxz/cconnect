@@ -60,6 +60,7 @@
 </script>
 
 <div
+  data-press
   class="group flex items-center rounded-item pr-1 transition-colors {selected
     ? 'bg-accent/14 hover:bg-accent/21'
     : 'hover:bg-on-surface/8'}"

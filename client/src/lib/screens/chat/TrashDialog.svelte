@@ -55,7 +55,7 @@
       <p class="px-3 py-2.5 text-body-md text-on-surface-variant">{t("TRASH_EMPTY")}</p>
     {/if}
     {#each items as item (item.sessionId)}
-      <div class="flex items-center rounded-item pr-1 transition-colors hover:bg-on-surface/8">
+      <div data-press class="flex items-center rounded-item pr-1 transition-colors hover:bg-on-surface/8">
         <button
           type="button"
           class="min-w-0 flex-1 cursor-pointer truncate px-3 py-2.5 text-left text-body-md"
