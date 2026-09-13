@@ -10,7 +10,6 @@
   import { theme } from "$lib/design/theme.svelte";
   import { desktop } from "$lib/platform/desktop.svelte";
   import { watchPresence } from "$lib/platform/discordPresence.svelte";
-  import { reportSelectableTarget } from "$lib/platform/androidSelection";
   import { mirrorNativeCopy } from "$lib/platform/clipboard";
   import { layout } from "$lib/platform/layout.svelte";
   import { shortcuts, type ShortcutScope } from "$lib/platform/shortcuts.svelte";
@@ -126,7 +125,6 @@
 
 <svelte:window
   onkeydown={onKeydown}
-  onpointerdown={(event) => reportSelectableTarget(event.target)}
   oncopy={mirrorNativeCopy}
   oncut={mirrorNativeCopy}
   ondragover={blockFileOpen}

@@ -12,8 +12,6 @@ import android.webkit.WebView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import android.view.ActionMode
-import android.view.MotionEvent
 import android.view.View
 import androidx.core.content.IntentCompat
 import androidx.core.graphics.Insets
@@ -35,8 +33,6 @@ class MainActivity : TauriActivity() {
   private var content: WebView? = null
   private var pendingShare: String? = null
   private var shareAttempts = 0
-  private var selecting = false
-  @Volatile private var selectableTarget = false
   @Volatile private var safeArea: Insets = Insets.NONE
   @Volatile private var keyboard = 0
 
@@ -143,43 +139,6 @@ class MainActivity : TauriActivity() {
     content?.evaluateJavascript("window.__cconnectResume && window.__cconnectResume()", null)
   }
 
-  /** The GPU path paints composited layers black while text is selected, and the selection
-   *  starts on the long press, before any action mode exists. Only presses the page reports
-   *  as selectable arm it, so long-pressing a list row does not repaint the whole view. */
-  private fun renderSoftwareWhileSelecting(webView: WebView) {
-    webView.setOnLongClickListener { view ->
-      if (selectableTarget) view.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-      false
-    }
-    webView.setOnTouchListener { view, event ->
-      if (event.actionMasked == MotionEvent.ACTION_DOWN && !selecting) renderComposited(view)
-      false
-    }
-  }
-
-  private fun renderComposited(view: View) {
-    if (view.layerType != View.LAYER_TYPE_NONE) view.setLayerType(View.LAYER_TYPE_NONE, null)
-  }
-
-  inner class Selection {
-    @JavascriptInterface
-    fun setSelectable(value: Boolean) {
-      selectableTarget = value
-    }
-  }
-
-  override fun onActionModeStarted(mode: ActionMode) {
-    super.onActionModeStarted(mode)
-    selecting = true
-    content?.setLayerType(View.LAYER_TYPE_SOFTWARE, null)
-  }
-
-  override fun onActionModeFinished(mode: ActionMode) {
-    super.onActionModeFinished(mode)
-    selecting = false
-    content?.let(::renderComposited)
-  }
-
   private fun leave() {
     backCallback.isEnabled = false
     onBackPressedDispatcher.onBackPressed()
@@ -188,7 +147,6 @@ class MainActivity : TauriActivity() {
 
   override fun onWebViewCreate(webView: WebView) {
     content = webView
-    renderSoftwareWhileSelecting(webView)
     webView.addJavascriptInterface(SystemBars(), "AndroidSystemBars")
     webView.addJavascriptInterface(SafeAreaBridge(), "AndroidInsets")
     webView.addJavascriptInterface(downloads, "AndroidDownloads")
@@ -196,7 +154,6 @@ class MainActivity : TauriActivity() {
     webView.addJavascriptInterface(CodeScanner(), "AndroidQrScan")
     webView.addJavascriptInterface(installer, "AndroidInstaller")
     webView.addJavascriptInterface(Voice(), "AndroidVoice")
-    webView.addJavascriptInterface(Selection(), "AndroidSelection")
     PastedContent(webView).install()
     deliverShare()
   }
