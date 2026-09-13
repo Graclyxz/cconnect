@@ -13,25 +13,17 @@ let grid = 0;
 const snapped = new Map<string, number>();
 
 const measureGrid = (): number => {
-  if (typeof document === "undefined") return 1;
-  const probe = document.createElement("div");
-  probe.style.cssText = "position:absolute;top:-9999px;left:0;width:10px;height:0;border-top:1px solid transparent";
-  document.body.appendChild(probe);
-  const rendered = probe.getBoundingClientRect().height;
-  probe.remove();
-  return rendered > 0 ? rendered : 1;
+  const ratio = typeof window === "undefined" ? 0 : window.devicePixelRatio;
+  return ratio > 0 ? 1 / ratio : 1;
 };
 
 export const pixelGrid = (): number => grid || (grid = measureGrid());
 
-const densityOf = (): number => Math.round((1 / pixelGrid()) * 1000) / 1000;
+const densityOf = (): number => 1 / pixelGrid();
 
 const layoutUnit = (): number => LAYOUT_UNIT * pixelGrid();
 
-const snapUnit = (value: number): number => {
-  const unit = layoutUnit();
-  return Math.round(value / unit) * unit;
-};
+const floorUnit = (value: number): number => Math.max(0, Math.floor(value / LAYOUT_UNIT) * LAYOUT_UNIT);
 
 export const snapPx = (value: number): number => {
   const density = densityOf();
@@ -50,7 +42,7 @@ export const gridHeight = (node: HTMLElement, onChange?: (value: number) => void
   let pad = 0;
   const read = () => {
     const natural = node.getBoundingClientRect().height - pad;
-    const next = snapUnit(ceilPx(natural) - natural);
+    const next = floorUnit(ceilPx(natural) - natural);
     if (next !== pad) {
       pad = next;
       node.style.paddingBottom = pad ? `${pad}px` : "";
