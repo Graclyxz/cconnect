@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick, untrack } from "svelte";
   import { authHeadersOf, backend } from "$lib/services/backend.svelte";
   import CenteredProgress from "$lib/ui/CenteredProgress.svelte";
 
@@ -12,17 +13,24 @@
   const RENDER_SCALE = 2;
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 5;
+  const DOUBLE_TAP_ZOOM = 2.5;
+  const WHEEL_STEP = 0.0015;
   const HALF = 2;
 
   let viewport = $state<HTMLDivElement | null>(null);
   let host = $state<HTMLDivElement | null>(null);
   let width = $state(0);
+  let baseHeight = $state(0);
   let zoom = $state(1);
   let loading = $state(true);
 
   const points = new Map<number, { x: number; y: number }>();
   let pinchDistance = 0;
   let pinchZoom = 1;
+  let dragX = 0;
+  let dragY = 0;
+
+  const clamp = (value: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
 
   const render = async (container: HTMLDivElement, available: number) => {
     const pdfjs = await import("pdfjs-dist");
@@ -49,6 +57,7 @@
       if (!context) continue;
       await page.render({ canvas, canvasContext: context, viewport: rendered }).promise;
     }
+    baseHeight = container.offsetHeight;
   };
 
   const spread = () => {
@@ -61,39 +70,55 @@
     return { x: (first.x + second.x) / HALF, y: (first.y + second.y) / HALF };
   };
 
-  const applyZoom = (next: number, focusX: number, focusY: number) => {
+  const zoomAt = async (target: number, clientX: number, clientY: number) => {
     const box = viewport;
     if (!box) return;
-    const previous = zoom;
-    const clamped = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next));
-    if (clamped === previous) return;
+    const next = clamp(target);
+    if (next === zoom) return;
     const rect = box.getBoundingClientRect();
-    const localX = focusX - rect.left + box.scrollLeft;
-    const localY = focusY - rect.top + box.scrollTop;
-    const ratio = clamped / previous;
-    zoom = clamped;
-    requestAnimationFrame(() => {
-      box.scrollLeft = localX * ratio - (focusX - rect.left);
-      box.scrollTop = localY * ratio - (focusY - rect.top);
-    });
+    const focusX = clientX - rect.left;
+    const focusY = clientY - rect.top;
+    const ratio = next / zoom;
+    const left = (box.scrollLeft + focusX) * ratio - focusX;
+    const top = (box.scrollTop + focusY) * ratio - focusY;
+    zoom = next;
+    await tick();
+    box.scrollLeft = left;
+    box.scrollTop = top;
   };
 
   const onPointerDown = (event: PointerEvent) => {
-    if (event.pointerType !== "touch") return;
     points.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (points.size === 2) {
       pinchDistance = spread();
       pinchZoom = zoom;
+      return;
     }
+    if (event.pointerType !== "touch" || zoom <= MIN_ZOOM) return;
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    dragX = event.clientX;
+    dragY = event.clientY;
   };
 
   const onPointerMove = (event: PointerEvent) => {
     if (!points.has(event.pointerId)) return;
     points.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (points.size < 2 || pinchDistance <= 0) return;
+    if (points.size >= 2) {
+      if (pinchDistance <= 0) return;
+      event.preventDefault();
+      const focus = centre();
+      void zoomAt((pinchZoom * spread()) / pinchDistance, focus.x, focus.y);
+      return;
+    }
+    if (event.pointerType !== "touch" || zoom <= MIN_ZOOM) return;
     event.preventDefault();
-    const focus = centre();
-    applyZoom((pinchZoom * spread()) / pinchDistance, focus.x, focus.y);
+    const box = viewport;
+    if (box) {
+      box.scrollLeft -= event.clientX - dragX;
+      box.scrollTop -= event.clientY - dragY;
+    }
+    dragX = event.clientX;
+    dragY = event.clientY;
   };
 
   const onPointerUp = (event: PointerEvent) => {
@@ -104,17 +129,17 @@
   const onWheel = (event: WheelEvent) => {
     if (!event.ctrlKey) return;
     event.preventDefault();
-    applyZoom(zoom * (event.deltaY < 0 ? 1.1 : 1 / 1.1), event.clientX, event.clientY);
+    void zoomAt(zoom - event.deltaY * WHEEL_STEP * zoom, event.clientX, event.clientY);
   };
 
   const onDoubleClick = (event: MouseEvent) => {
-    applyZoom(zoom > MIN_ZOOM ? MIN_ZOOM : HALF, event.clientX, event.clientY);
+    void zoomAt(zoom > MIN_ZOOM ? MIN_ZOOM : DOUBLE_TAP_ZOOM, event.clientX, event.clientY);
   };
 
   $effect(() => {
     const container = host;
     const available = width;
-    if (!container || available <= 0) return;
+    if (!container || available <= 0 || untrack(() => zoom) > MIN_ZOOM) return;
     let cancelled = false;
     loading = true;
     render(container, available)
@@ -132,7 +157,10 @@
 <div
   bind:this={viewport}
   bind:clientWidth={width}
-  class="scrollbar-thin relative min-h-0 flex-1 touch-pan-x touch-pan-y overflow-auto overscroll-contain bg-neutral-800"
+  class="scrollbar-thin relative min-h-0 flex-1 overflow-auto overscroll-contain bg-neutral-800 {zoom >
+  MIN_ZOOM
+    ? 'touch-none'
+    : 'touch-pan-y'}"
   onpointerdown={onPointerDown}
   onpointermove={onPointerMove}
   onpointerup={onPointerUp}
@@ -140,7 +168,13 @@
   onwheel={onWheel}
   ondblclick={onDoubleClick}
 >
-  <div bind:this={host} class="flex flex-col gap-2" style="width: {zoom * 100}%"></div>
+  <div class="relative" style="width: {width * zoom}px; height: {baseHeight * zoom}px">
+    <div
+      bind:this={host}
+      class="absolute left-0 top-0 flex flex-col gap-2"
+      style="width: {width}px; transform: scale({zoom}); transform-origin: 0 0"
+    ></div>
+  </div>
   {#if loading}
     <CenteredProgress class="sticky inset-0 h-full" />
   {/if}
