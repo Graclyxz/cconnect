@@ -25,8 +25,8 @@
   import {
     downloadShared,
     openSharedExternally,
-    openSharedInBrowser,
     saveSharedAs,
+    shareShared,
   } from "$lib/services/sharedFiles";
   import { SharedWatch } from "$lib/services/sharedWatch.svelte";
   import AppTopBar from "$lib/ui/AppTopBar.svelte";
@@ -215,7 +215,7 @@
         <Save size={20} class="shrink-0 text-on-surface-variant" />
       {/snippet}
     </MenuItem>
-    <MenuItem text={t("OPEN_EXTERNALLY")} onclick={() => void openSharedInBrowser(url, filename)}>
+    <MenuItem text={t("OPEN_EXTERNALLY")} onclick={() => void openSharedExternally(url, filename)}>
       {#snippet leading()}
         <ExternalLink size={20} class="shrink-0 text-on-surface-variant" />
       {/snippet}
@@ -227,7 +227,7 @@
         {/snippet}
       </MenuItem>
     {/if}
-    <MenuItem text={t("SHARE")} onclick={() => void openSharedExternally(url, filename)}>
+    <MenuItem text={t("SHARE")} onclick={() => void shareShared(url, filename)}>
       {#snippet leading()}
         <Share2 size={20} class="shrink-0 text-on-surface-variant" />
       {/snippet}
@@ -245,7 +245,7 @@
 <div
   class="bg-background text-on-background {embedded
     ? 'flex h-full min-h-0 flex-col'
-    : 'safe-area fixed inset-0 z-50 flex flex-col'}"
+    : 'safe-area above-keyboard fixed inset-0 z-50 flex flex-col'}"
 >
   {#if embedded}
     <PaneHeader title={filename} onBack={onClose} actions={toolbar} />

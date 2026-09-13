@@ -90,21 +90,23 @@ export const saveTextAs = async (filename: string, text: string) => {
   await saveBlobAs(new Blob([text], { type: TEXT_TYPE }), filename);
 };
 
+const shareFile = async (file: File): Promise<boolean> => {
+  if (!navigator.canShare?.({ files: [file] })) return false;
+  try {
+    await navigator.share({ files: [file] });
+  } catch {
+    return true;
+  }
+  return true;
+};
+
 export const shareText = async (filename: string, text: string) => {
   const bridge = androidDownloads();
   if (bridge) {
     bridge.shareText(filename, text);
     return;
   }
-  const file = new File([text], filename, { type: TEXT_TYPE });
-  if (navigator.canShare?.({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file] });
-      return;
-    } catch {
-      return;
-    }
-  }
+  if (await shareFile(new File([text], filename, { type: TEXT_TYPE }))) return;
   if (navigator.share) {
     try {
       await navigator.share({ title: filename, text });
@@ -182,11 +184,11 @@ export const saveAllShared = async (items: SharedItem[]) => {
   }
 };
 
-export const openAllSharedExternally = async (items: SharedItem[]) => {
+export const shareAllShared = async (items: SharedItem[]) => {
   await copyText(items.map((item) => item.url).join("\n"));
 };
 
-export const openSharedExternally = async (url: string, filename: string) => {
+export const shareShared = async (url: string, filename: string) => {
   const bridge = androidDownloads();
   if (bridge) {
     bridge.share(url, filename, headersJson());
@@ -197,22 +199,15 @@ export const openSharedExternally = async (url: string, filename: string) => {
     blob = await fetchTracked(url, onProgress, signal);
     return blob !== null;
   });
-  const file = blob && new File([blob], filename, { type: (blob as Blob).type });
-  if (file && navigator.canShare?.({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file] });
-      return;
-    } catch {
-      return;
-    }
-  }
+  const found = blob as Blob | null;
+  if (found && (await shareFile(new File([found], filename, { type: found.type })))) return;
   openExternal(url);
 };
 
-export const openSharedInBrowser = async (url: string, filename: string) => {
+export const openSharedExternally = async (url: string, filename: string) => {
   const bridge = androidDownloads();
   if (bridge) {
-    bridge.share(url, filename, headersJson());
+    bridge.open(url, filename, headersJson());
     return;
   }
   const blob = await fetchTracked(url, () => {}, new AbortController().signal);

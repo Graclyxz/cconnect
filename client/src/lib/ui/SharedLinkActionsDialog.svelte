@@ -10,8 +10,8 @@
   import {
     downloadShared,
     openSharedExternally,
-    openSharedInBrowser,
     saveSharedAs,
+    shareShared,
   } from "$lib/services/sharedFiles";
   import Button from "./Button.svelte";
   import CompactDialog from "./CompactDialog.svelte";
@@ -48,11 +48,11 @@
   <DialogActionItem
     text={t("OPEN_EXTERNALLY")}
     icon={ExternalLink}
-    onclick={() => run(() => void openSharedInBrowser(url, filename))}
+    onclick={() => run(() => void openSharedExternally(url, filename))}
   />
   <DialogActionItem
     text={t("SHARE")}
     icon={Share2}
-    onclick={() => run(() => void openSharedExternally(url, filename))}
+    onclick={() => run(() => void shareShared(url, filename))}
   />
 </CompactDialog>

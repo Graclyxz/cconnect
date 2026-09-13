@@ -50,11 +50,11 @@
   } from "$lib/services/sharedApi";
   import {
     downloadShared,
-    openAllSharedExternally,
     openSharedExternally,
-    openSharedInBrowser,
     saveAllShared,
     saveSharedAs,
+    shareAllShared,
+    shareShared,
   } from "$lib/services/sharedFiles";
   import { SharedWatch } from "$lib/services/sharedWatch.svelte";
   import { UPLOAD_DIR } from "$lib/services/uploadApi";
@@ -183,6 +183,8 @@
   let dropTarget = $state<string | null>(null);
   let dragging = $state<string[] | null>(null);
   let pendingFiles: SharedFile[] = [];
+  let heldDrag = false;
+  let touchGesture = false;
   let dragPoint = $state<{ x: number; y: number } | null>(null);
   let marking = $state(false);
   let list = $state<HTMLElement | null>(null);
@@ -205,6 +207,8 @@
 
   const entryLabel = (path: string, name: string) =>
     projectKeys.has(path) ? projectNameOf(projects, path) : name;
+
+  const pathLabel = (target: string) => entryLabel(target, target.split("/").pop() ?? "");
 
   $effect(() => {
     const locked = ceiling;
@@ -241,6 +245,16 @@
   const extensionOf = (name: string) => {
     const index = name.lastIndexOf(".");
     return index <= 0 ? "" : name.slice(index + 1).toLowerCase();
+  };
+
+  const splitName = (name: string, isDir: boolean) => {
+    const extension = isDir ? "" : extensionOf(name);
+    return { base: extension ? name.slice(0, -(extension.length + 1)) : name, extension };
+  };
+
+  const archiveNameOf = (entry: SharedEntry) => {
+    const label = pathLabel(child(entry.name));
+    return entry.isDir ? label : splitName(archiveStem(label), false).base;
   };
 
   const ordered = $derived.by(() => {
@@ -449,6 +463,7 @@
     pressOrigin = null;
     pendingDrag = null;
     pendingFiles = [];
+    heldDrag = false;
     captured = null;
     anchor = -1;
     markBase = [];
@@ -460,15 +475,26 @@
 
   const onPointerDown = (event: PointerEvent) => {
     swallowClick = false;
+    touchGesture = event.pointerType === "touch";
     if (transfer || (event.pointerType === "mouse" && event.button !== 0)) return;
     const row = rowAt(event.clientX, event.clientY);
     if (!row) return;
     pressOrigin = { x: event.clientX, y: event.clientY };
     if (selected.includes(row.name)) {
-      if (archive === null) {
+      if (archive !== null) return;
+      if (event.pointerType !== "touch") {
         pendingDrag = selectedEntries.map((entry) => child(entry.name));
         pendingFiles = sharedSelection();
+        return;
       }
+      const held = event.pointerId;
+      pressTimer = setTimeout(() => {
+        pressTimer = null;
+        heldDrag = true;
+        pendingDrag = selectedEntries.map((entry) => child(entry.name));
+        pendingFiles = sharedSelection();
+        capture(held);
+      }, LONG_PRESS_MS);
       return;
     }
     const entry = ordered.find((item) => item.name === row.name);
@@ -522,7 +548,7 @@
   const onPointerUp = () => {
     const sources = dragging;
     const target = dropTarget;
-    swallowClick = marking || dragging !== null;
+    swallowClick = marking || dragging !== null || heldDrag;
     const handed = dragTransfer.release();
     endGesture();
     if (handed) {
@@ -915,7 +941,7 @@
               class={dropTarget === entry.name ? "bg-accent/15" : ""}
               onclick={() => openEntry(entry)}
               oncontextmenu={() => {
-                if (transfer) return;
+                if (touchGesture || transfer) return;
                 selecting = true;
                 toggle(entry.name);
               }}
@@ -1029,8 +1055,8 @@
         enabled={canShare}
         onclick={() => {
           const files = selectedEntries.map((entry) => ({ url: downloadUrl(child(entry.name)), name: entry.name }));
-          if (files.length === 1) void openSharedExternally(files[0].url, files[0].name);
-          else void openAllSharedExternally(files);
+          if (files.length === 1) void shareShared(files[0].url, files[0].name);
+          else void shareAllShared(files);
           exitSelection();
         }}
       />
@@ -1118,7 +1144,7 @@
                 text={t("OPEN_EXTERNALLY")}
                 onclick={() => {
                   const name = single.name;
-                  void openSharedInBrowser(downloadUrl(child(name)), name);
+                  void openSharedExternally(downloadUrl(child(name)), name);
                   exitSelection();
                 }}
               >
@@ -1265,8 +1291,7 @@
 
 {#if renaming}
   {@const entry = renaming}
-  {@const extension = entry.isDir ? "" : extensionOf(entry.name)}
-  {@const base = extension ? entry.name.slice(0, -(extension.length + 1)) : entry.name}
+  {@const { base, extension } = splitName(entry.name, entry.isDir)}
   <RenameDialog
     initial={base}
     suffix={extension ? `.${extension}` : null}
@@ -1277,10 +1302,11 @@
         : null;
     }}
     onConfirm={(input) => {
+      const target = entry;
       const full = extension ? `${input.trim()}.${extension}` : input.trim();
       renaming = null;
       exitSelection();
-      void sharedApi.rename(child(entry.name), full).then(reload);
+      void sharedApi.rename(child(target.name), full).then(reload);
     }}
     onDismiss={() => (renaming = null)}
   />
@@ -1304,12 +1330,11 @@
 {#if compressing}
   {@const paths = compressing}
   <CompressDialog
-    defaultName={paths.length === 1
-      ? archiveStem(paths[0].split("/").pop() ?? "")
-      : (path.split("/").pop() ?? "") || t("SHARED").toLowerCase()}
+    defaultName={single ? archiveNameOf(single) : pathLabel(path) || t("SHARED").toLowerCase()}
     onConfirm={(name, format) => {
+      const targets = paths;
       compressing = null;
-      void sharedApi.compress(paths, format, name).then(() => {
+      void sharedApi.compress(targets, format, name).then(() => {
         exitSelection();
         return reload();
       });
@@ -1328,9 +1353,10 @@
       text={t("EXTRACT_TO_FOLDER", request.stem)}
       icon={Folder}
       onclick={() => {
+        const target = request;
         extractRequest = null;
         void sharedApi
-          .extract(request.archive, { intoFolder: true, members: request.members, base: request.base })
+          .extract(target.archive, { intoFolder: true, members: target.members, base: target.base })
           .then(() => {
             exitSelection();
             if (archive !== null) {
@@ -1346,9 +1372,10 @@
       text={t("EXTRACT_HERE")}
       icon={PackageOpen}
       onclick={() => {
+        const target = request;
         extractRequest = null;
         void sharedApi
-          .extract(request.archive, { intoFolder: false, members: request.members, base: request.base })
+          .extract(target.archive, { intoFolder: false, members: target.members, base: target.base })
           .then(() => {
             exitSelection();
             if (archive !== null) {
@@ -1364,17 +1391,18 @@
       text={t("EXTRACT_TO")}
       icon={FolderInput}
       onclick={() => {
+        const target = request;
         extractRequest = null;
         transfer = {
           kind: "extract",
-          paths: [request.archive],
+          paths: [target.archive],
           sourceDir: path,
           folders: [],
-          members: request.members,
-          base: request.base,
+          members: target.members,
+          base: target.base,
         };
         if (archive !== null) {
-          path = request.archive.split("/").slice(0, -1).join("/");
+          path = target.archive.split("/").slice(0, -1).join("/");
           archive = null;
           archiveDir = "";
         }

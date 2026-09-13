@@ -72,6 +72,14 @@ class Downloads(private val activity: Activity, private val onSaveAs: (String, S
     }
 
     @JavascriptInterface
+    fun open(url: String, filename: String, headersJson: String) {
+        workers.execute {
+            val file = fetchToCache(url, filename, headersJson) ?: return@execute
+            if (!viewFile(file, filename)) sendFile(file, filename)
+        }
+    }
+
+    @JavascriptInterface
     fun saveText(filename: String, text: String): Boolean =
         writeToDownloads(filename) { out -> out.write(text.toByteArray()) }
 
@@ -115,15 +123,26 @@ class Downloads(private val activity: Activity, private val onSaveAs: (String, S
 
     private fun sendFile(file: File, filename: String) {
         runCatching {
-            val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", file)
             val send = Intent(Intent.ACTION_SEND).apply {
                 type = mimeOf(filename)
-                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_STREAM, sharedUri(file))
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             activity.startActivity(Intent.createChooser(send, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
     }
+
+    private fun viewFile(file: File, filename: String): Boolean = runCatching {
+        val view = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(sharedUri(file), mimeOf(filename))
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        activity.startActivity(view)
+        true
+    }.getOrDefault(false)
+
+    private fun sharedUri(file: File): Uri =
+        FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", file)
 
     private fun fetchToCache(url: String, filename: String, headersJson: String): File? = runCatching {
         val file = dedup(File(activity.cacheDir, "shared"), filename)

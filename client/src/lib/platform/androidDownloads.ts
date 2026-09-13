@@ -4,6 +4,7 @@ interface AndroidDownloadsBridge {
   cancel: (id: string) => void;
   saveAs: (url: string, filename: string, headersJson: string) => void;
   share: (url: string, filename: string, headersJson: string) => void;
+  open: (url: string, filename: string, headersJson: string) => void;
   saveText: (filename: string, text: string) => boolean;
   shareText: (filename: string, text: string) => void;
 }
