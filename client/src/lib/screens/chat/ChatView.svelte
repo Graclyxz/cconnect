@@ -108,7 +108,7 @@
       sharedLink !== null ||
       visibilityOpen ||
       navigation.previewOverlay ||
-      (layout.mobile && drawer.open),
+      (layout.mobile && drawer.showing),
   );
 
   const onPaste = (event: ClipboardEvent) => {

@@ -110,11 +110,6 @@
   );
 
   $effect(() => {
-    if (navigation.chatActive) return;
-    drawer.open = false;
-  });
-
-  $effect(() => {
     navigation.routeLocked =
       navigation.chatActive && !layout.mobile && panes.open && panes.focused === "right";
   });
@@ -233,7 +228,7 @@
 
   $effect(() =>
     navigation.intercept(() => {
-      if (!navigation.chatActive || !drawer.open) return false;
+      if (!drawer.showing) return false;
       drawer.open = false;
       return true;
     }),
@@ -496,7 +491,7 @@
 {/snippet}
 
 {#if layout.mobile}
-  <Drawer open={drawer.open} onDismiss={() => (drawer.open = false)} onOpen={() => (drawer.open = true)}>
+  <Drawer open={drawer.showing} onDismiss={() => (drawer.open = false)} onOpen={() => (drawer.open = true)}>
     <ChatList
       {chat}
       onOpenRight={(session) => panes.openInRight(session)}
