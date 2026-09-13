@@ -95,6 +95,10 @@
     if (sharpenTimer !== null) clearTimeout(sharpenTimer);
     sharpenTimer = setTimeout(() => {
       sharpenTimer = null;
+      if (loading) {
+        scheduleSharpen();
+        return;
+      }
       task?.cancel();
       void sharpen();
     }, SHARPEN_MS);

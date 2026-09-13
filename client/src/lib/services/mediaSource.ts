@@ -27,10 +27,10 @@ export function mediaSrc(node: Sourced, options: MediaOptions) {
     objectUrl = null;
   };
 
-  const apply = async (current: MediaOptions) => {
+  const apply = async () => {
     const attempt = ++token;
     release();
-    const sources = [current.url, current.fallback].filter(Boolean) as string[];
+    const sources = [options.url, options.fallback].filter(Boolean) as string[];
     for (const source of sources) {
       try {
         const resolved = await fetchObjectUrl(source);
@@ -42,21 +42,22 @@ export function mediaSrc(node: Sourced, options: MediaOptions) {
         node.src = resolved;
         if (node instanceof HTMLImageElement) await node.decode().catch(() => undefined);
         if (attempt !== token) return;
-        current.onload?.();
+        options.onload?.();
         return;
       } catch {
         continue;
       }
     }
-    if (attempt === token) current.onerror?.();
+    if (attempt === token) options.onerror?.();
   };
 
-  void apply(options);
+  void apply();
 
   return {
     update(next: MediaOptions) {
+      const moved = next.url !== options.url || next.fallback !== options.fallback;
       options = next;
-      void apply(next);
+      if (moved) void apply();
     },
     destroy() {
       token++;
