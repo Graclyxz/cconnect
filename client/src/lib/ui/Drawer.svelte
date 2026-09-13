@@ -137,6 +137,7 @@
 
   $effect(() => {
     if (!open) return;
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     return pushDismiss(onDismiss);
   });
 </script>
@@ -154,7 +155,7 @@
   class="fixed inset-y-0 left-0 z-40 border-r border-outline-variant bg-surface {dragging
     ? ''
     : 'transition-transform duration-200'}"
-  style="width: {sheetWidth}px; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); transform: translateX({dragging
+  style="width: {sheetWidth}px; padding-top: var(--safe-top); padding-bottom: var(--safe-bottom); transform: translateX({dragging
     ? offset - sheetWidth
     : open
       ? 0

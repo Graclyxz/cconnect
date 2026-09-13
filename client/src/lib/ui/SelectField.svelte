@@ -45,8 +45,12 @@
 
 <div class="{enabled ? '' : 'opacity-40'} {className}">
   <p class="mb-1.5 text-label-lg">{label}</p>
-  {#snippet field(active: boolean)}
-    <span class="{FIELD_CLASS} {enabled ? 'cursor-pointer' : ''} {active ? 'border-accent' : 'border-outline-variant'}">
+  {#snippet field()}
+    <span
+      class="{FIELD_CLASS} {enabled
+        ? 'cursor-pointer'
+        : ''} border-outline-variant group-data-[state=open]:border-accent"
+    >
       <span style={actionsReserve} class="min-w-0 flex-1 truncate text-left text-body-md">
         {display}
       </span>
@@ -63,14 +67,19 @@
   {/snippet}
   {#if onclick}
     <button type="button" disabled={!enabled} {onclick} class="w-full">
-      {@render field(false)}
+      {@render field()}
     </button>
   {:else if !enabled}
-    {@render field(false)}
+    {@render field()}
   {:else}
-    <PopupMenu {open} matchTriggerWidth triggerClass="w-full" onOpenChange={(value) => (open = value)}>
+    <PopupMenu
+      {open}
+      matchTriggerWidth
+      triggerClass="group w-full"
+      onOpenChange={(value) => (open = value)}
+    >
       {#snippet trigger()}
-        {@render field(open)}
+        {@render field()}
       {/snippet}
       {#each options as option (option.value)}
         <MenuItem

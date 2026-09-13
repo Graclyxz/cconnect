@@ -19,6 +19,16 @@
 
   const { open, onDismiss }: Props = $props();
 
+  let holding = $state(false);
+
+  const swallow = (event: Event) => {
+    event.stopPropagation();
+    holding = true;
+    onDismiss();
+  };
+
+  const release = () => requestAnimationFrame(() => (holding = false));
+
   $effect(() => {
     if (!open) return;
     openCount += 1;
@@ -33,20 +43,18 @@
   });
 </script>
 
-{#if open}
+{#if open || holding}
   <Portal>
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="pointer-events-auto fixed inset-0 z-65 overscroll-contain"
-      ontouchstart={(event) => {
-        event.stopPropagation();
-        onDismiss();
-      }}
+      ontouchstart={swallow}
       onpointerdown={(event) => {
         event.preventDefault();
-        event.stopPropagation();
-        onDismiss();
+        swallow(event);
       }}
+      onpointerup={release}
+      onpointercancel={release}
       onwheel={(event) => event.preventDefault()}
       ontouchmove={(event) => event.preventDefault()}
     ></div>

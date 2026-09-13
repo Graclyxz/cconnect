@@ -13,7 +13,7 @@
 </script>
 
 {#if cameraScan.active}
-  <div class="qr-overlay safe-area fixed inset-0 z-80 flex flex-col">
+  <div class="qr-overlay safe-area above-keyboard fixed inset-0 z-80 flex flex-col">
     <AppTopBar title={t("SCAN_QR")}>
       {#snippet navigationIcon()}
         <TooltipIconButton label={t("BACK")} onclick={() => void cancelCameraScan()}>

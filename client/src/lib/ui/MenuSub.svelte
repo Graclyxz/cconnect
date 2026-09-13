@@ -41,7 +41,7 @@
 
 <DropdownMenu.Sub>
   <DropdownMenu.SubTrigger
-    class="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left transition-colors outline-none select-none data-highlighted:bg-on-surface/10"
+    class="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left transition-colors outline-none select-none"
   >
     {@render leading?.()}
     <span class="min-w-0 flex-1 truncate text-body-md">{text}</span>

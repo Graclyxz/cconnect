@@ -2,6 +2,7 @@
   import Check from "@lucide/svelte/icons/check";
   import { DropdownMenu } from "bits-ui";
   import type { Snippet } from "svelte";
+  import { holdFocus } from "./keepFocus";
 
   interface Props {
     text: string;
@@ -32,7 +33,8 @@
   disabled={!enabled}
   {closeOnSelect}
   onSelect={onclick}
-  class="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left transition-colors outline-none select-none data-highlighted:bg-on-surface/10 data-disabled:cursor-default data-disabled:opacity-40"
+  onmousedown={holdFocus}
+  class="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left transition-colors outline-none select-none data-disabled:cursor-default data-disabled:opacity-40"
 >
   {@render leading?.()}
   {#if description}

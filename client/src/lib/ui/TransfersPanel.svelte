@@ -51,7 +51,7 @@
       scrollbar +
       layout.rightInset}px {layout.menuPadding.bottom}px {layout.menuPadding.left}px"
     class="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex justify-end {layout.rightInsetAnimated
-      ? 'transition-[padding] duration-200'
+      ? 'transition-[padding-right] duration-200'
       : ''}"
   >
     <div

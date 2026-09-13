@@ -1,9 +1,16 @@
-import { isTouch, isTauri, platformName } from "./index";
+import { watchAndroidInsets } from "./androidInsets";
+import { isTouch } from "./index";
 
 export const COMPACT_WIDTH = 600;
 const MENU_GAP = 8;
 
-const nativeKeyboardInsets = isTauri && platformName() === "android";
+interface VirtualKeyboard extends EventTarget {
+  overlaysContent: boolean;
+  readonly boundingRect: DOMRect;
+}
+
+const virtualKeyboard = (navigator as Navigator & { virtualKeyboard?: VirtualKeyboard })
+  .virtualKeyboard;
 
 class Layout {
   width = $state(window.innerWidth);
@@ -23,17 +30,23 @@ class Layout {
 
   readonly menuPadding = $derived({
     top: this.safeTop + MENU_GAP,
-    bottom: this.safeBottom + MENU_GAP,
+    bottom: this.safeBottom + this.keyboard + MENU_GAP,
     left: this.safeLeft + MENU_GAP,
     right: this.safeRight + MENU_GAP,
   });
 
   start() {
-    if (!nativeKeyboardInsets) {
-      const keyboard = (navigator as Navigator & { virtualKeyboard?: { overlaysContent: boolean } })
-        .virtualKeyboard;
-      if (keyboard) keyboard.overlaysContent = true;
-    }
+    const native = watchAndroidInsets((insets) => {
+      const root = document.documentElement.style;
+      root.setProperty("--safe-top", `${insets.top}px`);
+      root.setProperty("--safe-bottom", `${insets.bottom}px`);
+      root.setProperty("--safe-left", `${insets.left}px`);
+      root.setProperty("--safe-right", `${insets.right}px`);
+      this.#applyKeyboard(insets.keyboard);
+      this.#measureSafeArea();
+    });
+
+    if (!native && virtualKeyboard) virtualKeyboard.overlaysContent = true;
 
     $effect(() => {
       const measure = () => {
@@ -47,13 +60,19 @@ class Layout {
     });
 
     $effect(() => {
+      if (native) return;
+      const apply = (height: number) => this.#applyKeyboard(height);
+
+      if (virtualKeyboard) {
+        const track = () => apply(virtualKeyboard.boundingRect.height);
+        track();
+        virtualKeyboard.addEventListener("geometrychange", track);
+        return () => virtualKeyboard.removeEventListener("geometrychange", track);
+      }
+
       const viewport = window.visualViewport;
-      if (!viewport || nativeKeyboardInsets) return;
-      const track = () => {
-        const hidden = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
-        this.keyboard = Math.round(hidden);
-        document.documentElement.style.setProperty("--keyboard", `${this.keyboard}px`);
-      };
+      if (!viewport) return;
+      const track = () => apply(Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop));
       track();
       viewport.addEventListener("resize", track);
       viewport.addEventListener("scroll", track);
@@ -64,12 +83,21 @@ class Layout {
     });
   }
 
+  #applyKeyboard(height: number) {
+    const next = Math.round(height);
+    if (next === this.keyboard) return;
+    const gone = next === 0 && this.keyboard > 0;
+    this.keyboard = next;
+    document.documentElement.style.setProperty("--keyboard", `${next}px`);
+    if (gone && isTouch && document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  }
+
   #measureSafeArea() {
     const probe = document.createElement("div");
     probe.style.cssText =
       "position:fixed;top:0;left:0;visibility:hidden;pointer-events:none;" +
-      "padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);" +
-      "padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)";
+      "padding-top:var(--safe-top);padding-bottom:var(--safe-bottom);" +
+      "padding-left:var(--safe-left);padding-right:var(--safe-right)";
     document.body.appendChild(probe);
     const style = getComputedStyle(probe);
     this.safeTop = parseFloat(style.paddingTop) || 0;

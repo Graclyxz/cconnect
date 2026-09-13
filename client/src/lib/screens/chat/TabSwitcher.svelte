@@ -88,7 +88,7 @@
   <Dialog.Portal>
     <Dialog.Content
       onOpenAutoFocus={(event) => event.preventDefault()}
-      class="safe-area fixed inset-0 z-50 flex flex-col bg-surface text-on-surface"
+      class="safe-area above-keyboard fixed inset-0 z-50 flex flex-col bg-surface text-on-surface"
       aria-label={t("TABS")}
     >
       <div class="flex shrink-0 items-center px-1.5 py-1.5">

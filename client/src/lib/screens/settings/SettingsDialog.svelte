@@ -97,7 +97,7 @@
     <Dialog.Overlay class="fixed inset-0 z-60 bg-black/60" />
     <Dialog.Content
       onOpenAutoFocus={(event) => event.preventDefault()}
-      class="menu-surface fixed inset-0 z-60 m-auto flex h-[min(44rem,88%)] w-[min(56rem,calc(100vw-3rem))] overflow-hidden rounded-lg border-2 border-outline-variant bg-surface shadow-xl"
+      class="menu-surface safe-inset fixed z-60 m-auto flex h-[min(44rem,calc(var(--safe-height)_-_2rem))] w-[min(56rem,calc(100vw-3rem))] overflow-hidden rounded-lg border-2 border-outline-variant bg-surface shadow-xl"
     >
       <div class="flex w-52 shrink-0 flex-col border-r border-outline-variant px-2 pb-2">
         <Dialog.Title class="flex h-14 shrink-0 items-center truncate px-2 text-dialog-title">

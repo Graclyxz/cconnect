@@ -3,6 +3,7 @@ package com.jahirtrap.cconnect
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
@@ -19,7 +20,6 @@ import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
 import org.json.JSONObject
 
 private const val SHARE_ATTEMPTS = 20
@@ -37,6 +37,8 @@ class MainActivity : TauriActivity() {
   private var shareAttempts = 0
   private var selecting = false
   @Volatile private var selectableTarget = false
+  @Volatile private var safeArea: Insets = Insets.NONE
+  @Volatile private var keyboard = 0
 
   private val backCallback = object : OnBackPressedCallback(true) {
     override fun handleOnBackPressed() {
@@ -59,13 +61,14 @@ class MainActivity : TauriActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) window.isNavigationBarContrastEnforced = false
     downloads = Downloads(this) { url, filename, headers ->
       pendingSave = Triple(url, filename, headers)
       createDocument.launch(filename)
     }
     super.onCreate(savedInstanceState)
     onBackPressedDispatcher.addCallback(this, backCallback)
-    consumeImeInset()
+    trackWindowInsets()
     takeShare(intent)
   }
 
@@ -104,16 +107,35 @@ class MainActivity : TauriActivity() {
     }, SHARE_RETRY_MS)
   }
 
-  private fun consumeImeInset() {
+  private fun trackWindowInsets() {
     val root = findViewById<View>(android.R.id.content)
-    ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
-      val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-      val navigation = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
-      view.updatePadding(bottom = (ime - navigation).coerceAtLeast(0))
+    ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+      keyboard = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+      val bars = insets.getInsets(
+        WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+      )
+      safeArea = Insets.of(bars.left, bars.top, bars.right, (bars.bottom - keyboard).coerceAtLeast(0))
+      content?.evaluateJavascript("window.__cconnectInsets && window.__cconnectInsets(${safeAreaJson()})", null)
       WindowInsetsCompat.Builder(insets)
         .setInsets(WindowInsetsCompat.Type.ime(), Insets.NONE)
         .build()
     }
+  }
+
+  private fun safeAreaJson(): String {
+    val density = resources.displayMetrics.density
+    return JSONObject()
+      .put("top", safeArea.top / density)
+      .put("bottom", safeArea.bottom / density)
+      .put("left", safeArea.left / density)
+      .put("right", safeArea.right / density)
+      .put("keyboard", keyboard / density)
+      .toString()
+  }
+
+  inner class SafeAreaBridge {
+    @JavascriptInterface
+    fun get(): String = safeAreaJson()
   }
 
   override fun onResume() {
@@ -130,13 +152,13 @@ class MainActivity : TauriActivity() {
       false
     }
     webView.setOnTouchListener { view, event ->
-      if (event.actionMasked == MotionEvent.ACTION_DOWN && !selecting &&
-        view.layerType != View.LAYER_TYPE_NONE
-      ) {
-        view.setLayerType(View.LAYER_TYPE_NONE, null)
-      }
+      if (event.actionMasked == MotionEvent.ACTION_DOWN && !selecting) renderComposited(view)
       false
     }
+  }
+
+  private fun renderComposited(view: View) {
+    if (view.layerType != View.LAYER_TYPE_NONE) view.setLayerType(View.LAYER_TYPE_NONE, null)
   }
 
   inner class Selection {
@@ -155,6 +177,7 @@ class MainActivity : TauriActivity() {
   override fun onActionModeFinished(mode: ActionMode) {
     super.onActionModeFinished(mode)
     selecting = false
+    content?.let(::renderComposited)
   }
 
   private fun leave() {
@@ -167,6 +190,7 @@ class MainActivity : TauriActivity() {
     content = webView
     renderSoftwareWhileSelecting(webView)
     webView.addJavascriptInterface(SystemBars(), "AndroidSystemBars")
+    webView.addJavascriptInterface(SafeAreaBridge(), "AndroidInsets")
     webView.addJavascriptInterface(downloads, "AndroidDownloads")
     webView.addJavascriptInterface(Background(), "AndroidBackground")
     webView.addJavascriptInterface(CodeScanner(), "AndroidQrScan")
