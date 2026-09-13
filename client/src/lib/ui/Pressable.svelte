@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { LONG_PRESS_MS } from "./press";
 
   interface Props {
     onclick?: () => void;
@@ -23,7 +24,6 @@
     children,
   }: Props = $props();
 
-  const LONG_PRESS_MS = 500;
 
   let timer: ReturnType<typeof setTimeout> | null = null;
   let fired = $state(false);

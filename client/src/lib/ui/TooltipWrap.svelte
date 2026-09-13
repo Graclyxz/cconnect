@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import { isTouch } from "$lib/platform";
+  import { LONG_PRESS_MS } from "./press";
   import TouchTip from "./TouchTip.svelte";
 
   interface Props {
@@ -11,7 +12,6 @@
 
   const { label, class: className = "", children }: Props = $props();
 
-  const LONG_PRESS_MS = 500;
   const PRESS_SLOP = 10;
   const TOUCH_HIDE_MS = 1500;
   const HALF = 2;

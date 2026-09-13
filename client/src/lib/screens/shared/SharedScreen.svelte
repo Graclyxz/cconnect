@@ -94,6 +94,7 @@
   import { isEditing } from "$lib/data/paneFocus.svelte";
   import { isTouch } from "$lib/platform";
   import { useShortcut } from "$lib/platform/useShortcut.svelte";
+  import { LONG_PRESS_MS, TOUCH_SLOP } from "$lib/ui/press";
 
   type SortKey = "name" | "date" | "type" | "size";
   type TransferKind = "move" | "copy" | "extract";
@@ -125,8 +126,6 @@
   const SEARCH_DELAY_MS = 300;
   const MILLIS_PER_SECOND = 1000;
   const SLIDE_MS = 150;
-  const LONG_PRESS_MS = 500;
-  const DRAG_SLOP = 8;
   const EDGE_ZONE = 96;
   const EDGE_STEP = 24;
   const SORT_KEYS: SortKey[] = ["name", "date", "type", "size"];
@@ -449,7 +448,7 @@
   const sharedSelection = (): SharedFile[] => filesOf(selectedEntries);
 
   const moved = (event: PointerEvent) =>
-    !!pressOrigin && Math.hypot(event.clientX - pressOrigin.x, event.clientY - pressOrigin.y) > DRAG_SLOP;
+    !!pressOrigin && Math.hypot(event.clientX - pressOrigin.x, event.clientY - pressOrigin.y) > TOUCH_SLOP;
 
   const capture = (pointerId: number) => {
     captured = pointerId;

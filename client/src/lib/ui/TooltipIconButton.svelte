@@ -4,6 +4,7 @@
   import { isTouch } from "$lib/platform";
   import { shortcuts } from "$lib/platform/shortcuts.svelte";
   import { keyboardNavigation } from "./keyboardNavigation.svelte";
+  import { LONG_PRESS_MS } from "./press";
   import TouchTip from "./TouchTip.svelte";
 
   interface Props {
@@ -30,7 +31,6 @@
 
   const BASE_CLASS =
     "no-callout inline-flex shrink-0 cursor-pointer touch-manipulation items-center justify-center rounded-full transition-colors select-none enabled:hover:bg-on-surface/8 disabled:cursor-default disabled:opacity-40";
-  const LONG_PRESS_MS = 500;
   const PRESS_SLOP = 10;
   const TOUCH_HIDE_MS = 1500;
   const HALF = 2;

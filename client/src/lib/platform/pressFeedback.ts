@@ -1,3 +1,4 @@
+import { TOUCH_SLOP } from "$lib/ui/press";
 import { scrollableUnder } from "$lib/ui/scrollbar";
 import { isTouch } from "./index";
 
@@ -8,7 +9,6 @@ const BOXLESS = ["inline", "contents"];
 const TAP_TIMEOUT_MS = 100;
 const HOLD_MS = 225;
 const FADE_MS = 150;
-const TOUCH_SLOP = 8;
 
 export const trackPressFeedback = () => {
   if (!isTouch) return;

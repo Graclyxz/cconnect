@@ -1,3 +1,5 @@
+import { DRAG_PRESS_MS, MOUSE_SLOP, TOUCH_SLOP } from "$lib/ui/press";
+
 interface Block {
   categoryId: string;
   top: number;
@@ -10,9 +12,6 @@ interface Drop {
   y: number;
 }
 
-const LONG_PRESS_MS = 400;
-const MOUSE_SLOP = 4;
-const TOUCH_SLOP = 8;
 const EDGE = 48;
 const EDGE_STEP = 12;
 
@@ -77,7 +76,7 @@ export class CategoryDrag {
     this.#pointer = event.clientY;
     this.#touch = event.pointerType === "touch";
     const start = () => this.#start(categoryId);
-    if (this.#touch) this.#press = setTimeout(start, LONG_PRESS_MS);
+    if (this.#touch) this.#press = setTimeout(start, DRAG_PRESS_MS);
     else this.#pending = start;
     window.addEventListener("pointermove", this.#onMove);
     window.addEventListener("pointerup", this.#onUp);

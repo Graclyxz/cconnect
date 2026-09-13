@@ -1,3 +1,5 @@
+import { DRAG_PRESS_MS, MOUSE_SLOP, TOUCH_SLOP } from "$lib/ui/press";
+
 export interface DropTarget {
   categoryId: string | null;
   index: number | null;
@@ -21,10 +23,7 @@ interface Drop {
   y: number;
 }
 
-const LONG_PRESS_MS = 400;
 const SPRING_MS = 800;
-const MOUSE_SLOP = 4;
-const TOUCH_SLOP = 8;
 const EDGE = 48;
 const EDGE_STEP = 12;
 
@@ -105,7 +104,7 @@ export class ChatDrag {
     this.#pointer = event.clientY;
     this.#touch = event.pointerType === "touch";
     const start = () => this.#start(sessionId);
-    if (this.#touch) this.#press = setTimeout(start, LONG_PRESS_MS);
+    if (this.#touch) this.#press = setTimeout(start, DRAG_PRESS_MS);
     else this.#pending = start;
     window.addEventListener("pointermove", this.#onMove);
     window.addEventListener("pointerup", this.#onUp);

@@ -15,6 +15,7 @@
   import TooltipIconButton from "$lib/ui/TooltipIconButton.svelte";
   import ProjectPathDialog from "./ProjectPathDialog.svelte";
   import TrashDialog from "./TrashDialog.svelte";
+  import { DRAG_PRESS_MS } from "$lib/ui/press";
   import type { ChatState } from "./state.svelte";
 
   interface Props {
@@ -25,7 +26,6 @@
 
   const { chat, onDismiss, onOpenChat }: Props = $props();
 
-  const LONG_PRESS_MS = 400;
   const SPACING = 4;
 
   let editing = $state<string | null>(null);
@@ -159,7 +159,7 @@
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
     window.addEventListener("blur", onUp);
-    if (event.pointerType === "touch") timer = setTimeout(begin, LONG_PRESS_MS);
+    if (event.pointerType === "touch") timer = setTimeout(begin, DRAG_PRESS_MS);
     else begin();
   };
 </script>

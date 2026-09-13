@@ -9,6 +9,7 @@
   import { sessionColorOf } from "$lib/design/sessionColors";
   import { t } from "$lib/i18n/index.svelte";
   import TooltipIconButton from "$lib/ui/TooltipIconButton.svelte";
+  import { DRAG_PRESS_MS } from "$lib/ui/press";
   import { hscrollbar } from "$lib/ui/scrollbar";
   import { PANE_HEADER_CLASS, paneFocusBorder } from "./paneChrome";
 
@@ -60,7 +61,6 @@
   const DRAG_THRESHOLD = 8;
   const EDGE = 56;
   const STEP = 12;
-  const LONG_PRESS_MS = 400;
   const HALF = 2;
 
   let strip = $state<HTMLDivElement | null>(null);
@@ -217,7 +217,7 @@
       timer = null;
     };
 
-    if (touch) timer = setTimeout(() => ((started = true), startDrag(id, startX)), LONG_PRESS_MS);
+    if (touch) timer = setTimeout(() => ((started = true), startDrag(id, startX)), DRAG_PRESS_MS);
 
     const onMove = (move: PointerEvent) => {
       if (move.pointerId !== event.pointerId) return;

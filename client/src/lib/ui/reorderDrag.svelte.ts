@@ -1,4 +1,5 @@
-const LONG_PRESS_MS = 400;
+import { DRAG_PRESS_MS } from "./press";
+
 const DRAG_THRESHOLD = 8;
 const RELEASE_MS = 140;
 const HALF = 2;
@@ -82,7 +83,7 @@ export class ReorderDrag {
       timer = null;
     };
 
-    if (touch) timer = setTimeout(begin, LONG_PRESS_MS);
+    if (touch) timer = setTimeout(begin, DRAG_PRESS_MS);
 
     const onMove = (move: PointerEvent) => {
       if (move.pointerId !== event.pointerId) return;
