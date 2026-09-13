@@ -21,6 +21,7 @@ export { default as MenuSub } from "./MenuSub.svelte";
 export { default as MetricBar } from "./MetricBar.svelte";
 export { default as NoticeCard } from "./NoticeCard.svelte";
 export { default as OutlinedPanel } from "./OutlinedPanel.svelte";
+export { default as OutputPanel } from "./OutputPanel.svelte";
 export { default as PopupMenu } from "./PopupMenu.svelte";
 export { default as PreferenceRow } from "./PreferenceRow.svelte";
 export { default as Pressable } from "./Pressable.svelte";

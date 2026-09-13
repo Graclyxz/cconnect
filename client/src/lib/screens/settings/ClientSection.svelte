@@ -136,6 +136,7 @@
   <AccentDialog
     title={t("ACCENT")}
     selected={theme.dynamicColor ? DYNAMIC_ACCENT : theme.accentIndex}
+    closeOnPick
     onSelect={(index) => {
       if (index === DYNAMIC_ACCENT) theme.setDynamicColor(true);
       else if (index !== null) {

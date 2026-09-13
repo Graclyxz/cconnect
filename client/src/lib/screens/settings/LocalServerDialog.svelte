@@ -8,6 +8,7 @@
   import Button from "$lib/ui/Button.svelte";
   import CompactDialog from "$lib/ui/CompactDialog.svelte";
   import InputField from "$lib/ui/InputField.svelte";
+  import OutputPanel from "$lib/ui/OutputPanel.svelte";
   import SelectField from "$lib/ui/SelectField.svelte";
   import TooltipIconButton from "$lib/ui/TooltipIconButton.svelte";
 
@@ -126,11 +127,7 @@
     {/if}
 
     {#if panel}
-      <p
-        class="selectable mt-1 rounded-md border-2 px-2.5 py-2 font-mono text-body-sm wrap-anywhere whitespace-pre-wrap {failure
-          ? 'border-red text-red'
-          : 'border-outline-variant text-on-surface'}"
-      >{panel}</p>
+      <OutputPanel text={panel} failure={failure !== null} class="mt-1" />
     {/if}
   </div>
 </CompactDialog>

@@ -145,19 +145,21 @@
           </div>
         {/if}
 
-        <div class="px-4">
-          <SettingsGroup label={t("STORAGE")}>
-            <div class="flex flex-col gap-3.5 p-4">
-              {#each current.disks as disk (disk.mount)}
-                <MetricBar
-                  title={disk.mount}
-                  subtitle="{formatSize(disk.used)} / {formatSize(disk.total)}"
-                  percent={disk.percent}
-                />
-              {/each}
-            </div>
-          </SettingsGroup>
-        </div>
+        {#if current.disks.length}
+          <div class="px-4">
+            <SettingsGroup label={t("STORAGE")}>
+              <div class="flex flex-col gap-3.5 p-4">
+                {#each current.disks as disk (disk.mount)}
+                  <MetricBar
+                    title={disk.mount}
+                    subtitle="{formatSize(disk.used)} / {formatSize(disk.total)}"
+                    percent={disk.percent}
+                  />
+                {/each}
+              </div>
+            </SettingsGroup>
+          </div>
+        {/if}
 
         <div class="px-4">
           <SettingsGroup label={t("INFORMATION")}>

@@ -16,6 +16,7 @@
   import { tabs } from "$lib/screens/chat/tabs.svelte";
   import ActionButton from "$lib/ui/ActionButton.svelte";
   import LoadingIndicator from "$lib/ui/LoadingIndicator.svelte";
+  import OutputPanel from "$lib/ui/OutputPanel.svelte";
   import PreferenceRow from "$lib/ui/PreferenceRow.svelte";
   import SelectDialog from "$lib/ui/SelectDialog.svelte";
   import SettingsGroup from "$lib/ui/SettingsGroup.svelte";
@@ -212,11 +213,7 @@
         onclick={() => void (updateAvailable ? runUpdate() : checkUpdate())}
       />
       {#if repo?.message && !repo.ok}
-        <p
-          class="mt-2.5 rounded-md border-2 border-red px-2.5 py-2 font-mono text-body-sm whitespace-pre-wrap text-red"
-        >
-          {repo.message}
-        </p>
+        <OutputPanel text={repo.message} failure class="mt-2.5" />
       {/if}
     </div>
   {/if}
