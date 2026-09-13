@@ -245,12 +245,7 @@ html.scanning .qr-overlay {
   position: relative;
 }
 
-[data-pressed] {
-  contain: layout;
-}
-
-.ripple::after,
-[data-pressed]::after {
+.ripple::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -267,19 +262,34 @@ html.scanning .qr-overlay {
   }
 }
 
-@media (hover: none) {
-  [data-pressed]::after {
-    background-color: color-mix(in srgb, currentColor 55%, transparent);
-    background-image: radial-gradient(
-      circle var(--press-reach, 100%) at var(--press-x, 50%) var(--press-y, 50%),
-      currentColor 0%,
-      transparent 100%
-    );
-  }
+@property --press-alpha {
+  syntax: "<number>";
+  inherits: false;
+  initial-value: 0;
+}
 
-  [data-pressed="on"]::after {
-    opacity: 0.2;
-    transition: none;
+[data-pressed] {
+  background-image: radial-gradient(
+    circle var(--press-reach, 100%) at var(--press-x, 50%) var(--press-y, 50%),
+    color-mix(in srgb, currentColor calc(var(--press-alpha) * 20%), transparent) 0%,
+    color-mix(in srgb, currentColor calc(var(--press-alpha) * 11%), transparent) 100%
+  );
+}
+
+[data-pressed="on"] {
+  --press-alpha: 1;
+}
+
+[data-pressed="off"] {
+  animation: press-out 150ms linear forwards;
+}
+
+@keyframes press-out {
+  from {
+    --press-alpha: 1;
+  }
+  to {
+    --press-alpha: 0;
   }
 }
 

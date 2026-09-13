@@ -10,8 +10,8 @@ export const scrollbarWidth = (node: HTMLElement, border = borderWidth(node)) =>
   return Math.max(0, node.offsetWidth - node.clientWidth - border);
 };
 
-export const scrollableUnder = (x: number, y: number) => {
-  let node = document.elementFromPoint(x, y) as HTMLElement | null;
+export const scrollableAbove = (from: Element | null) => {
+  let node = from as HTMLElement | null;
   while (node) {
     const overflow = getComputedStyle(node).overflowY;
     if (overflow === "auto" || overflow === "scroll") return node;
@@ -19,6 +19,9 @@ export const scrollableUnder = (x: number, y: number) => {
   }
   return null;
 };
+
+export const scrollableUnder = (x: number, y: number) =>
+  scrollableAbove(document.elementFromPoint(x, y));
 
 export interface ScrollbarOptions {
   touchIndicator?: boolean;
