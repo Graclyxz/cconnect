@@ -30,8 +30,8 @@ def get_system_logs(after: int = Query(0, ge=0), limit: int = Query(200, ge=1, l
 def _exit_after(code: int) -> None:
     async def _later():
         await asyncio.sleep(_EXIT_DELAY)
-        if code == RESTART_EXIT_CODE:
-            paths.RESTART_FLAG.touch()
+        flag = paths.RESTART_FLAG if code == RESTART_EXIT_CODE else paths.STOP_FLAG
+        flag.touch()
         os._exit(code)
 
     asyncio.get_running_loop().create_task(_later())

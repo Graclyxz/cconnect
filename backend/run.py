@@ -29,6 +29,8 @@ _TOKEN_VAR = "PUBLIC_ACCESS_TOKEN"
 _SECURITY_KEY_VAR = "SECURITY_KEY"
 _HOSTNAME_VAR = "PUBLIC_HOSTNAME"
 _PROVIDERS = ("tailscale", "caddy")
+_STOP_TIMEOUT = 10
+_POLL_SECONDS = 0.5
 
 
 def _abort(msg: str) -> None:
@@ -270,16 +272,28 @@ def _spawn_detached(child_args: list[str]) -> int:
     return process.pid
 
 
-def _terminate_tree(pid: int) -> None:
-    with suppress(psutil.Error):
+def _reapable(target: psutil.Process) -> bool:
+    with suppress(psutil.Error, OSError):
+        return target.status() != psutil.STATUS_ZOMBIE
+    return False
+
+
+def _process_tree(pid: int) -> list[psutil.Process]:
+    with suppress(psutil.Error, OSError):
         parent = psutil.Process(pid)
-        targets = parent.children(recursive=True) + [parent]
-        for target in targets:
-            with suppress(psutil.Error):
-                target.terminate()
-        _, alive = psutil.wait_procs(targets, timeout=10)
+        return [target for target in parent.children(recursive=True) + [parent] if _reapable(target)]
+    return []
+
+
+def _terminate_tree(pid: int) -> None:
+    targets = _process_tree(pid)
+    for target in targets:
+        with suppress(psutil.Error, OSError):
+            target.terminate()
+    with suppress(psutil.Error, OSError):
+        _, alive = psutil.wait_procs(targets, timeout=_STOP_TIMEOUT)
         for target in alive:
-            with suppress(psutil.Error):
+            with suppress(psutil.Error, OSError):
                 target.kill()
 
 
@@ -288,19 +302,10 @@ def _stop_detached() -> None:
     if pid is None:
         print("No detached backend is running.")
     else:
-        try:
-            parent = psutil.Process(pid)
-            targets = parent.children(recursive=True) + [parent]
-            for target in targets:
-                with suppress(psutil.Error):
-                    target.terminate()
-            _, alive = psutil.wait_procs(targets, timeout=10)
-            for target in alive:
-                with suppress(psutil.Error):
-                    target.kill()
-            print(f"Stopped detached backend (pid {pid}).")
-        except (psutil.Error, OSError) as exc:
-            _abort(f"could not stop pid {pid}: {exc}")
+        _terminate_tree(pid)
+        if psutil.pid_exists(pid):
+            _abort(f"could not stop pid {pid}.")
+        print(f"Stopped detached backend (pid {pid}).")
     paths.DETACHED_PID_FILE.unlink(missing_ok=True)
     if _detached_provider() == "tailscale":
         _stop_tailscale_funnel()
@@ -378,27 +383,33 @@ def main():
 
     cmd = [sys.executable, "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", str(PORT)]
     if reload:
-        cmd.append("--reload")
+        cmd += ["--reload", "--reload-exclude", str(paths.DATA_DIR)]
     elif workers > 1:
         cmd += ["--workers", str(workers)]
 
     paths.RESTART_FLAG.unlink(missing_ok=True)
+    paths.STOP_FLAG.unlink(missing_ok=True)
     while True:
         process = subprocess.Popen(cmd, cwd=Path(__file__).resolve().parent)
         asked = False
+        stopped = False
         try:
             while True:
                 try:
-                    process.wait(timeout=0.5)
+                    process.wait(timeout=_POLL_SECONDS)
                     break
                 except subprocess.TimeoutExpired:
-                    if paths.RESTART_FLAG.exists():
-                        asked = True
+                    asked = paths.RESTART_FLAG.exists()
+                    stopped = paths.STOP_FLAG.exists()
+                    if asked or stopped:
                         _terminate_tree(process.pid)
                         process.wait()
                         break
         except KeyboardInterrupt:
             _terminate_tree(process.pid)
+            break
+        if stopped or paths.STOP_FLAG.exists():
+            paths.STOP_FLAG.unlink(missing_ok=True)
             break
         if asked or paths.RESTART_FLAG.exists():
             paths.RESTART_FLAG.unlink(missing_ok=True)

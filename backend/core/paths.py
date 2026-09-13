@@ -25,6 +25,7 @@ PROJECT_PROMPTS_DIR = CONFIG_DIR / "prompts" / "projects"
 
 RUNTIME_FILE = STATE_DIR / ".runtime"
 RESTART_FLAG = STATE_DIR / ".restart"
+STOP_FLAG = STATE_DIR / ".stop"
 DETACHED_PID_FILE = STATE_DIR / ".detached.pid"
 DETACHED_PROVIDER_FILE = STATE_DIR / ".detached.provider"
 REWIND_FILE = STATE_DIR / "rewind_pending.json"
