@@ -179,6 +179,9 @@ class ChatListHub:
             self._refresh(True)
 
     def _scan(self) -> tuple[dict, dict]:
+        from services.live_sessions import registry
+
+        live = registry.live_session_ids()
         base = Path(CLAUDE_PROJECTS_DIR)
         projects: dict[str, dict] = {}
         sessions: dict[str, dict] = {}
@@ -206,7 +209,7 @@ class ChatListHub:
                     meta = cached[1]
                 else:
                     cwd, preview, title, color, entrypoint, has_content = sessions_service._session_meta(file)
-                    if entrypoint != "cli" or (not has_content and not title):
+                    if (entrypoint != "cli" and sid not in live) or (not has_content and not title):
                         meta = None
                     else:
                         meta = {

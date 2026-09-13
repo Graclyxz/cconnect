@@ -1465,7 +1465,7 @@ export class ChatState {
     if (!sessionId || !project) return;
     const page = await this.#sessions.messages(sessionId, project, HISTORY_PAGE, null, settings.visibility);
     if (!page) return;
-    const live = keepLive ? this.messages.filter((item) => item.sourceIndex < 0) : [];
+    const carried = keepLive ? this.messages.filter((item) => item.sourceIndex < 0) : [];
     const visible = page.items.filter(isVisible);
     const loaded = this.#nest(visible.map((item, index) => this.#fromSession(item, index, sessionId, project)));
     this.#nextId = visible.length;
@@ -1482,6 +1482,9 @@ export class ChatState {
     this.#silent.clear();
     this.#interrupting = false;
     this.#pendingTrim = null;
+    const live = loaded.some((item) => item.role === "compact")
+      ? carried.filter((item) => item.role !== "compact")
+      : carried;
     this.messages = live.length ? [...loaded, ...live] : loaded;
     this.#nextId = Math.max(this.#nextId, ...live.map((item) => item.id + 1), 0);
     this.todos = [];

@@ -393,21 +393,7 @@ class LiveSession:
         except asyncio.CancelledError:
             pass
         if worker.cancelled():
-            leftover = [it for it in self._inflight if it.get("id") not in self._seen_ids]
-            self._inflight = []
-            self._unconsumed = 0
-            if leftover:
-                pending = []
-                while not self._inbox.empty():
-                    try:
-                        it = self._inbox.get_nowait()
-                    except asyncio.QueueEmpty:
-                        break
-                    if it is not _CLOSE:
-                        pending.append(it)
-                self._queued = leftover + pending
-                for it in self._queued:
-                    self._inbox.put_nowait(it)
+            self._requeue_inflight()
             self._publish_queue()
             if not announced:
                 await self._emit({"type": "interrupted"})
@@ -424,6 +410,25 @@ class LiveSession:
             await asyncio.wait([waiter, self._worker], timeout=STOP_GRACE, return_when=asyncio.FIRST_COMPLETED)
         finally:
             waiter.cancel()
+        return True
+
+    def _requeue_inflight(self) -> bool:
+        leftover = [it for it in self._inflight if it.get("id") not in self._seen_ids]
+        self._inflight = []
+        self._unconsumed = 0
+        if not leftover:
+            return False
+        pending = []
+        while not self._inbox.empty():
+            try:
+                it = self._inbox.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+            if it is not _CLOSE:
+                pending.append(it)
+        self._queued = leftover + pending
+        for it in self._queued:
+            self._inbox.put_nowait(it)
         return True
 
     async def _flush_inflight(self):
@@ -455,7 +460,10 @@ class LiveSession:
             logger.error(f"live session worker failed: {type(exc).__name__}: {exc}")
             if not self._stopping:
                 await self._emit({"type": "error", "message": f"{type(exc).__name__}: {exc}"})
-            await self._flush_inflight()
+            if self._requeue_inflight():
+                self._publish_queue()
+            else:
+                await self._flush_inflight()
             await self._emit({"type": "interrupted" if self._stopping else "done"})
             self._settle()
         else:
