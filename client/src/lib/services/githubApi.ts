@@ -46,10 +46,35 @@ interface ProfileWire {
   html_url?: string;
 }
 
-const fetchJson = async <T>(url: string): Promise<T | null> => {
+const ATTEMPTS = 3;
+const RETRY_DELAY_MS = 600;
+const TIMEOUT_MS = 15_000;
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const fetchOnce = async (url: string, headers: HeadersInit): Promise<Response | null> => {
   try {
-    const response = await fetch(url, { headers: { Accept: "application/vnd.github+json" }, cache: "no-store" });
-    return response.ok ? ((await response.json()) as T) : null;
+    return await fetch(url, { headers, cache: "no-store", signal: AbortSignal.timeout(TIMEOUT_MS) });
+  } catch {
+    return null;
+  }
+};
+
+const request = async (url: string, headers: HeadersInit = {}): Promise<Response | null> => {
+  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    if (attempt > 0) await wait(RETRY_DELAY_MS << (attempt - 1));
+    const response = await fetchOnce(url, headers);
+    if (response?.ok) return response;
+    if (response && response.status < 500) return null;
+  }
+  return null;
+};
+
+const fetchJson = async <T>(url: string): Promise<T | null> => {
+  const response = await request(url, { Accept: "application/vnd.github+json" });
+  if (!response) return null;
+  try {
+    return (await response.json()) as T;
   } catch {
     return null;
   }
@@ -147,15 +172,11 @@ const markdownChangelog = async (
 ): Promise<ReleaseNotes[] | null> => {
   const cached = store.get<ChangelogCache | null>(cacheKey, null);
   if (version && cached?.version === version) return cached.items;
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return cached?.items ?? null;
-    const items = parseChangelog(await response.text());
-    store.set(cacheKey, { version: version ?? "", items });
-    return items;
-  } catch {
-    return cached?.items ?? null;
-  }
+  const response = await request(url);
+  if (!response) return cached?.items ?? null;
+  const items = parseChangelog(await response.text());
+  store.set(cacheKey, { version: version ?? "", items });
+  return items;
 };
 
 export const claudeChangelog = (cliVersion: string | null): Promise<ReleaseNotes[] | null> =>

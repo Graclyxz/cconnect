@@ -7,6 +7,7 @@ export interface BrowserTab {
 }
 
 export interface BrowserState {
+  available: boolean;
   running: boolean;
   url: string;
   title: string;
@@ -103,6 +104,7 @@ export const browserLink = (hooks: BrowserHooks, viewport: () => BrowserViewport
       if (data.type !== "state") return;
       hooks.onConnected(true);
       hooks.onState({
+        available: data.available === true,
         running: data.running === true,
         url: (data.url as string) ?? "",
         title: (data.title as string) ?? "",

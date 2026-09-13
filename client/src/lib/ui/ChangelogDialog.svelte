@@ -17,13 +17,20 @@
 
   let notes = $state<ReleaseNotes[] | null>(null);
   let failed = $state(false);
+  let attempt = $state(0);
 
   $effect(() => {
+    void attempt;
     void load().then((result) => {
       if (result) notes = result;
       else failed = true;
     });
   });
+
+  const retry = () => {
+    failed = false;
+    attempt++;
+  };
 </script>
 
 <CompactDialog title={t("CHANGELOG")} {onDismiss}>
@@ -31,7 +38,11 @@
     <Button onclick={onDismiss} variant="outlined">{t("CANCEL")}</Button>
   {/snippet}
   {#if failed}
-    <EmptyState text={t("CONNECTION_ERROR")} class="py-6" />
+    <EmptyState text={t("CONNECTION_ERROR")} class="py-6">
+      {#snippet action()}
+        <Button onclick={retry} variant="outlined">{t("RETRY")}</Button>
+      {/snippet}
+    </EmptyState>
   {:else if !notes}
     <CenteredProgress class="w-full py-6" />
   {:else}

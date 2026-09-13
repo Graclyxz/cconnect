@@ -55,6 +55,7 @@
   let cursor = $state("auto");
   let dragging = $state(false);
   let page = $state<BrowserState>({
+    available: true,
     running: false,
     url: "",
     title: "",
@@ -387,6 +388,11 @@
     {#if !ready && !connected}
       <EmptyState
         text={pane && serverStatus.unavailable ? t("SERVER_UNAVAILABLE") : t("CONNECTION_ERROR")}
+        class="absolute inset-0 bg-surface"
+      />
+    {:else if !ready && !page.running}
+      <EmptyState
+        text={page.available ? t("BROWSER_FAILED") : t("BROWSER_MISSING")}
         class="absolute inset-0 bg-surface"
       />
     {:else if !ready}
