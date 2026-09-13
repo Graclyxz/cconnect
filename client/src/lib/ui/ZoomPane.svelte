@@ -35,12 +35,25 @@
 
   const spread = () => {
     const [first, second] = [...points.values()];
-    return Math.hypot(first.x - second.x, first.y - second.y);
+    return first && second ? Math.hypot(first.x - second.x, first.y - second.y) : 0;
   };
 
   const middle = () => {
     const [first, second] = [...points.values()];
     return { x: (first.x + second.x) / HALF, y: (first.y + second.y) / HALF };
+  };
+
+  const regrip = () => {
+    if (points.size >= 2) {
+      pinchDistance = spread();
+      pinchScale = scale;
+      return;
+    }
+    pinchDistance = 0;
+    const [last] = [...points.values()];
+    if (!last) return;
+    dragX = last.x;
+    dragY = last.y;
   };
 
   const zoomAt = (target: number, clientX: number, clientY: number) => {
@@ -58,16 +71,16 @@
 
   const onPointerDown = (event: PointerEvent) => {
     const target = event.currentTarget as HTMLElement;
+    if (event.isPrimary) points.clear();
     points.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (points.size === 2) {
-      pinchDistance = spread();
-      pinchScale = scale;
+    dragX = event.clientX;
+    dragY = event.clientY;
+    if (points.size >= 2) {
+      regrip();
       return;
     }
     if (scale <= minScale) return;
     target.setPointerCapture(event.pointerId);
-    dragX = event.clientX;
-    dragY = event.clientY;
   };
 
   const onPointerMove = (event: PointerEvent) => {
@@ -90,7 +103,7 @@
 
   const onPointerUp = (event: PointerEvent) => {
     points.delete(event.pointerId);
-    if (points.size < 2) pinchDistance = 0;
+    regrip();
   };
 
   const onWheel = (event: WheelEvent) => {

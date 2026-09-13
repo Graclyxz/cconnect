@@ -1,7 +1,9 @@
 <script lang="ts">
+  import type { PDFPageProxy, RenderTask } from "pdfjs-dist";
   import { tick, untrack } from "svelte";
   import { authHeadersOf, backend } from "$lib/services/backend.svelte";
   import CenteredProgress from "$lib/ui/CenteredProgress.svelte";
+  import { pixelGrid } from "$lib/ui/pixelGrid";
 
   interface Props {
     url: string;
@@ -10,12 +12,14 @@
 
   const { url, onerror }: Props = $props();
 
-  const RENDER_SCALE = 2;
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 5;
   const DOUBLE_TAP_ZOOM = 2.5;
   const WHEEL_STEP = 0.0015;
   const HALF = 2;
+  const PAGE_PIXELS = 12e6;
+  const SHARPEN_MS = 200;
+  const SHARPEN_MARGIN = 600;
 
   let viewport = $state<HTMLDivElement | null>(null);
   let host = $state<HTMLDivElement | null>(null);
@@ -30,7 +34,71 @@
   let dragX = 0;
   let dragY = 0;
 
+  let pages: PDFPageProxy[] = [];
+  let canvases: HTMLCanvasElement[] = [];
+  let factors: number[] = [];
+  let task: RenderTask | null = null;
+  let generation = 0;
+  let sharpenTimer: ReturnType<typeof setTimeout> | null = null;
+
   const clamp = (value: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
+
+  const density = () => 1 / pixelGrid();
+
+  const paint = async (index: number, available: number, factor: number) => {
+    const page = pages[index];
+    const canvas = canvases[index];
+    const base = page.getViewport({ scale: 1 });
+    const cap = Math.sqrt(PAGE_PIXELS / (base.width * base.height));
+    const rendered = page.getViewport({ scale: Math.min((available / base.width) * factor, cap) });
+    factors[index] = 0;
+    canvas.width = Math.floor(rendered.width);
+    canvas.height = Math.floor(rendered.height);
+    const context = canvas.getContext("2d");
+    if (!context) return;
+    task = page.render({ canvas, canvasContext: context, viewport: rendered });
+    await task.promise;
+    task = null;
+    factors[index] = factor;
+  };
+
+  const onscreen = () => {
+    const box = viewport;
+    if (!box) return canvases.map((_, index) => index);
+    const rect = box.getBoundingClientRect();
+    const indexes: number[] = [];
+    canvases.forEach((canvas, index) => {
+      const area = canvas.getBoundingClientRect();
+      if (area.bottom > rect.top - SHARPEN_MARGIN && area.top < rect.bottom + SHARPEN_MARGIN) {
+        indexes.push(index);
+      }
+    });
+    return indexes;
+  };
+
+  const sharpen = async () => {
+    const mine = ++generation;
+    const factor = density() * zoom;
+    const targets = zoom > MIN_ZOOM ? onscreen() : canvases.map((_, index) => index);
+    for (const index of targets) {
+      if (mine !== generation) return;
+      if (factors[index] === factor) continue;
+      try {
+        await paint(index, width, factor);
+      } catch {
+        return;
+      }
+    }
+  };
+
+  const scheduleSharpen = () => {
+    if (sharpenTimer !== null) clearTimeout(sharpenTimer);
+    sharpenTimer = setTimeout(() => {
+      sharpenTimer = null;
+      task?.cancel();
+      void sharpen();
+    }, SHARPEN_MS);
+  };
 
   const render = async (container: HTMLDivElement, available: number) => {
     const pdfjs = await import("pdfjs-dist");
@@ -41,33 +109,46 @@
     const document_ = await pdfjs.getDocument({ data: await response.arrayBuffer() }).promise;
 
     container.replaceChildren();
+    pages = [];
+    canvases = [];
+    factors = [];
+    const factor = density();
     for (let number = 1; number <= document_.numPages; number++) {
       const page = await document_.getPage(number);
-      const base = page.getViewport({ scale: 1 });
-      const scale = (available / base.width) * RENDER_SCALE;
-      const rendered = page.getViewport({ scale });
       const canvas = document.createElement("canvas");
-      canvas.width = Math.floor(rendered.width);
-      canvas.height = Math.floor(rendered.height);
       canvas.style.display = "block";
       canvas.style.width = "100%";
       canvas.style.height = "auto";
       container.appendChild(canvas);
-      const context = canvas.getContext("2d");
-      if (!context) continue;
-      await page.render({ canvas, canvasContext: context, viewport: rendered }).promise;
+      pages.push(page);
+      canvases.push(canvas);
+      factors.push(0);
+      await paint(pages.length - 1, available, factor);
     }
     baseHeight = container.offsetHeight;
   };
 
   const spread = () => {
     const [first, second] = [...points.values()];
-    return Math.hypot(first.x - second.x, first.y - second.y);
+    return first && second ? Math.hypot(first.x - second.x, first.y - second.y) : 0;
   };
 
   const centre = () => {
     const [first, second] = [...points.values()];
     return { x: (first.x + second.x) / HALF, y: (first.y + second.y) / HALF };
+  };
+
+  const regrip = () => {
+    if (points.size >= 2) {
+      pinchDistance = spread();
+      pinchZoom = zoom;
+      return;
+    }
+    pinchDistance = 0;
+    const [last] = [...points.values()];
+    if (!last) return;
+    dragX = last.x;
+    dragY = last.y;
   };
 
   const zoomAt = async (target: number, clientX: number, clientY: number) => {
@@ -85,19 +166,20 @@
     await tick();
     box.scrollLeft = left;
     box.scrollTop = top;
+    scheduleSharpen();
   };
 
   const onPointerDown = (event: PointerEvent) => {
+    if (event.isPrimary) points.clear();
     points.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (points.size === 2) {
-      pinchDistance = spread();
-      pinchZoom = zoom;
+    dragX = event.clientX;
+    dragY = event.clientY;
+    if (points.size >= 2) {
+      regrip();
       return;
     }
     if (event.pointerType !== "touch" || zoom <= MIN_ZOOM) return;
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-    dragX = event.clientX;
-    dragY = event.clientY;
   };
 
   const onPointerMove = (event: PointerEvent) => {
@@ -123,7 +205,7 @@
 
   const onPointerUp = (event: PointerEvent) => {
     points.delete(event.pointerId);
-    if (points.size < 2) pinchDistance = 0;
+    regrip();
   };
 
   const onWheel = (event: WheelEvent) => {
@@ -134,6 +216,10 @@
 
   const onDoubleClick = (event: MouseEvent) => {
     void zoomAt(zoom > MIN_ZOOM ? MIN_ZOOM : DOUBLE_TAP_ZOOM, event.clientX, event.clientY);
+  };
+
+  const onScroll = () => {
+    if (zoom > MIN_ZOOM) scheduleSharpen();
   };
 
   $effect(() => {
@@ -149,7 +235,12 @@
       .catch(() => {
         if (!cancelled) onerror();
       });
-    return () => (cancelled = true);
+    return () => {
+      cancelled = true;
+      generation++;
+      if (sharpenTimer !== null) clearTimeout(sharpenTimer);
+      task?.cancel();
+    };
   });
 </script>
 
@@ -167,6 +258,7 @@
   onpointercancel={onPointerUp}
   onwheel={onWheel}
   ondblclick={onDoubleClick}
+  onscroll={onScroll}
 >
   <div class="relative" style="width: {width * zoom}px; height: {baseHeight * zoom}px">
     <div
