@@ -28,10 +28,14 @@ the `sdk_auto_update` setting is on, which is why its import is deferred inside 
   `categories`, `trash`, `rewind`, `questions`, `attachments`, `claude_assets` / `claude_manage`,
   `system_monitor`, `network`, `usage`, `accounts`, `shared`.
 - `mcps/` — in-process MCP server exposed to Claude as `cconnect`.
-- `prompts/` — `CCONNECT.md` (appended to every turn, `{{SHARED_DIR}}` / `{{BASE_URL}}`
+- `prompts/` — `CCONNECT.md` (appended to every turn, `{{SHARED_DIR}}` / `{{SHARED_URL}}`
   substituted per request), `BLOCKS.md`, `BROWSER.md` and `SUGGESTIONS.md`. Versioned, so
   the user-owned `USER.md` and the per-project prompts live in `data/config/prompts/`
-  instead (never deleted — emptied).
+  instead (never deleted — emptied). `{{SHARED_URL}}` resolves to `config.SHARED_SCHEME`
+  (`cconnect://shared`) and never to a host: the prompt is fixed when the CLI session is
+  created, so an address baked into it is stale the moment the app changes environment.
+  `/api/capabilities` publishes the scheme as `shared_scheme` and the app swaps it for the
+  server it is talking to, which is the only side that knows.
 
 ## Auth
 
