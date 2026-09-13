@@ -369,6 +369,7 @@
     permissionMode={chat.effectivePermissionMode}
     permissionSelected={chat.permissionOverride}
     account={chat.effectiveAccount}
+    switching={chat.switchingAccount}
     accountSelected={chat.accountOverride}
     onAccount={(value) => chat.setAccount(value)}
     streamTokens={chat.effectiveStreamTokens}

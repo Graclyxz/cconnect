@@ -206,6 +206,7 @@ export class ChatState {
   modelOverride = $state("");
   effortOverride = $state("");
   accountOverride = $state("");
+  switchingAccount = $state(false);
   streamingOverride = $state<boolean | null>(null);
 
   capabilities = $state<Capabilities | null>(null);
@@ -1028,6 +1029,9 @@ export class ChatState {
     this.onOverrides?.({ account });
     this.accountOverride = account;
     this.#pushGeneration({ account: account || this.account });
+    this.switchingAccount = (this.capabilities?.accounts ?? []).some(
+      (item) => item.id === account && item.provider,
+    );
     void this.refreshServerInfo();
   }
 
@@ -1319,7 +1323,9 @@ export class ChatState {
   }
 
   async refreshServerInfo() {
-    const capabilities = await this.#capabilities.capabilities(this.accountOverride || this.account);
+    const capabilities = await this.#capabilities
+      .capabilities(this.accountOverride || this.account)
+      .finally(() => (this.switchingAccount = false));
     if (capabilities) {
       this.capabilities = capabilities;
       backend.rememberScheme(this.environment, capabilities.sharedScheme);

@@ -484,6 +484,8 @@ textarea::selection {
 .markdown a {
   color: var(--c-accent);
   text-decoration: underline;
+  -webkit-user-drag: none;
+  -webkit-touch-callout: none;
 }
 
 .md-link-icon {

@@ -23,6 +23,7 @@
     capabilities: Capabilities | null;
     ready: boolean;
     connecting: boolean;
+    switching: boolean;
     disconnected: boolean;
     model: string;
     modelSelected: string;
@@ -52,6 +53,7 @@
     capabilities,
     ready,
     connecting,
+    switching,
     disconnected,
     model,
     modelSelected,
@@ -150,7 +152,7 @@
       <StatusDot class="bg-red" box={16} dot={10} />
       <span class="whitespace-nowrap">{t("DISCONNECTED")}</span>
     </span>
-  {:else if connecting || !ready}
+  {:else if connecting || !ready || switching}
     <span class={STATE_CLASS}>
       <LoadingIndicator size={16} />
       <span class="whitespace-nowrap">{connecting ? t("CONNECTING") : t("LOADING")}</span>

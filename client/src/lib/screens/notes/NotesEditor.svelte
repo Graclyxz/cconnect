@@ -12,6 +12,6 @@
     value={scratch.text}
     oninput={(event) => scratch.write(event.currentTarget.value)}
     spellcheck="false"
-    class="min-h-0 flex-1 resize-none bg-transparent p-4 font-mono text-body-md caret-accent outline-none"
+    class="min-h-0 flex-1 resize-none bg-transparent p-4 font-mono text-body-sm leading-[18px] caret-accent outline-none"
   ></textarea>
 {/if}
