@@ -1,12 +1,13 @@
-- The Claude screen no longer floods the server with requests for its status and your plan usage, again and again, for as long as you leave it open
-- A compaction you watch happen no longer leaves the Compacted block and the whole turn behind it repeated a second time
-- The monitor shows what it can read instead of spinning forever, so processor, memory, disks and battery still arrive when the machine keeps one of the readings to itself
-- A server running with administrator rights falls back to Auto instead of failing on every message, since Bypass cannot be used there at all
-- The official Anthropic marketplace is added on its own when your Claude install carries none, so Plugins no longer sits at zero on a fresh machine
-- The side panel still remembers where you were when you move between tabs, but Claude, the monitor, Files and the project tree load fresh again when you open them full screen
-- In the permission menu the Server row shows the icon of the server's own default, not the one you picked for that chat
-- On the phone the folder button is gone from the file picker, where it opened nothing, and the list underneath it was already browsing the right machine
-- A clean install of the server starts again, the restore dialog sits at the right width, lists on touch screens stop reserving a strip for a scrollbar that never appears, and the network readings answer instead of failing
+- PDFs zoom with a pinch and pan with your finger, and each page is redrawn at the size you are looking at instead of being stretched
+- After a pinch, one finger pans again instead of zooming, in the PDF viewer and in image preview alike
+- Buttons, rows and menu entries answer to your finger with a press effect on touch screens
+- A file you share opens with the app that handles it, instead of only being passed to the share sheet
+- A message you send while Claude is working is kept when you interrupt the turn, instead of being thrown away
+- A new chat is named in the language you are writing in, and stays in the list while it works instead of vanishing until it finishes
+- Opening a thinking or tool block on the phone no longer shifts the text around it by a pixel
+- The keyboard, the system bars and the safe areas come from Android itself, so the composer, the drawer and the dialogs sit where they belong, and selecting text no longer leaves the app drawing by processor afterwards
+- The project tree stops re-reading itself in a loop while you browse a repository, and stopping the server from Settings stops it for good instead of letting it come back
+- Long server output wraps inside its panel, the storage group hides when the machine reports no disks, the browser panel says when none is installed instead of spinning, the changelog offers to retry when GitHub fails, the accent dialog closes when you pick a colour, compressing proposes the folder's real name, and the drawer stays open when you come back from another screen
 
 > [!NOTE]
 > The web version is available at https://app.cconnect.dev/
