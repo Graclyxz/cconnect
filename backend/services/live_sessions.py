@@ -404,12 +404,14 @@ class LiveSession:
         if not await self._send_stop():
             return False
         self._drained.clear()
+        self._stopping = True
         await self._emit({"type": "interrupted"})
         waiter = asyncio.create_task(self._drained.wait())
         try:
             await asyncio.wait([waiter, self._worker], timeout=STOP_GRACE, return_when=asyncio.FIRST_COMPLETED)
         finally:
             waiter.cancel()
+        self._stopping = not self._drained.is_set()
         return True
 
     def _requeue_inflight(self) -> bool:
