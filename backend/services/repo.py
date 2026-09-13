@@ -1,27 +1,18 @@
 """Updates the backend in place from the git checkout it runs from."""
 
-import os
 import subprocess
 import sys
 
 from core import paths
+from services import git
 
 _TIMEOUT = 120
-_NO_PROMPT = {"GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "", "SSH_ASKPASS": ""}
 
 RELOADS = sys.platform != "win32"
 
 
-def _git(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
-        ["git", "-C", str(paths.BACKEND_DIR), *args],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=_TIMEOUT,
-        env={**os.environ, **_NO_PROMPT},
-    )
+def _git(*args: str, writes: bool = False) -> subprocess.CompletedProcess:
+    return git.run(paths.BACKEND_DIR, *args, timeout=_TIMEOUT, writes=writes)
 
 
 def revision() -> str:
@@ -65,7 +56,7 @@ def check() -> dict:
     if not revision():
         return status()
     try:
-        result = _git("fetch", "--quiet")
+        result = _git("fetch", "--quiet", writes=True)
     except (OSError, subprocess.SubprocessError) as exc:
         return {**status(), "ok": False, "message": str(exc)}
     return {
@@ -80,7 +71,7 @@ def pull() -> dict:
     if not before:
         return {**status(), "ok": False, "message": "", "changed": False}
     try:
-        result = _git("pull", "--rebase")
+        result = _git("pull", "--rebase", writes=True)
     except (OSError, subprocess.SubprocessError) as exc:
         return {**status(), "ok": False, "message": str(exc), "changed": False}
     return {

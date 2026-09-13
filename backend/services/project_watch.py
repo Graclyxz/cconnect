@@ -12,6 +12,7 @@ from typing import Optional
 
 from loguru import logger
 
+from core import paths
 from services import project_files
 
 _DEBOUNCE_SECONDS = 0.4
@@ -21,6 +22,8 @@ _GIT_INTERNALS = {"index", "HEAD"}
 def _relevant(path: str) -> bool:
     """Ignored paths are noise, and the backend writes plenty of it inside its own project."""
     target = Path(path)
+    if target.is_relative_to(paths.DATA_DIR):
+        return False
     parts = target.parts
     if ".git" in parts:
         tail = parts[parts.index(".git") + 1 :]

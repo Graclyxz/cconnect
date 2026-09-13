@@ -7,7 +7,7 @@ from typing import Optional
 
 from loguru import logger
 
-from services import chat_list, files
+from services import chat_list, files, git
 
 _GIT_TIMEOUT = 30
 _SEARCH_LIMIT = 200
@@ -48,15 +48,7 @@ def repo_of(folder: Path) -> Optional[Path]:
 
 def _git(root: Path, *args: str) -> Optional[str]:
     try:
-        result = subprocess.run(
-            ["git", "-C", str(root), *args],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=_GIT_TIMEOUT,
-            stdin=subprocess.DEVNULL,
-        )
+        result = git.run(root, *args, timeout=_GIT_TIMEOUT)
     except (OSError, subprocess.SubprocessError) as exc:
         logger.debug(f"git {args[0]} in {root} failed: {type(exc).__name__}: {exc}")
         return None
