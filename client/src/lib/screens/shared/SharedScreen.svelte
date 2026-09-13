@@ -889,9 +889,9 @@
   <DropOverlay />
   <PathBar
     path={archive === null ? path : [archive, archiveDir].filter(Boolean).join("/")}
-    root={archive === null ? ceiling : ""}
+    root={ceiling}
     label={ceiling ? projectNameOf(projects, ceiling) : null}
-    nameOf={archive === null ? entryLabel : undefined}
+    nameOf={entryLabel}
     {searching}
     {narrow}
     query={searchQuery}
