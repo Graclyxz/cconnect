@@ -1,5 +1,5 @@
 import { backend } from "$lib/services/backend.svelte";
-import { dismissTop } from "$lib/app/dismissStack";
+import { consumingDismiss, dismissTop } from "$lib/app/dismissStack";
 import { isTauri } from "$lib/platform";
 
 export const ROUTES = [
@@ -75,10 +75,8 @@ class Navigation {
 
     $effect(() => {
       const onPopState = () => {
-        if (dismissTop()) {
-          window.history.pushState(null, "", this.#url());
-          return;
-        }
+        if (consumingDismiss()) return;
+        if (dismissTop()) return;
         if (this.previewOverlay) {
           this.preview = null;
           return;
