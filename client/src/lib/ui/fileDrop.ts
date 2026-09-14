@@ -51,20 +51,28 @@ let listening = false;
 const listenNative = () => {
   if (listening || !isTauri) return;
   listening = true;
+  let carryingFiles = false;
   void import("@tauri-apps/api/webview").then(({ getCurrentWebview }) =>
     getCurrentWebview().onDragDropEvent(async ({ payload }) => {
+      if (payload.type === "enter") {
+        carryingFiles = payload.paths.length > 0;
+        return;
+      }
       if (payload.type === "over") {
-        markDropTarget(zoneAt(payload.position)?.node ?? null);
+        if (carryingFiles) markDropTarget(zoneAt(payload.position)?.node ?? null);
         return;
       }
       if (payload.type !== "drop") {
+        carryingFiles = false;
         markDropTarget(null);
         return;
       }
-      const target = zoneAt(payload.position);
+      const dropped = payload.paths;
+      const target = carryingFiles || dropped.length ? zoneAt(payload.position) : null;
+      carryingFiles = false;
       markDropTarget(null);
       if (!target) return;
-      const files = await readPaths(payload.paths);
+      const files = await readPaths(dropped);
       if (files.length) target.zone.drop(files);
     }),
   );

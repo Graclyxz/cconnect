@@ -324,7 +324,7 @@
         <div
           role="separator"
           aria-orientation="vertical"
-          class="absolute inset-y-0 left-0 z-10 w-1 cursor-col-resize"
+          class="absolute inset-y-0 left-0 z-30 w-1 cursor-col-resize"
           use:resizeHandle={{
             axis: "x",
             invert: true,
