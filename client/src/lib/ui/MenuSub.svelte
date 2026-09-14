@@ -4,6 +4,7 @@
   import type { Snippet } from "svelte";
   import { layout } from "$lib/platform/layout.svelte";
   import { MENU_PADDING, SUBMENU_CONTENT_CLASS } from "$lib/ui/menuSurface";
+  import { returnFocus } from "./keepFocus";
 
   interface Props {
     text: string;
@@ -41,6 +42,7 @@
 
 <DropdownMenu.Sub>
   <DropdownMenu.SubTrigger
+    onfocusin={returnFocus}
     class="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left transition-colors outline-none select-none"
   >
     {@render leading?.()}
