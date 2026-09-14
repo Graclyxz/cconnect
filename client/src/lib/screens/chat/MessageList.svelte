@@ -256,10 +256,34 @@
     );
   };
 
-  const toggleExpanded = (id: number) =>
+  let heldNode: HTMLElement | null = null;
+
+  const releaseHeight = () => {
+    if (!heldNode) return;
+    heldNode.style.height = "";
+    heldNode = null;
+  };
+
+  $effect(() => {
+    void visible.length;
+    if (!streaming || follow) {
+      releaseHeight();
+      return;
+    }
+    const nodes = container?.querySelectorAll<HTMLElement>("[data-mid]");
+    const last = nodes?.length ? nodes[nodes.length - 1] : null;
+    if (!last || last === heldNode) return;
+    releaseHeight();
+    last.style.height = `${last.getBoundingClientRect().height}px`;
+    heldNode = last;
+  });
+
+  const toggleExpanded = (id: number) => {
+    releaseHeight();
     anchorGrowth(container?.querySelector<HTMLElement>(`[data-mid="${id}"]`) ?? null, () => {
       expandedIds[id] = !expandedIds[id];
     });
+  };
 
   const measureScrollbar = () => {
     if (!container) return;
