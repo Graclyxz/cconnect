@@ -191,7 +191,8 @@ def models(info: dict[str, Any], account: Optional[str] = None) -> list[dict]:
     """The CLI's model lineup in the capabilities shape."""
     from services import accounts
 
-    listed = _provider_models.get(accounts.resolve(account) if account else accounts.default_account())
+    resolved = accounts.resolve(account) if account else accounts.default_account()
+    listed = _provider_models.get(resolved)
     if listed:
         levels = _cli_levels(info)
         return [
@@ -199,6 +200,8 @@ def models(info: dict[str, Any], account: Optional[str] = None) -> list[dict]:
              "effort_levels": levels if entry.get("thinking") else []}
             for entry in listed
         ]
+    if accounts.provider_for(resolved):
+        return []
     return [
         {
             "id": entry["value"],

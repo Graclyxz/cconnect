@@ -330,7 +330,11 @@
     <div class="shrink-0" bind:clientHeight={composerHeight}>
       <Composer
         {focused}
-        blocked={chat.link === "disconnected"}
+        blocked={chat.link === "disconnected" ||
+          chat.link === "connecting" ||
+          !chat.capabilitiesReady ||
+          chat.switchingAccount ||
+          !chat.capabilities?.models.length}
         streaming={chat.sideOpen ? chat.sideStreaming : busy}
         draft={chat.sideOpen ? chat.sideDraft : chat.draft}
         onDraft={(value) => (chat.sideOpen ? (chat.sideDraft = value) : (chat.draft = value))}

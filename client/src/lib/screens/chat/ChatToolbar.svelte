@@ -197,7 +197,7 @@
       </PopupMenu>
     {/if}
 
-    {#if effortLevels.length}
+    {#if effortLevels.length && !switching}
       <PopupMenu
         open={openMenu === "effort"}
         side="top"
