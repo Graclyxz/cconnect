@@ -211,6 +211,7 @@ export class ChatState {
 
   capabilities = $state<Capabilities | null>(null);
   capabilitiesReady = $state(false);
+  #serverInfoRequest = 0;
 
   historyProjectKey = $state<string | null>(null);
   viewOnly = $state<TrashedSession | null>(null);
@@ -1323,9 +1324,12 @@ export class ChatState {
   }
 
   async refreshServerInfo() {
-    const capabilities = await this.#capabilities
-      .capabilities(this.accountOverride || this.account)
-      .finally(() => (this.switchingAccount = false));
+    const request = ++this.#serverInfoRequest;
+    const capabilities = await this.#capabilities.capabilities(
+      this.accountOverride || this.account,
+    );
+    if (request !== this.#serverInfoRequest) return;
+    this.switchingAccount = false;
     if (capabilities) {
       this.capabilities = capabilities;
       backend.rememberScheme(this.environment, capabilities.sharedScheme);
@@ -1336,6 +1340,7 @@ export class ChatState {
       this.effort = capabilities.defaults.effort || this.effort;
     }
     const snapshot = await this.#settings.get();
+    if (request !== this.#serverInfoRequest) return;
     if (snapshot) {
       const served = (capabilities ?? this.capabilities)?.models ?? [];
       const shared = served.some((item) => item.id === snapshot.model);

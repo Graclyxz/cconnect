@@ -91,6 +91,7 @@
   "GENERATION": "Generación",
   "SERVER_DEFAULT": "Servidor",
   "MODEL": "Modelo",
+  "MODEL_UNAVAILABLE": "No disponible",
   "EFFORT": "Esfuerzo",
   "STREAMING": "Transmitir tokens",
   "OPTION_ON": "Activado",

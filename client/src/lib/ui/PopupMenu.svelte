@@ -37,13 +37,18 @@
 
 <DropdownMenu.Root {open} {onOpenChange}>
   {#if triggerChild}
-    <DropdownMenu.Trigger onmousedown={holdFocus}>
+    <DropdownMenu.Trigger onmousedown={holdFocus} oncontextmenu={(event) => event.preventDefault()}>
       {#snippet child({ props })}
         {@render triggerChild(props)}
       {/snippet}
     </DropdownMenu.Trigger>
   {:else}
-    <DropdownMenu.Trigger onmousedown={holdFocus} class={triggerClass} aria-label={label}>
+    <DropdownMenu.Trigger
+      onmousedown={holdFocus}
+      oncontextmenu={(event) => event.preventDefault()}
+      class={triggerClass}
+      aria-label={label}
+    >
       {@render trigger?.()}
     </DropdownMenu.Trigger>
   {/if}

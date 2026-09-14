@@ -17,6 +17,7 @@
   const HALF = 2;
 
   let tip = $state<{ x: number; top: number; bottom: number } | null>(null);
+  let trigger = $state<HTMLElement | null>(null);
   let timer: ReturnType<typeof setTimeout> | null = null;
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -66,6 +67,7 @@
 
 {#if isTouch}
   <span
+    bind:this={trigger}
     role="presentation"
     class={className}
     ontouchstart={pressStart}
@@ -80,4 +82,4 @@
     {@render children()}
   </span>
 {/if}
-<TouchTip text={label} anchor={tip} onDismiss={() => (tip = null)} />
+<TouchTip text={label} anchor={tip} within={trigger} onDismiss={hide} />

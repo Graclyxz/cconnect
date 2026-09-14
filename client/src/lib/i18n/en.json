@@ -91,6 +91,7 @@
   "GENERATION": "Generation",
   "SERVER_DEFAULT": "Server",
   "MODEL": "Model",
+  "MODEL_UNAVAILABLE": "Unavailable",
   "EFFORT": "Effort",
   "STREAMING": "Stream tokens",
   "OPTION_ON": "On",

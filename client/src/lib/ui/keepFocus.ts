@@ -9,9 +9,11 @@ export const restoreFocus = hold;
 
 export const keepFocus = (node: HTMLElement) => {
   node.addEventListener("mousedown", hold);
+  node.addEventListener("pointerdown", hold);
   return {
     destroy() {
       node.removeEventListener("mousedown", hold);
+      node.removeEventListener("pointerdown", hold);
     },
   };
 };

@@ -124,6 +124,7 @@
   const accountLabel = $derived(activeAccount?.label ?? account);
   const AccountIcon = $derived(activeAccount?.provider ? Component : CircleUser);
 
+  const modelsAvailable = $derived((capabilities?.models.length ?? 0) > 0);
   const modelLabel = $derived(capabilities?.models.find((item) => item.id === model)?.label ?? model);
   const contextWindow = $derived(contextWindowFor(capabilities, model));
   const permissionLabel = $derived(
@@ -152,37 +153,49 @@
       <StatusDot class="bg-red" box={16} dot={10} />
       <span class="whitespace-nowrap">{t("DISCONNECTED")}</span>
     </span>
-  {:else if connecting || !ready || switching}
+  {:else if connecting || !ready}
     <span class={STATE_CLASS}>
       <LoadingIndicator size={16} />
       <span class="whitespace-nowrap">{connecting ? t("CONNECTING") : t("LOADING")}</span>
     </span>
   {:else}
-    <PopupMenu
-      open={openMenu === "model"}
-      side="top"
-      triggerClass={SLOT}
-      onOpenChange={(open) => (openMenu = open ? "model" : null)}
-    >
-      {#snippet trigger()}
-        <TooltipWrap label={t("MODEL")} class={SLOT}>
-          <span class={ITEM_CLASS}>
-            <Sparkles size={16} class="shrink-0 text-accent" />
-            <span class="whitespace-nowrap">{modelLabel}</span>
-          </span>
-        </TooltipWrap>
-      {/snippet}
-      {#each modelOptions as option (option.value)}
-        <MenuItem
-          text={option.label}
-          selected={option.value === modelSelected}
-          onclick={() => {
-            onModel(option.value);
-            openMenu = null;
-          }}
-        />
-      {/each}
-    </PopupMenu>
+    {#if switching}
+      <span class={STATE_CLASS}>
+        <LoadingIndicator size={16} />
+        <span class="whitespace-nowrap">{t("LOADING")}</span>
+      </span>
+    {:else if !modelsAvailable}
+      <span class={STATE_CLASS}>
+        <Sparkles size={16} class="shrink-0 text-on-surface-variant" />
+        <span class="whitespace-nowrap">{t("MODEL_UNAVAILABLE")}</span>
+      </span>
+    {:else}
+      <PopupMenu
+        open={openMenu === "model"}
+        side="top"
+        triggerClass={SLOT}
+        onOpenChange={(open) => (openMenu = open ? "model" : null)}
+      >
+        {#snippet trigger()}
+          <TooltipWrap label={t("MODEL")} class={SLOT}>
+            <span class={ITEM_CLASS}>
+              <Sparkles size={16} class="shrink-0 text-accent" />
+              <span class="whitespace-nowrap">{modelLabel}</span>
+            </span>
+          </TooltipWrap>
+        {/snippet}
+        {#each modelOptions as option (option.value)}
+          <MenuItem
+            text={option.label}
+            selected={option.value === modelSelected}
+            onclick={() => {
+              onModel(option.value);
+              openMenu = null;
+            }}
+          />
+        {/each}
+      </PopupMenu>
+    {/if}
 
     {#if effortLevels.length}
       <PopupMenu

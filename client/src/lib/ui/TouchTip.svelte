@@ -6,20 +6,53 @@
   interface Props {
     text?: string;
     anchor: { x: number; top: number; bottom: number } | null;
+    within?: HTMLElement | null;
     onDismiss?: (() => void) | null;
     children?: Snippet;
   }
 
-  const { text = "", anchor, onDismiss = null, children = undefined }: Props = $props();
+  const { text = "", anchor, within = null, onDismiss = null, children = undefined }: Props = $props();
+
+  let keyboardWhenShown: number | null = null;
+
+  $effect(() => {
+    const keyboard = layout.keyboard;
+    if (anchor === null) {
+      keyboardWhenShown = null;
+      return;
+    }
+    if (keyboardWhenShown === null) {
+      keyboardWhenShown = keyboard;
+      return;
+    }
+    if (keyboard !== keyboardWhenShown) onDismiss?.();
+  });
 
   $effect(() => {
     if (anchor === null || !onDismiss) return;
-    const close = () => onDismiss();
+    const close = (event?: Event) => {
+      const target = event?.target;
+      if (within && target instanceof Node && within.contains(target)) return;
+      onDismiss();
+    };
+    const view = window.visualViewport;
     window.addEventListener("resize", close);
     window.addEventListener("scroll", close, true);
+    window.addEventListener("pointerdown", close, true);
+    window.addEventListener("touchmove", close, true);
+    window.addEventListener("wheel", close, true);
+    window.addEventListener("keydown", close, true);
+    view?.addEventListener("resize", close);
+    view?.addEventListener("scroll", close);
     return () => {
       window.removeEventListener("resize", close);
       window.removeEventListener("scroll", close, true);
+      window.removeEventListener("pointerdown", close, true);
+      window.removeEventListener("touchmove", close, true);
+      window.removeEventListener("wheel", close, true);
+      window.removeEventListener("keydown", close, true);
+      view?.removeEventListener("resize", close);
+      view?.removeEventListener("scroll", close);
     };
   });
 

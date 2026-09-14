@@ -53,6 +53,7 @@
 
   let open = $state(false);
   let touchTip = $state<{ x: number; top: number; bottom: number } | null>(null);
+  let trigger = $state<HTMLElement | null>(null);
   let timer: ReturnType<typeof setTimeout> | null = null;
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
   let longPressed = false;
@@ -148,6 +149,7 @@
   </button>
 {:else if isTouch}
   <button
+    bind:this={trigger}
     type="button"
     disabled={!enabled}
     aria-label={label}
@@ -163,7 +165,7 @@
   >
     {@render children()}
   </button>
-  <TouchTip text={label} anchor={touchTip} onDismiss={hideTouchTip} />
+  <TouchTip text={label} anchor={touchTip} within={trigger} onDismiss={hideTouchTip} />
 {:else}
   <Tooltip.Provider>
     <Tooltip.Root {open} onOpenChange={(value) => !value && hide()}>

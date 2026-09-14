@@ -25,6 +25,7 @@
   const HALF = 2;
 
   let touchTip = $state<{ x: number; top: number; bottom: number } | null>(null);
+  let trigger = $state<HTMLElement | null>(null);
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
   const hide = () => {
@@ -84,6 +85,7 @@
 
 {#if isTouch}
   <button
+    bind:this={trigger}
     type="button"
     use:keepFocus
     onclick={toggle}
@@ -92,7 +94,7 @@
   >
     {@render ring()}
   </button>
-  <TouchTip anchor={touchTip} onDismiss={hide}>
+  <TouchTip anchor={touchTip} within={trigger} onDismiss={hide}>
     {@render detail()}
   </TouchTip>
 {:else}
